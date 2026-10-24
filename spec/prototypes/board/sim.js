@@ -217,7 +217,13 @@
       for (const g of groups) g.score = g.live;
       const byId = new Map(groups.map(g => [g.id, g]));
       order = order.filter(id => byId.has(id));
-      for (const g of groups.slice().sort((x, y) => y.score - x.score)) if (!order.includes(g.id)) order.push(g.id);
+      // Groups new to the board enter at the place of their value, without an event.
+      for (const g of groups.slice().sort((x, y) => y.score - x.score || y.lastActive - x.lastActive)) {
+        if (order.includes(g.id)) continue;
+        const at = order.findIndex(id => byId.get(id).score < g.score);
+        order.splice(at < 0 ? order.length : at, 0, g.id);
+      }
+      const baseline = order.slice();
       const leads = (a, b) => a.score > b.score * 1.1 + 1 || (b.score < 0.05 && a.score < 0.05 && a.lastActive > b.lastActive + 1);
       const held = new Map();
       for (const a of groups) for (const b of groups) {
@@ -235,10 +241,11 @@
         }
       }
       groups.sort((x, y) => order.indexOf(x.id) - order.indexOf(y.id));
+      // Only passing someone is an event (DESIGN 2c); places gained because others left are not.
       const events = [];
       groups.forEach((g, i) => {
         g.rank = i + 1;
-        g.prevRank = prevRanks.get(g.id) ?? g.rank;
+        g.prevRank = baseline.indexOf(g.id) + 1;
         if (g.rank < g.prevRank) events.push({ type: g.rank === 1 ? "newLeader" : "overtake", id: g.id, from: g.prevRank, to: g.rank });
       });
       prevRanks = new Map(groups.map(g => [g.id, g.rank]));

@@ -1302,8 +1302,11 @@ interaction.
 **Ranking stability.** A group passes the group above it only after leading it by more than 10 % + 1 tok/s on two
 consecutive engine ticks (1 s), or immediately when it leads by more than 2× + 20; groups that are all below 0.05
 order by latest activity. So the 3 s live window's wobble never reshuffles the board, and the displayed values agree
-with the order except inside that 10 % band. Every reordering emits `overtake` (climber, from, to) and, when the
-first place changes, `newLeader`. Sub rows sort by live value, latest activity, id; they emit nothing.
+with the order except inside that 10 % band. A group new to the board enters at the place of its value; groups that
+leave are dropped. Only passing emits an event: `overtake` (climber, from, to; ranks before and after the passes of
+that tick, ignoring places gained because others left or entered) and `newLeader` when the climber reaches first.
+Sub rows sort by live value, latest activity, id; they emit nothing. Shared cases:
+`spec/fixtures/board-ranking-cases.json`, generated and checked by `spec/tools/board_ranking.py`.
 
 ### Motion and effects (all styles)
 
