@@ -52,6 +52,22 @@ struct ParserBehaviorTests {
         #expect(upserts.first?.record.startMs == nil)
     }
 
+    @Test func claudeToolResultThatEndsTheRunSetsIdle() {
+        var deduper = Deduper()
+        let result = #"{"type":"user","toolEndsTurn":true,"entrypoint":"cli","cwd":"/w/p","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":"ok"}]},"timestamp":"2026-10-20T10:00:03Z"}"#
+        let (ended, _) = Self.run(.claude, [
+            Self.claudeUser("2026-10-20T10:00:00Z", content: #""count""#),
+            Self.claudeAssistant("2026-10-20T10:00:02Z", id: "m1", output: 10, stop: #""tool_use""#),
+            result,
+        ], deduper: &deduper)
+        #expect(ended.state.phase == .idle)
+        #expect(ended.state.inFlightStartMs == nil)
+        let (continued, _) = Self.run(.claude, [
+            result.replacingOccurrences(of: #""toolEndsTurn":true"#, with: #""toolEndsTurn":false"#),
+        ], deduper: &deduper)
+        #expect(continued.state.phase == .generating)
+    }
+
     @Test func claudeMergesRepeatedLinesAndMarksOnlyTheFirstAsCompletion() {
         var deduper = Deduper()
         let (parser, upserts) = Self.run(.claude, [

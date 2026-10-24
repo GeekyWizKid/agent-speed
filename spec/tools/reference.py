@@ -367,7 +367,7 @@ def claude_line(state, obj, dedupe):
     if kind == "api-request":
         state.pending, state.precise, state.phase, state.in_flight = ts, True, "generating", ts
     elif kind == "user":
-        if is_interrupt(obj.get("message")):
+        if is_interrupt(obj.get("message")) or obj.get("toolEndsTurn") is True:
             state.phase, state.pending, state.precise, state.in_flight = "idle", None, False, None
         else:
             if not state.precise:

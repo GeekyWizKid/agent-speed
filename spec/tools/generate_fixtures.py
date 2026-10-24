@@ -314,6 +314,22 @@ expect(rel, source="claudeDesktop", project="orbit", model="claude-opus-5-5", is
        phase="tools", inFlightStartMs=None, lastLineMs=at(3, 5), malformedLines=0,
        responses=[resp("msg_C", at(3, 0), at(3, 5), 30003, 30000, 0, 500, 0, "claude-opus-5-5", fast=True)])
 
+# --- Claude Desktop sub-agent whose last tool result ends its run --------------
+rel = "claude/projects/-Users-dev-projects-orbit/s-desk/subagents/agent-wf1.jsonl"
+w = dict(d, entry="claude-desktop-3p", sidechain=True, agentId="wf1")
+write_jsonl(rel, [
+    user(at(3, 1), "Count to 50 and report", **w),
+    assistant(at(3, 3), "msg_W", ["text"], cl_usage(3, 0, 900, 40), None, **w),
+    assistant(at(3, 4), "msg_W", ["tool_use"], cl_usage(3, 0, 900, 60), "tool_use", **w),
+    claude("attachment", at(3, 4, 4), attachment={"type": "structured_output", "data": {"count": 50}}, **w),
+    user(at(3, 4, 6), [{"type": "tool_result", "tool_use_id": "t9", "content": "Structured output provided successfully"}],
+         toolEndsTurn=True, **w),
+])
+expect(rel, source="claudeDesktop", project="orbit", model="claude-opus-5-5", isSubagent=True,
+       parentFile="claude/projects/-Users-dev-projects-orbit/s-desk.jsonl",
+       phase="idle", inFlightStartMs=None, lastLineMs=at(3, 4, 6), malformedLines=0,
+       responses=[resp("msg_W", at(3, 1), at(3, 4), 903, 900, 0, 60, 0, "claude-opus-5-5")])
+
 
 # --- DeepSeek Harness (dsh): zstd frame streams ------------------------------
 

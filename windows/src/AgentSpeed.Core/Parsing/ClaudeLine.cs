@@ -35,6 +35,9 @@ internal struct ClaudeLine
     public EntrypointKind Entrypoint;
     public bool IsSidechain;
     public bool IsInterrupt;
+
+    /// <summary><c>toolEndsTurn == true</c>: the tool result ends the agent's run, no request follows.</summary>
+    public bool ToolEndsTurn;
     public bool HasToolUse;
     public StopReasonKind StopReason;
     public string? Cwd;
@@ -157,6 +160,12 @@ internal static class ClaudeLineReader
         {
             reader.Read();
             result.IsSidechain = reader.TokenType == JsonTokenType.True;
+            JsonScan.SkipValue(ref reader);
+        }
+        else if (reader.ValueTextEquals("toolEndsTurn"u8))
+        {
+            reader.Read();
+            result.ToolEndsTurn = reader.TokenType == JsonTokenType.True;
             JsonScan.SkipValue(ref reader);
         }
         else if (hints.Assistant && reader.ValueTextEquals("requestId"u8))

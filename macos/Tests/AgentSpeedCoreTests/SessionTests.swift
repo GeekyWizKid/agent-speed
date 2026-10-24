@@ -32,12 +32,12 @@ struct SessionTests {
         let session = TranscriptSession(configuration: configuration)
         let fixtureDay = Clock.milliseconds(Calendar.current.startOfDay(for: Date(timeIntervalSince1970: 1_792_490_400)))
         let summary = session.seed(todayStartMs: fixtureDay)
-        #expect(summary.filesRead == 9)
-        #expect(summary.filesDiscovered == 9)
+        #expect(summary.filesRead == 10)
+        #expect(summary.filesDiscovered == 10)
         #expect(Set(session.responses.map(\.key)) == [
             "resp-1", "resp-2", "resp-3", "resp-4", "codex-legacy:thread-legacy:20213", "codex-legacy:thread-legacy:41000",
             "resp-z1", "resp-z2",
-            "msg_A", "msg_B", "msg_C", "msg_D", "msg_E", "dsm-1", "dsm-2", "dss-1",
+            "msg_A", "msg_B", "msg_C", "msg_D", "msg_E", "msg_W", "dsm-1", "dsm-2", "dss-1",
         ])
         #expect(session.responses.first { $0.key == "msg_B" }?.agentId.hasSuffix("s-cli.jsonl") == true)
         #expect(session.responses.first { $0.key == "dsm-1" }?.agentId.hasSuffix("session-dsh-main/session.v4.jsonl.zstd") == true)
@@ -64,6 +64,7 @@ struct SessionTests {
         let pairs = [
             ("rollout-2026-10-20T10-00-00-modern.jsonl", "rollout-2026-10-20T10-00-20-subagent.jsonl"),
             ("s-cli.jsonl", "agent-abc.jsonl"),
+            ("s-desk.jsonl", "agent-wf1.jsonl"),
             ("session-dsh-main/session.v4.jsonl.zstd", "session-dsh-sub/session.v4.jsonl.zstd"),
         ]
         for (parentName, childName) in pairs {
@@ -73,8 +74,8 @@ struct SessionTests {
             #expect(agents[child].parentId == agents[child - 1].id)
             #expect(agents[child - 1].parentId == nil)
         }
-        #expect(agents.count == 9)
-        #expect(agents.filter { $0.parentId != nil }.count == 3)
+        #expect(agents.count == 10)
+        #expect(agents.filter { $0.parentId != nil }.count == 4)
         _ = directory
     }
 
@@ -84,7 +85,7 @@ struct SessionTests {
         configuration.enabledSources = [.claudeDesktop]
         let session = TranscriptSession(configuration: configuration)
         _ = session.seed(todayStartMs: Self.startOfToday())
-        #expect(session.responses.map(\.key) == ["msg_C"])
+        #expect(session.responses.map(\.key) == ["msg_W", "msg_C"])
         _ = directory
     }
 

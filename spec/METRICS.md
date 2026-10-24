@@ -162,6 +162,7 @@ State: `pendingStartMs` (nullable), `preciseStart` (bool), `phase`.
 | --- | --- |
 | `type == "api-request"` | `pendingStartMs = ts`, `preciseStart = true`, phase `generating` (`inFlightStartMs = ts`) |
 | `type == "user"`, content contains a text block (or string content) starting with `[Request interrupted by user` | phase `idle`, `pendingStartMs = null`, `preciseStart = false` |
+| `type == "user"` with `toolEndsTurn == true` (the result of a tool that ends the agent's run, such as a sub-agent's `StructuredOutput` or `SubagentHandback`; no request follows) | phase `idle`, `pendingStartMs = null`, `preciseStart = false` |
 | other `type == "user"` | if not `preciseStart`: `pendingStartMs = ts`; phase `generating` (`inFlightStartMs = pendingStartMs`) |
 | `type == "assistant"` | see below |
 | anything else | only updates `lastLineMs` |
