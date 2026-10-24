@@ -1237,6 +1237,147 @@ rates of its sources; its own tier and title trackers (section 1 hysteresis and 
 `responseCompleted` events filtered by source; its own `peakToday` and `newPeak`. Editing an orb's sources recomputes
 its peak and suppresses its celebration for 60 s, so changing settings never fires confetti.
 
+## 2c. Leaderboard boards (排行看板)
+
+A board is a second kind of floating window, next to the orbs (which stay exactly as they are): a rounded square that
+ranks the user's agents by live speed, so the speed and what matters about every agent are visible at a glance. It
+comes in three styles. The visual reference for each style is its prototype in `spec/prototypes/board/`
+(`board-glass.html`, `board-timing.html`, `board-neon.html`, shared `sim.js` and `fx.js`): colors, radii, type sizes,
+spacing and motion curves in those files are normative wherever this section does not give a value. The prototypes
+render with HTML, SVG and canvas and stutter in a browser; the apps draw the same picture on the GPU (Frame policy,
+below).
+
+### Data model
+
+Persisted next to the orbs as one JSON value (key `boards`), written atomically on every change:
+
+```json
+{ "version": 1,
+  "boards": [ { "id": "…", "style": "neon", "size": "M", "sources": "all", "opacity": 1.0, "alwaysOnTop": true,
+                "clickThrough": false, "allSpaces": true, "visible": true } ],
+  "layouts": { "<arrangement key>": { "<board id>": { "display": "…", "xAnchor": "high", "x": 12, "yAnchor": "fraction", "y": 0.2 } } } }
+```
+
+| Field | Rule |
+| --- | --- |
+| `id` | UUID, never reused. |
+| `style` | `glass` (流光玻璃) · `timing` (計時塔) · `neon` (霓虹座艙); unknown → `glass`. |
+| `size` | `S` 280 × 280, `M` 340 × 340 (default), `L` 420 × 420 pt/DIP; unknown → `M`. |
+| `sources` | As an orb's (2b): `"all"` or METRICS 1 keys; the board counts only those sources (METRICS 6.8). |
+| `opacity`, `alwaysOnTop`, `clickThrough`, `allSpaces`, `visible` | As an orb's. |
+| `layouts` | As the orbs' (2b, arrangement keys, position records, at most 16 arrangements). |
+
+Global settings shared with the orbs: Appearance, Language, metric, General redline, title theme, Effects intensity,
+Celebrate new peaks. Limits: 0–4 boards; a fresh install and an upgrade have none. `boards.add` (quick menu,
+dashboard footer menu, Settings → 懸浮窗, an orb's context menu) creates one with the last used style (else `neon`),
+`M`, `"all"`, placed like a new orb (2b Placement) next to the window it came from; at 4 it is disabled with
+`boards.limit`. Boards and orbs never overlap: placement and snapping treat both as obstacles, using the rounded
+square (+12 pt) for a board.
+
+### Content
+
+All three styles show the same content; the style decides its look (Styles, below). Metric: the selected metric
+(output or total, METRICS 6.3); heat, tiers and title follow section 1 with the General redline and title theme.
+
+1. **Hero**: the board's live value (METRICS 6.8, `live_A`, formatted per METRICS 7, tabular digits), the unit, the
+   speed title in heat color, `agents.context` (generating and tools agents), and a history of `live_A`: glass a 60 s
+   sparkline, timing 30 one-second bars, neon a 24-segment LED bar lit to the heat with today's peak marked.
+2. **Ranking**: the agents of the board's sources (METRICS 6.7 list rules, filtered by 6.8), grouped by their root: a
+   group is a root agent and all its descendants (a sub-agent whose parent is not listed is its own root). Group speed
+   = the sum of its members' live values. Groups are ranked (Ranking stability, below); each group row shows the rank,
+   the root's phase badge in its source color (section 4), its project, model and `boards.subCount` when it has
+   sub-agents, the root's effort capsule (section 4, Agents), the group speed, and its share of `live_A` (glass and neon:
+   a glowing underline from the name to the value; timing: the interval to the group above, `boards.leader` on the first).
+   Under a group, its fastest generating sub-agents (smaller rows with their own capsule and value), then
+   `boards.moreSubs` (`+97 個子 agent · 8.6k`) for the rest. When groups do not fit, the last line is
+   `boards.moreGroups` with their summed speed.
+3. **Footer**: `boards.today` (today's output of the board's sources), today's cost (section 9) and `boards.peak` (`peakToday_A`).
+
+**Layout per size.** S: up to 4 groups, no sub rows, capsule without its word. M: up to 6 groups; sub rows two for #1,
+one for #2 and #3. L: up to 8 groups; three sub rows for #1–#3, two for #4–#5. Groups are placed first and sub rows
+only fill the room that remains, so a sub row never pushes a group out; no row is ever cut in half. Clicking a group
+toggles showing up to 8 of its sub-agents in that space (others collapse); the expansion ends after 60 s without
+interaction.
+
+**Ranking stability.** A group passes the group above it only after leading it by more than 10 % + 1 tok/s on two
+consecutive engine ticks (1 s), or immediately when it leads by more than 2× + 20; groups that are all below 0.05
+order by latest activity. So the 3 s live window's wobble never reshuffles the board, and the displayed values agree
+with the order except inside that 10 % band. Every reordering emits `overtake` (climber, from, to) and, when the
+first place changes, `newLeader`. Sub rows sort by live value, latest activity, id; they emit nothing.
+
+### Motion and effects (all styles)
+
+- **Rows** move to new places with a spring (glass: critically damped, settle ≈ 0.45 s; timing: damping 0.72,
+  slight overshoot; neon: 0.9) driven by the compositor; entering rows fade in 0.3 s from 10 pt below, leaving rows
+  fade out 0.3 s. Ranks roll vertically. Values update at the engine tick; a value that rises more than 5 % flashes
+  warm (white-hot then its heat color, 0.8 s), one that falls more than 5 % dims briefly.
+- **Hero number**: changed digits roll in (0.24 s) with a short motion blur; when rising they flash white-hot. A rise
+  of more than 8 % + 20 tok/s in one tick punches the number (scale 1.06, 0.4 s) and releases embers (glass: rising
+  sparks; timing: a horizontal spray; neon: rising sparks plus a lightning arc across the digits). A new `peakToday_A`
+  sweeps a gold sheen across the digits, pops `boards.newPeak` above them for 2.2 s and sends a gold ring from the
+  number.
+- **Perimeter**: comets race around the rounded square, clockwise, evenly spaced, each a bright core, a glow and a
+  fading tail in the heat color (white-hot core above h = 0.85). Count by effect tier: idle 1 (dim), cruise 1,
+  boost 2, overdrive 3, redline 4 (timing 1/1/2/2/3; neon 1/2/3/4/4). Lap time 7 s at idle down to 1.6 s at the
+  redline. From h = 0.55 a full ring lights and blooms around the board; at the redline sparks fly outward from each
+  comet head every 120 ms. A bloom outside the board grows with heat.
+- **Overtake**: a light sweep crosses the climber's row in its source color, streak particles fly off along it, a
+  burst leaves its rank and `▲n` pops before its value for 1.6 s (glass mint chip, timing green delta, neon mint
+  chip); timing's position block flashes green; neon arcs lightning from the climber's rank to the row it passed.
+- **New leader**: a gold shockwave and a white one expand from the first rank across the board, ~70 gold sparks burst,
+  and the comets turn gold and run 1.8× faster for 2.2 s; timing slides its `boards.newLeader` banner across the
+  hero; neon strikes lightning from the top edge to the rank and flashes the board.
+- **Style ambience**: glass — a heat-tinted aurora drifting behind the hero (19 s and 23 s cycles); timing — a heat
+  rail along the top edge and a pulsing `boards.live` dot; neon — a breathing neon tube on the edge (cycle 3.2 s → 1 s with
+  heat), hyperspace streaks behind the board from h = 0.2 (count 20 → 90 and speed with heat), and chromatic
+  fringes on the number from h = 0.85.
+- **Effects intensity** (section 2): Off — no comets, particles, bolts, streaks or ambience, rows still move;
+  Soft — one comet at most, no particles or warp; Standard — as above; Max — 1.5× particles and warp density.
+  Reduce Motion: rows and values crossfade, nothing travels or bursts. `Celebrate new peaks` off removes the
+  new-peak and new-leader celebrations (rank changes still animate).
+
+### Frame policy and performance (normative)
+
+The board shares the orbs' frame clock and budgets (2a, Frame policy) with these classes: idle (nothing generating,
+no effect alive) — static, no frames; cruise/boost — 30 fps; overdrive/redline or any burst, wave, bolt, celebration,
+row move or digit roll alive — 60 fps until it ends. Hidden, occluded or faded boards render nothing. Budgets per board
+(M, Standard, release build): idle ≤ 0.3 % CPU; cruise ≤ 3 %; redline with bursts ≤ 6 % (macOS) / ≤ 8 % (Windows);
+GPU ≤ 1.5 ms per frame at 2× / 200 %; memory ≤ 24 MB.
+
+- **Two layers.** Content (text, badges, capsules, values) is laid out and rasterized only when data changes (≤ 2 per
+  second) and cached per row; frames only composite the cached rows at their animated positions. Effects (comets,
+  ring, bloom, sparks, streaks, waves, bolts, warp) are primitives of the orbs' instanced SDF pipeline (2a: rounded
+  rect, circle, ring, capsule, radial, polyline), glows analytic, particles from preallocated pools. No per-frame
+  allocation, no blur passes, no per-frame text layout.
+- **macOS**: an `NSPanel` (non-activating, like the orbs); rows as Core Animation layers (positions animated by the
+  render server), effects in a `CAMetalLayer` overlay driven by the shared display link. The glass backdrop is
+  `NSVisualEffectView` (Liquid Glass on macOS 26).
+- **Windows**: no WPF layered window for animated content (2a). The board draws with Direct2D/DirectWrite and Direct3D
+  11 into a composition swap chain hosted by DirectComposition in a `WS_EX_NOREDIRECTIONBITMAP` window, like the GPU
+  orbs; rows are cached D2D bitmaps redrawn on data change. Glass on Windows 11 uses an acrylic-like blur of the
+  backdrop only if it costs nothing per frame (system backdrop); otherwise a tinted translucent fill.
+- Each platform's benchmark harness (2a) gains the three board styles in the idle → climb → redline → overtake →
+  new leader scenario of `sim.js` and reports these budgets.
+
+### Interaction and window
+
+- Drag anywhere to move; release within 24 pt of a screen edge snaps to a 12 pt margin, as orbs do; boards never take
+  focus. Hover a group row: a tooltip after 0.35 s — project, source, model, effort and speed (section 4 tooltip
+  lines), group speed and its sub-agents' share, today's output of the group. Hover lifts the row tint only.
+- Context menu: header (style name and the board's sources); `boards.style` ▸ the three styles; `orbs.sources` ▸ as
+  an orb's; `menu.size` ▸ S / M / L; `menu.effects` ▸ (global); `menu.alwaysOnTop`, `menu.clickThrough`;
+  `boards.add`, `boards.remove` (asks `boards.remove.confirm`); `menu.dashboard`; `boards.settings` (Settings →
+  懸浮窗, Boards).
+- Settings → 懸浮窗 gains a Boards list under the orbs: one row per board (style preview thumbnail, style name,
+  sources, visible switch) with add / remove, and an editor for style, size, sources, opacity and the window toggles.
+  The quick menu gets `boards.show` / `boards.hide` (all boards) and `boards.add`.
+- Accessibility: a board is a list element labelled `a11y.board` (sources, value, title); each group row is an item
+  labelled `a11y.board.row` (`第 1 名，tihu，每秒 7.88k 個 token，推理強度 xhigh，加速 Fast，100 個子 agent`).
+  A new leader is announced politely at most once per 10 s (`a11y.board.newLeader`). Increase Contrast / high
+  contrast: solid fills, 1 pt outlines, no glows, comets as a 2 pt solid ring segment.
+- Light and dark follow Appearance: each prototype's light theme is the reference.
+
+
 ## 3. Menu bar (macOS) and taskbar (Windows) widget
 
 Glanceable and calm; it must never jitter in width.

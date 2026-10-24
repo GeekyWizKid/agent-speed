@@ -4854,6 +4854,150 @@
     "en": "Nothing recorded for this range",
     "ja": "この期間の記録はありません"
   },
+  "boards.title": {
+    "zh-Hant": "排行看板",
+    "zh-Hans": "排行看板",
+    "en": "Leaderboard",
+    "ja": "ランキングボード"
+  },
+  "boards.style": {
+    "zh-Hant": "看板風格",
+    "zh-Hans": "看板风格",
+    "en": "Board Style",
+    "ja": "ボードのスタイル"
+  },
+  "boards.style.glass": {
+    "zh-Hant": "流光玻璃",
+    "zh-Hans": "流光玻璃",
+    "en": "Glass",
+    "ja": "グラス"
+  },
+  "boards.style.timing": {
+    "zh-Hant": "計時塔",
+    "zh-Hans": "计时塔",
+    "en": "Timing Tower",
+    "ja": "タイミングタワー"
+  },
+  "boards.style.neon": {
+    "zh-Hant": "霓虹座艙",
+    "zh-Hans": "霓虹座舱",
+    "en": "Neon Cockpit",
+    "ja": "ネオンコックピット"
+  },
+  "boards.add": {
+    "zh-Hant": "新增排行看板",
+    "zh-Hans": "新增排行看板",
+    "en": "Add Leaderboard",
+    "ja": "ランキングボードを追加"
+  },
+  "boards.remove": {
+    "zh-Hant": "移除這個看板",
+    "zh-Hans": "移除这个看板",
+    "en": "Remove This Board",
+    "ja": "このボードを削除"
+  },
+  "boards.remove.confirm": {
+    "zh-Hant": "要移除這個排行看板嗎？",
+    "zh-Hans": "要移除这个排行看板吗？",
+    "en": "Remove this leaderboard?",
+    "ja": "このランキングボードを削除しますか？"
+  },
+  "boards.limit": {
+    "zh-Hant": "最多可以有 %d 個排行看板",
+    "zh-Hans": "最多可以有 %d 个排行看板",
+    "en": "You can have up to %d leaderboards",
+    "ja": "ランキングボードは最大 %d 個までです"
+  },
+  "boards.show": {
+    "zh-Hant": "顯示排行看板",
+    "zh-Hans": "显示排行看板",
+    "en": "Show Leaderboards",
+    "ja": "ランキングボードを表示"
+  },
+  "boards.hide": {
+    "zh-Hant": "隱藏排行看板",
+    "zh-Hans": "隐藏排行看板",
+    "en": "Hide Leaderboards",
+    "ja": "ランキングボードを隠す"
+  },
+  "boards.settings": {
+    "zh-Hant": "看板設定…",
+    "zh-Hans": "看板设置…",
+    "en": "Board Settings…",
+    "ja": "ボードの設定…"
+  },
+  "boards.subCount": {
+    "zh-Hant": "%d 個子 agent",
+    "zh-Hans": "%d 个子 agent",
+    "en": "%d sub-agents",
+    "ja": "サブ agent %d 個"
+  },
+  "boards.moreSubs": {
+    "zh-Hant": "+%d 個子 agent · %@",
+    "zh-Hans": "+%d 个子 agent · %@",
+    "en": "+%d sub-agents · %@",
+    "ja": "ほかのサブ agent %d 個 · %@"
+  },
+  "boards.moreGroups": {
+    "zh-Hant": "還有 %d 個 agent · %@",
+    "zh-Hans": "还有 %d 个 agent · %@",
+    "en": "%d more agents · %@",
+    "ja": "ほか %d 個の agent · %@"
+  },
+  "boards.leader": {
+    "zh-Hant": "領先",
+    "zh-Hans": "领先",
+    "en": "LEADER",
+    "ja": "首位"
+  },
+  "boards.live": {
+    "zh-Hant": "即時",
+    "zh-Hans": "实时",
+    "en": "LIVE",
+    "ja": "ライブ"
+  },
+  "boards.newLeader": {
+    "zh-Hant": "新領先 %@",
+    "zh-Hans": "新领先 %@",
+    "en": "NEW LEADER %@",
+    "ja": "新しい首位 %@"
+  },
+  "boards.newPeak": {
+    "zh-Hant": "新峰值",
+    "zh-Hans": "新峰值",
+    "en": "NEW PEAK",
+    "ja": "新記録"
+  },
+  "boards.today": {
+    "zh-Hant": "今日 %@",
+    "zh-Hans": "今日 %@",
+    "en": "Today %@",
+    "ja": "今日 %@"
+  },
+  "boards.peak": {
+    "zh-Hant": "峰值 %@",
+    "zh-Hans": "峰值 %@",
+    "en": "Peak %@",
+    "ja": "ピーク %@"
+  },
+  "a11y.board": {
+    "zh-Hant": "排行看板，%@：每秒 %@ 個 token，%@",
+    "zh-Hans": "排行看板，%@：每秒 %@ 个 token，%@",
+    "en": "Leaderboard, %@: %@ tokens per second, %@",
+    "ja": "ランキングボード、%@：毎秒 %@ トークン、%@"
+  },
+  "a11y.board.row": {
+    "zh-Hant": "第 %d 名，%@，每秒 %@ 個 token",
+    "zh-Hans": "第 %d 名，%@，每秒 %@ 个 token",
+    "en": "Rank %d, %@, %@ tokens per second",
+    "ja": "%d 位、%@、毎秒 %@ トークン"
+  },
+  "a11y.board.newLeader": {
+    "zh-Hant": "%@ 升上第一名",
+    "zh-Hans": "%@ 升到第一名",
+    "en": "%@ takes first place",
+    "ja": "%@ が首位になりました"
+  },
   "profile.title": {
     "zh-Hant": "個人資料",
     "zh-Hans": "个人资料",
