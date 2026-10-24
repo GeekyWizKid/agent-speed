@@ -59,8 +59,23 @@ struct CodexParser: Sendable {
             return
         }
         state.noteLine(at: timestamp)
-        if line.hasModeSelection { state.modes = line.modes }
-        else if !line.modes.facts.isEmpty { state.modes = state.modes.merging(line.modes) }
+        var requestModes = ExecutionModes.empty
+        switch line.modeUpdate {
+        case .none: break
+        case .turn(let facts):
+            state.modes = ExecutionModes(state.modes.facts.filter { $0.scope != .turn } + facts.facts)
+        case .session(let settings):
+            var facts = state.modes.facts
+            for setting in settings {
+                facts.removeAll {
+                    $0.kind == setting.kind && $0.evidence == .selected && $0.scope == .session && $0.provider == setting.provider
+                }
+                if let fact = setting.fact { facts.append(fact) }
+            }
+            state.modes = ExecutionModes(facts)
+        case .request(let facts):
+            requestModes = facts
+        }
 
         switch line.kind {
         case .sessionMeta:
@@ -85,7 +100,7 @@ struct CodexParser: Sendable {
             sawModernUsage = true
             let key = responseId ?? "codex:\(threadId ?? state.thread?.id ?? agentId):\(timestamp)"
             guard deduper.claim(key, for: fileID) == .new else { return }
-            complete(key: key, usage: usage.normalized, at: timestamp, emit: emit)
+            complete(key: key, usage: usage.normalized, modes: state.modes.merging(requestModes), at: timestamp, emit: emit)
 
         case .legacyUsage(let threadId, let info):
             if sawModernUsage {
@@ -105,7 +120,7 @@ struct CodexParser: Sendable {
             previousLegacyTotals = total
             let key = "codex-legacy:\(threadId ?? state.thread?.id ?? agentId):\(total.total)"
             guard deduper.claim(key, for: fileID) == .new else { return }
-            complete(key: key, usage: tokens.normalized, at: timestamp, emit: emit)
+            complete(key: key, usage: tokens.normalized, modes: state.modes, at: timestamp, emit: emit)
 
         case .turnEnded:
             state.setPhase(.idle, at: timestamp)
@@ -129,7 +144,9 @@ struct CodexParser: Sendable {
         state.setPhase(.tools, at: timestamp)
     }
 
-    private mutating func complete(key: String, usage: TokenUsage, at timestamp: Int64, emit: (ResponseUpsert) -> Void) {
+    /// `modes`: a snapshot of the context, plus the response's own request facts.
+    private mutating func complete(key: String, usage: TokenUsage, modes: ExecutionModes, at timestamp: Int64,
+                                   emit: (ResponseUpsert) -> Void) {
         let record = ResponseRecord(
             key: key,
             source: .codex,
@@ -139,10 +156,9 @@ struct CodexParser: Sendable {
             endMs: timestamp,
             usage: usage,
             provider: provider,
-            modes: state.modes
+            modes: modes
         )
         finishWithoutUsage(at: timestamp)
-        state.modes = ExecutionModes(state.modes.facts.filter { $0.evidence == .selected })
         emit(ResponseUpsert(record: record, isCompletion: true))
     }
 }

@@ -85,7 +85,8 @@ struct SessionTests {
         configuration.enabledSources = [.claudeDesktop]
         let session = TranscriptSession(configuration: configuration)
         _ = session.seed(todayStartMs: Self.startOfToday())
-        #expect(session.responses.map(\.key) == ["msg_W", "msg_C"])
+        // Stored responses come from a dictionary, so their order is not defined.
+        #expect(Set(session.responses.map(\.key)) == ["msg_W", "msg_C"])
         _ = directory
     }
 

@@ -36,6 +36,9 @@ enum DumpToday {
                 line.add("modes", raw: json)
             }
             line.add("costMicroUsd", cost)
+            let view = response.modes.effortAndSpeed
+            line.add("effort", raw: attribution(view.effort))
+            line.add("speed", raw: attribution(view.speed))
             output += line.text + "\n"
         }
 
@@ -67,5 +70,15 @@ enum DumpToday {
         wrapper.add("summary", raw: summary.text)
         output += wrapper.text + "\n"
         FileHandle.standardOutput.write(Data(output.utf8))
+    }
+
+    /// `{mode, evidence[, provider]}`, or null when unknown, like `reference.py`.
+    private static func attribution(_ value: ExecutionModeAttribution?) -> String {
+        guard let value else { return "null" }
+        var object = JSONLine()
+        object.add("mode", value.mode)
+        object.add("evidence", value.evidence)
+        if let provider = value.provider { object.add("provider", provider) }
+        return object.text
     }
 }

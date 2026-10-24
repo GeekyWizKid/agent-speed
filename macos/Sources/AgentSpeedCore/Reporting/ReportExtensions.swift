@@ -61,7 +61,7 @@ enum ReportModelBreakdown {
 
     static func modes(_ sources: [SourceKind: ReportUsage], groups: [ReportModeGroup: ReportUsage]) -> ReportJSON? {
         let observed = Set(groups.filter { !$0.key.attribution.isUnknown }.map { $0.key.attribution.kind })
-        let kinds = observed.union([.serviceTier])
+        let kinds = observed.union([.serviceTier]).intersection(ExecutionModeKind.reported)
         var complete: [ReportModeGroup: ReportUsage] = [:]
         for kind in kinds {
             for (source, total) in sources {

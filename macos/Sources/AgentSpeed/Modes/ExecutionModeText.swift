@@ -9,7 +9,7 @@ enum ExecutionModeText {
     }
 
     static func summary(_ modes: ExecutionModes, _ l10n: Localizer) -> String {
-        let parts = modes.attributed.map { attribution in
+        let parts = modes.reportedAttributions.map { attribution in
             l10n("mode.evidence." + attribution.evidence) + " · " + value(attribution.mode, l10n)
         }
         return parts.isEmpty ? l10n("mode.unknown") : parts.joined(separator: " / ")

@@ -35,6 +35,40 @@ extension Dictionary where Key == String, Value == Any {
     func string(_ key: String) -> String? { self[key] as? String }
 }
 
+/// `effort` and `speed` (the agent's current attributions) and `responseModes` (per response key), checked only when
+/// the expectation carries them (EXECUTION-MODES, Reasoning effort and speed).
+func expectModeFields(
+    _ current: ExecutionModes,
+    _ responses: [ResponseRecord],
+    _ wanted: [String: Any],
+    _ label: String,
+    sourceLocation: SourceLocation = #_sourceLocation
+) {
+    func object(_ value: ExecutionModeAttribution?) -> [String: String]? {
+        guard let value else { return nil }
+        var result = ["mode": value.mode, "evidence": value.evidence]
+        if let provider = value.provider { result["provider"] = provider }
+        return result
+    }
+    let view = current.effortAndSpeed
+    if wanted.keys.contains("effort") {
+        #expect(object(view.effort) == wanted["effort"] as? [String: String], "\(label) effort", sourceLocation: sourceLocation)
+    }
+    if wanted.keys.contains("speed") {
+        #expect(object(view.speed) == wanted["speed"] as? [String: String], "\(label) speed", sourceLocation: sourceLocation)
+    }
+    guard let byKey = wanted["responseModes"] as? [String: [String: Any]] else { return }
+    #expect(Set(byKey.keys) == Set(responses.map(\.key)), "\(label) responseModes keys", sourceLocation: sourceLocation)
+    for record in responses {
+        guard let modes = byKey[record.key] else { continue }
+        let view = record.modes.effortAndSpeed
+        #expect(object(view.effort) == modes["effort"] as? [String: String], "\(label) \(record.key) effort",
+                sourceLocation: sourceLocation)
+        #expect(object(view.speed) == modes["speed"] as? [String: String], "\(label) \(record.key) speed",
+                sourceLocation: sourceLocation)
+    }
+}
+
 /// The fields added with the cost feature (METRICS 3.2): `cacheWrite1hInput`, `provider` and `fast`.
 func expectPricingFields(
     _ record: ResponseRecord,

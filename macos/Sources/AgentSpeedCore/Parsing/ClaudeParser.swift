@@ -15,6 +15,13 @@ struct ClaudeParser: Sendable {
     private var preciseStart = false
     private var responses: [String: ResponseRecord] = [:]
     private var responseOrder: [String] = []
+    /// Ultracode (EXECUTION-MODES, Claude Code): on for the session between enter and exit markers, and for one turn
+    /// after a workflow keyword until the next prompt.
+    private var ultraSession = false
+    private var ultraTurn = false
+    /// Facts of the latest accepted response and the latest recorded effort of an accepted line.
+    private var latestModes: ExecutionModes = .empty
+    private var lineEffort: ExecutionModeFact?
 
     init(agentId: String, fileID: FileID) {
         self.agentId = agentId
@@ -52,6 +59,15 @@ struct ClaudeParser: Sendable {
         }
         if let cwd = line.cwd { state.setProject(fromWorkingDirectory: cwd) }
         if line.isSidechain { state.isSubagent = true }
+        let ultracode = ultraSession || ultraTurn
+        switch line.attachment {
+        case .ultraEffortEnter?: ultraSession = true
+        case .ultraEffortExit?: ultraSession = false
+        case .workflowKeywordRequest?: ultraTurn = true
+        case nil: break
+        }
+        if line.isPrompt { ultraTurn = false }
+        if (ultraSession || ultraTurn) != ultracode { state.modes = currentModes }
 
         switch line.type {
         case .apiRequest:
@@ -72,9 +88,21 @@ struct ClaudeParser: Sendable {
         case .assistant:
             consumeAssistant(line, at: timestamp, deduper: &deduper, emit: emit)
 
-        case .other:
+        case .attachment, .other:
             break
         }
+    }
+
+    private var ultracodeFact: ExecutionModeFact? {
+        guard ultraSession || ultraTurn else { return nil }
+        return ExecutionModeAdapters.effort("ultracode", evidence: .recorded, scope: .request)
+    }
+
+    /// The latest response's facts with the effort of now: ultracode while it is on, else the latest recorded one.
+    private var currentModes: ExecutionModes {
+        var modes = ExecutionModes(latestModes.facts.filter { $0.kind != .effort })
+        if let effort = ultracodeFact ?? lineEffort { modes.insert(effort) }
+        return modes
     }
 
     private mutating func consumeAssistant(
@@ -89,13 +117,15 @@ struct ClaudeParser: Sendable {
         guard claim != .otherFile else { return }
 
         let hasStopReason = line.stopReason != .none
+        var lineModes = line.modes
+        if let effort = ultracodeFact ?? line.effort { lineModes.insert(effort) }
         let record: ResponseRecord
         if claim == .sameFile, var existing = responses[key] {
             existing.endMs = max(existing.endMs, timestamp)
             existing.usage = existing.usage.merged(with: line.usage)
             if let model = line.model { existing.model = model }
             existing.fast = existing.fast || line.fast
-            existing.modes = existing.modes.merging(line.modes)
+            existing.modes = existing.modes.merging(lineModes)
             existing.isFinal = existing.isFinal || hasStopReason
             record = existing
         } else {
@@ -109,14 +139,16 @@ struct ClaudeParser: Sendable {
                 usage: line.usage,
                 isFinal: hasStopReason,
                 fast: line.fast,
-                modes: line.modes
+                modes: lineModes
             )
             pendingStartMs = nil
             preciseStart = false
             remember(key)
         }
         responses[key] = record
-        state.modes = record.modes
+        latestModes = record.modes
+        lineEffort = line.effort ?? lineEffort
+        state.modes = currentModes
         if let model = line.model { state.model = model }
 
         switch line.stopReason {
