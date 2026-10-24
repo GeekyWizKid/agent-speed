@@ -30,6 +30,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import prices as pricing  # noqa: E402
 import harness_reference as harnesses  # noqa: E402
+import execution_modes_reference as modes  # noqa: E402
 
 if hasattr(sys, "set_int_max_str_digits"):
     sys.set_int_max_str_digits(0)  # integer literals of any length are numbers (METRICS 3.6), not malformed lines
@@ -172,6 +173,13 @@ class FileState:
         self.pending = None
         self.malformed = 0
         self.responses = OrderedDict()
+        # reasoning effort and speed (EXECUTION-MODES): context facts, each response's facts, Claude's ultracode
+        self.facts = []
+        self.response_facts = {}
+        self.latest_key = None
+        self.line_effort = None
+        self.ultra_session = False
+        self.ultra_turn = False
         # codex
         self.file_created = None
         self.provider = None
@@ -254,6 +262,7 @@ def codex_line(state, obj, dedupe):
     if kind == "turn_context":
         state.model = payload.get("model") or state.model
         state.project = basename(payload.get("cwd")) or state.project
+        codex_turn_facts(state, payload)
         return
     if kind == "token_usage_record":
         state.saw_modern = True
@@ -264,6 +273,9 @@ def codex_line(state, obj, dedupe):
         dedupe.claim(key, state.path)
         emit(state, key, state.pending, ts, codex_tokens(payload.get("usage")), state.model,
              provider=state.provider)
+        tier = payload.get("service_tier")
+        state.response_facts[key] = modes.put(list(state.facts), modes.normalize(
+            "serviceTier", tier, "openai", "recorded", "request") if isinstance(tier, str) else None)
         after_usage(state, ts)
         return
     if kind == "event_msg":
@@ -276,6 +288,8 @@ def codex_line(state, obj, dedupe):
             state.phase, state.pending, state.streaming, state.in_flight = "idle", None, False, None
         elif ptype in ("task_started", "user_message"):
             input_line(state, ts)
+        elif ptype == "thread_settings_applied" and isinstance(payload.get("thread_settings"), dict):
+            codex_thread_settings(state, payload["thread_settings"])
         return
     if kind == "response_item":
         role = payload.get("role")
@@ -290,6 +304,34 @@ def codex_line(state, obj, dedupe):
         elif ptype == "agent_message" and payload.get("recipient") == state.my_agent_path:
             if not state.streaming:
                 state.pending = ts
+
+
+def codex_turn_facts(state, payload):
+    """A turn context starts a new turn: turn facts are replaced (EXECUTION-MODES, Codex)."""
+    state.facts = [f for f in state.facts if f["scope"] != "turn"]
+    raw = payload.get("effort")
+    if not isinstance(raw, str):
+        collab = payload.get("collaboration_mode")
+        settings = collab.get("settings") if isinstance(collab, dict) else None
+        raw = settings.get("reasoning_effort") if isinstance(settings, dict) else None
+    if isinstance(raw, str):
+        state.facts = modes.put(state.facts, modes.normalize("effort", raw, None, "recorded", "turn"))
+    tier = payload.get("service_tier")
+    if isinstance(tier, str):
+        state.facts = modes.put(state.facts, modes.normalize("serviceTier", tier, "openai", "selected", "turn"))
+
+
+def codex_thread_settings(state, settings):
+    """`thread_settings_applied`: the thread's selected tier and effort from now on; null clears them."""
+    for field, adapter, provider in (("service_tier", "serviceTier", "openai"), ("reasoning_effort", "effort", None)):
+        if field not in settings:
+            continue
+        kind = "serviceTier" if adapter == "serviceTier" else "effort"
+        state.facts = [f for f in state.facts if not (f["kind"] == kind and f["evidence"] == "selected"
+                                                      and f["scope"] == "session" and f.get("provider") == provider)]
+        raw = settings[field]
+        if isinstance(raw, str):
+            state.facts = modes.put(state.facts, modes.normalize(adapter, raw, provider, "selected", "session"))
 
 
 def input_line(state, ts):
@@ -327,6 +369,7 @@ def legacy(state, ts, payload, dedupe):
         return
     dedupe.claim(key, state.path)
     emit(state, key, state.pending, ts, codex_tokens(usage), state.model, provider=state.provider)
+    state.response_facts[key] = list(state.facts)
     after_usage(state, ts)
 
 
@@ -339,6 +382,33 @@ def is_interrupt(message):
         return any(isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)
                    and b["text"].startswith(marker) for b in content)
     return False
+
+
+def is_prompt(obj):
+    """A user line a person typed (or an interrupt): not meta, string content or a text block."""
+    if obj.get("isMeta") is True:
+        return False
+    message = obj.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    return isinstance(content, str) or (isinstance(content, list) and any(
+        isinstance(b, dict) and b.get("type") == "text" for b in content))
+
+
+def claude_recorded_effort(obj):
+    raw = obj.get("perTurnEffort")
+    raw = raw if isinstance(raw, str) else obj.get("effort")
+    return modes.normalize("effort", raw, None, "recorded", "request") if isinstance(raw, str) else None
+
+
+def claude_ultracode(state):
+    if state.ultra_session or state.ultra_turn:
+        return modes.normalize("effort", "ultracode", None, "recorded", "request")
+    return None
+
+
+def claude_agent_facts(state):
+    facts = [f for f in state.response_facts.get(state.latest_key, []) if f["kind"] != "effort"]
+    return modes.put(facts, claude_ultracode(state) or state.line_effort)
 
 
 def claude_tokens(usage):
@@ -364,6 +434,14 @@ def claude_line(state, obj, dedupe):
     if obj.get("isSidechain") is True:
         state.is_subagent = True
     kind = obj.get("type")
+    if kind == "attachment" and isinstance(obj.get("attachment"), dict):
+        marker = obj["attachment"].get("type")
+        if marker in ("ultra_effort_enter", "ultra_effort_exit"):
+            state.ultra_session = marker == "ultra_effort_enter"
+        elif marker == "workflow_keyword_request":
+            state.ultra_turn = True
+    if kind == "user" and is_prompt(obj):
+        state.ultra_turn = False
     if kind == "api-request":
         state.pending, state.precise, state.phase, state.in_flight = ts, True, "generating", ts
     elif kind == "user":
@@ -401,6 +479,15 @@ def claude_line(state, obj, dedupe):
             resp["fast"] = resp["fast"] or fast
             resp["final"] = resp["final"] or stop is not None
         state.model = resp["model"] or state.model
+        recorded = claude_recorded_effort(obj)
+        line_facts = [claude_ultracode(state) or recorded]
+        if isinstance(usage.get("speed"), str):
+            line_facts.append(modes.normalize("claudeSpeed", usage["speed"], "anthropic", "served", "response"))
+        merged = state.response_facts.get(key, [])
+        for fact in line_facts:
+            merged = modes.put(merged, fact)
+        state.response_facts[key], state.latest_key = merged, key
+        state.line_effort = recorded or state.line_effort
         content = message.get("content") if isinstance(message.get("content"), list) else []
         has_tool_use = any(isinstance(b, dict) and b.get("type") == "tool_use" for b in content)
         if stop == "tool_use" or (stop is None and has_tool_use):
@@ -699,6 +786,7 @@ def opencode_states(db_path, dedupe):
                 provider = d["model"].get("providerID") if isinstance(d.get("model"), dict) else None
                 provider = provider if isinstance(provider, str) and provider else None
                 st.model = model or st.model
+                st.facts = opencode_facts(d, provider)
                 if "streamed" not in times:
                     st.phase, st.in_flight = "generating", created
                     continue
@@ -706,6 +794,7 @@ def opencode_states(db_path, dedupe):
                 if isinstance(tokens, dict) and dedupe.owner(rid) in (None, st.path):
                     dedupe.claim(rid, st.path)
                     emit(st, rid, created, times["streamed"], opencode_tokens(tokens), model, provider=provider)
+                    st.response_facts[rid] = st.facts
                 st.phase = "tools" if d.get("finish") == "tool-calls" else "idle"
                 st.in_flight = None
             else:
@@ -715,14 +804,46 @@ def opencode_states(db_path, dedupe):
                         dedupe.claim(rid, st.path)
                         model = (d.get("model") or {}).get("id") if isinstance(d.get("model"), dict) else None
                         provider = d["model"].get("providerID") if isinstance(d.get("model"), dict) else None
+                        provider = provider if isinstance(provider, str) and provider else None
                         emit(st, rid, times.get("created"), times.get("completed", updated),
-                             opencode_tokens(d["tokens"]), model,
-                             provider=provider if isinstance(provider, str) and provider else None)
+                             opencode_tokens(d["tokens"]), model, provider=provider)
+                        st.response_facts[rid] = opencode_facts(d, provider)
                 elif kind == "idle":
                     st.phase, st.in_flight = "idle", None
         return list(states.values())
     finally:
         db.close()
+
+
+def opencode_facts(d, provider):
+    """An assistant row's effort variant (recorded) and, for OpenAI providers, its served tier."""
+    facts = []
+    model = d.get("model") if isinstance(d.get("model"), dict) else {}
+    if isinstance(model.get("variant"), str):
+        facts = modes.put(facts, modes.normalize("effort", model["variant"], None, "recorded", "request"))
+    native = d.get("native") if isinstance(d.get("native"), dict) else {}
+    if provider in ("openai", "azure") and isinstance(native.get("serviceTier"), str):
+        facts = modes.put(facts, modes.normalize("serviceTier", native["serviceTier"], "openai", "served", "response"))
+    return facts
+
+
+def agent_facts(state):
+    return claude_agent_facts(state) if state.source in ("claudeCode", "claudeDesktop") else state.facts
+
+
+def mode_view(facts):
+    """(effort, speed) attributions, each None when unknown."""
+    effort, speed = modes.attribution(facts, "effort"), modes.speed_attribution(facts)
+    return (None if effort["mode"] == "unknown" else effort, None if speed["mode"] == "unknown" else speed)
+
+
+def mode_fields(state):
+    effort, speed = mode_view(agent_facts(state))
+    by_key = {}
+    for key in state.responses:
+        e, s = mode_view(state.response_facts.get(key, []))
+        by_key[key] = {"effort": e, "speed": s}
+    return dict(effort=effort, speed=speed, responseModes=by_key)
 
 
 def opencode_tokens(t):
@@ -1891,7 +2012,7 @@ def check_fixtures():
         states.append(state)
         got = dict(source=state.source, project=state.project, model=state.model, isSubagent=state.is_subagent,
                    phase=state.phase, inFlightStartMs=state.in_flight, lastLineMs=state.last_line,
-                   malformedLines=state.malformed, responses=list(state.responses.values()))
+                   malformedLines=state.malformed, responses=list(state.responses.values()), **mode_fields(state))
         for k, v in exp.items():
             if k != "parentFile" and got[k] != v:
                 failures.append("%s: %s expected %r got %r" % (rel, k, v, got[k]))
@@ -1904,7 +2025,7 @@ def check_fixtures():
                 continue
             got = dict(source=st.source, project=st.project, model=st.model, isSubagent=st.is_subagent,
                        parentId=st.parent_session, phase=st.phase, inFlightStartMs=st.in_flight,
-                       lastLineMs=st.last_line, responses=list(st.responses.values()))
+                       lastLineMs=st.last_line, responses=list(st.responses.values()), **mode_fields(st))
             for k, v in exp.items():
                 if got[k] != v:
                     failures.append("%s: %s expected %r got %r" % (st.path, k, v, got[k]))
@@ -2269,6 +2390,7 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
         read_bytes += size - offset
         for r in state.responses.values():
             if r["endMs"] >= today_start:
+                effort, speed = mode_view(state.response_facts.get(r["key"], []))
                 rows.append(OrderedDict([("key", r["key"]), ("source", state.source), ("agentId", path),
                                          ("model", r["model"]), ("startMs", r["startMs"]), ("endMs", r["endMs"]),
                                          ("input", r["input"]), ("cachedInput", r["cachedInput"]),
@@ -2276,7 +2398,8 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
                                          ("cacheWrite1hInput", r["cacheWrite1hInput"]), ("output", r["output"]),
                                          ("reasoning", r["reasoning"]), ("final", r["final"]),
                                          ("provider", r["provider"]), ("fast", r["fast"]),
-                                         ("costMicroUsd", index.price(r) if has_day(r["endMs"]) else None)]))
+                                         ("costMicroUsd", index.price(r) if has_day(r["endMs"]) else None),
+                                         ("effort", effort), ("speed", speed)]))
     for source, agent, record in harnesses.collect(zcode_root, kimi_root, grok_root):
         if record["endMs"] >= today_start:
             rows.append(dict(record, source=source, agentId=agent,

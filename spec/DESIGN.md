@@ -1172,7 +1172,10 @@ edge. Windows (this menu and the tray quick menu): every label starts in one tex
 icon (icons sit in a fixed leading column), and toggle items show their check mark trailing, right-aligned in the same
 column as submenu chevrons, so checked and unchecked items never shift the text:
 
-1. Header (disabled): the orb's colour dots and name.
+1. Header (disabled): the orb's colour dots and name. Under it, when known, a disabled row with the effort capsule
+   (section 4, Agents) of the orb's agents that are generating (all its agents when none is): their shared effort and
+   speed when they agree, `mode.mixed` in secondary text when they differ; the row is omitted when nothing is known.
+   The orb's hover info line never mentions modes.
 2. `orbs.style` ▸ the five style names, check on the current one.
 3. `orbs.sources` ▸ `orbs.sources.all`, separator, every source in source order with its colour dot and a check when
    tracked; unavailable ones show their status in secondary text and stay selectable. Unchecking the last tracked source
@@ -1297,6 +1300,33 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
    with Reduce Motion); `idle` and `generating` show an en dash `–` in tertiary color. Glyph and dash sit in the same
    right-aligned trailing slot as the digits (same baseline, no width change), crossfade 0.2 s to and from numbers,
    and read as the phase name for accessibility (`phase.tools`, `phase.idle`).
+   **Effort capsule** — the agent's current reasoning effort and speed (`spec/EXECUTION-MODES.md`, Reasoning effort
+   and speed), drawn in a trailing column just before the live value (8 pt gap). The column is as wide as the widest
+   capsule among the visible rows (width changes animate 0.2 s), so every meter starts on the same vertical line and
+   every bolt ends on another; rows without a capsule leave it empty, and with no capsule at all the column takes no
+   space. A capsule appears when the effort is known or the speed has bolts; nothing is drawn for unknown values or for
+   a standard speed, and there is never a "not provided" label. When the column would leave the project name less
+   than 72 pt, every capsule drops its word (meter and bolts stay; the word stays in the tooltip).
+   - Capsule: height 18, fully rounded, fill label 5.5 % (dark 7 %), 0.5 pt stroke label 8 %; 6 pt horizontal padding,
+     5 pt between its parts: meter, word, bolts.
+   - Meter: five bars 2.5 pt wide with heights 4 / 5.5 / 7 / 8.5 / 10 pt, 1.5 pt apart, corner radius 0.75, bottoms
+     aligned, the group centered in the capsule. The level (EXECUTION-MODES table) lights that many bars from the left.
+     Levels up to 4 light in the secondary label color; `max` lights in heat 0.82 (section 1 palette); the top rung
+     (`ultra`, `ultracode`) lights with a vertical gradient heat 0.72 → heat 1.0, a 3 pt outer glow of the same
+     gradient at 45 %, and a shimmer: a soft 30° light band crosses the bars in 0.9 s every 2.6 s (none with Reduce
+     Motion or effects Off). Unlit bars: label 14 % (dark 18 %). A token without a level has no meter.
+   - Word: the native token in lower case (`xhigh`, `ultra`, `ultracode`, …), 11 pt medium, secondary color; `max` in
+     heat 0.82, the top rung in the same gradient as its bars. Never truncated: it is dropped whole (above).
+   - Bolts: SF Symbol `bolt.fill` / Segoe Fluent Icons Lightning (U+E945), 9 pt, amber `#F5A524` (light `#B86E00`).
+     One bolt for `fast` and `highspeed`; two for `ultrafast`, overlapping by 3 pt with the rear one at 60 %.
+   - Changes: lit bars fill or empty one after another (30 ms apart, 0.22 s spring), the word crossfades in 0.2 s,
+     bolts pop in (scale 0.6 → 1, 0.3 s spring) and fade out in 0.15 s. Reduce Motion: crossfades only.
+   - Increase Contrast / Windows high contrast: no fill, a 1 pt stroke in the text color; lit bars, word and top rung
+     in the text color, unlit bars in the disabled-text color, bolts in the highlight color; no glow or shimmer.
+   - Tooltip (also the row's): `effort.tooltip` and `speed.tooltip` lines, each value spelled as its token (speed
+     tokens through `speed.value.*` when one exists), `modes.unrecorded` for an unknown one; a top rung adds
+     `effort.ultra.detail` or `effort.ultracode.detail`. Accessibility: the row's combined label ends with the same
+     two lines joined by `，` / `, `.
    Empty state: `目前沒有 agent 在工作` with a muted gauge glyph.
    Collapsed (default) shows the first 6 rows of the depth-first order (so a child never appears without its parent); when more agents exist, a disclosure row `agents.expand` ("+4 個 agent",
    with a small chevron, accessibility label `agents.expand.a11y`) expands the list in place with a spring height
@@ -1352,6 +1382,18 @@ Layout, top to bottom, 24 pt outer padding, 20 pt section spacing:
    speed, peak (if recorded; all-sources view only, METRICS 8) and the top 3 models with share bars. Clicking a bar scrolls the table to that day and
    highlights it for 1.2 s. Transitions between ranges/sources animate bar heights with a spring (≤ 0.45 s);
    Reduce Motion → crossfade.
+3b. **Effort and speed** (`modes.history.title`) — between the chart and the table, a section whose header carries
+   a two-segment control (`effort.label` / `speed.label`, remembered) and the trailing `mode.exportCsv` button (the
+   mode CSV of EXECUTION-MODES, every kind including `effort` and `speed`). One row per value over the selected range
+   and source, summing models, providers and evidence, in the display order of EXECUTION-MODES with the unknown bucket
+   (`modes.unrecorded`, tertiary text) last, so the rows always add up to the range's totals. Each row: the leading
+   glyph (the meter of the effort capsule; for speed its bolts, a hollow 6 pt ring for `standard` and tokens without
+   bolts), the token, a share-of-output bar (effort: neutral up to `xhigh`, heat 0.82 for `max`, the top-rung gradient
+   for `ultra` / `ultracode`; speed: amber for bolts, neutral otherwise; unknown: label 12 %), then requests, output
+   and average speed (`history.noSpeed` when none) in tabular digits. Hovering a row shows its top three models with
+   share bars. Rows reorder and resize with a spring (≤ 0.35 s) when the range or source changes; Reduce Motion
+   crossfades. With no known value of the selected kind in the range, only the unknown row shows, with
+   `modes.history.empty` under it.
 4. **Daily table** — newest first; columns: 日期 (date + weekday; 今天 / 昨天 for the latest two), 請求, 輸出, 輸入（含快取）,
    快取命中 (cachedInput ÷ input, percentage), 平均速度 (tok/s, `history.noSpeed` when none), 峰值 (if recorded;
    all-sources view only),
@@ -2385,8 +2427,8 @@ Agent Speed can share its live numbers with an API the user picks — for exampl
 Radar. The protocol and everything a service sees are `spec/REPORTING.md`; how each value is computed and when a
 report is sent are METRICS 11. Strings are `report.*` in `spec/strings.json`.
 
-Execution-mode labels distinguish configured defaults, task selections, harness records and response evidence;
-missing evidence stays unknown. See `spec/EXECUTION-MODES.md`. The optional profile controls in Settings → API
+Agents show their reasoning effort and speed as the effort capsule (section 4); evidence categories stay internal and
+missing values stay unknown. See `spec/EXECUTION-MODES.md`. The optional profile controls in Settings → API
 provide avatar preview/upload/removal and approved one-time device pairing when the service advertises support
 (`spec/REPORTING-EXTENSIONS.md`). Explicit profile actions follow the network master switch; periodic sharing
 does not upload images or create identities. Existing measurement formulas and orb styles remain unchanged.

@@ -4776,6 +4776,84 @@
     "en": "Export modes CSV",
     "ja": "モード CSV を書き出す"
   },
+  "effort.label": {
+    "zh-Hant": "推理強度",
+    "zh-Hans": "推理强度",
+    "en": "Reasoning effort",
+    "ja": "推論の強さ"
+  },
+  "effort.tooltip": {
+    "zh-Hant": "推理強度：%@",
+    "zh-Hans": "推理强度：%@",
+    "en": "Reasoning effort: %@",
+    "ja": "推論の強さ：%@"
+  },
+  "effort.ultra.detail": {
+    "zh-Hant": "ultra：最大推理，並自動分派子任務",
+    "zh-Hans": "ultra：最大推理，并自动分派子任务",
+    "en": "ultra: maximum reasoning with automatic task delegation",
+    "ja": "ultra：最大の推論と自動的なタスク委任"
+  },
+  "effort.ultracode.detail": {
+    "zh-Hant": "ultracode：最大推理，並由多個 agent 協作",
+    "zh-Hans": "ultracode：最大推理，并由多个 agent 协作",
+    "en": "ultracode: maximum effort with multi-agent workflows",
+    "ja": "ultracode：最大の推論と複数 agent のワークフロー"
+  },
+  "speed.label": {
+    "zh-Hant": "加速",
+    "zh-Hans": "加速",
+    "en": "Speed",
+    "ja": "高速化"
+  },
+  "speed.tooltip": {
+    "zh-Hant": "加速：%@",
+    "zh-Hans": "加速：%@",
+    "en": "Speed: %@",
+    "ja": "高速化：%@"
+  },
+  "speed.value.standard": {
+    "zh-Hant": "標準",
+    "zh-Hans": "标准",
+    "en": "Standard",
+    "ja": "標準"
+  },
+  "speed.value.fast": {
+    "zh-Hant": "Fast",
+    "zh-Hans": "Fast",
+    "en": "Fast",
+    "ja": "Fast"
+  },
+  "speed.value.ultrafast": {
+    "zh-Hant": "Ultrafast",
+    "zh-Hans": "Ultrafast",
+    "en": "Ultrafast",
+    "ja": "Ultrafast"
+  },
+  "speed.value.highspeed": {
+    "zh-Hant": "Highspeed",
+    "zh-Hans": "Highspeed",
+    "en": "Highspeed",
+    "ja": "Highspeed"
+  },
+  "modes.unrecorded": {
+    "zh-Hant": "未記錄",
+    "zh-Hans": "未记录",
+    "en": "Not recorded",
+    "ja": "記録なし"
+  },
+  "modes.history.title": {
+    "zh-Hant": "推理強度與加速",
+    "zh-Hans": "推理强度与加速",
+    "en": "Effort and speed",
+    "ja": "推論の強さと高速化"
+  },
+  "modes.history.empty": {
+    "zh-Hant": "這段期間沒有記錄到這項資訊",
+    "zh-Hans": "这段期间没有记录到这项信息",
+    "en": "Nothing recorded for this range",
+    "ja": "この期間の記録はありません"
+  },
   "profile.title": {
     "zh-Hant": "個人資料",
     "zh-Hans": "个人资料",

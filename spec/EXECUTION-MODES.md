@@ -9,7 +9,7 @@ Both platform cores expose `ExecutionModes` containing at most 20 `ExecutionMode
 
 | Field | Values |
 | --- | --- |
-| `kind` | `serviceTier`, `accelerator`, `modelVariant`, `routing`, `workflow` |
+| `kind` | `serviceTier`, `accelerator`, `modelVariant`, `routing`, `workflow`, `effort` (reasoning effort, see below) |
 | `value` | Canonical lower-case mode token; known examples are `standard`, `fast`, `ultrafast`, `highspeed`, `balanced`, `deep`, `planning`, `auto`. New valid tokens remain distinct. |
 | `rawValue` | Native token, retained locally; never a configuration document or a path. |
 | `evidence` | `configured`, `selected`, `recorded`, `served` |
@@ -23,7 +23,8 @@ remain unresolved selections; an adapter may map a native explicit off value onl
 An explicit clear must clear the corresponding selected context; absence must not clear or override it.
 Configured facts are source information only and never become a response's selected/served fact implicitly.
 Facts are provider-aware: OpenAI `default` -> `standard`, `priority` -> `fast`; Anthropic Fast comes from
-`usage.speed`, not `usage.service_tier`. Do not infer modes from throughput, reasoning effort or arbitrary model names.
+`usage.speed`, not `usage.service_tier`. Do not infer modes from throughput or arbitrary model names; reasoning effort
+is its own kind (`effort`) and never implies a speed mode.
 
 `ResponseRecord.modes` / `ParsedResponse.Modes`, `AgentStatus.modes` and source-level configured modes use this type.
 Empty is the backwards-compatible default. Display configured, selected/recorded, and served evidence separately.
@@ -38,8 +39,10 @@ Mode changes affect their native scope and time, not earlier responses. Upserts 
   Only an unambiguous root string literal is accepted; multiline strings, duplicate declarations and unsupported
   syntax stay unknown. A declared default is not a claim about a running task's effective configuration.
 - Claude Code/Desktop: retain explicit `message.usage.speed` `fast` and `standard` as served service-tier facts.
+  Reasoning effort and ultracode: see *Reasoning effort and speed*.
   Missing speed is not Standard. Preserve the existing pricing fast flag's compatibility behavior.
 - OpenCode: `session_message.data.native.serviceTier` is served OpenAI tier metadata for supported versions.
+  Reasoning effort: see *Reasoning effort and speed*.
   Native provider IDs `openai` and `azure` use the `openai` semantic namespace. Other provider IDs require their
   own mapping; custom names and variant names alone are not speed evidence.
 - omp: `service_tier_change.serviceTier` is a provider-family map on the native journal branch; selections are
@@ -58,13 +61,102 @@ Mode changes affect their native scope and time, not earlier responses. Upserts 
 - Gemini CLI, DSH, Grok Build: expose the common unknown state until an explicit supported native field is present;
   a provider API's capability alone is not evidence that its harness selected it.
 
+## Reasoning effort and speed
+
+What the agent rows, the floating windows and the history show per agent and per response (DESIGN 4, 4b, 2c) is two
+values derived from the facts above: the **reasoning effort** and the **speed**. Both are verified against real logs
+(Claude Code 2.1.219+, Claude Desktop, Codex desktop/CLI with `thread_settings_applied`, OpenCode 2.x); every other
+source has no effort until its native field is verified.
+
+### Effort facts
+
+`effort` is a fact kind. Its adapter (`adapter: "effort"`, shared fixture `execution-mode-cases.json`) takes the
+native token: it must be a safe identifier (Common facts); it is lower-cased; `none` becomes `off` (reasoning
+disabled); `auto`, `default`, `inherit`, `inherited` and `unknown` produce no fact; every other token is kept as is
+(future tokens stay distinct). Effort facts have no provider.
+
+| Value | Meter level (0–5) | Meaning |
+| --- | --- | --- |
+| `off` | 0 | reasoning off |
+| `minimal`, `low` | 1 | |
+| `medium` | 2 | |
+| `high` | 3 | |
+| `xhigh` | 4 | |
+| `max` | 5 | |
+| `ultra` (Codex) | 5, top rung | maximum reasoning with automatic task delegation |
+| `ultracode` (Claude Code) | 5, top rung | maximum effort with multi-agent workflows |
+| any other token | none (word only) | |
+
+Display order (history, ties): `ultracode`, `ultra`, `max`, `xhigh`, `high`, `medium`, `low`, `minimal`, `off`, other
+tokens in ordinal order, unknown last.
+
+### Speed
+
+`speed` is not a fact kind; it is derived from a fact set: the attribution of `serviceTier` when it is resolved, else
+of `accelerator`, else of `modelVariant` when that value is `highspeed`, else unknown. Its value keeps the fact's
+canonical token (`standard`, `fast`, `ultrafast`, `highspeed`, `flex`, `scale`, …), evidence and provider. Bolts:
+`fast` and `highspeed` 1, `ultrafast` 2, everything else 0. Display order: `ultrafast`, `fast`, `highspeed`,
+`standard`, other tokens in ordinal order, unknown last.
+
+Attribution of either value follows *Local aggregates* (served, then recorded, then selected; scope breaks ties;
+configured never counts). A value is shown only when it is known; unknown is never drawn as Standard or as a level.
+
+### Native rules
+
+Facts live in two places per agent: the *context* (facts that apply from their time on) and each response's own facts
+(a snapshot taken when the response is created; Claude merges the facts of every line of the message, a later fact
+replacing one of the same kind, evidence, provider and scope). An agent's *current* effort and speed are attributed
+from its current facts, below.
+
+- **Claude Code and Claude Desktop** (per transcript file):
+  - Assistant line effort: `perTurnEffort` when it is a string, else top-level `effort` when it is a string (both are
+    absent on some third-party-model Desktop transcripts: no fact). Fact `effort`, evidence `recorded`, scope
+    `request`. Lines that are skipped (`<synthetic>`, keys owned by another file) contribute nothing.
+  - Ultracode, session: an `attachment` line whose `attachment.type` is `ultra_effort_enter` turns it on,
+    `ultra_effort_exit` turns it off (Claude Code repeats `enter` as a sparse reminder while it stays on). Ultracode,
+    turn: `attachment.type == "workflow_keyword_request"` turns it on; the next *prompt line* turns it off. A prompt
+    line is a `user` line whose `isMeta` is not `true` and whose `message.content` is a string or contains a block of
+    type `text` (interrupt markers included; tool results and the meta lines Claude adds after a prompt are not).
+  - While either ultracode is on, an assistant line's effort fact is `ultracode` (evidence `recorded`, scope
+    `request`) instead of its recorded token.
+  - Speed: `message.usage.speed` (served service tier, provider `anthropic`, scope `response`), as above.
+  - Current: the facts of the latest accepted response, with the effort replaced by `ultracode` while ultracode is on,
+    otherwise by the latest accepted assistant line's own recorded effort. Ultracode never propagates to sub-agents
+    (their own files record their own effort).
+- **Codex** (per rollout; copied history, METRICS 3.5, is ignored as usual):
+  - `event_msg` with `payload.type == "thread_settings_applied"`: for each of `thread_settings.service_tier` (adapter
+    `serviceTier`, provider `openai`: `default` → `standard`, `priority` → `fast`, `ultrafast`) and
+    `thread_settings.reasoning_effort` (adapter `effort`) that is present, the context's fact of that kind with
+    evidence `selected` and scope `session` is removed and, when the value is a string, replaced. An explicit `null`
+    clears it; a missing field changes nothing.
+  - `turn_context` starts a turn: every context fact with scope `turn` is removed; then `payload.effort` (else
+    `payload.collaboration_mode.settings.reasoning_effort`) adds an `effort` fact (evidence `recorded`, scope `turn`)
+    and `payload.service_tier`, when it is a string, a selected turn tier (as before).
+  - A response (`token_usage_record` or legacy `token_count`) takes a snapshot of the context; a
+    `token_usage_record` `payload.service_tier` string adds a recorded request tier to that snapshot only.
+    Request facts never enter the context, and responding never clears turn or session facts.
+  - Current: the context. Settings are not inherited by sub-agent rollouts.
+- **OpenCode**: every assistant row (in flight or not) and every compaction row carries `data.model.variant`
+  (adapter `effort`, evidence `recorded`, scope `request`; `default` gives no fact) and, for providers `openai` and
+  `azure`, `data.native.serviceTier` (served, as above). A response's facts are its row's. Current: the facts of the
+  session's latest assistant row (fork copies, METRICS 4.5, are skipped), so an in-flight request already shows its
+  effort.
+
+`parser-expected.json` checks these for the Claude, Codex and OpenCode fixtures: per file (or OpenCode session)
+`effort` and `speed` (the current attributions) and `responseModes` (per response key), each attribution an object
+`{mode, evidence[, provider]}` or `null` when unknown. Files without these keys are not checked. `reference.py
+--dump-today` adds `effort` and `speed` to every response row (`null` when unknown); `compare_dumps.py` compares them
+when both dumps carry them.
+
 ## Local aggregates and history
 
 Mode classification is independent of the original model ID. For each kind, choose served evidence first, then
 recorded, then selected. Configured-only or unresolved automatic selections become `unknown` / evidence `unknown`.
 Preserve evidence categories as separate groups; selected Fast is not served Fast.
 
-Every response contributes once within a mode kind. A response may independently have service, routing or workflow
+The history and the mode CSV also break responses down by `effort` and by the derived `speed`, exactly like a
+kind (one attribution per response, unknown bucket included). Adding them bumps the history analysis version, so days
+whose logs still exist are recomputed. Every response contributes once within a mode kind. A response may independently have service, routing or workflow
 facts, so rows of different kinds must not be added together. For any displayed kind, include missing records in an
 unknown bucket; its group totals equal the ordinary model totals. Keep source/provider, model, kind, value and
 evidence separate in grouping keys. Requests, output, measured output and measured milliseconds use existing rules.
@@ -85,6 +177,7 @@ when this exact integer is advertised and the user's existing models sharing sec
 unknown versions, absent capability and disabled models sharing all retain the old report shape. The receiver
 and leaderboard must implement this contract before advertising it. No conversation, paths or raw config is sent.
 
+`effort` and `speed` are local only and are never sent (they are not version 1 kinds).
 Each modeUsage row contains `source`, optional `provider`, `kind`, `mode`, `evidence`, `requests`, `output`,
 `measuredOutput`, `measuredMs`. Evidence is `served`, `recorded`, `selected`, or `unknown`; `configured` is forbidden.
 Mode and evidence are both `unknown` for an unattributable row. Native rawValue and native scope stay local.

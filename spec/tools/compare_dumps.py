@@ -14,6 +14,8 @@ FIELDS = ("source", "agentId", "model", "startMs", "endMs", "input", "cachedInpu
           "reasoning", "final")
 # Added with the cost feature (METRICS 3.2, 9): compared whenever the other dump has them.
 NEW_FIELDS = ("cacheWrite1hInput", "provider", "fast", "costMicroUsd", "requestCount")
+# Reasoning effort and speed (EXECUTION-MODES): compared only when both dumps carry them.
+MODE_FIELDS = ("effort", "speed")
 
 
 def load(path):
@@ -51,7 +53,8 @@ def main():
             other = rows.get(key)
             if other is None or ref["endMs"] >= cutoff:
                 continue
-            for field in FIELDS + tuple(f for f in NEW_FIELDS if f in other):
+            for field in (FIELDS + tuple(f for f in NEW_FIELDS if f in other)
+                          + tuple(f for f in MODE_FIELDS if f in other and f in ref)):
                 if ref.get(field) != other.get(field):
                     diffs.append((key, field, ref.get(field), other.get(field)))
         failures += len(missing) + len(extra) + len(diffs)

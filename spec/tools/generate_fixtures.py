@@ -56,6 +56,14 @@ def resp(key, start, end, inp, cached, cw, out, reasoning, model, final=True, cw
             "provider": provider, "fast": fast, "final": final}
 
 
+def mode(value, evidence="recorded", provider=None):
+    """An expected effort or speed attribution (EXECUTION-MODES)."""
+    m = {"mode": value, "evidence": evidence}
+    if provider:
+        m["provider"] = provider
+    return m
+
+
 files = {}
 order = []
 
@@ -75,7 +83,12 @@ write_jsonl(rel, [
                                      "cwd": "/Users/dev/projects/rocket", "originator": "codex_cli_rs",
                                      "model_provider": "openai",
                                      "cli_version": "0.163.0", "source": "cli"}),
-    codex(at(0, 0, 100), "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol"}),
+    codex(at(0, 0, 50), "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-main",
+                                      "thread_settings": {"model": "gpt-6.1-sol", "model_provider_id": "openai",
+                                                          "service_tier": "priority", "reasoning_effort": "high",
+                                                          "reasoning_summary": "detailed"}}),
+    codex(at(0, 0, 100), "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol",
+                                          "effort": "xhigh"}),
     codex(at(0, 1), "event_msg", {"type": "task_started", "turn_id": "turn-1"}),
     codex(at(0, 1), "event_msg", {"type": "user_message", "message": "Ship it", "images": []}),
     codex(at(0, 1, 10), "response_item", {"type": "message", "role": "user",
@@ -89,6 +102,8 @@ write_jsonl(rel, [
     codex(at(0, 5, 12), "event_msg", {"type": "token_count",
                                       "info": {"total_token_usage": u1, "last_token_usage": u1}}),
     codex(at(0, 7, 500), "response_item", {"type": "function_call_output", "call_id": "call-1", "output": "ok"}),
+    codex(at(0, 8), "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-main",
+                                  "thread_settings": {"model": "gpt-6.1-sol", "service_tier": "ultrafast"}}),
     codex(at(0, 9), "response_item", {"type": "message", "role": "assistant",
                                       "content": [{"type": "output_text", "text": "Done"}]}),
     codex(at(0, 10, 500), "token_usage_record", {"thread_id": "thread-main", "session_id": "sess-1",
@@ -107,7 +122,10 @@ expect(rel, source="codex", project="rocket", model="gpt-6.1-sol", isSubagent=Fa
            resp("resp-1", at(0, 1, 10), at(0, 5, 10), 10000, 8000, 0, 200, 50, "gpt-6.1-sol", provider="openai"),
            resp("resp-2", at(0, 7, 500), at(0, 10, 500), 10400, 10000, 0, 330, 0, "gpt-6.1-sol",
                 provider="openai"),
-       ])
+       ],
+       effort=mode("xhigh"), speed=mode("ultrafast", "selected", "openai"),
+       responseModes={"resp-1": {"effort": mode("xhigh"), "speed": mode("fast", "selected", "openai")},
+                      "resp-2": {"effort": mode("xhigh"), "speed": mode("ultrafast", "selected", "openai")}})
 
 # --- Codex, sub-agent with copied parent history ------------------------------
 rel = "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-20-subagent.jsonl"
@@ -123,13 +141,17 @@ write_jsonl(rel, [
     codex(at(0, 20), "session_meta", {"id": "thread-main", "session_id": "sess-1", "timestamp": ts(at(0, 0)),
                                       "cwd": "/Users/dev/projects/rocket", "source": "cli",
                                       "model_provider": "openai"}),
+    codex(at(0, 0, 50), "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-main",
+                                      "thread_settings": {"service_tier": "priority", "reasoning_effort": "high"}}),
     codex(at(0, 1, 10), "response_item", {"type": "message", "role": "user",
                                           "content": [{"type": "input_text", "text": "Ship it"}]}),
     codex(at(0, 5, 10), "token_usage_record", {"thread_id": "thread-main", "session_id": "sess-1",
                                                "response_id": "resp-1", "usage": u1}),
     codex(at(0, 7, 0), "token_usage_record", {"thread_id": "thread-main", "session_id": "sess-1",
                                               "response_id": "resp-old-copy", "usage": u1}),
-    codex(at(0, 20, 100), "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol"}),
+    codex(at(0, 20, 100), "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol",
+                                           "collaboration_mode": {"mode": "default", "settings": {
+                                               "model": "gpt-6.1-sol", "reasoning_effort": "max"}}}),
     codex(at(0, 20, 500), "response_item", {"type": "agent_message", "author": "/root/worker",
                                             "recipient": "/root", "content": []}),
     codex(at(0, 21), "response_item", {"type": "agent_message", "author": "/root", "recipient": "/root/worker",
@@ -144,14 +166,21 @@ write_jsonl(rel, [
     codex(at(0, 32), "event_msg", {"type": "token_count", "info": {"total_token_usage": u3, "last_token_usage": u3}}),
     codex(at(0, 40), "response_item", {"type": "agent_message", "author": "/root", "recipient": "/root/worker",
                                        "content": [{"type": "input_text", "text": "Next"}]}),
+    codex(at(0, 41), "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-worker",
+                                   "thread_settings": {"service_tier": "ultrafast"}}),
     codex(at(0, 45), "response_item", {"type": "reasoning", "summary": []}),
     codex(at(0, 47), "token_usage_record", {"thread_id": "thread-worker", "session_id": "sess-1",
                                             "response_id": "resp-4", "usage": cx(5200, 5000, 60, 10)}),
+    codex(at(0, 47), "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-worker",
+                                   "thread_settings": {"service_tier": None, "reasoning_effort": "low"}}),
 ])
 expect(rel, source="codex", project="rocket", model="gpt-6.1-sol", isSubagent=True,
        parentFile="codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl", phase="tools", inFlightStartMs=None, lastLineMs=at(0, 47), malformedLines=0,
        responses=[resp("resp-3", at(0, 21), at(0, 24), 5000, 0, 0, 120, 40, "gpt-6.1-sol"),
-                  resp("resp-4", at(0, 40), at(0, 47), 5200, 5000, 0, 60, 10, "gpt-6.1-sol")])
+                  resp("resp-4", at(0, 40), at(0, 47), 5200, 5000, 0, 60, 10, "gpt-6.1-sol")],
+       effort=mode("max"), speed=None,
+       responseModes={"resp-3": {"effort": mode("max"), "speed": None},
+                      "resp-4": {"effort": mode("max"), "speed": mode("ultrafast", "selected", "openai")}})
 
 # --- Codex, legacy token_count only -------------------------------------------
 rel = "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-00-legacy.jsonl"
@@ -264,12 +293,17 @@ write_jsonl(rel, [
     user(at(2, 0), "Build the launch pad"),
     claude("api-request", at(2, 0, 50), id="api-1", params={"model": "claude-opus-5-5"}),
     claude("attachment", at(2, 0, 60), attachment={"type": "todo"}),
-    assistant(at(2, 4), "msg_A", ["thinking"], cl_usage(2, 1000, 20000, 150, 60, h1=600), None),
-    assistant(at(2, 6, 50), "msg_A", ["tool_use"], cl_usage(2, 1000, 20000, 300, 60, h1=600), "tool_use"),
+    assistant(at(2, 4), "msg_A", ["thinking"], cl_usage(2, 1000, 20000, 150, 60, h1=600), None, effort="xhigh",
+              perTurnEffort=None),
+    assistant(at(2, 6, 50), "msg_A", ["tool_use"], cl_usage(2, 1000, 20000, 300, 60, h1=600), "tool_use",
+              effort="xhigh"),
     user(at(2, 9), [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]),
-    assistant(at(2, 12), "msg_B", ["text"], cl_usage(5, 200, 21000, 240, speed="standard"), "end_turn"),
-    assistant(at(2, 12, 500), "msg_SYN", ["text"], cl_usage(0, 0, 0, 0), "stop_sequence", model="<synthetic>"),
+    assistant(at(2, 12), "msg_B", ["text"], cl_usage(5, 200, 21000, 240, speed="standard"), "end_turn",
+              effort="xhigh", perTurnEffort="max"),
+    assistant(at(2, 12, 500), "msg_SYN", ["text"], cl_usage(0, 0, 0, 0), "stop_sequence", model="<synthetic>",
+              effort="low"),
     claude("system", at(2, 13), subtype="turn_duration"),
+    claude("attachment", at(2, 19), attachment={"type": "ultra_effort_enter", "reminderType": "full"}),
     user(at(2, 20), "Now polish it"),
     user(at(2, 25), [{"type": "text", "text": "[Request interrupted by user]"}]),
 ])
@@ -278,7 +312,10 @@ expect(rel, source="claudeCode", project="nova", model="claude-opus-5-5", isSuba
        responses=[
            resp("msg_A", at(2, 0, 50), at(2, 6, 50), 21002, 20000, 1000, 300, 60, "claude-opus-5-5", cw1h=600),
            resp("msg_B", at(2, 9), at(2, 12), 21205, 21000, 200, 240, 0, "claude-opus-5-5"),
-       ])
+       ],
+       effort=mode("ultracode"), speed=mode("standard", "served", "anthropic"),
+       responseModes={"msg_A": {"effort": mode("xhigh"), "speed": None},
+                      "msg_B": {"effort": mode("max"), "speed": mode("standard", "served", "anthropic")}})
 
 # --- Claude Code sub-agent ----------------------------------------------------
 rel = "claude/projects/-Users-dev-projects-nova/s-cli/subagents/agent-abc.jsonl"
@@ -297,7 +334,9 @@ expect(rel, source="claudeCode", project="nova", model="claude-opus-5-5", isSuba
        parentFile="claude/projects/-Users-dev-projects-nova/s-cli.jsonl",
        phase="generating", inFlightStartMs=at(2, 16), lastLineMs=at(2, 16), malformedLines=0,
        responses=[resp("msg_D", at(2, 7), at(2, 10), 504, 0, 500, 90, 0, "claude-opus-5-5", cw1h=500),
-                  resp("msg_E", at(2, 11), at(2, 15), 602, 600, 0, 8, 0, "claude-opus-5-5", final=False)])
+                  resp("msg_E", at(2, 11), at(2, 15), 602, 600, 0, 8, 0, "claude-opus-5-5", final=False)],
+       effort=None, speed=None,
+       responseModes={"msg_D": {"effort": None, "speed": None}, "msg_E": {"effort": None, "speed": None}})
 
 # --- Claude Desktop, resumed session that copies msg_B ------------------------
 rel = "claude/projects/-Users-dev-projects-orbit/s-desk.jsonl"
@@ -307,20 +346,27 @@ write_jsonl(rel, [
     user(at(2, 9), [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}],
          **dict(d, entry="claude-desktop-3p")),
     assistant(at(2, 12), "msg_B", ["text"], cl_usage(5, 200, 21000, 240), "end_turn", **d),
+    claude("attachment", at(2, 59), attachment={"type": "ultra_effort_enter", "reminderType": "full"}, **d),
+    claude("attachment", at(2, 59, 500), attachment={"type": "ultra_effort_exit"}, **d),
     user(at(3, 0), "Plan the orbit", **d),
-    assistant(at(3, 5), "msg_C", ["tool_use"], cl_usage(3, 0, 30000, 500, speed="fast"), "tool_use", **d),
+    claude("attachment", at(3, 0, 1), attachment={"type": "workflow_keyword_request"}, **d),
+    user(at(3, 0, 2), [{"type": "text", "text": "Workflow instructions"}], isMeta=True, **d),
+    assistant(at(3, 5), "msg_C", ["tool_use"], cl_usage(3, 0, 30000, 500, speed="fast"), "tool_use", effort="high",
+              **d),
 ])
 expect(rel, source="claudeDesktop", project="orbit", model="claude-opus-5-5", isSubagent=False, parentFile=None,
        phase="tools", inFlightStartMs=None, lastLineMs=at(3, 5), malformedLines=0,
-       responses=[resp("msg_C", at(3, 0), at(3, 5), 30003, 30000, 0, 500, 0, "claude-opus-5-5", fast=True)])
+       responses=[resp("msg_C", at(3, 0, 2), at(3, 5), 30003, 30000, 0, 500, 0, "claude-opus-5-5", fast=True)],
+       effort=mode("ultracode"), speed=mode("fast", "served", "anthropic"),
+       responseModes={"msg_C": {"effort": mode("ultracode"), "speed": mode("fast", "served", "anthropic")}})
 
 # --- Claude Desktop sub-agent whose last tool result ends its run --------------
 rel = "claude/projects/-Users-dev-projects-orbit/s-desk/subagents/agent-wf1.jsonl"
 w = dict(d, entry="claude-desktop-3p", sidechain=True, agentId="wf1")
 write_jsonl(rel, [
     user(at(3, 1), "Count to 50 and report", **w),
-    assistant(at(3, 3), "msg_W", ["text"], cl_usage(3, 0, 900, 40), None, **w),
-    assistant(at(3, 4), "msg_W", ["tool_use"], cl_usage(3, 0, 900, 60), "tool_use", **w),
+    assistant(at(3, 3), "msg_W", ["text"], cl_usage(3, 0, 900, 40), None, effort="medium", **w),
+    assistant(at(3, 4), "msg_W", ["tool_use"], cl_usage(3, 0, 900, 60), "tool_use", effort="medium", **w),
     claude("attachment", at(3, 4, 4), attachment={"type": "structured_output", "data": {"count": 50}}, **w),
     user(at(3, 4, 6), [{"type": "tool_result", "tool_use_id": "t9", "content": "Structured output provided successfully"}],
          toolEndsTurn=True, **w),
@@ -328,7 +374,8 @@ write_jsonl(rel, [
 expect(rel, source="claudeDesktop", project="orbit", model="claude-opus-5-5", isSubagent=True,
        parentFile="claude/projects/-Users-dev-projects-orbit/s-desk.jsonl",
        phase="idle", inFlightStartMs=None, lastLineMs=at(3, 4, 6), malformedLines=0,
-       responses=[resp("msg_W", at(3, 1), at(3, 4), 903, 900, 0, 60, 0, "claude-opus-5-5")])
+       responses=[resp("msg_W", at(3, 1), at(3, 4), 903, 900, 0, 60, 0, "claude-opus-5-5")],
+       effort=mode("medium"), speed=None, responseModes={"msg_W": {"effort": mode("medium"), "speed": None}})
 
 
 # --- DeepSeek Harness (dsh): zstd frame streams ------------------------------
@@ -450,10 +497,12 @@ opus = {"id": "claude-opus-5-5", "providerID": "anthropic"}
 sonnet = {"id": "claude-sonnet-5-5", "providerID": "anthropic"}
 oc_row("u1", "ses_main", "user", 1, at(5, 1), at(5, 1), {"text": "Plan it", "time": {"created": at(5, 1)}})
 oc_row("msg_oc1", "ses_main", "assistant", 2, at(5, 1, 10), at(5, 5, 20),
-       {"time": {"created": at(5, 1, 10), "streamed": at(5, 5, 10), "completed": at(5, 5, 20)}, "model": opus,
+       {"time": {"created": at(5, 1, 10), "streamed": at(5, 5, 10), "completed": at(5, 5, 20)},
+        "model": dict(opus, variant="max"),
         "finish": "tool-calls", "tokens": oc_tokens(4, 300, 100, 1000, 200), "content": [{"type": "tool"}]})
 oc_row("msg_oc2", "ses_main", "assistant", 3, at(5, 40), at(5, 42, 10),
-       {"time": {"created": at(5, 40), "streamed": at(5, 42), "completed": at(5, 42, 10)}, "model": opus,
+       {"time": {"created": at(5, 40), "streamed": at(5, 42), "completed": at(5, 42, 10)},
+        "model": dict(opus, variant="default"),
         "finish": "stop", "tokens": oc_tokens(2, 150, 0, 1200, 0), "content": [{"type": "text"}]})
 oc_row("cmp_1", "ses_main", "compaction", 4, at(5, 43), at(5, 47),
        {"time": {"created": at(5, 43), "completed": at(5, 47)}, "model": {"id": "claude-haiku-5"},
@@ -463,10 +512,11 @@ oc_row("msg_copy", "ses_sub", "assistant", 1, at(5, 20), at(5, 20),
        {"time": {"created": at(5, 1, 10), "streamed": at(5, 5, 10), "completed": at(5, 5, 20)}, "model": opus,
         "finish": "tool-calls", "tokens": oc_tokens(4, 300, 100, 1000, 200)})
 oc_row("msg_oc3", "ses_sub", "assistant", 2, at(5, 21), at(5, 24, 5),
-       {"time": {"created": at(5, 21), "streamed": at(5, 24), "completed": at(5, 24, 5)}, "model": sonnet,
+       {"time": {"created": at(5, 21), "streamed": at(5, 24), "completed": at(5, 24, 5)},
+        "model": dict(sonnet, variant="xhigh"),
         "finish": "tool-calls", "tokens": oc_tokens(3, 90, 30, 0, 500)})
 oc_row("msg_oc4", "ses_sub", "assistant", 3, at(5, 30), at(5, 30),
-       {"time": {"created": at(5, 30)}, "model": sonnet, "content": []})
+       {"time": {"created": at(5, 30)}, "model": dict(sonnet, variant="high"), "content": []})
 oc.commit()
 oc.close()
 opencode_expected = {
@@ -478,12 +528,18 @@ opencode_expected = {
                                   resp("msg_oc2", at(5, 40), at(5, 42), 1202, 1200, 0, 150, 0, "claude-opus-5-5",
                                        provider="anthropic"),
                                   resp("cmp_1", at(5, 43), at(5, 47), 5000, 0, 0, 800, 0, "claude-haiku-5"),
-                              ]),
+                              ],
+                              effort=None, speed=None,
+                              responseModes={"msg_oc1": {"effort": mode("max"), "speed": None},
+                                             "msg_oc2": {"effort": None, "speed": None},
+                                             "cmp_1": {"effort": None, "speed": None}}),
     "opencode:ses_sub": dict(source="opencode", project="nebula", model="claude-sonnet-5-5", isSubagent=True,
                              parentId="opencode:ses_main", phase="generating", inFlightStartMs=at(5, 30),
                              lastLineMs=at(5, 30),
                              responses=[resp("msg_oc3", at(5, 21), at(5, 24), 503, 0, 500, 120, 30,
-                                             "claude-sonnet-5-5", provider="anthropic")]),
+                                             "claude-sonnet-5-5", provider="anthropic")],
+                             effort=mode("high"), speed=None,
+                             responseModes={"msg_oc3": {"effort": mode("xhigh"), "speed": None}}),
 }
 
 # --- Gemini CLI -----------------------------------------------------------------

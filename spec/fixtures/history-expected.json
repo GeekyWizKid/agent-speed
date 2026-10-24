@@ -47,7 +47,7 @@
       "output": 560,
       "reasoning": 0,
       "measuredOutput": 560,
-      "measuredMs": 8000,
+      "measuredMs": 7998,
       "unfinalized": 0,
       "costMicroUsd": 56995,
       "unpricedRequests": 0,
@@ -58,7 +58,7 @@
           "requests": 2,
           "output": 560,
           "measuredOutput": 560,
-          "measuredMs": 8000,
+          "measuredMs": 7998,
           "costMicroUsd": 56995,
           "unpricedRequests": 0
         }

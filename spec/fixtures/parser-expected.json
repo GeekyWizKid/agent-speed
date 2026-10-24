@@ -79,7 +79,40 @@
           "fast": false,
           "final": true
         }
-      ]
+      ],
+      "effort": {
+        "mode": "xhigh",
+        "evidence": "recorded"
+      },
+      "speed": {
+        "mode": "ultrafast",
+        "evidence": "selected",
+        "provider": "openai"
+      },
+      "responseModes": {
+        "resp-1": {
+          "effort": {
+            "mode": "xhigh",
+            "evidence": "recorded"
+          },
+          "speed": {
+            "mode": "fast",
+            "evidence": "selected",
+            "provider": "openai"
+          }
+        },
+        "resp-2": {
+          "effort": {
+            "mode": "xhigh",
+            "evidence": "recorded"
+          },
+          "speed": {
+            "mode": "ultrafast",
+            "evidence": "selected",
+            "provider": "openai"
+          }
+        }
+      }
     },
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-20-subagent.jsonl": {
       "source": "codex",
@@ -122,7 +155,32 @@
           "fast": false,
           "final": true
         }
-      ]
+      ],
+      "effort": {
+        "mode": "max",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "resp-3": {
+          "effort": {
+            "mode": "max",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "resp-4": {
+          "effort": {
+            "mode": "max",
+            "evidence": "recorded"
+          },
+          "speed": {
+            "mode": "ultrafast",
+            "evidence": "selected",
+            "provider": "openai"
+          }
+        }
+      }
     },
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-00-legacy.jsonl": {
       "source": "codex",
@@ -251,7 +309,36 @@
           "fast": false,
           "final": true
         }
-      ]
+      ],
+      "effort": {
+        "mode": "ultracode",
+        "evidence": "recorded"
+      },
+      "speed": {
+        "mode": "standard",
+        "evidence": "served",
+        "provider": "anthropic"
+      },
+      "responseModes": {
+        "msg_A": {
+          "effort": {
+            "mode": "xhigh",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "msg_B": {
+          "effort": {
+            "mode": "max",
+            "evidence": "recorded"
+          },
+          "speed": {
+            "mode": "standard",
+            "evidence": "served",
+            "provider": "anthropic"
+          }
+        }
+      }
     },
     "claude/projects/-Users-dev-projects-nova/s-cli/subagents/agent-abc.jsonl": {
       "source": "claudeCode",
@@ -294,7 +381,19 @@
           "fast": false,
           "final": false
         }
-      ]
+      ],
+      "effort": null,
+      "speed": null,
+      "responseModes": {
+        "msg_D": {
+          "effort": null,
+          "speed": null
+        },
+        "msg_E": {
+          "effort": null,
+          "speed": null
+        }
+      }
     },
     "claude/projects/-Users-dev-projects-orbit/s-desk.jsonl": {
       "source": "claudeDesktop",
@@ -309,7 +408,7 @@
       "responses": [
         {
           "key": "msg_C",
-          "startMs": 1792490580000,
+          "startMs": 1792490580002,
           "endMs": 1792490585000,
           "input": 30003,
           "cachedInput": 30000,
@@ -322,7 +421,29 @@
           "fast": true,
           "final": true
         }
-      ]
+      ],
+      "effort": {
+        "mode": "ultracode",
+        "evidence": "recorded"
+      },
+      "speed": {
+        "mode": "fast",
+        "evidence": "served",
+        "provider": "anthropic"
+      },
+      "responseModes": {
+        "msg_C": {
+          "effort": {
+            "mode": "ultracode",
+            "evidence": "recorded"
+          },
+          "speed": {
+            "mode": "fast",
+            "evidence": "served",
+            "provider": "anthropic"
+          }
+        }
+      }
     },
     "claude/projects/-Users-dev-projects-orbit/s-desk/subagents/agent-wf1.jsonl": {
       "source": "claudeDesktop",
@@ -350,7 +471,21 @@
           "fast": false,
           "final": true
         }
-      ]
+      ],
+      "effort": {
+        "mode": "medium",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "msg_W": {
+          "effort": {
+            "mode": "medium",
+            "evidence": "recorded"
+          },
+          "speed": null
+        }
+      }
     },
     "dsh/sessions/--Users-dev-projects-quasar--/session-dsh-main/session.v4.jsonl.zstd": {
       "source": "deepseek",
@@ -1841,7 +1976,26 @@
             "fast": false,
             "final": true
           }
-        ]
+        ],
+        "effort": null,
+        "speed": null,
+        "responseModes": {
+          "msg_oc1": {
+            "effort": {
+              "mode": "max",
+              "evidence": "recorded"
+            },
+            "speed": null
+          },
+          "msg_oc2": {
+            "effort": null,
+            "speed": null
+          },
+          "cmp_1": {
+            "effort": null,
+            "speed": null
+          }
+        }
       },
       "opencode:ses_sub": {
         "source": "opencode",
@@ -1868,7 +2022,21 @@
             "fast": false,
             "final": true
           }
-        ]
+        ],
+        "effort": {
+          "mode": "high",
+          "evidence": "recorded"
+        },
+        "speed": null,
+        "responseModes": {
+          "msg_oc3": {
+            "effort": {
+              "mode": "xhigh",
+              "evidence": "recorded"
+            },
+            "speed": null
+          }
+        }
       }
     }
   },
