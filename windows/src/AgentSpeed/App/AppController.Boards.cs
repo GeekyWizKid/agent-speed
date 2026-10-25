@@ -85,7 +85,8 @@ internal sealed partial class AppController : IBoardHost
 
     public void RemoveBoard(string boardId)
     {
-        if (Settings.Boards.Find(boardId) is not { } board || !BoardMenu.ConfirmRemove(null, board, _loc))
+        var owner = _settingsWindow is { IsActive: true } ? _settingsWindow : null;
+        if (Settings.Boards.Find(boardId) is not { } board || !BoardMenu.ConfirmRemove(owner, board, _loc))
         {
             return;
         }

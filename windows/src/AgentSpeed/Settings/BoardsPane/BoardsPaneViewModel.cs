@@ -89,6 +89,7 @@ internal sealed class BoardsPaneViewModel : ObservableObject
         {
             _selectNext = "#new";
             _add(SelectedId);
+            _selectNext = null;
         }, () => S.Boards.CanAdd);
         RemoveCommand = new RelayCommand(() =>
         {
