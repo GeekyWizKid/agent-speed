@@ -29,6 +29,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppCommands {
             NSApp.terminate(nil)
             return
         }
+        if let directory = options.boardFramesDirectory {
+            BoardFrameHarness.run(into: directory)
+            NSApp.terminate(nil)
+            return
+        }
+        if let directory = options.boardBenchDirectory {
+            BoardBenchmark.start(into: directory)
+            return
+        }
+        if let demo = options.boardDemo {
+            BoardDemoHarness.start(demo)
+            return
+        }
         if let directory = options.orbBenchDirectory {
             OrbBenchmark.start(into: directory)
             return
