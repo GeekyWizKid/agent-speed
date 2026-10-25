@@ -139,7 +139,7 @@ ShapeOut VsShape(ShapeIn input)
         float4 box = orb_arc_bounds(input.b.x, input.b.y * 0.5, input.extra.z, input.extra.w);
         local = lerp(box.xy - pad, box.zw + pad, corner * 0.5 + 0.5);
     }
-    else if (shape > 8.5)
+    else if (shape > 8.5 && shape < 9.5)
     {
         // Stroke segment: a quad along the segment, as wide as its widest layer.
         float pad = input.b.y + 2.0 / viewport.z;
@@ -297,7 +297,7 @@ float4 PsShape(ShapeOut input) : SV_Target
         float tail = orb_uneven_capsule(float2(q.y, -q.x), input.extra.z, input.b.z, input.b.y);
         d = min(tip, tail);
     }
-    else
+    else if (shape < 9.5)
     {
         // Stroke segment of a polyline (bolts, arcs): half length b.x along a.z, three concentric round-capped layers with half
         // widths b.y (glow), b.z (body) and b.w (core) and alphas extra.xyz; glow and body in color, the core in color2;
@@ -347,6 +347,13 @@ float4 PsShape(ShapeOut input) : SV_Target
         }
 
         return orb_output(rgb * keep, stroke_alpha * keep);
+    }
+    else
+    {
+        // Rounded-rect outline (the board's ring): half size b.xy, corner radius b.z, line width extra.z.
+        float r = input.b.z;
+        float2 k = abs(p) - input.b.xy + r;
+        d = abs(length(max(k, 0.0)) + min(max(k.x, k.y), 0.0) - r) - input.extra.z * 0.5;
     }
 
     if (fill > 0.5 && fill < 1.5)
