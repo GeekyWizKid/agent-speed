@@ -277,6 +277,7 @@ internal sealed class BoardManager : IDisposable
         entry.Definition = entry.Definition with { Style = style };
         Open(entry, look);
         entry.Window.MoveTo(center);
+        entry.Target = center;
         if (shown)
         {
             entry.Window.Show();
@@ -509,9 +510,11 @@ internal sealed class BoardManager : IDisposable
         var result = BoardArrangement.Resolve(Settings.Boards, Displays(), _orbs());
         foreach (var (id, location) in result.Locations)
         {
+            // A board settling after a drag already heads for its committed place: only a different place moves it.
             if (_entries.TryGetValue(id, out var entry) && !entry.Window.IsDragging
-                && (fresh.Contains(id) || OrbGeometry.Distance(entry.Window.Center, location.Center) > 0.5))
+                && (fresh.Contains(id) || entry.Target is not { } target || OrbGeometry.Distance(target, location.Center) > 0.5))
             {
+                entry.Target = location.Center;
                 entry.Window.MoveTo(location.Center);
             }
         }
@@ -537,6 +540,8 @@ internal sealed class BoardManager : IDisposable
         {
             entry.Window.MoveTo(center);
         }
+
+        entry.Target = center;
 
         _settings.Update(s => s with { Boards = BoardArrangement.Commit(s.Boards, Displays(), id, center) });
     }
@@ -592,6 +597,9 @@ internal sealed class BoardManager : IDisposable
         public IBoardLayerPainter? Painter { get; set; }
 
         public BoardLook Look { get; set; }
+
+        /// <summary>The center the window was last sent to (physical pixels).</summary>
+        public PointD? Target { get; set; }
 
         public (BoardStyle Style, BoardSize Size, BoardEffectsPolicy Policy, BoardWindowOptions Options)? Config { get; set; }
     }
