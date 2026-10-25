@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import antigravity_fixtures  # noqa: E402
 import gemini_fixtures  # noqa: E402
 import omp_fixtures  # noqa: E402
+import pi_fixtures  # noqa: E402
 import workbuddy_fixtures  # noqa: E402
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures"))
@@ -574,6 +575,13 @@ order += workbuddy["order"]
 files.update(workbuddy["files"])
 mtimes.update(workbuddy["mtimes"])
 
+# --- Pi ---------------------------------------------------------------------------
+pi = pi_fixtures.write_fixtures(ROOT)
+assert min(pi["mtimes"].values()) > max(mtimes.values())
+order += pi["order"]
+files.update(pi["files"])
+mtimes.update(pi["mtimes"])
+
 with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the "
                            "Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this "
@@ -587,14 +595,18 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                            "path; `{\"unsupported\": true}` marks a database that contributes no agent; reading must "
                            "not create any file (no -wal or -shm). WorkBuddy: the folder `workbuddy` plays the home "
                            "folder (data folders .workbuddy and .workbuddy-ai); `workbuddy.discover` lists what "
-                           "discovery finds in both projects folders; its `traces` work like the omp ones.",
+                           "discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the "
+                           "folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom "
+                           "session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both "
+                           "roots; its `traces` work like the omp ones.",
                "order": order, "files": files, "mtimes": mtimes,
                "opencode": {"database": opencode_rel, "agents": opencode_expected},
                "gemini": {"discover": gemini["discover"], "traces": gemini["traces"]},
                "omp": {"discover": omp["discover"], "traces": omp["traces"], "tailReads": omp["tailReads"]},
                "antigravity": {"order": antigravity["order"], "discover": antigravity["discover"],
                                "databases": antigravity["databases"]},
-               "workbuddy": {"discover": workbuddy["discover"], "traces": workbuddy["traces"]}},
+               "workbuddy": {"discover": workbuddy["discover"], "traces": workbuddy["traces"]},
+               "pi": {"discover": pi["discover"], "traces": pi["traces"]}},
               f, indent=2, ensure_ascii=False)
     f.write("\n")
 

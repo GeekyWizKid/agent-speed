@@ -475,6 +475,59 @@
         "/Users/dev/Applications/WB Copy.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy",
         "--serve"
        ]
+      },
+      {
+       "pid": 1200,
+       "ppid": 1,
+       "start": 9100,
+       "exe": "/bin/zsh"
+      },
+      {
+       "pid": 1201,
+       "ppid": 1200,
+       "start": 9110,
+       "exe": "/Users/dev/.local/share/pi-node/current/bin/node",
+       "args": [
+        "node",
+        "/Users/dev/.pi/agent/install/releases/1.4.0/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js"
+       ]
+      },
+      {
+       "pid": 1202,
+       "ppid": 1201,
+       "start": 9120,
+       "exe": "/bin/bash",
+       "args": [
+        "bash",
+        "-c",
+        "bun test"
+       ]
+      },
+      {
+       "pid": 1203,
+       "ppid": 1200,
+       "start": 9130,
+       "exe": "/opt/homebrew/bin/node",
+       "args": [
+        "node",
+        "/opt/homebrew/lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js"
+       ]
+      },
+      {
+       "pid": 1204,
+       "ppid": 1200,
+       "start": 9140,
+       "exe": "/Users/dev/.local/bin/pi"
+      },
+      {
+       "pid": 1205,
+       "ppid": 1200,
+       "start": 9150,
+       "exe": "/opt/homebrew/bin/node",
+       "args": [
+        "node",
+        "/Users/dev/projects/pi-calculator/index.js"
+       ]
       }
      ]
     }
@@ -522,7 +575,13 @@
      "212": "workbuddy/agent",
      "213": "workbuddy/tool",
      "214": "workbuddy/agent",
-     "215": "workbuddyAi/agent"
+     "215": "workbuddyAi/agent",
+     "1200": null,
+     "1201": "pi/agent",
+     "1202": "pi/tool",
+     "1203": "pi/agent",
+     "1204": "pi/agent",
+     "1205": null
     }
    }
   },

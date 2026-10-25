@@ -11,9 +11,10 @@ file was read; the parser rules are derived from the writer's code and checked o
 - Pi is the upstream of omp (METRICS 4.7). The session format is the same JSONL family (session version 3), so the
   rules of 4.7 apply with the differences of METRICS 4.13: the root, `durationMs` instead of `duration`, `usage.reasoning`
   instead of `usage.reasoningTokens`, and four kinds of side usage that Pi's own totals count.
-- Root: `$PI_CODING_AGENT_SESSION_DIR`, else `$PI_CODING_AGENT_DIR/sessions`, else `~/.pi/agent/sessions`. One folder
-  per working directory (`--<cwd with / \ : replaced by ->--`), one file per session
-  (`<ISO timestamp with : and . replaced by ->_<uuid>.jsonl`).
+- Roots: `<agent dir>/sessions` (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`) with one folder per working directory
+  (`--<cwd with / \ : replaced by ->--`) and one file per session (`<ISO timestamp with : and . replaced by
+  ->_<uuid>.jsonl`); a custom session folder (`--session-dir`, `$PI_CODING_AGENT_SESSION_DIR`, `sessionDir` in
+  `<agent dir>/settings.json`) holds the session files directly.
 - Writes: nothing until the session has a user or assistant message, then the whole history at once (`wx`), then one
   `appendFileSync` per entry. A message is appended at its `message_end`: a user prompt before its request, an
   assistant message once, complete, after its stream, a tool result when the tool finished. No record exists while a
@@ -39,6 +40,7 @@ file was read; the parser rules are derived from the writer's code and checked o
 | --- | --- |
 | Agent dir `$PI_CODING_AGENT_DIR`, else `~/.pi/agent`; sessions `<agent dir>/sessions`; `PI_CODING_AGENT_SESSION_DIR` | `packages/coding-agent/src/config.ts` 581–650 (`ENV_AGENT_DIR`, `ENV_SESSION_DIR`, `getAgentDir`, `getSessionsDir`) |
 | Bucket folder `--<cwd>--` | `packages/coding-agent/src/core/session-manager.ts` 589–593 |
+| A custom session folder (`--session-dir`, `$PI_CODING_AGENT_SESSION_DIR`, `sessionDir` in settings.json) holds the files directly, no bucket folders | `packages/coding-agent/src/main.ts` 691–695; `core/settings-manager.ts` 690–693; `session-manager.ts` 1755–1756, 1932–1951 |
 | File name `<timestamp>_<sessionId>.jsonl` | `session-manager.ts` 1079–1080, 1672–1673, 1844–1845 |
 | Header `{type:"session", version, id, timestamp (ISO), cwd, parentSession?}`, version 3 | `session-manager.ts` 41–50 |
 | Entries `{type, id (8 hex chars of a UUID), parentId, timestamp (ISO)}` | `session-manager.ts` 57–62, 277–284 |

@@ -32,7 +32,7 @@ responses (4.12); the speed engine still processes its normalized tokens and dur
 | ZCode | `~/.zcode/cli/db/db.sqlite`; `$ZCODE_DATA_BASE_DIR` replaces the home base, with `.zcode/cli/db` underneath | user setting (data directory, database folder, or `db.sqlite`) |
 | Kimi Code CLI (TypeScript v2) | `$KIMI_CODE_HOME/sessions`, else `~/.kimi-code/sessions` | user setting (data directory or its `sessions` folder) |
 | Grok Build | `$GROK_HOME/sessions`, else `~/.grok/sessions` | user setting (data directory or its `sessions` folder) |
-| Pi (Pi Coding Agent: TUI, `-p`, RPC) | `$PI_CODING_AGENT_SESSION_DIR`, else `$PI_CODING_AGENT_DIR/sessions`, else `~/.pi/agent/sessions` | user setting (one `sessions` folder) |
+| Pi (Pi Coding Agent: TUI, `-p`, RPC) | `<agent dir>/sessions` with `<agent dir>` = `$PI_CODING_AGENT_DIR`, else `~/.pi/agent`; plus Pi's own custom session folder when one is set: `sessionDir` of `<agent dir>/settings.json` and `$PI_CODING_AGENT_SESSION_DIR` (4.13) | user setting (one folder; replaces every automatic root) |
 
 `~` is `HOME` on macOS and `%USERPROFILE%` on Windows. Claude Code and Claude Desktop share one root; each file is
 assigned to a source by its `entrypoint` field (section 4.1). Ordinary Claude Desktop chat conversations are not stored
@@ -1146,10 +1146,18 @@ classification, timing model, state and phase table, assistant steps 1–5, toke
 history, known approximations — with the differences below. Evidence: `spec/research/pi.md`; fixtures:
 `spec/tools/pi_fixtures.py` (`spec/fixtures/pi`).
 
-- **Root** (section 2): one root, no profiles. Layout `<root>/--<cwd>--/<YYYY-MM-DDTHH-MM-SS-mmmZ>_<uuid>.jsonl`;
-  discovery as omp (regular `.jsonl` files at least two components below the root, names starting with `.` skipped).
-  Pi has no built-in sub-agents; a file three or more components deep (written by a package) is a sub-agent as in
-  omp.
+- **Roots** (section 2): the default root `<agent dir>/sessions` holds one folder per working directory
+  (`--<cwd>--`, the path without its leading separator and with `/`, `\` and `:` replaced by `-`) and in it one file
+  per session, `<YYYY-MM-DDTHH-MM-SS-mmmZ>_<uuid>.jsonl`. A custom session folder (`sessionDir` in
+  `<agent dir>/settings.json` when it is a non-empty string, a leading `~` meaning the home folder;
+  `$PI_CODING_AGENT_SESSION_DIR`; `--session-dir`) holds the session files directly, without working-directory
+  folders. The settings file is read (never written) at startup and on rediscovery; a root that does not exist is
+  skipped and a path listed twice is scanned once.
+- **Discovery**: regular files (never symlinks) whose name ends in `.jsonl`, at least one component below the root,
+  within the depth limit of section 2; every file or folder whose name starts with `.` is skipped.
+- **Sub-agents**: Pi has none of its own; packages that add them write a session's children into a folder named after
+  the session file (`<stem>/<name>.jsonl` next to `<stem>.jsonl`). A file is a sub-agent when its folder's path plus
+  `.jsonl` is a regular file; that file is its parent when it is tracked.
 - **Records**: there is no `title` slot, no `model_usage` and no `session_exit`; tool results never end a run (no
   `yield`), and `stopDetails` is never written. Any other `type` only updates `lastLineMs`, except the side usage
   below.

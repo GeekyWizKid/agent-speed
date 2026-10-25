@@ -4627,10 +4627,10 @@
     "ja": "Grok Build の sessions フォルダと各セッションの更新記録を読み取ります。"
   },
   "settings.sources.piHint": {
-    "zh-Hant": "Pi（Pi Coding Agent）的 sessions 資料夾，通常是 ~/.pi/agent/sessions。",
-    "zh-Hans": "Pi（Pi Coding Agent）的 sessions 文件夹，通常是 ~/.pi/agent/sessions。",
-    "en": "The sessions folder of Pi (Pi Coding Agent), usually ~/.pi/agent/sessions.",
-    "ja": "Pi（Pi Coding Agent）の sessions フォルダです。通常は ~/.pi/agent/sessions です。"
+    "zh-Hant": "Pi（Pi Coding Agent）的 sessions 資料夾，通常是 ~/.pi/agent/sessions。未選擇資料夾時，Pi 設定裡的自訂工作階段資料夾也會一起讀取。",
+    "zh-Hans": "Pi（Pi Coding Agent）的 sessions 文件夹，通常是 ~/.pi/agent/sessions。未选择文件夹时，也会读取 Pi 设置里的自定义会话文件夹。",
+    "en": "The sessions folder of Pi (Pi Coding Agent), usually ~/.pi/agent/sessions. Unless you choose a folder, the custom session folder in Pi's settings is included too.",
+    "ja": "Pi（Pi Coding Agent）の sessions フォルダです。通常は ~/.pi/agent/sessions です。フォルダを選ばない場合は、Pi の設定にあるカスタムのセッションフォルダも読み込みます。"
   },
   "mode.label": {
     "zh-Hant": "執行模式",

@@ -145,8 +145,10 @@ from its current facts, below.
   `thinking_level_change` entry's `thinkingLevel` (adapter `effort`, evidence `selected`, scope `session`) replaces
   it; an accepted assistant message's `thinkingLevel` (adapter `effort`, evidence `recorded`, scope `request`; Pi's
   levels `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`) is that response's fact and replaces it too, so
-  the later of the two is current. `providerThinkingLevel` (the provider's native token) is not used. No speed facts.
-  Current: the context.
+  the later of the two is current. A response takes a snapshot of the context after its own message's fact (so a
+  message without `thinkingLevel`, written by pi-ai before 0.99, takes the selected level); side usage (METRICS 4.13)
+  carries no facts. `providerThinkingLevel` (the provider's native token) is not used. No speed facts. Current: the
+  context.
 
 `parser-expected.json` checks these for the Claude, Codex, OpenCode and Pi fixtures: per file (or OpenCode session)
 `effort` and `speed` (the current attributions) and `responseModes` (per response key), each attribution an object

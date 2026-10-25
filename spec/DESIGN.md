@@ -2001,10 +2001,10 @@ with Mica). Sections:
   - omp: one row. The path is the default sessions root (METRICS 2); the status counts the sessions of the default
     root and every named-profile root together. Change… picks one `sessions` folder and replaces all automatic roots;
     Reset returns to them. Caption `settings.sources.ompHint`.
-  - Pi: one row after Grok Build, like Kimi Code CLI: the path is the sessions root (METRICS 2), the status counts
-    session files (`source.sessions`), Change… picks one `sessions` folder (`mac.settings.sources.choosePi` on
-    macOS), Reset returns to the default. Caption `settings.sources.piHint`. An omp folder that is Pi's (METRICS 4.7)
-    is counted under Pi only.
+  - Pi: one row after Grok Build: the path is the default sessions root (METRICS 2), the status counts the main
+    session files of every automatic root (`source.sessions`; sub-agent files are not sessions), Change… picks one
+    folder and replaces the automatic roots (`mac.settings.sources.choosePi` on macOS), Reset returns to them.
+    Caption `settings.sources.piHint`. An omp folder that is Pi's (METRICS 4.7) is counted under Pi only.
   - Antigravity: one row. The path lists the stores found (`~/.gemini/antigravity-cli`, `antigravity`,
     `antigravity-ide`); the status counts conversation databases (`source.sessions`). Change… picks one store folder
     (or its `conversations` folder) and replaces all three; Reset returns to them. A chosen `*-backup` store is never
