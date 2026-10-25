@@ -19,6 +19,9 @@ public enum OrbShape
 
     /// <summary>One segment of a stroked polyline (DESIGN 2.1 bolts and arcs), see <see cref="OrbGpuInstance.Stroke"/>.</summary>
     Stroke = 9,
+
+    /// <summary>A rounded-rect outline (the board's ring), see <see cref="OrbGpuInstance.RoundedRing"/>.</summary>
+    RoundedRing = 10,
 }
 
 /// <summary>How a shape is colored across its area.</summary>
@@ -86,6 +89,11 @@ public struct OrbGpuInstance
         Rgba color, double core = 1, double glow = 0, double glowAlpha = 0) =>
         new(OrbShape.RoundedRect, x, y, rotationDegrees * DegreesToRadians, (float)halfWidth, (float)halfHeight, (float)corner, glow, color,
             null, core, glowAlpha);
+
+    /// <summary>The outline of an axis-aligned rounded rect, <paramref name="width"/> wide, centered on its edge.</summary>
+    public static OrbGpuInstance RoundedRing(double x, double y, double halfWidth, double halfHeight, double corner, double width, Rgba color,
+        double core = 1, double glow = 0, double glowAlpha = 0) =>
+        new(OrbShape.RoundedRing, x, y, 0, (float)halfWidth, (float)halfHeight, (float)corner, glow, color, null, core, glowAlpha, (float)width);
 
     public static OrbGpuInstance Circle(double x, double y, double radius, Rgba color, double core = 1, double glow = 0, double glowAlpha = 0) =>
         new(OrbShape.Circle, x, y, 0, (float)radius, 0, 0, glow, color, null, core, glowAlpha);

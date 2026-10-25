@@ -19,6 +19,9 @@ internal static class RepositoryPaths
     /// <summary>A file under spec/, for example <c>fixtures/execution-mode-cases.json</c>.</summary>
     public static string Spec(string relativePath) => RepositoryFile("spec/" + relativePath);
 
+    /// <summary>A shared fixture under <c>spec/fixtures</c>, found the same way.</summary>
+    public static string FixtureFile(string name) => RepositoryFile("spec/fixtures/" + name);
+
     private static string RepositoryFile(string relativePath)
     {
         foreach (var start in StartDirectories())

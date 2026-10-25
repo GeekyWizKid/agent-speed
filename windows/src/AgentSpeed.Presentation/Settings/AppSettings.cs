@@ -4,6 +4,7 @@ using AgentSpeed.Presentation.Chart;
 using AgentSpeed.Presentation.Heat;
 using AgentSpeed.Presentation.Hero;
 using AgentSpeed.Presentation.Localization;
+using AgentSpeed.Presentation.Settings.Boards;
 using AgentSpeed.Presentation.Settings.Orbs;
 using AgentSpeed.Presentation.Titles;
 using AgentSpeed.Presentation.Updates;
@@ -117,6 +118,9 @@ public sealed record AppSettings
 
     /// <summary>Every floating orb and its positions per display arrangement (settings value <c>orbs</c>).</summary>
     public OrbsDocument Orbs { get; init; } = OrbsDocument.ProcessDefault;
+
+    /// <summary>The leaderboard boards and their positions (settings value <c>boards</c>, DESIGN 2c); none by default.</summary>
+    public BoardsDocument Boards { get; init; } = BoardsDocument.Empty;
 
     /// <summary>Name plates under the orbs (<c>orbNames</c>, DESIGN 2b Name plate); an orb's <c>showName</c> overrides it.</summary>
     public OrbNamesMode OrbNames { get; init; } = OrbNamesMode.Auto;
@@ -359,6 +363,7 @@ public sealed record AppSettings
         OrbMonitor = string.IsNullOrWhiteSpace(OrbMonitor) || OrbMonitor.Length > 256 ? null : OrbMonitor,
         OrbAnchors = CleanAnchors(OrbAnchors),
         Orbs = (Orbs ?? OrbsDocument.ProcessDefault).Validated(),
+        Boards = (Boards ?? BoardsDocument.Empty).Validated(),
         OrbNames = Enum.IsDefined(OrbNames) ? OrbNames : OrbNamesMode.Auto,
         LastUpdateCheck = CleanTimestamp(LastUpdateCheck),
         SkippedVersion = CleanTag(SkippedVersion),

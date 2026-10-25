@@ -5,7 +5,7 @@ cbuffer Uniforms : register(b0)
 {
     float4 viewport;  // width, height (points), scale (pixels per point), clip radius (points; 0 none; < 0 keep outside)
     float4 transform; // content scale about (y, z) (the canvas center), clip feather (points)
-    float4 globals;   // opacity of the whole orb, unused x3
+    float4 globals;   // opacity of the whole orb; half width (< 0 keep outside), half height and corner radius of a rounded-rect clip (boards; 0 none)
 };
 
 cbuffer PassParams : register(b2)
@@ -25,14 +25,27 @@ float4 orb_clip_position(float2 p)
     return float4(scaled.x / viewport.x * 2.0 - 1.0, 1.0 - scaled.y / viewport.y * 2.0, 0, 1);
 }
 
+float orb_rounded_box(float2 p, float2 half_size, float radius)
+{
+    float2 k = abs(p) - half_size + radius;
+    return length(max(k, 0.0)) + min(max(k.x, k.y), 0.0) - radius;
+}
+
 float orb_clip_coverage(float2 canvas)
 {
-    if (viewport.w == 0.0)
+    float aa = 1.0 / viewport.z;
+    float box = 1.0;
+    if (globals.y != 0.0)
     {
-        return 1.0;
+        float inside = saturate(0.5 - orb_rounded_box(canvas - transform.yz, abs(globals.yz), globals.w) / aa);
+        box = globals.y > 0.0 ? inside : 1.0 - inside;
     }
 
-    float aa = 1.0 / viewport.z;
+    if (viewport.w == 0.0)
+    {
+        return box;
+    }
+
     float d = length(canvas - transform.yz) - abs(viewport.w);
     if (viewport.w < 0.0)
     {

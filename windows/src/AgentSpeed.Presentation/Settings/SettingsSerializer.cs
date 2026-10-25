@@ -5,6 +5,7 @@ using System.Text.Json;
 using AgentSpeed.Core;
 using AgentSpeed.Presentation.Heat;
 using AgentSpeed.Presentation.Localization;
+using AgentSpeed.Presentation.Settings.Boards;
 using AgentSpeed.Presentation.Settings.Orbs;
 using AgentSpeed.Presentation.Titles;
 
@@ -72,6 +73,8 @@ public static class SettingsSerializer
             w.WriteString("orbNames", OrbNamesModes.Key(s.OrbNames));
             w.WritePropertyName("orbs");
             OrbsJson.Write(w, s.Orbs);
+            w.WritePropertyName("boards");
+            BoardsJson.Write(w, s.Boards);
             w.WritePropertyName("titleThemes");
             TitleThemesJson.Write(w, s.TitleThemes);
 
@@ -294,7 +297,11 @@ public static class SettingsSerializer
         var orbs = root.TryGetProperty("orbs", out var orbsValue) ? OrbsJson.Read(orbsValue) : null;
         // An absent value is a fresh install or an older version: Vehicles, no custom sets (DESIGN 1, Persistence).
         var titles = root.TryGetProperty("titleThemes", out var titlesValue) ? TitleThemesJson.Read(titlesValue) : null;
-        return validated with { Orbs = orbs ?? OrbsMigration.FromLegacy(validated), TitleThemes = titles ?? TitleThemesDocument.Default };
+        var boards = root.TryGetProperty("boards", out var boardsValue) ? BoardsJson.Read(boardsValue) : BoardsDocument.Empty;
+        return validated with
+        {
+            Orbs = orbs ?? OrbsMigration.FromLegacy(validated), Boards = boards, TitleThemes = titles ?? TitleThemesDocument.Default,
+        };
     }
 
     /// <summary>
