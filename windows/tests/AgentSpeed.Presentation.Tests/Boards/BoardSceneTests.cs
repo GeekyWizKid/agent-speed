@@ -74,6 +74,23 @@ public class BoardSceneTests
     }
 
     [Fact]
+    public void AFlashingValueAsksForThirtyFramesUntilItEnds()
+    {
+        var scene = Scene();
+        var list = new BoardDrawList();
+        scene.Apply(Tick([("a", 0.2), ("b", 0.1)], generating: false), 0);
+        scene.Settle();
+        Frames(scene, list, 0, 0.5);
+        Assert.Equal(FrameClass.None, scene.Demand(0.5));
+        scene.Apply(Tick([("a", 0.2), ("b", 0.15)], generating: false), 1);
+        Frames(scene, list, 1, 0.4);
+        Assert.Equal(FrameClass.None, scene.Effects.Demand);
+        Assert.Equal(FrameClass.Fps30, scene.Demand(1.4));
+        Frames(scene, list, 1.4, 0.6);
+        Assert.Equal(FrameClass.None, scene.Demand(2.0));
+    }
+
+    [Fact]
     public void RowsThatLeaveFadeOutAndAreDropped()
     {
         var scene = Scene();

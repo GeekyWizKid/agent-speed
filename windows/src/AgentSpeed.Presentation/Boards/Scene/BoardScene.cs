@@ -221,8 +221,8 @@ public sealed class BoardScene
     }
 
     /// <summary>
-    /// The frames the board needs (DESIGN 2c, Frame policy): the effects' class, raised to 60 fps while a row moves, fades or
-    /// flashes, the hero crossfades or punches.
+    /// The frames the board needs (DESIGN 2c, Frame policy): the effects' class, raised to 60 fps while a row moves or fades,
+    /// the hero's digits roll or it punches, and to 30 fps while a value flashes or dims.
     /// </summary>
     public FrameClass Demand(double now)
     {
@@ -237,15 +237,18 @@ public sealed class BoardScene
             return FrameClass.Fps60;
         }
 
+        var flashing = false;
         foreach (var row in _order)
         {
-            if (row.Animating(now))
+            if (row.Moving(now))
             {
                 return FrameClass.Fps60;
             }
+
+            flashing |= row.Flashing(now);
         }
 
-        return demand;
+        return flashing ? FramePolicy.Max(demand, FrameClass.Fps30) : demand;
     }
 
     /// <summary>The group row under a canvas point, for hover, tooltips and clicks.</summary>

@@ -125,8 +125,13 @@ public sealed class BoardRowMotion
     public bool Gone(double now) => Leaving && now - _leaveStart >= FadeSeconds;
 
     /// <summary>Whether the row still needs frames (moving, fading or flashing).</summary>
-    public bool Animating(double now) =>
-        !_y.IsSettled(_target, 0.05) || now - _enterStart < FadeSeconds || Leaving || FlashProgress(now) < 1;
+    public bool Animating(double now) => Moving(now) || Flashing(now);
+
+    /// <summary>Moving to its place, entering or leaving (DESIGN 2c Frame policy: a row move needs 60 fps).</summary>
+    public bool Moving(double now) => !_y.IsSettled(_target, 0.05) || now - _enterStart < FadeSeconds || Leaving;
+
+    /// <summary>Its value flashes warm or dims (a color change only: 30 fps is enough).</summary>
+    public bool Flashing(double now) => FlashProgress(now) < 1;
 
     public void Settle()
     {
