@@ -199,6 +199,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         }
         _orbs = new OrbManager(_ui, _orbClock, _settings, _theme, _speed, _loc, this) { Titles = _titles, Cost = _cost.Display };
         _orbs.Apply();
+        StartBoards();
         _titles.Changed += (_, _) => OnTitlesChanged();
         phases.Mark("orb");
         UpdateTaskbar();
@@ -482,6 +483,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         Try(() => _dashboardTimer?.Stop());
         Try(() => _menu?.Close());
         Try(() => _tooltip?.Close());
+        Try(() => _boards?.Dispose());
         Try(() => _orbs?.Dispose());
         Try(() => _dashboard?.CloseForShutdown());
         Try(() => _settingsWindow?.Close());
@@ -538,6 +540,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         var accessible = DisplayText.Accessibility(value, _titles.Text(title, _titles.General), _loc);
 
         _orbs?.Update(snapshot);
+        _boards?.Update(snapshot);
         if (!_speed.IsPreviewing)
         {
             _traffic.UpdateAgents(snapshot.Agents);
@@ -585,6 +588,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     private void OnSpeedEvent(SpeedEvent speedEvent)
     {
         _orbs?.OnEvent(speedEvent);
+        _boards?.OnEvent(speedEvent);
         switch (speedEvent)
         {
             case SpeedEvent.ResponseCompleted completed:
@@ -649,6 +653,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     {
         var s = Settings;
         _orbs?.Apply();
+        _boards?.Apply();
         // The hero's ring stays at Soft (DESIGN 4.1); its vehicle layer follows the Effects setting (DESIGN 4c).
         var general = _titles.General;
         var hero = new HeroConfig(new HeroOptions(s.Effects, _theme.ReduceMotion, _theme.HighContrast, _theme.IsDark), s.HeroLastTitle,
@@ -1196,6 +1201,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
         _orbs?.Apply();
         _orbs?.Update(_speed.Snapshot);
+        _boards?.Apply();
         UpdateTaskbar();
         _tray?.Update(TrayState());
         _dashboardDirty = true;
@@ -1249,6 +1255,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _settingsModel?.Report?.SetLocalizer(_loc);
         RefreshReportSurfaces();
         _orbs?.Relocalize(_loc);
+        _boards?.Relocalize(_loc);
         _updateWindowModel?.Relocalize(_loc);
         _history?.OnLanguageChanged();
         _dashboard?.SetUpdate(UpdatePillText());
@@ -1263,6 +1270,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     private void OnDisplayChanged()
     {
         _orbs?.OnDisplayChanged();
+        _boards?.OnDisplayChanged();
         _taskbar?.Reposition();
         _tray?.Refresh();
         _dashboard?.Dismiss();
