@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -80,10 +81,12 @@ class Env:
         return p.lower() if self.platform == "windows" else p
 
     def name(self, exe: str | None) -> str:
-        """File name without `.exe`; case is kept (CLI binaries are lower-case, desktop apps capitalized)."""
+        """File name without `.exe`. macOS keeps the case (CLI binaries are lower-case, desktop apps capitalized);
+        Windows folds it, because an image path has the case the process was launched with."""
         base = (exe or "").replace("\\", "/").rsplit("/", 1)[-1]
-        if self.platform == "windows" and base.lower().endswith(".exe"):
-            base = base[:-4]
+        if self.platform == "windows":
+            base = base.lower()
+            return base[:-4] if base.endswith(".exe") else base
         return base
 
 
@@ -102,12 +105,14 @@ DESKTOP_APPS = {
               "/Applications/Antigravity.app/Contents/MacOS/Antigravity"],
     "windows": ["%LOCALAPPDATA%/AnthropicClaude/"],
 }
-DESKTOP_PACKAGES = ("/windowsapps/claude_", "/windowsapps/openai.codex_", "/windowsapps/openai.chatgpt")
+# Windows desktop apps by location: an executable directly in the `app` folder of their packages. The CLIs a package
+# bundles deeper (`app/resources/codex.exe`) follow the rows.
+DESKTOP_PACKAGE_APP = re.compile(r"/windowsapps/(claude_|openai\.codex_|openai\.chatgpt)[^/]*/app/[^/]+$")
 # WorkBuddy runs its embedded CLI on the app's own executable (Electron as Node): macOS by the bundle id of the .app
 # whose Contents/MacOS holds the executable, Windows by the executable's name.
 WORKBUDDY_APPS = {
     "macos": {"com.tencent.workbuddy.mac": "workbuddy", "com.workbuddy.workbuddy-ai": "workbuddyAi"},
-    "windows": {"WorkBuddy": "workbuddy", "WorkBuddyAI": "workbuddyAi"},
+    "windows": {"workbuddy": "workbuddy", "workbuddyai": "workbuddyAi"},
 }
 WORKBUDDY_CLI = "/app.asar.unpacked/cli/"
 DEEPSEEK_APP = {
@@ -125,14 +130,15 @@ def _is_claude_desktop_app(env: Env, proc: dict) -> bool:
     exe = proc.get("exe") or ""
     if _under(env, exe, CLAUDE_DESKTOP_APP[env.platform]):
         return True
-    return env.platform == "windows" and env.name(exe) == "Claude" and "/windowsapps/claude_" in env.norm(exe)
+    return (env.platform == "windows" and env.name(exe) == "claude"
+            and (match := DESKTOP_PACKAGE_APP.search(env.norm(exe))) is not None and match.group(1) == "claude_")
 
 
 def _is_desktop_app(env: Env, proc: dict) -> bool:
     exe = proc.get("exe") or ""
     if _under(env, exe, DESKTOP_APPS[env.platform]):
         return True
-    return env.platform == "windows" and any(k in env.norm(exe) for k in DESKTOP_PACKAGES) and env.name(exe)[:1].isupper()
+    return env.platform == "windows" and DESKTOP_PACKAGE_APP.search(env.norm(exe)) is not None
 
 
 def _script_args(env: Env, proc: dict) -> str:

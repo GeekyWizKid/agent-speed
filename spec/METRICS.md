@@ -1726,19 +1726,21 @@ the listing), `QueryFullProcessImageNameW` and `NtQueryInformationProcess(Proces
 8.1+). Path
 and arguments are read once per process identity; an exited process stays in the table for 10 s, so the counter rows
 that still list it (10.3) can be matched. Paths compare with `/` and `\` equivalent, case-insensitively on Windows;
-`~` is the home folder. File **names** compare case-sensitively on both platforms, without the `.exe` extension: the
-command-line tools are lower-case (`claude`, `codex`, `opencode`), while the desktop apps' own executables are
-capitalized (`Claude.exe`, `Codex.exe`, `OpenCode.exe`) and are never agent processes (below). WorkBuddy is the one
+`~` is the home folder. File **names** compare without the `.exe` extension: case-sensitively on macOS, where the
+command-line tools are lower-case (`claude`, `codex`, `opencode`) and the desktop apps' own executables capitalized
+(`Claude`, `Codex`, `OpenCode`); case-insensitively on Windows, where an image path has the case the process was
+launched with (observed 2026-10-25: Claude Desktop 3.6556 runs `app\claude.exe`, DeepSeek Harness
+`DeepSeek Harness.exe`), so Windows tells the desktop apps by location (below), never by case. WorkBuddy is the one
 desktop app that runs its agent on its own executable, so its row needs the argument list.
 
 **Agent processes** (first matching row; `name` = executable file name without `.exe`):
 
 | Source | Agent process |
 | --- | --- |
-| `claudeDesktop` | `name == claude` and the executable lies under Claude Desktop's bundled Claude Code folder (macOS `~/Library/Application Support/Claude/claude-code/`; Windows `%LOCALAPPDATA%\Claude\claude-code\`, `%LOCALAPPDATA%\Claude-3p\claude-code\`, `%APPDATA%\Claude\claude-code\`), or `name == claude` with an ancestor that is the Claude Desktop app (`/Applications/Claude.app/Contents/MacOS/Claude`, bundle id `com.anthropic.claudefordesktop`; Windows `Claude.exe` of the `Claude_*` package or `%LOCALAPPDATA%\AnthropicClaude`). Observed: macOS `Claude → disclaimer → …/claude-code/2.1.308/<hash>/claude.app/Contents/MacOS/claude`, one per Code session; Windows `Claude.exe → %LOCALAPPDATA%\Claude-3p\claude-code\2.1.299\<hash>\claude.exe`. |
+| `claudeDesktop` | `name == claude` and the executable lies under Claude Desktop's bundled Claude Code folder (macOS `~/Library/Application Support/Claude/claude-code/`; Windows `%LOCALAPPDATA%\Claude\claude-code\`, `%LOCALAPPDATA%\Claude-3p\claude-code\`, `%APPDATA%\Claude\claude-code\`), or `name == claude` with an ancestor that is the Claude Desktop app (`/Applications/Claude.app/Contents/MacOS/Claude`, bundle id `com.anthropic.claudefordesktop`; Windows `claude.exe` directly in the `app` folder of the `Claude_*` package, or under `%LOCALAPPDATA%\AnthropicClaude`). Observed: macOS `Claude → disclaimer → …/claude-code/2.1.308/<hash>/claude.app/Contents/MacOS/claude`, one per Code session; Windows `Claude.exe → %LOCALAPPDATA%\Claude-3p\claude-code\2.1.299\<hash>\claude.exe`. |
 | `claudeCode` | `name == claude` (native installer `~/.local/bin/claude` → `~/.local/share/claude/versions/<version>` — matched by that folder, since the file name is the version —, Homebrew, IDE extensions' `native-binary/claude`), or a script host whose first script argument contains `@anthropic-ai/claude-code/`. Not a process whose arguments contain `--chrome-native-host` (the Claude in Chrome bridge, a child of the browser). |
 | `codex` | `name == codex` or `name` starts with `codex-` followed by a target triple or `x86_64`/`aarch64` (npm-vendored binaries), or a script host running `@openai/codex/bin/codex.js`. Covers the CLI, `codex app-server` started by the Codex app (macOS `…/codex-cli/CodexCLI.app/Contents/MacOS/codex`, Windows `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`) and IDE extensions, and the app-server daemon (`~/.codex/packages/app-server-daemon/…/codex`). |
-| `deepseek` | `name == dsh`; the DeepSeek Harness desktop app's main process (macOS bundle id `com.deepseek.dsh`, `DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness`; Windows `DeepSeek Harness.exe`). Not verified with a running session: which process makes the model calls is unknown, so the whole app tree counts. |
+| `deepseek` | `name == dsh`; the DeepSeek Harness desktop app's main process (macOS bundle id `com.deepseek.dsh`, `DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness`; Windows `DeepSeek Harness.exe`). The whole app tree counts. Observed on Windows (2026-10-25): the app runs its host (`…/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/…`) and one runner per tool call (`…/dsh-subprocess-local/lib/runner.js`) on `DeepSeek Harness.exe` itself; the host holds the model connections, the runners start the tools (`powershell.exe`). |
 | `opencode` | `name` in `opencode`, `opencode-cli` (desktop sidecar `opencode-cli serve`), or starting with `opencode-` followed by an OS and architecture (npm-vendored); or a script host running `opencode-ai/bin/opencode`. |
 | `gemini` | A script host whose arguments contain `/@google/gemini-cli/` (npm, Homebrew `…/libexec/lib/node_modules/@google/gemini-cli/…`), or `name == gemini` for a native build. Gemini CLI relaunches itself as a child; the child is a descendant either way. |
 | `omp` | `name == omp`, or a script host whose arguments contain `/@oh-my-pi/` or `/oh-my-pi/`. |
@@ -1746,9 +1748,10 @@ desktop app that runs its agent on its own executable, so its row needs the argu
 | `workbuddy`, `workbuddyAi` | The embedded CodeBuddy Code CLI, which makes the model calls itself: an executable of the edition — macOS: in the app with bundle id `com.tencent.workbuddy.mac` (WorkBuddy) or `com.workbuddy.workbuddy-ai` (WorkBuddy AI), whose main executable is named `Electron`; Windows: `name` `WorkBuddy` or `WorkBuddyAI` — whose arguments after the first contain a path with `/app.asar.unpacked/cli/` (the CLI entry `…/app.asar.unpacked/cli/bin/codebuddy`, run with `ELECTRON_RUN_AS_NODE`). Observed in the 5.8 code: pooled `--prewarm` processes that later serve one conversation each (`--serve --session-id <id>`; the command line does not change when one is taken from the pool), cold `--serve` starts, and the fallback `--acp` with first argument `wb-acp:<id>`. Not verified with a running app; the Windows install folder is unknown, so only the name is used. |
 
 The desktop apps' own processes are **not** agent processes, nor are their Electron or Tauri helpers: macOS
-`/Applications/{Claude,ChatGPT,Codex,OpenCode,Antigravity}.app/Contents/MacOS/<name>`; Windows executables in the
-`WindowsApps\Claude_*`, `WindowsApps\OpenAI.Codex_*` and `WindowsApps\OpenAI.ChatGPT*` package folders and in
-`%LOCALAPPDATA%\AnthropicClaude\`. Their own traffic (chat UI, updates, telemetry) is outside the sources' scope, like
+`/Applications/{Claude,ChatGPT,Codex,OpenCode,Antigravity}.app/Contents/MacOS/<name>`; Windows executables directly in
+the `app` folder of the `WindowsApps\Claude_*`, `WindowsApps\OpenAI.Codex_*` and `WindowsApps\OpenAI.ChatGPT*`
+packages (`app\claude.exe`, `app\Codex.exe`; the tools a package bundles deeper follow the rows, so
+`app\resources\codex.exe` is a Codex agent) and everything under `%LOCALAPPDATA%\AnthropicClaude\`. Their own traffic (chat UI, updates, telemetry) is outside the sources' scope, like
 Claude Desktop chats are in section 2; only the agent processes they start count. DeepSeek Harness is the exception
 above. WorkBuddy's main process, its helpers, renderers and its daemon (the same executable running
 `app.asar/main/daemon-app-server-entry.js`, which starts the CLI processes) are app processes like these, so the

@@ -25,17 +25,27 @@ struct AgentProcessRules: Sendable {
                "/Applications/Antigravity.app/Contents/MacOS/Antigravity"]
     }
 
-    private static let desktopPackages = ["/windowsapps/claude_", "/windowsapps/openai.codex_", "/windowsapps/openai.chatgpt"]
+    private static let desktopPackages = ["claude_", "openai.codex_", "openai.chatgpt"]
+
+    /// Windows desktop apps by location: the package prefix when a normalized (lower-case) path lies directly in the `app`
+    /// folder of one of their packages. The tools a package bundles deeper (`app/resources/codex.exe`) follow the rows.
+    private static func desktopPackage(_ normalized: String) -> String? {
+        let parts = normalized.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count >= 4, parts[parts.count - 2] == "app", parts[parts.count - 4] == "windowsapps" else { return nil }
+        let package = parts[parts.count - 3]
+        return desktopPackages.first { package.hasPrefix($0) }
+    }
 
     private var deepseekApp: [String] {
         platform.isWindows ? [] : ["/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness"]
     }
 
-    /// WorkBuddy runs its embedded CLI on the app's own executable: macOS by the app's bundle id, Windows by name.
+    /// WorkBuddy runs its embedded CLI on the app's own executable: macOS by the app's bundle id, Windows by its (lower-case)
+    /// name.
     private static let workbuddyBundles: [String: SourceKind] = [
         "com.tencent.workbuddy.mac": .workbuddy, "com.workbuddy.workbuddy-ai": .workbuddyAi,
     ]
-    private static let workbuddyExecutables: [String: SourceKind] = ["WorkBuddy": .workbuddy, "WorkBuddyAI": .workbuddyAi]
+    private static let workbuddyExecutables: [String: SourceKind] = ["workbuddy": .workbuddy, "workbuddyai": .workbuddyAi]
     private static let workbuddyCLI = "/app.asar.unpacked/cli/"
 
     /// The rules read a process's arguments only for script hosts, `claude` executables (the Chrome bridge check) and
@@ -59,16 +69,14 @@ struct AgentProcessRules: Sendable {
 
     func isClaudeDesktopApp(_ executable: String) -> Bool {
         if platform.isUnder(executable, claudeDesktopApp) { return true }
-        return platform.isWindows && platform.name(executable) == "Claude"
-            && platform.normalize(executable).contains("/windowsapps/claude_")
+        return platform.isWindows && platform.name(executable) == "claude"
+            && Self.desktopPackage(platform.normalize(executable)) == "claude_"
     }
 
     func isDesktopApp(_ executable: String) -> Bool {
         if platform.isUnder(executable, desktopApps) { return true }
         guard platform.isWindows else { return false }
-        let normalized = platform.normalize(executable)
-        return Self.desktopPackages.contains { normalized.contains($0) }
-            && (platform.name(executable).first?.isUppercase ?? false)
+        return Self.desktopPackage(platform.normalize(executable)) != nil
     }
 
     private func scriptArguments(executable: String, arguments: [String]?) -> String {

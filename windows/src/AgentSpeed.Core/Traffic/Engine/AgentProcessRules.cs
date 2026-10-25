@@ -1,15 +1,24 @@
+using System.Text.RegularExpressions;
+
 namespace AgentSpeed.Core.Traffic.Engine;
 
 /// <summary>The agent-process rows of METRICS 10.5: which source, if any, a process runs.</summary>
 internal sealed class AgentProcessRules
 {
     private static readonly HashSet<string> ScriptHosts = new(StringComparer.Ordinal) { "node", "nodejs", "bun", "deno" };
-    private static readonly string[] DesktopPackages = ["/windowsapps/claude_", "/windowsapps/openai.codex_", "/windowsapps/openai.chatgpt"];
+
+    /// <summary>
+    /// Windows desktop apps by location: an executable directly in the <c>app</c> folder of their packages. The tools a package
+    /// bundles deeper (<c>app/resources/codex.exe</c>) follow the rows. Matched against normalized (lower-case) paths.
+    /// </summary>
+    private static readonly Regex DesktopPackageApp = new("/windowsapps/(claude_|openai\\.codex_|openai\\.chatgpt)[^/]*/app/[^/]+$",
+        RegexOptions.CultureInvariant);
     private static readonly string[] CodexTargets = ["x86_64", "aarch64", "apple-darwin", "linux", "windows"];
     private static readonly string[] OpenCodeTargets = ["darwin", "linux", "windows"];
 
     /// <summary>
-    /// WorkBuddy runs its embedded CLI on the app's own executable (Electron as Node): macOS by bundle id, Windows by name.
+    /// WorkBuddy runs its embedded CLI on the app's own executable (Electron as Node): macOS by bundle id, Windows by its
+    /// (lower-case) name.
     /// The editions are resolved by their source names (METRICS 1), so a build without those sources skips the rows.
     /// </summary>
     private readonly Dictionary<string, SourceKind> _workBuddyBundles;
@@ -30,7 +39,7 @@ internal sealed class AgentProcessRules
         _platform = platform;
         sources ??= History.SourceNames.Parse;
         _workBuddyBundles = Editions(sources, ("com.tencent.workbuddy.mac", "workbuddy"), ("com.workbuddy.workbuddy-ai", "workbuddyAi"));
-        _workBuddyNames = Editions(sources, ("WorkBuddy", "workbuddy"), ("WorkBuddyAI", "workbuddyAi"));
+        _workBuddyNames = Editions(sources, ("workbuddy", "workbuddy"), ("workbuddyai", "workbuddyAi"));
         _claudeDesktopCode = platform.IsWindows
             ? platform.Prefixes("%LOCALAPPDATA%/Claude/claude-code/", "%LOCALAPPDATA%/Claude-3p/claude-code/", "%APPDATA%/Claude/claude-code/")
             : platform.Prefixes("~/Library/Application Support/Claude/claude-code/");
@@ -89,8 +98,8 @@ internal sealed class AgentProcessRules
             return true;
         }
 
-        return _platform.IsWindows && _platform.Name(executable) == "Claude"
-            && _platform.Normalize(executable).Contains("/windowsapps/claude_", StringComparison.Ordinal);
+        return _platform.IsWindows && _platform.Name(executable) == "claude"
+            && DesktopPackageApp.Match(_platform.Normalize(executable)) is { Success: true } match && match.Groups[1].Value == "claude_";
     }
 
     public bool IsDesktopApp(string executable)
@@ -105,9 +114,7 @@ internal sealed class AgentProcessRules
             return false;
         }
 
-        var normalized = _platform.Normalize(executable);
-        var name = _platform.Name(executable);
-        return name.Length > 0 && char.IsUpper(name[0]) && DesktopPackages.Any(p => normalized.Contains(p, StringComparison.Ordinal));
+        return DesktopPackageApp.IsMatch(_platform.Normalize(executable));
     }
 
     private string ScriptArguments(string executable, IReadOnlyList<string>? arguments)

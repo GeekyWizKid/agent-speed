@@ -742,6 +742,169 @@
    }
   },
   {
+   "platform": "windows",
+   "home": "C:\\Users\\dev",
+   "env": {
+    "LOCALAPPDATA": "C:\\Users\\dev\\AppData\\Local",
+    "APPDATA": "C:\\Users\\dev\\AppData\\Roaming"
+   },
+   "name": "classify-windows-observed",
+   "_comment": "Process trees observed on Windows 11 on 2026-10-25: Claude Desktop 3.6556 runs app\\claude.exe in lower case, so Windows names compare case-insensitively and the desktop apps are known by their package's app folder; DeepSeek Harness runs its desktop host and runners on its own executable.",
+   "samples": [
+    {
+     "t": 1792940000000,
+     "processes": [
+      {
+       "pid": 100,
+       "ppid": 1,
+       "start": 500,
+       "exe": "C:\\Windows\\explorer.exe"
+      },
+      {
+       "pid": 200,
+       "ppid": 100,
+       "start": 1000,
+       "exe": "C:\\Program Files\\WindowsApps\\Claude_3.6556.2.0_x64__pzs8sxrjxfjjc\\app\\claude.exe"
+      },
+      {
+       "pid": 201,
+       "ppid": 200,
+       "start": 1100,
+       "exe": "C:\\Program Files\\WindowsApps\\Claude_3.6556.2.0_x64__pzs8sxrjxfjjc\\app\\claude.exe",
+       "args": [
+        "claude.exe",
+        "--type=renderer"
+       ]
+      },
+      {
+       "pid": 202,
+       "ppid": 200,
+       "start": 1200,
+       "exe": "C:\\Program Files\\WindowsApps\\Claude_3.6556.2.0_x64__pzs8sxrjxfjjc\\app\\resources\\cowork-svc.exe"
+      },
+      {
+       "pid": 203,
+       "ppid": 200,
+       "start": 1300,
+       "exe": "C:\\Program Files\\nodejs\\node.exe",
+       "args": [
+        "node.exe",
+        "C:\\Users\\dev\\AppData\\Roaming\\npm\\node_modules\\some-mcp\\index.js"
+       ]
+      },
+      {
+       "pid": 210,
+       "ppid": 200,
+       "start": 1400,
+       "exe": "C:\\Users\\dev\\AppData\\Local\\Claude-3p\\claude-code\\2.1.308\\c17a819afb40\\claude.exe",
+       "args": [
+        "claude.exe",
+        "--output-format",
+        "stream-json"
+       ]
+      },
+      {
+       "pid": 211,
+       "ppid": 210,
+       "start": 1500,
+       "exe": "C:\\Program Files\\Git\\bin\\bash.exe"
+      },
+      {
+       "pid": 300,
+       "ppid": 100,
+       "start": 1000,
+       "exe": "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1021.3705.0_x64__2p2nqsd0c76g0\\app\\Codex.exe"
+      },
+      {
+       "pid": 301,
+       "ppid": 300,
+       "start": 1100,
+       "exe": "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1021.3705.0_x64__2p2nqsd0c76g0\\app\\resources\\codex.exe",
+       "args": [
+        "codex.exe",
+        "app-server"
+       ]
+      },
+      {
+       "pid": 302,
+       "ppid": 301,
+       "start": 1200,
+       "exe": "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1021.3705.0_x64__2p2nqsd0c76g0\\app\\resources\\rg.exe"
+      },
+      {
+       "pid": 400,
+       "ppid": 100,
+       "start": 2000,
+       "exe": "C:\\Users\\dev\\AppData\\Local\\Programs\\DeepSeek Harness\\DeepSeek Harness.exe"
+      },
+      {
+       "pid": 401,
+       "ppid": 400,
+       "start": 2100,
+       "exe": "C:\\Users\\dev\\AppData\\Local\\Programs\\DeepSeek Harness\\DeepSeek Harness.exe",
+       "args": [
+        "DeepSeek Harness.exe",
+        "--type=utility",
+        "--utility-sub-type=network.mojom.NetworkService"
+       ]
+      },
+      {
+       "pid": 402,
+       "ppid": 400,
+       "start": 2200,
+       "exe": "C:\\Users\\dev\\AppData\\Local\\Programs\\DeepSeek Harness\\DeepSeek Harness.exe",
+       "args": [
+        "DeepSeek Harness.exe",
+        "C:\\Users\\dev\\AppData\\Local\\Programs\\DeepSeek Harness\\resources\\app.asar\\dsh\\node_modules\\@deepseek-ai\\dsh-desktop-host\\lib\\index.js"
+       ]
+      },
+      {
+       "pid": 403,
+       "ppid": 402,
+       "start": 2300,
+       "exe": "C:\\Users\\dev\\AppData\\Local\\Programs\\DeepSeek Harness\\DeepSeek Harness.exe",
+       "args": [
+        "DeepSeek Harness.exe",
+        "C:\\Users\\dev\\AppData\\Local\\Programs\\DeepSeek Harness\\resources\\app.asar\\dsh\\node_modules\\@deepseek-ai\\dsh-subprocess-local\\lib\\runner.js"
+       ]
+      },
+      {
+       "pid": 404,
+       "ppid": 403,
+       "start": 2400,
+       "exe": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+      },
+      {
+       "pid": 500,
+       "ppid": 100,
+       "start": 3000,
+       "exe": "C:\\Users\\dev\\.local\\bin\\CLAUDE.EXE"
+      }
+     ]
+    }
+   ],
+   "expected": {
+    "classes": {
+     "100": null,
+     "200": null,
+     "201": null,
+     "202": null,
+     "203": null,
+     "210": "claudeDesktop/agent",
+     "211": "claudeDesktop/tool",
+     "300": null,
+     "301": "codex/agent",
+     "302": "codex/tool",
+     "400": "deepseek/agent",
+     "401": "deepseek/self",
+     "402": "deepseek/self",
+     "403": "deepseek/self",
+     "404": "deepseek/tool",
+     "500": "claudeCode/agent"
+    }
+   }
+  },
+  {
    "platform": "macos",
    "home": "/Users/dev",
    "name": "deltas-rates-tools",
