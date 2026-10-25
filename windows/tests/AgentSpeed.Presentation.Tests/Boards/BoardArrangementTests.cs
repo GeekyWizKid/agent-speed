@@ -1,5 +1,6 @@
 using AgentSpeed.Presentation.Boards;
 using AgentSpeed.Presentation.Layout;
+using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Presentation.Settings.Boards;
 using AgentSpeed.Presentation.Settings.Orbs;
 
@@ -35,6 +36,20 @@ public class BoardArrangementTests
         var result = BoardArrangement.Resolve(committed, [Main], []);
         Assert.Equal(600, result.Locations["a"].Center.X, 1);
         Assert.Equal(500, result.Locations["a"].Center.Y, 1);
+    }
+
+    [Fact]
+    public void ACommittedPositionSurvivesARestart()
+    {
+        var committed = BoardArrangement.Commit(Document(new BoardDefinition("a"), new BoardDefinition("b")), [Main, Side], "b", new PointD(2600, 400));
+        var json = SettingsSerializer.Serialize(AppSettings.Default with { Boards = committed });
+        var back = SettingsSerializer.Deserialize(json).Boards;
+
+        Assert.Equal(committed, back);
+        var location = BoardArrangement.Resolve(back, [Main, Side], []).Locations["b"];
+        Assert.Equal("SIDE", location.Display);
+        Assert.Equal(2600, location.Center.X, 1);
+        Assert.Equal(400, location.Center.Y, 1);
     }
 
     [Fact]
