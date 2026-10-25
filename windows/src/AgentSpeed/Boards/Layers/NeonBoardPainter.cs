@@ -52,7 +52,8 @@ internal sealed class NeonBoardPainter : BoardStylePainter
 
     protected override BoardTextStyle NumberStyle(BoardScene scene) => new(BoardFont.Mono, (float)scene.Metrics.ValueSize, FontWeight.Bold);
 
-    protected override BoardTextStyle ValueStyle(bool sub, bool dim) => (sub ? SubValue : Value) with { Weight = dim ? FontWeight.Medium : FontWeight.Bold };
+    protected override BoardTextStyle ValueStyle(BoardValueSet set, bool dim) =>
+        (set == BoardValueSet.Sub ? SubValue : Value) with { Weight = dim ? FontWeight.Medium : FontWeight.Bold };
 
     protected override bool HasValueLayer(in BoardRowContent row) => row.Lead && !row.Palette.HighContrast;
 

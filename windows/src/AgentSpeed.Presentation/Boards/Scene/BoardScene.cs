@@ -130,6 +130,7 @@ public sealed class BoardScene
 
         var first = previous is null;
         var placed = new List<BoardRowMotion>(tick.Entries.Count);
+        var above = double.NaN;
         foreach (var entry in tick.Entries)
         {
             if (!_rows.TryGetValue(entry.Key, out var row))
@@ -140,6 +141,14 @@ public sealed class BoardScene
 
             var live = tick.LiveOf(entry);
             row.Update(entry, live, now, reduce);
+            if (entry.Kind == BoardEntryKind.Group)
+            {
+                // Groups come in rank order: the interval is to the group placed just above.
+                row.IntervalText = Style == BoardStyle.Timing && entry.Rank > 1 && double.IsFinite(above)
+                    ? BoardValueGlyphs.Interval(above, entry.Group.Live) : string.Empty;
+                above = entry.Group.Live;
+            }
+
             row.SetShare(entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub && tick.Value > 0 ? live / tick.Value : 0, now, !first && !reduce);
             placed.Add(row);
         }
@@ -254,6 +263,12 @@ public sealed class BoardScene
             if (row.Entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub)
             {
                 Value(list, layers, row, left + metrics.ListWidth, top, height, alpha, now, clip);
+            }
+
+            if (row.IntervalText.Length > 0 && Size != BoardSize.S)
+            {
+                BoardValueGlyphs.Emit(list, layers, row.IntervalText, BoardValueSet.Interval, left + metrics.ListWidth - BoardValueGlyphs.IntervalRight,
+                    top + (height - 1) / 2, 0, palette.Ink3, alpha, clip);
             }
 
             if (row.Entry.Kind == BoardEntryKind.Group && !row.Leaving)
@@ -509,8 +524,8 @@ public sealed class BoardScene
         }
 
         var center = top + (Style == BoardStyle.Timing && !sub ? (height - 1) / 2 : height / 2);
-        BoardValueGlyphs.Emit(list, layers, row.ValueText, sub, right - BoardValueGlyphs.Inset(Style), center, BoardValueGlyphs.Tracking(Style, sub),
-            color, alpha * dim, clip);
+        BoardValueGlyphs.Emit(list, layers, row.ValueText, sub ? BoardValueSet.Sub : BoardValueSet.Group, right - BoardValueGlyphs.Inset(Style), center,
+            BoardValueGlyphs.Tracking(Style, sub), color, alpha * dim, clip);
     }
 
     // The CSS punch: 1 → 1.06 at 35 % → 1 over 0.4 s.

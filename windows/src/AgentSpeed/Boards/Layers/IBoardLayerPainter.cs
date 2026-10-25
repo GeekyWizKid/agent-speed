@@ -27,15 +27,15 @@ internal enum BoardLayerKind
     Callout,
 
     /// <summary>
-    /// One white glyph of the rows' values (<see cref="BoardLayerRequest.Glyph"/>; a sub row's size when
-    /// <see cref="BoardLayerRequest.Sub"/>), padded by <c>BoardValueGlyphs.Pad</c>.
+    /// One white glyph (<see cref="BoardLayerRequest.Glyph"/>) of the rows' values or timing's intervals
+    /// (<see cref="BoardLayerRequest.Set"/>), padded by <c>BoardValueGlyphs.Pad</c>.
     /// </summary>
     ValueGlyph,
 }
 
 /// <summary>Which layer a painter describes or draws: the row, glyph or callout it is for, and the scene's current tick.</summary>
 internal readonly record struct BoardLayerRequest(BoardLayerKind Kind, BoardScene Scene, BoardRowMotion? Row, char Glyph = '\0',
-    BoardCallout? Callout = null, bool Sub = false);
+    BoardCallout? Callout = null, BoardValueSet Set = BoardValueSet.Group);
 
 /// <summary>A layer's size in points and its content identity: an unchanged identity is never rasterized again.</summary>
 internal readonly record struct BoardLayerSpec(double Width, double Height, string Signature);

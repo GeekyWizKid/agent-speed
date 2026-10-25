@@ -62,8 +62,12 @@ internal sealed class TimingBoardPainter : BoardStylePainter
 
     protected override BoardTextStyle NumberStyle(BoardScene scene) => new(BoardFont.Mono, (float)scene.Metrics.ValueSize, FontWeight.ExtraBold);
 
-    protected override BoardTextStyle ValueStyle(bool sub, bool dim) => dim ? (sub ? SubValue : Value) with { Weight = FontWeight.SemiBold }
-        : sub ? SubValue : Value;
+    protected override BoardTextStyle ValueStyle(BoardValueSet set, bool dim) => set switch
+    {
+        BoardValueSet.Interval => Gap,
+        BoardValueSet.Sub => dim ? SubValue with { Weight = FontWeight.SemiBold } : SubValue,
+        _ => dim ? Value with { Weight = FontWeight.SemiBold } : Value,
+    };
 
     protected override bool HasValueLayer(in BoardRowContent row) => row.Entry.Kind == BoardEntryKind.Group || row.Fastest;
 
@@ -96,9 +100,9 @@ internal sealed class TimingBoardPainter : BoardStylePainter
             return;
         }
 
-        var lead = row.Lead;
-        using var brush = BoardPaint.Brush(context, lead && !palette.HighContrast ? Gold : palette.Ink3);
-        Text.Draw(context, row.Interval, lead ? LeaderGap : Gap, width - 7, mid, brush, 38, right: true);
+        // The leader's word; the scene composes the other rows' intervals from glyphs.
+        using var brush = BoardPaint.Brush(context, palette.HighContrast ? palette.Ink3 : Gold);
+        Text.Draw(context, row.Interval, LeaderGap, width - 7, mid, brush, 38, right: true);
     }
 
     protected override void PaintSub(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)

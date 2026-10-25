@@ -201,7 +201,8 @@ public class BoardContentTests
     {
         var list = new BoardDrawList();
         var color = Rgba.FromHex("#FB7185").WithAlpha(0.5);
-        BoardValueGlyphs.Emit(list, new GlyphLayers(), "1.2k", sub: false, right: 300, centerY: 50, tracking: -0.26, color, alpha: 0.8, default);
+        BoardValueGlyphs.Emit(list, new GlyphLayers(), "1.2k", BoardValueSet.Group, right: 300, centerY: 50, tracking: -0.26, color, alpha: 0.8,
+            default);
         Assert.Equal(4, list.LayerCount);
         var layers = list.Layers;
         var advance = 8 - 0.26;
@@ -234,5 +235,16 @@ public class BoardContentTests
         Assert.Equal(want, color);
         Assert.Equal("–", BoardValueGlyphs.Text(0.04));
         Assert.All(BoardValueGlyphs.Text(1234.5), c => Assert.Contains(c, BoardValueGlyphs.Glyphs));
+    }
+
+    [Theory]
+    [InlineData(300, 271, "−29")]
+    [InlineData(250, 270, "+20")]
+    public void IntervalsAreTheGapToTheGroupAbove(double above, double live, string expected)
+    {
+        Assert.Equal(expected, BoardValueGlyphs.Interval(above, live));
+        Assert.All(expected, c => Assert.Contains(c, BoardValueGlyphs.Glyphs));
+        Assert.Equal(3, BoardValueGlyphs.Sets(BoardStyle.Timing));
+        Assert.Equal(2, BoardValueGlyphs.Sets(BoardStyle.Neon));
     }
 }

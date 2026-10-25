@@ -62,6 +62,9 @@ public sealed class BoardRowMotion
 
     public double Live { get; private set; }
 
+    /// <summary>Timing's interval to the group above (<see cref="BoardValueGlyphs.Interval"/>), empty for the leader and other rows.</summary>
+    public string IntervalText { get; set; } = string.Empty;
+
     /// <summary>The value as the row shows it (<see cref="BoardValueGlyphs.Text"/>), made once per tick.</summary>
     public string ValueText { get; private set; } = BoardValueGlyphs.Dash.ToString();
 

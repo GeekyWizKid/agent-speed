@@ -6,14 +6,28 @@ using AgentSpeed.Presentation.Modes;
 
 namespace AgentSpeed.Presentation.Boards.Scene;
 
+/// <summary>The glyph sets of the numbers a row shows.</summary>
+public enum BoardValueSet
+{
+    /// <summary>A group row's value.</summary>
+    Group,
+
+    /// <summary>A sub row's value.</summary>
+    Sub,
+
+    /// <summary>Timing's interval to the group above (<c>.gap</c>).</summary>
+    Interval,
+}
+
 /// <summary>
-/// The rows' values (the prototypes' <c>.speed</c>) composed from cached glyph layers, like the hero number: values change on
-/// every tick, so they are never rasterized then (DESIGN 2c Two layers). Each size has one white glyph set; a row tints its
-/// glyphs to its color, its warm flash or its dim. A value below 0.05 shows an en dash in the dim weight.
+/// The numbers of the rows (the prototypes' <c>.speed</c> and timing's <c>.gap</c>) composed from cached glyph layers, like the
+/// hero number: they change on every tick, so they are never rasterized then (DESIGN 2c Two layers). Each set has one white
+/// glyph layer per character; a row tints its glyphs to its color, its warm flash or its dim. A value below 0.05 shows an en
+/// dash in the dim weight.
 /// </summary>
 public static class BoardValueGlyphs
 {
-    public const string Glyphs = "0123456789.kMB–";
+    public const string Glyphs = "0123456789.kMB–−+";
 
     /// <summary>The en dash of a value below 0.05 (METRICS 7: never shown as a number).</summary>
     public const char Dash = '–';
@@ -21,20 +35,33 @@ public static class BoardValueGlyphs
     /// <summary>Room around a glyph's advance box in its layer.</summary>
     public const double Pad = 2;
 
-    private static readonly string[] GroupKeys = Glyphs.Select(c => "#vg" + c).ToArray();
-    private static readonly string[] SubKeys = Glyphs.Select(c => "#vs" + c).ToArray();
+    /// <summary>The right edge of timing's interval column, from the row's right end (M and L; S has no interval).</summary>
+    public const double IntervalRight = 57;
 
-    /// <summary>The glyph keys of group values or of sub values, in <see cref="Glyphs"/> order.</summary>
-    public static IReadOnlyList<string> Keys(bool sub) => sub ? SubKeys : GroupKeys;
+    private static readonly string[][] SetKeys =
+    [
+        Glyphs.Select(c => "#vg" + c).ToArray(),
+        Glyphs.Select(c => "#vs" + c).ToArray(),
+        Glyphs.Select(c => "#vi" + c).ToArray(),
+    ];
 
-    public static string? KeyOf(char c, bool sub)
+    /// <summary>The glyph keys of a set, in <see cref="Glyphs"/> order.</summary>
+    public static IReadOnlyList<string> Keys(BoardValueSet set) => SetKeys[(int)set];
+
+    public static string? KeyOf(char c, BoardValueSet set)
     {
         var i = Glyphs.IndexOf(c, StringComparison.Ordinal);
-        return i < 0 ? null : Keys(sub)[i];
+        return i < 0 ? null : SetKeys[(int)set][i];
     }
+
+    /// <summary>The sets a style draws (only timing has intervals).</summary>
+    public static int Sets(BoardStyle style) => style == BoardStyle.Timing ? 3 : 2;
 
     /// <summary>What a row with <paramref name="live"/> shows.</summary>
     public static string Text(double live) => live > 0.05 ? SpeedFormat.Speed(live) : Dash.ToString();
+
+    /// <summary>Timing's interval: the gap to the group above (−29 when behind by 29, +20 when ahead inside the 10 % band).</summary>
+    public static string Interval(double above, double live) => (above - live >= 0 ? "−" : "+") + SpeedFormat.Speed(Math.Abs(above - live));
 
     /// <summary>The value's font size: 13 pt, a sub row's 11 pt (glass 11.5).</summary>
     public static double Size(BoardStyle style, bool sub) => !sub ? 13 : style == BoardStyle.Glass ? 11.5 : 11;
@@ -66,7 +93,7 @@ public static class BoardValueGlyphs
     /// Draws <paramref name="text"/> ending at <paramref name="right"/>, its line centered on <paramref name="centerY"/> (canvas
     /// points), in <paramref name="color"/>; glyphs still missing are skipped.
     /// </summary>
-    public static void Emit(BoardDrawList list, IBoardLayers layers, string text, bool sub, double right, double centerY, double tracking,
+    public static void Emit(BoardDrawList list, IBoardLayers layers, string text, BoardValueSet set, double right, double centerY, double tracking,
         Rgba color, double alpha, RectBounds clip)
     {
         ArgumentNullException.ThrowIfNull(list);
@@ -81,7 +108,7 @@ public static class BoardValueGlyphs
         var count = 0;
         for (var i = 0; i < text.Length; i++)
         {
-            if (TryGlyph(text[i], sub, layers, out var slot))
+            if (TryGlyph(text[i], set, layers, out var slot))
             {
                 width += slot.Width - 2 * Pad + (count++ > 0 ? tracking : 0);
             }
@@ -91,7 +118,7 @@ public static class BoardValueGlyphs
         var tint = color.WithAlpha(1);
         for (var i = 0; i < text.Length; i++)
         {
-            if (!TryGlyph(text[i], sub, layers, out var slot))
+            if (!TryGlyph(text[i], set, layers, out var slot))
             {
                 continue;
             }
@@ -101,9 +128,9 @@ public static class BoardValueGlyphs
         }
     }
 
-    private static bool TryGlyph(char c, bool sub, IBoardLayers layers, out BoardLayerSlot slot)
+    private static bool TryGlyph(char c, BoardValueSet set, IBoardLayers layers, out BoardLayerSlot slot)
     {
         slot = default;
-        return KeyOf(c, sub) is { } key && layers.TryGet(key, out slot);
+        return KeyOf(c, set) is { } key && layers.TryGet(key, out slot);
     }
 }

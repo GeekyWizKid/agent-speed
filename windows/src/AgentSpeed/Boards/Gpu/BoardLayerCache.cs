@@ -112,12 +112,12 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
                 full |= !Layer(BoardHeroNumber.GlyphKeys[i], new BoardLayerRequest(BoardLayerKind.Glyph, scene, null, BoardHeroNumber.Glyphs[i]));
             }
 
-            for (var i = 0; i < 2 * BoardValueGlyphs.Glyphs.Length && !full; i++)
+            var glyphs = BoardValueGlyphs.Glyphs.Length;
+            for (var i = 0; i < BoardValueGlyphs.Sets(scene.Style) * glyphs && !full; i++)
             {
-                var sub = i >= BoardValueGlyphs.Glyphs.Length;
-                var c = BoardValueGlyphs.Glyphs[i % BoardValueGlyphs.Glyphs.Length];
-                full |= !Layer(BoardValueGlyphs.Keys(sub)[i % BoardValueGlyphs.Glyphs.Length],
-                    new BoardLayerRequest(BoardLayerKind.ValueGlyph, scene, null, c, Sub: sub));
+                var set = (BoardValueSet)(i / glyphs);
+                full |= !Layer(BoardValueGlyphs.Keys(set)[i % glyphs],
+                    new BoardLayerRequest(BoardLayerKind.ValueGlyph, scene, null, BoardValueGlyphs.Glyphs[i % glyphs], Set: set));
             }
 
             foreach (var callout in scene.Callouts)

@@ -15,7 +15,7 @@ namespace AgentSpeed.Boards.Layers;
 /// <summary>What a row layer shows, resolved once per row from the tick.</summary>
 /// <param name="Column">The shared capsule column's width (the prototypes' <c>--capw</c>: the widest visible capsule).</param>
 /// <param name="Fastest">Timing: this row's agent is the fastest of all (the purple dot).</param>
-/// <param name="Interval">Timing: the interval to the group above, or <c>boards.leader</c> on the first.</param>
+/// <param name="Interval">Timing: <c>boards.leader</c> on the first group (the scene composes the other intervals).</param>
 internal readonly record struct BoardRowContent(
     BoardScene Scene,
     BoardTick Tick,
@@ -78,10 +78,10 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     protected abstract BoardTextStyle NumberStyle(BoardScene scene);
 
     /// <summary>
-    /// The rows' value style (<c>.speed</c>, a sub row's <c>.sub .speed</c>) at <c>BoardValueGlyphs.Size</c>, without tracking;
+    /// The style of a set of row numbers (<c>.speed</c>, a sub row's <c>.sub .speed</c>, timing's <c>.gap</c>), without tracking;
     /// <paramref name="dim"/> is the weight of the en dash shown below 0.05.
     /// </summary>
-    protected abstract BoardTextStyle ValueStyle(bool sub, bool dim);
+    protected abstract BoardTextStyle ValueStyle(BoardValueSet set, bool dim);
 
     public BoardLayerSpec? Describe(in BoardLayerRequest request)
     {
@@ -120,10 +120,10 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
 
             case BoardLayerKind.ValueGlyph:
             {
-                var style = ValueStyle(request.Sub, request.Glyph == BoardValueGlyphs.Dash);
+                var style = ValueStyle(request.Set, request.Glyph == BoardValueGlyphs.Dash);
                 var pad = BoardValueGlyphs.Pad;
                 return new BoardLayerSpec(Advance(request.Glyph, style) + 2 * pad, Math.Ceiling(style.Size * 1.3) + 2 * pad,
-                    string.Join('|', theme, "vg", request.Sub ? "s" : "g", request.Glyph));
+                    string.Join('|', theme, "vg", request.Set, request.Glyph));
             }
 
             case BoardLayerKind.Hero:
@@ -211,7 +211,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             {
                 // White: the scene tints each row's glyphs to the row's color.
                 using var white = BoardPaint.Brush(context, Rgba.White);
-                Text.Draw(context, request.Glyph.ToString(), ValueStyle(request.Sub, request.Glyph == BoardValueGlyphs.Dash),
+                Text.Draw(context, request.Glyph.ToString(), ValueStyle(request.Set, request.Glyph == BoardValueGlyphs.Dash),
                     (float)BoardValueGlyphs.Pad, height / 2, white);
                 break;
             }
@@ -540,7 +540,8 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
                 detail = subs > 0 ? string.Join(" · ", new[] { root.Model, Loc.Format("boards.subCount", subs) }.Where(s => !string.IsNullOrEmpty(s)))
                     : root.Model ?? string.Empty;
                 phase = entry.Group.BadgePhase;
-                interval = Style == BoardStyle.Timing ? Interval(tick, entry) : string.Empty;
+                // Timing's leader says so; the other intervals are composed from glyphs by the scene.
+                interval = Style == BoardStyle.Timing && entry.Rank == 1 ? Loc["boards.leader"] : string.Empty;
                 break;
             }
 
@@ -607,26 +608,6 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
         }
 
         return fastest?.Id;
-    }
-
-    // Timing's interval column: the gap to the group above (−29 when behind by 29, +20 when ahead inside the 10 % band).
-    private string Interval(BoardTick tick, BoardEntry entry)
-    {
-        if (entry.Rank == 1)
-        {
-            return Loc["boards.leader"];
-        }
-
-        foreach (var other in tick.Entries)
-        {
-            if (other.Kind == BoardEntryKind.Group && other.Rank == entry.Rank - 1)
-            {
-                var gap = other.Group.Live - entry.Group.Live;
-                return (gap >= 0 ? "−" : "+") + SpeedFormat.Speed(Math.Abs(gap));
-            }
-        }
-
-        return string.Empty;
     }
 
     /// <summary>

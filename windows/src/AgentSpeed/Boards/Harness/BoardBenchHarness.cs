@@ -67,8 +67,9 @@ internal static class BoardBenchHarness
         {
             foreach (var style in styles)
             {
-                // Untimed: tiered JIT, DirectWrite and the driver settle before the first scenario.
-                _ = Measure(device, style, size, new Scenario("warm-up", 2, BoardSimScenario.Team, _ => 3200, false, EffectsIntensity.Max), scale, 4, loc);
+                // Untimed: tiered JIT (a method called once per tick needs 15 s to reach 30 calls), DirectWrite and the driver settle
+                // before the first scenario.
+                _ = Measure(device, style, size, new Scenario("warm-up", 2, BoardSimScenario.Team, Story, false, EffectsIntensity.Max), scale, 16, loc);
                 foreach (var scenario in Scenarios)
                 {
                     if (only is not null && !only.Contains(scenario.Name))

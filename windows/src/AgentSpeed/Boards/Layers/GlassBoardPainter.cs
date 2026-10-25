@@ -44,7 +44,8 @@ internal sealed class GlassBoardPainter : BoardStylePainter
 
     protected override BoardTextStyle NumberStyle(BoardScene scene) => new(BoardFont.Display, (float)scene.Metrics.ValueSize, FontWeight.Bold);
 
-    protected override BoardTextStyle ValueStyle(bool sub, bool dim) => (sub ? SubValue : Value) with { Weight = dim ? FontWeight.Medium : FontWeight.SemiBold };
+    protected override BoardTextStyle ValueStyle(BoardValueSet set, bool dim) =>
+        (set == BoardValueSet.Sub ? SubValue : Value) with { Weight = dim ? FontWeight.Medium : FontWeight.SemiBold };
 
     protected override string GlyphKey(BoardScene scene) => HeatKey(GlyphHeat(scene.Tick?.Heat ?? 0)).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
