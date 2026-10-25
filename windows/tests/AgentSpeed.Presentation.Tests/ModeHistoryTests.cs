@@ -19,6 +19,29 @@ public sealed class ModeHistoryTests
         new(new DateOnly(2026, 10, day), requests, 0, 0, 0, output, 0, measuredOutput, measuredMs, 0, 1, null, models, []) { Modes = modes };
 
     [Fact]
+    public void RowTextSpellsTokensSpeedsAndTheUnknownBucket()
+    {
+        var row = new ModeHistoryRow("ultrafast", 1234, 5600, 5600, 2000, 0.25, [new("gpt-5", 0.75), new("", 0.25)]);
+        Assert.Equal(En["speed.value.ultrafast"], ModeHistoryText.Token(row, ExecutionModeKind.Speed, En));
+        Assert.Equal("ultrafast", ModeHistoryText.Token(row, ExecutionModeKind.Effort, En));
+        Assert.Equal("priority", ModeHistoryText.Token(row with { Mode = "priority" }, ExecutionModeKind.Speed, En));
+        Assert.Equal(En["modes.unrecorded"], ModeHistoryText.Token(row with { Mode = "unknown" }, ExecutionModeKind.Effort, En));
+        Assert.Equal(SpeedFormat.Tokens(5600), ModeHistoryText.Output(row));
+
+        var label = ModeHistoryText.Accessible(row, ExecutionModeKind.Speed, En);
+        Assert.StartsWith(En["speed.value.ultrafast"], label, StringComparison.Ordinal);
+        Assert.Contains("25%", label, StringComparison.Ordinal);
+        Assert.Contains("1,234", label, StringComparison.Ordinal);
+        Assert.Contains("5,600", label, StringComparison.Ordinal);
+        Assert.Contains($"{SpeedFormat.Speed(2800)} {En["unit.tokS"]}", label, StringComparison.Ordinal);
+        Assert.Contains(En["history.noSpeed"], ModeHistoryText.Accessible(row with { MeasuredMs = 0 }, ExecutionModeKind.Speed, En), StringComparison.Ordinal);
+
+        Assert.Equal([("gpt-5", "75%", 0.75), (En["modes.unrecorded"], "25%", 0.25)], ModeHistoryText.TopModels(row, En));
+        var many = row with { TopModels = [new("a", 0.4), new("b", 0.3), new("c", 0.2), new("d", 0.1)] };
+        Assert.Equal(["a", "b", "c"], ModeHistoryText.TopModels(many, En).Select(m => m.Name));
+    }
+
+    [Fact]
     public void RowsSumModelsAndEvidenceInDisplayOrderAndAddUpToTheRange()
     {
         var days = new[]

@@ -131,6 +131,7 @@ public static class SettingsSerializer
                 w.WriteNull("window");
             }
 
+            w.WriteString("modeKind", s.HistoryModeKind == ExecutionModeKind.Speed ? "speed" : "effort");
             w.WriteEndObject();
 
             w.WriteStartObject("cost");
@@ -263,6 +264,7 @@ public static class SettingsSerializer
             KimiRoot = ReadString(sources, "kimiRoot"),
             GrokBuildRoot = ReadString(sources, "grokBuildRoot"),
             HistoryWindow = ReadWindowFrame(history is { } h ? Child(h, "window") : null),
+            HistoryModeKind = ReadString(history, "modeKind") == "speed" ? ExecutionModeKind.Speed : ExecutionModeKind.Effort,
             ChartSeconds = (int)Math.Round(ReadDouble(dashboard, "chartSeconds", d.ChartSeconds)),
             AgentsExpanded = ReadBool(dashboard, "agentsExpanded", d.AgentsExpanded),
             HeroLastTitle = ReadString(dashboard, "heroLastTitle"),

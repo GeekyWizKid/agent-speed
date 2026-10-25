@@ -527,6 +527,7 @@ internal sealed partial class HistoryViewModel : ObservableObject, IDisposable
         ShowsSpeedKey = !Range.IsSingleDay && _metric == HistoryChartMetric.Output;
         ChartName = _loc[HistoryChartMetrics.TitleKey(_metric)];
         UpdateBreakdown(DayBreakdown.For(usage, Range, _source, _metric, excluded, TrafficAt(Range.Start)), rebuild: kind == HistoryUpdate.Filter);
+        UpdateModes(rebuild: false);
 
         var sparkBrush = _source is { } one ? HeatPalette.SourceColor(one).ToBrush() : null;
         var sparkDays = Range.IsSingleDay ? HistoryAggregator.Daily(usage, _source, HistoryRanges.SparkRange(Range), excluded) : null;
