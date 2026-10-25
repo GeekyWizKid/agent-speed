@@ -49,9 +49,11 @@ public struct ReportEnvelope: Equatable, Sendable {
     public var windowMs: Int64
     public var activity: ReportScheduler.Activity
     public var titleLevel: Int
+    /// Only for the WebSocket transport (METRICS 11.9); HTTP bodies never carry it.
+    public var realtime: ReportRealtime?
 
     public init(client: ReportClientInfo, deviceId: String, username: String, runId: String, seq: Int, sentAtMs: Int64,
-                windowMs: Int64, activity: ReportScheduler.Activity, titleLevel: Int) {
+                windowMs: Int64, activity: ReportScheduler.Activity, titleLevel: Int, realtime: ReportRealtime? = nil) {
         self.client = client
         self.deviceId = deviceId
         self.username = username
@@ -61,6 +63,7 @@ public struct ReportEnvelope: Equatable, Sendable {
         self.windowMs = windowMs
         self.activity = activity
         self.titleLevel = titleLevel
+        self.realtime = realtime
     }
 }
 
@@ -74,9 +77,12 @@ public struct ReportOptions: Equatable, Sendable {
     public var redline: Double
     public var priceVersion: Int
     public var extensions: ReportExtensions
+    /// `maxMessageBytes` of the WebSocket transport: the report message must fit as well (METRICS 11.9).
+    public var messageLimit: Int?
 
     public init(sections: Set<ReportSection>, maxModels: Int = 16, bodyLimit: Int = 16_384, metric: SpeedMetric = .output,
-                redline: Double = 2000, priceVersion: Int = 1, extensions: ReportExtensions = .none) {
+                redline: Double = 2000, priceVersion: Int = 1, extensions: ReportExtensions = .none,
+                messageLimit: Int? = nil) {
         self.sections = sections
         self.maxModels = maxModels
         self.bodyLimit = bodyLimit
@@ -84,6 +90,14 @@ public struct ReportOptions: Equatable, Sendable {
         self.redline = redline
         self.priceVersion = priceVersion
         self.extensions = extensions
+        self.messageLimit = messageLimit
+    }
+
+    /// The body is small enough to send: within `bodyLimit` and, over WebSocket, its message within `messageLimit`.
+    func fits(_ body: Data) -> Bool {
+        guard body.count <= bodyLimit else { return false }
+        guard let messageLimit else { return true }
+        return ReportStreamMessage.messageBytes(body: body) <= messageLimit
     }
 }
 
@@ -105,12 +119,12 @@ public enum ReportBody {
         var options = options
         var document = json(envelope, content, sample, options)
         var data = document.compactData
-        if data.count > options.bodyLimit, options.extensions != .none {
+        if !options.fits(data), options.extensions != .none {
             options.extensions = .none
             document = json(envelope, content, sample, options)
             data = document.compactData
         }
-        for section in [ReportSection.models, .sources] where data.count > options.bodyLimit {
+        for section in [ReportSection.models, .sources] where !options.fits(data) {
             options.sections.remove(section)
             document = json(envelope, content, sample, options)
             data = document.compactData
@@ -172,6 +186,10 @@ public enum ReportBody {
         if sections.contains(.models), options.maxModels > 0 {
             members.append(.init("models", .array(modelEntries(content, sample, maxModels: options.maxModels,
                                                                 withCost: sections.contains(.cost), extensions: options.extensions))))
+        }
+        if let realtime = envelope.realtime {
+            let mixed = sections.contains(.traffic) && sample.traffic.status == .ok
+            members.append(.init("realtime", realtime.json(mixed: mixed, sentAtMs: envelope.sentAtMs)))
         }
         return .object(members)
     }
