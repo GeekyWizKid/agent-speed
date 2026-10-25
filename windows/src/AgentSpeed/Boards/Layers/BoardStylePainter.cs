@@ -108,7 +108,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
                 var more = row.Entry.Kind is BoardEntryKind.MoreSubs or BoardEntryKind.MoreGroups ? MoreText(row.Entry, row.Live) : string.Empty;
                 return new BoardLayerSpec(width, scene.RowHeight(row.Entry), string.Join('|', theme, "b", row.Entry.Kind, row.Entry.Rank,
                     content.Name, content.Detail, content.Phase, content.Source, content.Capsule.Effort, content.Capsule.Speed,
-                    content.Column.ToString("0.#", CultureInfo.InvariantCulture), content.Fastest, content.Interval, more, BodyKey(content)));
+                    content.Column.ToString("0.#", CultureInfo.InvariantCulture), content.Interval, more, BodyKey(content)));
             }
 
             case BoardLayerKind.RowValue when request.Row is { Entry.Kind: BoardEntryKind.Group or BoardEntryKind.Sub } row:
@@ -540,7 +540,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
                 detail = subs > 0 ? string.Join(" · ", new[] { root.Model, Loc.Format("boards.subCount", subs) }.Where(s => !string.IsNullOrEmpty(s)))
                     : root.Model ?? string.Empty;
                 phase = entry.Group.BadgePhase;
-                interval = Interval(tick, entry);
+                interval = Style == BoardStyle.Timing ? Interval(tick, entry) : string.Empty;
                 break;
             }
 

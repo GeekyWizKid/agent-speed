@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using AgentSpeed.Boards.Gpu;
+using AgentSpeed.Boards.Layers;
 using AgentSpeed.Orb.Gpu;
 using AgentSpeed.Presentation.Boards;
 using AgentSpeed.Presentation.Boards.Demo;
@@ -118,6 +119,8 @@ internal static class BoardBenchHarness
         var drawTicks = 0L;
         var updateStart = 0L;
         (long Describe, long Paint, long Flush) layerStart = default;
+        var kinds = Enum.GetValues<BoardLayerKind>();
+        var kindStart = new long[kinds.Length * 2];
         var rasterStart = 0L;
         var events = 0;
         var byClass = new long[Enum.GetValues<FrameClass>().Length];
@@ -145,6 +148,11 @@ internal static class BoardBenchHarness
                 updateStart = rigs.Sum(r => r.Frame.UpdateTicks);
                 layerStart = (rigs.Sum(r => r.Frame.Layers.Ticks.Describe), rigs.Sum(r => r.Frame.Layers.Ticks.Paint),
                     rigs.Sum(r => r.Frame.Layers.Ticks.Flush));
+                for (var k = 0; k < kinds.Length; k++)
+                {
+                    kindStart[2 * k] = rigs.Sum(r => r.Frame.Layers.PaintsByKind.Ticks[k]);
+                    kindStart[2 * k + 1] = rigs.Sum(r => r.Frame.Layers.PaintsByKind.Count[k]);
+                }
                 events = 0;
                 skipped = 0;
                 Array.Clear(byClass);
@@ -238,6 +246,17 @@ internal static class BoardBenchHarness
         var describeTicks = rigs.Sum(r => r.Frame.Layers.Ticks.Describe) - layerStart.Describe;
         var paintTicks = rigs.Sum(r => r.Frame.Layers.Ticks.Paint) - layerStart.Paint;
         var flushTicks = rigs.Sum(r => r.Frame.Layers.Ticks.Flush) - layerStart.Flush;
+        var byKind = new System.Text.StringBuilder();
+        for (var k = 0; k < kinds.Length; k++)
+        {
+            var count = rigs.Sum(r => r.Frame.Layers.PaintsByKind.Count[k]) - kindStart[2 * k + 1];
+            if (count > 0)
+            {
+                var ms = (rigs.Sum(r => r.Frame.Layers.PaintsByKind.Ticks[k]) - kindStart[2 * k]) * 1000.0 / Stopwatch.Frequency;
+                byKind.Append(CultureInfo.InvariantCulture, $" {kinds[k]} {count / wall:0.0}/s × {ms / count:0.00} ms;");
+            }
+        }
+
         var atlas = rigs[0].Frame.Layers.Atlas;
         var swap = targets[0].Pixels * targets[0].Pixels * 4.0 * 2;
         var memory = (atlas.Width * (double)atlas.Height * 4 + swap) / (1024 * 1024);
@@ -256,7 +275,7 @@ internal static class BoardBenchHarness
         string Fps(FrameClass c) => (byClass[(int)c] / wall).ToString("0.0", CultureInfo.InvariantCulture);
         string Share(long ticks) => (ticks * 100.0 / Stopwatch.Frequency / wall).ToString("0.00", CultureInfo.InvariantCulture);
         return string.Create(CultureInfo.InvariantCulture,
-            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height}); cpu on this thread: feed {Share(feedTicks)}%, layers {Share(updateTicks)}% (describe {Share(describeTicks)}, paint {Share(paintTicks)}, flush {Share(flushTicks)}), frames {Share(buildTicks - updateTicks)}%, draws {Share(drawTicks)}%");
+            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height}); cpu on this thread: feed {Share(feedTicks)}%, layers {Share(updateTicks)}% (describe {Share(describeTicks)}, paint {Share(paintTicks)}, flush {Share(flushTicks)}), frames {Share(buildTicks - updateTicks)}%, draws {Share(drawTicks)}%; painted:{byKind}");
     }
 
     private static double Number(string name, double fallback) =>

@@ -32,6 +32,9 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
     /// <summary>Stopwatch ticks spent describing layers, painting them and flushing the atlas (the bench's breakdown).</summary>
     public (long Describe, long Paint, long Flush) Ticks => (_describeTicks, _paintTicks, _flushTicks);
 
+    /// <summary>Stopwatch ticks spent painting and layers painted, per <see cref="BoardLayerKind"/> (the bench's breakdown).</summary>
+    public (long[] Ticks, long[] Count) PaintsByKind => (_paintByKind, _paintedByKind);
+
     /// <summary>Whether the texture must be made current again before the next frame (device, scale or size changed).</summary>
     public bool IsStale(GpuDevice device, double scale, BoardScene scene) =>
         _atlas.View is null || _atlas.Width != WidthFor(scene, scale) || Math.Abs(_atlas.Scale - scale) > 0.001 || Generation != device.Generation;
@@ -82,6 +85,8 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
     private long _describeTicks;
     private long _paintTicks;
     private long _flushTicks;
+    private readonly long[] _paintByKind = new long[Enum.GetValues<BoardLayerKind>().Length];
+    private readonly long[] _paintedByKind = new long[Enum.GetValues<BoardLayerKind>().Length];
 
     private DrawResult Draw(BoardScene scene)
     {
@@ -170,7 +175,10 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
         var painter = Painter;
         start = System.Diagnostics.Stopwatch.GetTimestamp();
         var drawn = _atlas.TryDraw(key, spec.Width, spec.Height, spec.Signature, context => painter.Paint(context, request, spec));
-        _paintTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+        var spent = System.Diagnostics.Stopwatch.GetTimestamp() - start;
+        _paintTicks += spent;
+        _paintByKind[(int)request.Kind] += spent;
+        _paintedByKind[(int)request.Kind]++;
         return drawn;
     }
 
