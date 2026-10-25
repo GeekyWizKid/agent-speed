@@ -189,6 +189,33 @@ struct ExecutionModeTests {
         #expect(HistoryAnalyzer.analysisVersion == 5)
     }
 
+    @Test func historySectionRowsSumModesInDisplayOrder() throws {
+        func effort(_ value: String) throws -> ExecutionModeFact {
+            try #require(ExecutionModeAdapters.effort(value, evidence: .recorded, scope: .request))
+        }
+        func day(_ records: [ResponseRecord], on date: String) -> DailyUsage {
+            var aggregate = DayAggregate()
+            records.forEach { aggregate.add($0, cost: nil) }
+            return aggregate.usage(day: date, source: .claudeCode, peak: nil, priceVersion: nil)
+        }
+        var fastMax = ExecutionModeAdapters.claude("fast")
+        fastMax.insert(try effort("max"))
+        let days = [
+            day([record("a", modes: ExecutionModes([try effort("xhigh")])), record("b", modes: fastMax)], on: "2026-10-23"),
+            day([record("c", modes: ExecutionModes([try effort("ultracode")])), record("d")], on: "2026-10-24"),
+        ]
+        let effortRows = ModeHistoryBreakdown.rows(days, kind: .effort)
+        #expect(effortRows.map(\.mode) == ["ultracode", "max", "xhigh", "unknown"])
+        #expect(effortRows.map(\.requests).reduce(0, +) == 4)
+        #expect(effortRows.map(\.output).reduce(0, +) == days.map(\.totals.output).reduce(0, +))
+        #expect(effortRows.first?.models == [.init(model: "m", output: 100)])
+        #expect(effortRows.first?.averageSpeed == 100)
+        #expect(ModeHistoryBreakdown.rows(days, kind: .speed).map(\.mode) == ["fast", "unknown"])
+        let unknownOnly = ModeHistoryBreakdown.rows([day([record("e")], on: "2026-10-24")], kind: .effort)
+        #expect(unknownOnly.map(\.mode) == ["unknown"] && unknownOnly.first?.requests == 1)
+        #expect(ModeHistoryBreakdown.rows([], kind: .speed).map(\.mode) == ["unknown"])
+    }
+
     @Test func historyUpsertsReplaceClassificationAcrossRestarts() throws {
         let scratch = try HistoryTests.Scratch()
         let original = HistoryTests.claude([("same-response", 100)])
