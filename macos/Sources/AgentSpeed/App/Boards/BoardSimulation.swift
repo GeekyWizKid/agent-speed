@@ -25,6 +25,9 @@ struct BoardSimulation {
         var live = 0.0
         var lastActive = 0.0
         var lazy: Bool
+        /// sim.js `effort` and `speedMode` tokens (DESIGN 4 capsule).
+        var effort: String?
+        var speed: String?
     }
 
     struct Group {
@@ -46,6 +49,8 @@ struct BoardSimulation {
         var peak: Double
         var today: Double
         var cost: Double
+        /// `live` at every tick, oldest first, at most 120 (sim.js `history`).
+        var history: [Double]
     }
 
     static let sources: [String: UInt32] = [
@@ -64,27 +69,29 @@ struct BoardSimulation {
         var subs: Int
         var workflow = false
         var lazy = false
+        var effort: String?
+        var speed: String?
     }
 
     private static func roots(_ name: String) -> [Root] {
         switch name {
         case "duel":
-            [Root(project: "opencdn", source: "claudeCode", model: "claude-opus-5-5", subs: 2),
-             Root(project: "claude-manager", source: "codex", model: "gpt-6.1-sol", subs: 2)]
+            [Root(project: "opencdn", source: "claudeCode", model: "claude-opus-5-5", subs: 2, effort: "max"),
+             Root(project: "claude-manager", source: "codex", model: "gpt-6.1-sol", subs: 2, effort: "ultra", speed: "ultrafast")]
         case "team":
-            [Root(project: "opencdn", source: "claudeCode", model: "claude-opus-5-5", subs: 3),
-             Root(project: "claude-manager", source: "codex", model: "gpt-6.1-sol", subs: 2),
-             Root(project: "agent-speed", source: "claudeCode", model: "claude-opus-5-5", subs: 4),
-             Root(project: "nebula", source: "opencode", model: "claude-sonnet-5-5", subs: 0),
+            [Root(project: "opencdn", source: "claudeCode", model: "claude-opus-5-5", subs: 3, effort: "max"),
+             Root(project: "claude-manager", source: "codex", model: "gpt-6.1-sol", subs: 2, effort: "xhigh", speed: "fast"),
+             Root(project: "agent-speed", source: "claudeCode", model: "claude-opus-5-5", subs: 4, effort: "ultracode"),
+             Root(project: "nebula", source: "opencode", model: "claude-sonnet-5-5", subs: 0, effort: "high"),
              Root(project: "rain", source: "deepseek", model: "deepseek-flash", subs: 0)]
         case "calm":
-            [Root(project: "agent-speed", source: "claudeCode", model: "claude-opus-5-5", subs: 0, lazy: true),
-             Root(project: "notes", source: "codex", model: "gpt-6.1-sol", subs: 0, lazy: true)]
+            [Root(project: "agent-speed", source: "claudeCode", model: "claude-opus-5-5", subs: 0, lazy: true, effort: "xhigh"),
+             Root(project: "notes", source: "codex", model: "gpt-6.1-sol", subs: 0, lazy: true, effort: "medium")]
         default:
             [Root(project: "tihu", source: "claudeDesktop", model: "deepseek-flash", subs: 100, workflow: true),
-             Root(project: "opencdn", source: "claudeCode", model: "claude-opus-5-5", subs: 3),
-             Root(project: "claude-manager", source: "codex", model: "gpt-6.1-sol", subs: 2),
-             Root(project: "agent-speed", source: "claudeCode", model: "claude-opus-5-5", subs: 1)]
+             Root(project: "opencdn", source: "claudeCode", model: "claude-opus-5-5", subs: 3, effort: "max"),
+             Root(project: "claude-manager", source: "codex", model: "gpt-6.1-sol", subs: 2, effort: "ultra", speed: "ultrafast"),
+             Root(project: "agent-speed", source: "claudeCode", model: "claude-opus-5-5", subs: 1, effort: "ultracode")]
         }
     }
 
@@ -100,6 +107,7 @@ struct BoardSimulation {
     private var today = 128.4e6
     private var cost = 42.1
     private var peak = 9120.0
+    private var history: [Double] = []
 
     init(scenario: String = "swarm", seed: UInt32 = 7, tick: Double = 0.5) {
         self.scenario = scenario
@@ -136,7 +144,8 @@ struct BoardSimulation {
         let base = lo + (hi - lo) * random()
         let left = 1 + random() * 6
         return Agent(id: id, parentID: parent, project: root.project, label: label, source: root.source, model: root.model,
-                     base: base, phaseLeft: left, lazy: root.lazy)
+                     base: base, phaseLeft: left, lazy: root.lazy, effort: parent != nil && root.workflow ? nil : root.effort,
+                     speed: root.speed)
     }
 
     private mutating func nextPhase(_ a: inout Agent) {
@@ -176,6 +185,8 @@ struct BoardSimulation {
         today += total * tick
         cost += total * tick * 15e-6
         peak = max(peak, total)
+        history.append(total)
+        if history.count > 120 { history.removeFirst() }
     }
 
     /// The groups ranked by the production ranking, with this tick's events.
@@ -207,6 +218,7 @@ struct BoardSimulation {
         let live = agents.reduce(0) { $0 + $1.live }
         return Snapshot(time: time, groups: result.order.compactMap { groups[$0] }, events: result.events, live: live,
                         generating: agents.filter { $0.phase == .generating && !paused }.count,
-                        tools: agents.filter { $0.phase == .tools && !paused }.count, peak: peak, today: today, cost: cost)
+                        tools: agents.filter { $0.phase == .tools && !paused }.count, peak: peak, today: today, cost: cost,
+                        history: history)
     }
 }

@@ -2,12 +2,12 @@ import AgentSpeedOrbModel
 import AppKit
 
 /// `--board-demo [glass|timing|neon] [S|M|L]`: one real board (panel, content layers, effects on the shared clock) in
-/// the top-right corner of the main display, fed by `BoardSimulation` every engine tick over placeholder rows. Drag it
+/// the top-right corner of the main display, fed by `BoardSimulation` every engine tick through the style's content builder. Drag it
 /// around; quit with ⌘Q or after `AGENT_SPEED_DEMO_SECONDS`.
 ///
 /// `AGENT_SPEED_BOARD_SCENARIO` (swarm, duel, team, calm; default swarm), `AGENT_SPEED_BOARD_LEVEL`
 /// (off, soft, standard, max), `AGENT_SPEED_BOARD_SPEED` (speed multiplier), `AGENT_SPEED_DEMO_LIGHT=1`,
-/// `AGENT_SPEED_REDUCE_MOTION=1`.
+/// `AGENT_SPEED_REDUCE_MOTION=1`, `AGENT_SPEED_BOARD_LANG` (zh-Hant, zh-Hans, en, ja).
 @MainActor
 enum BoardDemoHarness {
     private static var board: BoardWindowController?
@@ -32,7 +32,8 @@ enum BoardDemoHarness {
 
         var simulation = BoardSimulation(scenario: environment["AGENT_SPEED_BOARD_SCENARIO"] ?? "swarm")
         simulation.speedScale = environment["AGENT_SPEED_BOARD_SPEED"].flatMap(Double.init) ?? 1
-        let feed = BoardSimFeed(simulation: simulation, content: BoardPlaceholderContent(style: style, size: size, dark: dark))
+        let feed = BoardSimFeed(simulation: simulation, style: style, size: size, dark: dark, l10n: BoardSimFeed.harnessLocalizer(),
+                                highContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
         board.contentProvider = { feed.layout.items }
         board.show()
         self.board = board

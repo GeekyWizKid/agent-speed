@@ -1,0 +1,95 @@
+import AgentSpeedCore
+import AgentSpeedOrbModel
+import Foundation
+
+/// What one planned row shows (DESIGN 2c Content 2), independent of the style that draws it. Equal models draw equal
+/// images, so a row's model is its revision.
+struct BoardRowModel: Hashable {
+    enum Kind: Hashable {
+        /// A group: its rank (1 = first place, which gets the leader treatment).
+        case group(rank: Int)
+        case sub
+        /// `boards.moreSubs` / `boards.moreGroups`.
+        case more
+    }
+
+    var kind: Kind
+    var name: String
+    var detail = ""
+    /// The value column: METRICS 7 text, `–` for an idle row, empty for none.
+    var value = ""
+    var idle = false
+    var phase: AgentPhase = .idle
+    var sources: [SourceKind] = []
+    var modes: ExecutionModes?
+    /// Share of `live_A` in 1/200 steps (glass and neon underline).
+    var share = 0
+    /// The row's own heat in 1/100 steps (value color and underline).
+    var heat = 0
+    /// Timing's interval column: `boards.leader` on the first group, else the gap to the group above.
+    var interval = ""
+
+    var rank: Int? {
+        if case .group(let rank) = kind { return rank }
+        return nil
+    }
+
+    var isLeader: Bool { rank == 1 }
+    var source: SourceKind? { sources.first }
+    var shareFraction: Double { Double(share) / 200 }
+    var heatFraction: Double { Double(heat) / 100 }
+}
+
+@MainActor
+enum BoardRowModels {
+    /// The models of `tick.rows`, in order.
+    static func make(_ tick: BoardTick, l10n: Localizer) -> [BoardRowModel] {
+        let groups = tick.groups
+        func heat(_ live: Double) -> Int { Int((HeatPalette.heat(value: live, redline: tick.redline) * 100).rounded()) }
+        func share(_ live: Double) -> Int { Int((BoardContentRules.share(live, of: tick.value) * 200).rounded()) }
+        func value(_ live: Double) -> (String, Bool) {
+            live > BoardGrouping.idle ? (SpeedFormat.speed(live), false) : ("–", true)
+        }
+        func name(_ agent: AgentStatus) -> String {
+            agent.project.isEmpty ? l10n(agent.source.titleKey) : agent.project
+        }
+
+        return tick.rows.map { row in
+            switch row.kind {
+            case .group(let index):
+                let group = groups[index]
+                let root = group.root
+                let detail = [root.model.flatMap { $0.isEmpty ? nil : $0 },
+                              group.subs.isEmpty ? nil : l10n("boards.subCount", group.subs.count)]
+                    .compactMap { $0 }.joined(separator: " · ")
+                let (text, idle) = value(group.live)
+                let interval = index == 0 ? l10n("boards.leader")
+                    : BoardContentRules.interval(ahead: groups[index - 1].live, live: group.live)
+                return BoardRowModel(kind: .group(rank: index + 1), name: name(root), detail: detail, value: text, idle: idle,
+                                     phase: group.generating > 0 ? .generating : root.phase, sources: [root.source],
+                                     modes: root.modes, share: share(group.live), heat: heat(group.live), interval: interval)
+            case .sub(let index, let subIndex):
+                let root = groups[index].root
+                let agent = groups[index].subs[subIndex]
+                let live = agent.live.value(for: tick.metric)
+                let (text, idle) = value(live)
+                // A sub-agent's model is shown only when it differs from its root's.
+                let model = agent.model.flatMap { $0.isEmpty || $0 == root.model ? nil : $0 } ?? ""
+                return BoardRowModel(kind: .sub, name: name(agent), detail: model, value: text, idle: idle, phase: agent.phase,
+                                     sources: [agent.source], modes: agent.modes, share: share(live), heat: heat(live))
+            case .moreSubs(let index, let count, let live):
+                return BoardRowModel(kind: .more, name: l10n("boards.moreSubs", count, SpeedFormat.speed(live)),
+                                     sources: [groups[index].root.source])
+            case .moreGroups(let count, let live):
+                let hidden = groups.suffix(count).prefix(3).map(\.root.source)
+                return BoardRowModel(kind: .more, name: l10n("boards.moreGroups", count, SpeedFormat.speed(live)),
+                                     sources: Array(hidden))
+            }
+        }
+    }
+
+    /// The shared capsule column: as wide as the widest capsule among the rows, 0 when none shows.
+    static func capsuleColumn(_ rows: [BoardRowModel], compact: Bool, capsules: BoardCapsuleDrawing) -> CGFloat {
+        rows.compactMap { row in row.modes.flatMap { capsules.capsuleSize(for: $0, compact: compact)?.width } }.max() ?? 0
+    }
+}

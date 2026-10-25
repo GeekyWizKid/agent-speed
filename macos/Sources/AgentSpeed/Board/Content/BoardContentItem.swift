@@ -30,12 +30,21 @@ struct BoardContentItem {
     var draw: (CGContext, CGSize) -> Void
 }
 
-/// The effort and speed capsule of an agent (DESIGN 4 Agents) drawn into a row. Phase 2 supplies the capsule
-/// component of the execution-modes feature here; until then rows draw no capsule.
+/// The effort and speed capsule of an agent (DESIGN 4 Agents) drawn into a row, so board rows and the dashboard match.
 @MainActor
 protocol BoardCapsuleDrawing: AnyObject {
     /// The capsule's size for `modes`, nil when it shows nothing (`compact`: S boards, without its word).
     func capsuleSize(for modes: ExecutionModes, compact: Bool) -> CGSize?
     /// Draws the capsule with its top-left at `origin` (y down).
     func drawCapsule(for modes: ExecutionModes, compact: Bool, dark: Bool, in context: CGContext, at origin: CGPoint)
+    /// Draws the capsule stretched to `width` (the rows' shared column: meters start on one line, bolts end on
+    /// another); nil draws it at its own width.
+    func drawCapsule(for modes: ExecutionModes, compact: Bool, dark: Bool, highContrast: Bool, width: CGFloat?,
+                     in context: CGContext, at origin: CGPoint)
+}
+
+extension BoardCapsuleDrawing {
+    func drawCapsule(for modes: ExecutionModes, compact: Bool, dark: Bool, in context: CGContext, at origin: CGPoint) {
+        drawCapsule(for: modes, compact: compact, dark: dark, highContrast: false, width: nil, in: context, at: origin)
+    }
 }

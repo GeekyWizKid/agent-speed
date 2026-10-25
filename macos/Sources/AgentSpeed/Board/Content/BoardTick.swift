@@ -30,6 +30,8 @@ struct BoardTick {
     var todayText: String
     var costText: String?
     var peakText: String
+    /// `peakToday_A` (neon marks it on its LED bar); 0 when unknown.
+    var peak: Double = 0
 }
 
 /// A board's content for one tick, with the anchors the effects need (board points, y down).
