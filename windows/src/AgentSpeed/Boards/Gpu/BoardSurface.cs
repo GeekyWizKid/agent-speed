@@ -21,14 +21,13 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
 {
     private readonly GpuDevice _device;
     private readonly OrbClock _clock;
-    private readonly BoardDrawList _list = new();
+    private readonly BoardFrame _frame;
     private CompositionSurface? _surface;
     private double _scale = 1;
     private int _pixels = 1;
     private bool _visible;
     private bool _paused;
     private bool _locked;
-    private bool _layersDirty = true;
     private bool _forcePresent = true;
     private ulong _presented;
     private int _presentedGeneration = -1;
@@ -39,8 +38,7 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
     {
         _device = device;
         _clock = clock;
-        Scene = new BoardScene(style, size, seed);
-        Layers = new BoardLayerCache(painter);
+        _frame = new BoardFrame(style, size, painter, seed);
         device.Recovered += OnRecovered;
     }
 
@@ -56,11 +54,9 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
     /// <summary>Frames rendered per class since start (the bench).</summary>
     public static long[] FramesByClass { get; } = new long[Enum.GetValues<FrameClass>().Length];
 
-    public BoardScene Scene { get; }
+    public BoardScene Scene => _frame.Scene;
 
-    public BoardLayerCache Layers { get; }
-
-    public BoardDrawList List => _list;
+    public BoardFrame Frame => _frame;
 
     /// <summary>The window handle (the swap chain's composition target).</summary>
     public nint Hwnd { get; set; }
@@ -139,7 +135,7 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
             Scene.Settle();
         }
 
-        _layersDirty = true;
+        _frame.Invalidate();
         _forcePresent = true;
         _clock.Kick(this);
     }
@@ -155,7 +151,7 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
 
         _pixels = pixels;
         _scale = scale;
-        _layersDirty = true;
+        _frame.Invalidate();
         _forcePresent = true;
         _clock.Kick(this);
     }
@@ -164,7 +160,7 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
     public void Apply(BoardTick tick)
     {
         Scene.Apply(tick, _clock.Now);
-        _layersDirty = true;
+        _frame.Invalidate();
         _clock.Kick(this);
     }
 
@@ -192,7 +188,7 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
         }
 
         FramesByClass[(int)_demand]++;
-        var fingerprint = _list.Fingerprint() ^ (ulong)_pixels ^ ((ulong)Layers.Atlas.Rasterized << 32);
+        var fingerprint = _frame.Fingerprint(_pixels);
         if (_presentedGeneration != _device.Generation)
         {
             _forcePresent = true;
@@ -223,7 +219,7 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
             return null;
         }
 
-        var pixels = target.Render(_device, view => BoardGpuRenderer.Draw(_device, _list, Layers.Atlas.View, view, _pixels, _pixels), _pixels, _pixels);
+        var pixels = target.Render(_device, view => _frame.Draw(_device, view, _pixels), _pixels, _pixels);
         return pixels is null ? null : OffscreenTarget.ToBitmap(pixels, _pixels, _pixels);
     }
 
@@ -233,10 +229,10 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
         _clock.Unregister(this);
         _surface?.Dispose();
         _surface = null;
-        Layers.Dispose();
+        _frame.Dispose();
     }
 
-    /// <summary>Brings the layers up to date and builds the frame's draw list; false when the device is gone.</summary>
+    /// <summary>Builds the frame's draw list; false when the device is gone.</summary>
     private bool Build(double now)
     {
         if (_device.IsLost && !Recover())
@@ -244,30 +240,22 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
             return false;
         }
 
-        if (_layersDirty || Layers.IsStale(_device, _scale, Scene))
+        if (!_frame.Build(_device, now, _scale, _opacity))
         {
-            try
+            // A lost device is rebuilt; otherwise the layer texture is recreated on the next frame.
+            if (_device.IsLost)
             {
-                if (!Layers.Update(_device, Scene, _scale))
-                {
-                    Recover();
-                    return false;
-                }
-            }
-            catch (SharpGen.Runtime.SharpGenException ex)
-            {
-                AppLog.Warn("A board's layers failed on the GPU.", ex);
                 Recover();
-                return false;
+            }
+            else
+            {
+                _frame.Invalidate();
+                _clock.Kick(this);
             }
 
-            _layersDirty = false;
+            return false;
         }
 
-        _list.Reset();
-        _list.Scale = _scale;
-        Scene.Render(now, Layers, _list);
-        _list.Opacity = _opacity;
         _demand = Scene.Demand(now);
         return true;
     }
@@ -278,7 +266,7 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
         try
         {
             var target = _surface.Begin(_device, _pixels, _pixels);
-            if (target is not null && BoardGpuRenderer.Draw(_device, _list, Layers.Atlas.View, target, _pixels, _pixels))
+            if (target is not null && _frame.Draw(_device, target, _pixels))
             {
                 switch (_surface.Present())
                 {
@@ -313,7 +301,7 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
     {
         if (_device.Recover())
         {
-            _layersDirty = true;
+            _frame.Invalidate();
             _forcePresent = true;
             _clock.Kick(this);
         }
@@ -323,7 +311,7 @@ internal sealed class BoardSurface : IOrbFrameClient, IDisposable
 
     private void OnRecovered(object? sender, EventArgs e)
     {
-        _layersDirty = true;
+        _frame.Invalidate();
         _forcePresent = true;
         _clock.Kick(this);
     }
