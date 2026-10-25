@@ -5,6 +5,7 @@
         xmlns:loc="clr-namespace:AgentSpeed.Localization"
         xmlns:controls="clr-namespace:AgentSpeed.Controls"
         xmlns:dash="clr-namespace:AgentSpeed.Dashboard"
+        xmlns:modes="clr-namespace:AgentSpeed.Modes"
         Title="{loc:Loc app.name}"
         Width="368"
         WindowStyle="SingleBorderWindow"
@@ -310,12 +311,13 @@
                                 <DataTemplate DataType="{x:Type dash:AgentRow}">
                                     <!-- Rows stack without gaps so each row's connector piece joins its neighbors. -->
                                     <Grid Height="{x:Static dash:DashboardViewModel.AgentRowHeight}" AutomationProperties.Name="{Binding AccessibleName}"
-                                          Background="Transparent" ToolTip="{Binding TrafficTooltip}">
+                                          Background="Transparent" ToolTip="{Binding Tooltip}">
                                         <dash:TreeConnectors Guides="{Binding Guides}" Stroke="{DynamicResource DividerStrokeColorDefaultBrush}" />
                                         <Grid Margin="{Binding Indent}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="30" />
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="56" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel VerticalAlignment="Center" Margin="0,3,8,3">
@@ -325,8 +327,14 @@
                                             </StackPanel>
                                             <dash:PhaseBadge Grid.Column="1" Phase="{Binding Phase}" Color="{Binding Color}"
                                                              ReduceMotion="{Binding DataContext.ReduceMotion, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            <!-- The shared capsule column: as wide as the widest capsule, 8 DIP before the live value (DESIGN 4.4). -->
+                                            <modes:EffortCapsuleView Grid.Column="2" Capsule="{Binding Capsule}" Gap="8"
+                                                                     ColumnWidth="{Binding DataContext.CapsuleColumn.Width, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                     Compact="{Binding DataContext.CapsuleColumn.Compact, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                     Appearance="{Binding DataContext.CapsuleAppearance, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                     LanguageCode="{Binding DataContext.LanguageCode, RelativeSource={RelativeSource AncestorType=Window}}" />
                                             <!-- Below 0.05 tok/s the slot shows a dash or, while tools run, an hourglass (DESIGN 4.4). -->
-                                            <dash:LiveValue Grid.Column="2" Text="{Binding LiveText}" Kind="{Binding LiveKind}"
+                                            <dash:LiveValue Grid.Column="3" Text="{Binding LiveText}" Kind="{Binding LiveKind}"
                                                             TextElement.FontSize="13" TextElement.FontWeight="SemiBold"
                                                             HorizontalAlignment="Right" VerticalAlignment="Center"
                                                             AutomationProperties.Name="{Binding LiveAccessibleName}"

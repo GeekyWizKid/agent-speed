@@ -4,12 +4,14 @@ using System.Windows;
 using System.Windows.Media;
 using AgentSpeed.Controls;
 using AgentSpeed.Core;
+using AgentSpeed.Modes;
 using AgentSpeed.Presentation.Colors;
 using AgentSpeed.Presentation.Cost;
 using AgentSpeed.Presentation.Formatting;
 using AgentSpeed.Presentation.Heat;
 using AgentSpeed.Presentation.Layout;
 using AgentSpeed.Presentation.Localization;
+using AgentSpeed.Presentation.Modes;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Presentation.Titles;
 using AgentSpeed.Theme;
@@ -112,10 +114,17 @@ internal sealed class AgentRow : ObservableObject
 
     public string AccessibleName { get => _accessibleName; set => Set(ref _accessibleName, value); }
 
-    /// <summary><c>traffic.agent.tooltip</c> while the agent has attributed traffic today (DESIGN 10); null otherwise.</summary>
-    public string? TrafficTooltip { get => _trafficTooltip; set => Set(ref _trafficTooltip, value); }
+    /// <summary>The agent's effort and speed (DESIGN 4, Agents).</summary>
+    public EffortCapsule Capsule { get => _capsule; set => Set(ref _capsule, value); }
 
-    private string? _trafficTooltip;
+    /// <summary>
+    /// <c>traffic.agent.tooltip</c> while the agent has attributed traffic today (DESIGN 10), then the capsule's lines
+    /// when effort or speed is known; null when neither applies.
+    /// </summary>
+    public string? Tooltip { get => _tooltip; set => Set(ref _tooltip, value); }
+
+    private EffortCapsule _capsule = new(null, null);
+    private string? _tooltip;
 }
 
 /// <summary>One source of today's cost in the ⓘ popup: colour dot, name, amount and a thin share bar.</summary>
@@ -126,6 +135,12 @@ internal sealed partial class DashboardViewModel : ObservableObject
 {
     /// <summary>Fixed agent row height, so the scrolling viewport is exactly a whole number of rows.</summary>
     public const double AgentRowHeight = 40;
+
+    /// <summary>An agent row's width (the panel's 368 DIP less its padding) and its fixed parts (DashboardWindow.xaml).</summary>
+    private const double AgentRowWidth = 328;
+    private const double PhaseBadgeWidth = 30;
+    private const double LiveValueWidth = 56;
+    private const double NameGap = 8;
 
     private string _valueText = "0";
     private string _unitText = "tok/s";
@@ -266,6 +281,13 @@ internal sealed partial class DashboardViewModel : ObservableObject
 
     public bool ReduceMotion { get => _reduceMotion; set => Set(ref _reduceMotion, value); }
 
+    /// <summary>The agents' shared capsule column (DESIGN 4, Agents).</summary>
+    public EffortCapsuleColumn CapsuleColumn { get => _capsuleColumn; private set => Set(ref _capsuleColumn, value); }
+
+    public CapsuleAppearance CapsuleAppearance { get => _capsuleAppearance; set => Set(ref _capsuleAppearance, value); }
+
+    public string LanguageCode { get => _languageCode; private set => Set(ref _languageCode, value); }
+
     public string HeroAccessibleName { get => _heroAccessibleName; private set => Set(ref _heroAccessibleName, value); }
 
     /// <summary>The General title theme the hero's title reads in (DESIGN 1, Where the theme applies).</summary>
@@ -277,6 +299,9 @@ internal sealed partial class DashboardViewModel : ObservableObject
     /// <summary>Title changes slide (motion allowed); otherwise they keep the stagger as a fade.</summary>
     public bool TitleSlides { get => _titleSlides; set => Set(ref _titleSlides, value); }
 
+    private EffortCapsuleColumn _capsuleColumn;
+    private CapsuleAppearance _capsuleAppearance;
+    private string _languageCode = LanguageCodes.ZhHant;
     private int _titleLevel;
     private bool _titleSlides = true;
     private bool _heroIsMoney;
@@ -530,18 +555,27 @@ internal sealed partial class DashboardViewModel : ObservableObject
             row.Project = string.IsNullOrWhiteSpace(agent.Project) ? source : agent.Project;
             var detail = string.IsNullOrWhiteSpace(agent.Model) ? source : $"{source} · {agent.Model}";
             detail = agent.IsSubagent ? $"{loc["agents.subagent"]} · {detail}" : detail;
+            var tooltip = new List<string>();
             if (AgentTraffic(agent.Id) is { } traffic)
             {
                 // DESIGN 10: the agent's attributed download today ends its secondary line; the tooltip has both directions.
                 var text = new TrafficText(loc, _trafficBits);
                 row.Detail = $"{detail} · ↓ {Core.Traffic.TrafficFormat.Total(traffic.Rx)}";
-                row.TrafficTooltip = loc.Format("traffic.agent.tooltip", text.Pair(traffic));
+                tooltip.Add(loc.Format("traffic.agent.tooltip", text.Pair(traffic)));
             }
             else
             {
                 row.Detail = detail;
-                row.TrafficTooltip = null;
             }
+
+            var capsule = EffortCapsule.Of(agent.Modes);
+            row.Capsule = capsule;
+            if (capsule.IsKnown)
+            {
+                tooltip.AddRange(capsule.TooltipLines(loc));
+            }
+
+            row.Tooltip = tooltip.Count > 0 ? string.Join("\n", tooltip) : null;
 
             row.Phase = agent.Phase;
             row.Color = HeatPalette.SourceColor(agent.Source).ToColor();
@@ -561,10 +595,16 @@ internal sealed partial class DashboardViewModel : ObservableObject
 
             row.Indent = new Thickness(rows[i].Indent * TreeConnectors.LevelWidth, 0, 0, 0);
             row.Guides = rows[i].Guides;
-            row.AccessibleName = row.LiveKind == LiveValueKind.Number
+            var accessible = row.LiveKind == LiveValueKind.Number
                 ? string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}, {phase}, {row.LiveAccessibleName}")
                 : string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}, {phase}");
+            row.AccessibleName = capsule.IsKnown ? $"{accessible}, {capsule.AccessibilityText(loc)}" : accessible;
         }
+
+        var deepest = rows.Count == 0 ? 0 : rows.Max(r => r.Indent);
+        var nameRoom = AgentRowWidth - deepest * TreeConnectors.LevelWidth - PhaseBadgeWidth - LiveValueWidth - NameGap;
+        CapsuleColumn = EffortCapsuleColumn.For(Agents.Select(r => r.Capsule), nameRoom, CapsuleWordMeasure.For(loc.LanguageCode));
+        LanguageCode = loc.LanguageCode;
 
         HasAgents = rows.Count > 0;
         CanToggleAgents = list.CanExpand;

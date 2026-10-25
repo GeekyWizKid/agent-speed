@@ -9,6 +9,7 @@ using AgentSpeed.History;
 using AgentSpeed.Interop;
 using AgentSpeed.Localization;
 using AgentSpeed.Menus;
+using AgentSpeed.Modes;
 using AgentSpeed.Orb;
 using AgentSpeed.Orb.Hero;
 using AgentSpeed.Orb.Render;
@@ -633,6 +634,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _dashboardModel.AgentsExpanded = Settings.AgentsExpanded;
         _dashboardModel.TitleTheme = _titles.General;
         _dashboardModel.TitleSlides = !_theme.ReduceMotion && Settings.Effects != EffectsIntensity.Off;
+        _dashboardModel.CapsuleAppearance = CapsuleAppearance;
         _dashboardModel.LiveUnit = Settings.Cost.LiveUnit;
         _dashboardModel.Update(snapshot, _speed.Value, _speed.Title, _speed.Redline, _speed.Metric, _loc, _theme.IsDark);
         var peak = snapshot.PeakToday.ValueFor(_speed.Metric);
@@ -677,6 +679,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _heroTour.Start();
         ShowDashboard(CursorAnchor());
     }
+
+    /// <summary>How effort capsules draw: the theme, high contrast, Reduce Motion and the Effects setting (DESIGN 4, Agents).</summary>
+    private CapsuleAppearance CapsuleAppearance =>
+        new(_theme.IsDark, _theme.HighContrast, _theme.ReduceMotion, Settings.Effects != EffectsIntensity.Off);
 
     private OrbConfig BuildOrbConfig(double diameter, EffectsIntensity? cap)
     {
@@ -1377,7 +1383,8 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         }
 
         var menu = kind == "menu-orb" && Settings.Orbs.Orbs.FirstOrDefault() is { } orb
-            ? OrbMenu.Build(this, orb.Id, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable, _speed.Snapshot.Agents)
+            ? OrbMenu.Build(this, orb.Id, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable, _speed.Snapshot.Agents,
+                CapsuleAppearance)
             : AppMenu.Build(this, Settings, _loc, _updates.Available, SourceAvailability.From(_speed.Snapshot.Sources), SourceTrafficAvailable,
                 ReportMenuState());
         if (menu is null)
@@ -1398,7 +1405,8 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         }
 
         HideTooltip();
-        if (OrbMenu.Build(this, orbId, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable, _speed.Snapshot.Agents) is { } menu)
+        if (OrbMenu.Build(this, orbId, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable, _speed.Snapshot.Agents,
+                CapsuleAppearance) is { } menu)
         {
             _menu.Show(menu);
         }

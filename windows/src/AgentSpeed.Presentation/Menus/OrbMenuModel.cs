@@ -83,7 +83,7 @@ public static class OrbMenuModel
         {
             Capsule = capsule, IsEnabled = false, ToolTip = string.Join(Environment.NewLine, capsule.TooltipLines(localizer)),
         }],
-        _ => [new MenuRow(string.Empty) { Detail = localizer["mode.mixed"], IsEnabled = false }],
+        _ => [new MenuRow(localizer["mode.mixed"]) { IsSecondary = true, IsEnabled = false }],
     };
 
     /// <summary>The size preset a size checks (0 small, 1 medium, 2 large): the nearest one within 8; else −1.</summary>

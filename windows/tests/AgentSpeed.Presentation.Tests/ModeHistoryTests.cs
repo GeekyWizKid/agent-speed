@@ -101,7 +101,9 @@ public sealed class ModeHistoryTests
 
         var mixed = Assert.IsType<MenuRow>(OrbMenuModel.Build("o0", settings, SourceAvailability.All, En, agents: [Agent("high"), Agent("max")])!.Entries[1]);
         Assert.Null(mixed.Capsule);
-        Assert.Equal(En["mode.mixed"], mixed.Detail);
+        Assert.Equal(En["mode.mixed"], mixed.Label);
+        Assert.True(mixed.IsSecondary);
+        Assert.False(mixed.IsEnabled);
 
         Assert.IsType<MenuSeparator>(OrbMenuModel.Build("o0", settings, SourceAvailability.All, En, agents: [Agent("auto")])!.Entries[1]);
         Assert.IsType<MenuSeparator>(OrbMenuModel.Build("o0", settings, SourceAvailability.All, En)!.Entries[1]);

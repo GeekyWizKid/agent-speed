@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Theme;
 using Capsule = AgentSpeed.Presentation.Modes.EffortCapsule;
 
@@ -25,7 +26,7 @@ internal sealed class EffortCapsuleView : Grid
     public static readonly DependencyProperty AppearanceProperty = Register(nameof(Appearance), typeof(CapsuleAppearance), default(CapsuleAppearance));
 
     /// <summary>The language whose UI face measures the word.</summary>
-    public static readonly DependencyProperty LanguageCodeProperty = Register(nameof(LanguageCode), typeof(string), "zh-Hant");
+    public static readonly DependencyProperty LanguageCodeProperty = Register(nameof(LanguageCode), typeof(string), LanguageCodes.ZhHant);
 
     private readonly Border _shell;
     private readonly EffortMeter _meter = new();
