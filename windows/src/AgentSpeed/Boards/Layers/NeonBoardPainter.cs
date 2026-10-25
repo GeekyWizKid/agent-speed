@@ -54,6 +54,9 @@ internal sealed class NeonBoardPainter : BoardStylePainter
 
     protected override string ValueKey(in BoardRowContent row) => (HotValue(row)?.ToHex() ?? string.Empty) + (row.Lead ? "|lead" : string.Empty);
 
+    // The LED bar shows the heat and today's peak, not the history.
+    protected override int HistoryKey(IReadOnlyList<double> history) => 0;
+
     protected override string GlyphKey(BoardScene scene) => HeatKey(scene.Tick?.Heat ?? 0).ToString(CultureInfo.InvariantCulture);
 
     protected override void PaintGroup(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)

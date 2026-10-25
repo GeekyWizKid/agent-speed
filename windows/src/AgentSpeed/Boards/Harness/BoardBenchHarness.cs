@@ -106,6 +106,9 @@ internal static class BoardBenchHarness
         var wallStart = 0.0;
         var frames = 0;
         var buildTicks = 0L;
+        var feedTicks = 0L;
+        var drawTicks = 0L;
+        var updateStart = 0L;
         var rasterStart = 0L;
         var events = 0;
         var byClass = new long[Enum.GetValues<FrameClass>().Length];
@@ -128,6 +131,9 @@ internal static class BoardBenchHarness
                 wallStart = elapsed;
                 frames = 0;
                 buildTicks = 0;
+                feedTicks = 0;
+                drawTicks = 0;
+                updateStart = rigs.Sum(r => r.Frame.UpdateTicks);
                 events = 0;
                 skipped = 0;
                 Array.Clear(byClass);
@@ -147,7 +153,10 @@ internal static class BoardBenchHarness
             {
                 var rig = rigs[i];
                 rig.Feed.Sim.TargetTotal = scenario.Target(measuring ? elapsed - wallStart : 0);
-                if (rig.Advance(now))
+                var fed = Stopwatch.GetTimestamp();
+                var advanced = rig.Advance(now);
+                feedTicks += Stopwatch.GetTimestamp() - fed;
+                if (advanced)
                 {
                     // A tick is a change: the board draws at least once, then follows its class.
                     dirty[i] = true;
@@ -192,7 +201,9 @@ internal static class BoardBenchHarness
                 }
 
                 presented[i] = fingerprint;
+                var drawn = Stopwatch.GetTimestamp();
                 targets[i].Draw(device, rig.Frame);
+                drawTicks += Stopwatch.GetTimestamp() - drawn;
                 byClass[(int)frameClass]++;
                 frames++;
                 rendered = true;
@@ -212,6 +223,7 @@ internal static class BoardBenchHarness
         var cpu = (ProcessCpu.Cycles() - cyclesStart) / tsc / wall * 100;
         var gpu = BoardGpuRenderer.Timer?.Drain() ?? (0.0, 0);
         var rasterized = rigs.Sum(r => r.Frame.Layers.Atlas.Rasterized) - rasterStart;
+        var updateTicks = rigs.Sum(r => r.Frame.UpdateTicks) - updateStart;
         var atlas = rigs[0].Frame.Layers.Atlas;
         var swap = targets[0].Pixels * targets[0].Pixels * 4.0 * 2;
         var memory = (atlas.Width * (double)atlas.Height * 4 + swap) / (1024 * 1024);
@@ -228,8 +240,9 @@ internal static class BoardBenchHarness
 
         var perFrame = frames + skipped > 0 ? buildTicks * 1000.0 / Stopwatch.Frequency / (frames + skipped) : 0;
         string Fps(FrameClass c) => (byClass[(int)c] / wall).ToString("0.0", CultureInfo.InvariantCulture);
+        string Share(long ticks) => (ticks * 100.0 / Stopwatch.Frequency / wall).ToString("0.00", CultureInfo.InvariantCulture);
         return string.Create(CultureInfo.InvariantCulture,
-            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height})");
+            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height}); cpu on this thread: feed {Share(feedTicks)}%, layers {Share(updateTicks)}%, frames {Share(buildTicks - updateTicks)}%, draws {Share(drawTicks)}%");
     }
 
     private static double Number(string name, double fallback) =>

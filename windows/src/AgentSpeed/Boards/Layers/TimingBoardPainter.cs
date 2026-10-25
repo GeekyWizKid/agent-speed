@@ -64,6 +64,18 @@ internal sealed class TimingBoardPainter : BoardStylePainter
 
     protected override string ValueKey(in BoardRowContent row) => row.Fastest ? "f" : string.Empty;
 
+    // The bars show the last 30 s, a missing second as an empty bar.
+    protected override int HistoryKey(IReadOnlyList<double> history)
+    {
+        var hash = new HashCode();
+        for (var i = history.Count - BoardHeroLayout.Bars; i < history.Count; i++)
+        {
+            hash.Add(i >= 0 ? Math.Round(history[i], 1) : 0);
+        }
+
+        return hash.ToHashCode();
+    }
+
     protected override void PaintGroup(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)
     {
         var palette = row.Palette;
@@ -160,7 +172,7 @@ internal sealed class TimingBoardPainter : BoardStylePainter
             var pill = Math.Min(Text.Measure(tick.Title, Pill) + 14, limit);
             BoardPaint.FillRound(context, 0, meta, pill, 17, 5, palette.HighContrast ? palette.Ink : heat);
             using var pillInk = BoardPaint.Brush(context, palette.HighContrast ? palette.Panel : Rgba.FromHex("#0B0D12"));
-            Text.Draw(context, tick.Title, Pill, 7, meta + 8.5f, pillInk, pill - 14);
+            Text.Draw(context, tick.Title, Pill, 7, meta + 8.5f, pillInk, pill - 12);
             x = pill + 7;
         }
 

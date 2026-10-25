@@ -575,15 +575,25 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
         return string.Empty;
     }
 
-    private static int HistoryKey(IReadOnlyList<double> history)
+    /// <summary>
+    /// Identity of the drawn history (glass's 60 s sparkline): an all-quiet window draws the same flat line however long it is.
+    /// </summary>
+    protected virtual int HistoryKey(IReadOnlyList<double> history)
     {
         var hash = new HashCode();
-        hash.Add(history.Count);
+        var quiet = true;
         for (var i = Math.Max(0, history.Count - 60); i < history.Count; i++)
         {
+            quiet &= history[i] < 0.05;
             hash.Add(Math.Round(history[i], 1));
         }
 
+        if (quiet)
+        {
+            return 0;
+        }
+
+        hash.Add(Math.Min(history.Count, 60));
         return hash.ToHashCode();
     }
 }
