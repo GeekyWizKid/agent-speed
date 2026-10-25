@@ -28,6 +28,18 @@ internal static class JsonScan
         }
     }
 
+    /// <summary>Reads a string value as is (an empty string included); null for any other token.</summary>
+    public static string? ReadToken(ref Utf8JsonReader reader)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            return reader.GetString();
+        }
+
+        SkipValue(ref reader);
+        return null;
+    }
+
     /// <summary>Reads a string value; empty strings count as missing.</summary>
     public static string? ReadString(ref Utf8JsonReader reader)
     {

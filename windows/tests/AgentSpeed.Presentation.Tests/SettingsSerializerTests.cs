@@ -340,6 +340,22 @@ public class SettingsSerializerTests
         Assert.Equal(120, back.ChartSeconds);
     }
 
+    [Theory]
+    [InlineData("{}", ExecutionModeKind.Effort)]
+    [InlineData("{\"history\":{\"modeKind\":\"speed\"}}", ExecutionModeKind.Speed)]
+    [InlineData("{\"history\":{\"modeKind\":\"workflow\"}}", ExecutionModeKind.Effort)]
+    [InlineData("{\"history\":{\"modeKind\":1}}", ExecutionModeKind.Effort)]
+    public void HistoryModeKindIsReadTolerantly(string json, ExecutionModeKind expected) =>
+        Assert.Equal(expected, SettingsSerializer.Deserialize(json).HistoryModeKind);
+
+    [Fact]
+    public void HistoryModeKindRoundTrips()
+    {
+        var back = SettingsSerializer.Deserialize(SettingsSerializer.Serialize(AppSettings.Default with { HistoryModeKind = ExecutionModeKind.Speed }));
+        Assert.Equal(ExecutionModeKind.Speed, back.HistoryModeKind);
+        Assert.Equal(ExecutionModeKind.Effort, (AppSettings.Default with { HistoryModeKind = ExecutionModeKind.Workflow }).Validated().HistoryModeKind);
+    }
+
     [Fact]
     public void FilesWithoutDeepSeekKeysKeepItOnWithTheDefaultFolder()
     {

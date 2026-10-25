@@ -60,7 +60,9 @@ internal static class DumpToday
                 .Add("final", r.Final)
                 .Add("provider", r.Provider)
                 .Add("fast", r.Fast)
-                .Add("costMicroUsd", cost);
+                .Add("costMicroUsd", cost)
+                .Raw("effort", JsonLine.Attribution(EffortAndSpeed.Effort(r.Modes)))
+                .Raw("speed", JsonLine.Attribution(EffortAndSpeed.Speed(r.Modes)));
             if (!r.Modes.IsEmpty) row.Raw("modes", JsonLine.Modes(r.Modes));
             output.Line(row.Text);
         }

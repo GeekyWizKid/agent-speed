@@ -120,7 +120,7 @@ public sealed class ReportCounters
         if (!usage.IsZero)
         {
             _byModel[key] = _byModel.GetValueOrDefault(key) + usage;
-            foreach (var kind in Enum.GetValues<ExecutionModeKind>())
+            foreach (var kind in ExecutionModes.ReportKinds)
             {
                 var mode = (modes ?? ExecutionModes.Empty).Attribute(kind);
                 var modeKey = new ReportModeKey(key.ModelId, key.Source, kind, mode.Mode, mode.Evidence, mode.Provider);

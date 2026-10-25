@@ -1,8 +1,10 @@
 using System.Windows;
 using System.Windows.Threading;
 using AgentSpeed.Core;
+using AgentSpeed.Modes;
 using AgentSpeed.Presentation.Cost;
 using AgentSpeed.Presentation.Localization;
+using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Services;
 using AgentSpeed.Theme;
 
@@ -64,7 +66,8 @@ internal sealed class HistoryController : IDisposable
             var model = new HistoryViewModel(_hub, _loc, _cost, _dispatcher, SaveIncludeSubscriptions, Traffic,
                 () => _settings.Current.Traffic.IncludeTools, () => _settings.Current.EnabledSourceSet());
             model.SetSource(source);
-            var window = new HistoryWindow(model, _theme.ReduceMotion, _theme.HighContrast)
+            model.RememberModeKind(_settings.Current.HistoryModeKind, kind => _settings.Update(s => s with { HistoryModeKind = kind }));
+            var window = new HistoryWindow(model, Appearance)
             {
                 Language = AppFonts.XmlLanguageFor(_loc.LanguageCode),
             };
@@ -137,7 +140,11 @@ internal sealed class HistoryController : IDisposable
         _preview.Start();
     }
 
-    public void OnThemeChanged() => _window?.ApplyTheme(_theme.ReduceMotion, _theme.HighContrast);
+    public void OnThemeChanged() => _window?.ApplyTheme(Appearance);
+
+    /// <summary>The window's motion and contrast, and how its effort and speed glyphs draw.</summary>
+    private CapsuleAppearance Appearance =>
+        new(_theme.IsDark, _theme.HighContrast, _theme.ReduceMotion, _settings.Current.Effects != EffectsIntensity.Off);
 
     public void OnLanguageChanged()
     {

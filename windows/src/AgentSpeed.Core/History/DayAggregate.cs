@@ -121,7 +121,7 @@ internal sealed class DayAggregate
         long modeMs = 0;
         if (response.Final && SpeedMath.TryGetSpeedInterval(response, out var modeInterval)) modeMs = modeInterval.DurationMs;
         var measured = modeMs > 0;
-        foreach (var kind in Enum.GetValues<ExecutionModeKind>())
+        foreach (var kind in ExecutionModes.BreakdownKinds)
         {
             var key = ExecutionModeKey.Of(model, response.Modes.Attribute(kind));
             var value = new ExecutionModeTotals(response.Requests, tokens.Output, measured ? tokens.Output : 0, modeMs);
@@ -183,7 +183,7 @@ internal sealed class DayAggregate
             expected[string.Empty] = expected.GetValueOrDefault(string.Empty) + rest;
         rows.RemoveAll(row => !expected.ContainsKey(row.Model));
         foreach (var (model, totals) in expected)
-        foreach (var kind in Enum.GetValues<ExecutionModeKind>())
+        foreach (var kind in ExecutionModes.BreakdownKinds)
         {
             var known = rows.Where(r => r.Model == model && r.Kind == kind).ToArray();
             var missing = new ExecutionModeTotals(totals.Requests - known.Sum(r => r.Requests), totals.Output - known.Sum(r => r.Output),

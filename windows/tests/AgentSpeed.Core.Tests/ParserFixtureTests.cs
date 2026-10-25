@@ -84,6 +84,8 @@ public sealed class ParserFixtureTests
             Assert.Equal(parser.Source, r.Source);
             Assert.Equal(parser.AgentId, r.AgentId);
         }
+
+        AssertModes(expected, relative, parser.Modes, responses);
     }
 
     [Theory]
@@ -136,6 +138,36 @@ public sealed class ParserFixtureTests
         AgentPhase.Idle => "idle",
         _ => throw new ArgumentOutOfRangeException(nameof(phase)),
     };
+
+    /// <summary>
+    /// The current <c>effort</c> and <c>speed</c> and each response's <c>responseModes</c> (EXECUTION-MODES, Native rules);
+    /// entries without these keys are not checked.
+    /// </summary>
+    internal static void AssertModes(JsonElement expected, string label, ExecutionModes current, IEnumerable<ParsedResponse> responses)
+    {
+        if (expected.TryGetProperty("effort", out var effort))
+            Assert.True(Attribution(effort) == View(EffortAndSpeed.Effort(current)), $"{label} effort: got {EffortAndSpeed.Effort(current)}");
+        if (expected.TryGetProperty("speed", out var speed))
+            Assert.True(Attribution(speed) == View(EffortAndSpeed.Speed(current)), $"{label} speed: got {EffortAndSpeed.Speed(current)}");
+        if (!expected.TryGetProperty("responseModes", out var byKey)) return;
+        var latest = responses.GroupBy(r => r.Key).ToDictionary(g => g.Key, g => g.Last().Modes, StringComparer.Ordinal);
+        Assert.Equal(byKey.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal), latest.Keys.Order(StringComparer.Ordinal));
+        foreach (var item in byKey.EnumerateObject())
+        {
+            var modes = latest[item.Name];
+            Assert.True(Attribution(item.Value.GetProperty("effort")) == View(EffortAndSpeed.Effort(modes)),
+                $"{label} {item.Name} effort: got {EffortAndSpeed.Effort(modes)}");
+            Assert.True(Attribution(item.Value.GetProperty("speed")) == View(EffortAndSpeed.Speed(modes)),
+                $"{label} {item.Name} speed: got {EffortAndSpeed.Speed(modes)}");
+        }
+    }
+
+    private static (string, string, string?)? Attribution(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null
+        : (value.GetProperty("mode").GetString()!, value.GetProperty("evidence").GetString()!,
+            value.TryGetProperty("provider", out var provider) ? provider.GetString() : null);
+
+    private static (string, string, string?)? View(ExecutionModeAttribution? value) =>
+        value is { } known ? (known.Mode, known.Evidence, known.Provider) : null;
 
     internal static long? NullableLong(JsonElement element) =>
         element.ValueKind == JsonValueKind.Null ? null : element.GetInt64();

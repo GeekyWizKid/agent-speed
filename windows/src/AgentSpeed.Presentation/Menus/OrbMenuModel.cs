@@ -1,6 +1,6 @@
 using AgentSpeed.Core;
 using AgentSpeed.Presentation.Localization;
-using AgentSpeed.Presentation.Formatting;
+using AgentSpeed.Presentation.Modes;
 using AgentSpeed.Presentation.Orb;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Presentation.Settings.Orbs;
@@ -32,7 +32,7 @@ public static class OrbMenuModel
         }
 
         var id = orb.Id;
-        var modeAgents = agents?.Where(a => orb.Sources.Tracks(a.Source)).ToArray();
+        var modeAgents = agents?.Where(a => orb.Sources.Tracks(a.Source)) ?? [];
         var limit = localizer.Format("orbs.limit", OrbsDocument.MaxOrbs);
         var canAdd = document.CanAdd;
         var canSplit = OrbEditing.CanSplit(document, id, sources.Available);
@@ -45,15 +45,7 @@ public static class OrbMenuModel
         return new MenuLevel(
         [
             new MenuRow(OrbNaming.DisplayName(orb, localizer)) { Icon = DotsOf(orb, sources), IsHeader = true, IsEnabled = false },
-            .. (modeAgents is { Length: > 0 } ? new MenuEntry[]
-            {
-                new MenuRow(localizer["mode.label"] + ": " + ExecutionModeText.Aggregate(modeAgents.Select(a => a.Modes), localizer))
-                {
-                    IsEnabled = false,
-                    ToolTip = string.Join(Environment.NewLine, modeAgents.Select(a => (a.Model ?? localizer[DisplayText.SourceKey(a.Source)])
-                        + ": " + ExecutionModeText.Detail(a.Modes, localizer))),
-                },
-            } : []),
+            .. EffortRow(modeAgents, localizer),
             MenuSeparator.Instance,
             StyleMenu(orb, localizer),
             SourcesMenu(orb, sources, localizer),
@@ -79,6 +71,20 @@ public static class OrbMenuModel
             Command(localizer["menu.quit"], new MenuAction.Quit(), MenuGlyph.Quit),
         ]);
     }
+
+    /// <summary>
+    /// Under the header, the capsule of the orb's generating agents (all of them when none is), or <c>mode.mixed</c> when
+    /// they differ; nothing when nothing is known (DESIGN 2b, Context menu item 1).
+    /// </summary>
+    internal static MenuEntry[] EffortRow(IEnumerable<AgentStatus> agents, Localizer localizer) => SharedEffortCapsule.Of(agents) switch
+    {
+        null => [],
+        { Capsule: { } capsule } => [new MenuRow(capsule.AccessibilityText(localizer))
+        {
+            Capsule = capsule, IsEnabled = false, ToolTip = string.Join(Environment.NewLine, capsule.TooltipLines(localizer)),
+        }],
+        _ => [new MenuRow(localizer["mode.mixed"]) { IsSecondary = true, IsEnabled = false }],
+    };
 
     /// <summary>The size preset a size checks (0 small, 1 medium, 2 large): the nearest one within 8; else −1.</summary>
     public static int PresetIndex(double size)

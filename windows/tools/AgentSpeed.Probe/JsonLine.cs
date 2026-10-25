@@ -119,6 +119,15 @@ internal sealed class JsonLine
         if (f.Provider is { } provider) value.Add("provider", provider);
         return value.Text;
     }));
+
+    /// <summary><c>{mode, evidence[, provider]}</c>, or <c>null</c> when unknown (EXECUTION-MODES, Native rules).</summary>
+    public static string Attribution(ExecutionModeAttribution? value)
+    {
+        if (value is not { } known) return "null";
+        var line = new JsonLine().Add("mode", known.Mode).Add("evidence", known.Evidence);
+        if (known.Provider is { } provider) line.Add("provider", provider);
+        return line.Text;
+    }
 }
 
 /// <summary>Buffered UTF-8 stdout writer, one line per call.</summary>
