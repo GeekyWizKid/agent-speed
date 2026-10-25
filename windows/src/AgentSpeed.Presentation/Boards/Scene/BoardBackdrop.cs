@@ -16,9 +16,10 @@ public static class BoardBackdrop
 
     public static Rgba Edge(BoardStyle style, bool dark = true) => BoardPalette.For(style, dark).Edge;
 
-    public static void Emit(BoardDrawList list, in BoardCanvas canvas, BoardStyle style, BoardPalette palette)
+    public static void Emit(BoardDrawList list, in BoardCanvas canvas, BoardStyle style, BoardPalette palette, BoardMetrics metrics)
     {
         ArgumentNullException.ThrowIfNull(palette);
+        ArgumentNullException.ThrowIfNull(metrics);
         var center = canvas.Center;
         list.Clip = BoardClip.None;
         list.Add(OrbGpuInstance.RoundedRect(center, center, canvas.Half, canvas.Half, 0, canvas.Radius, palette.Panel));
@@ -44,6 +45,10 @@ public static class BoardBackdrop
                 list.Clip = BoardClip.Inside;
                 list.Add(OrbGpuInstance.Capsule(m + canvas.Radius * 0.55, m + 0.5, m + canvas.Side - canvas.Radius * 0.55, m + 0.5, 1, palette.Pattern));
                 list.Clip = BoardClip.None;
+
+                // .board::before: the list's top rule, 6 pt in from its sides.
+                list.Add(OrbGpuInstance.RoundedRect(m + metrics.ListLeft + metrics.ListWidth / 2, m + metrics.ListTop + 0.5, metrics.ListWidth / 2 - 6,
+                    0.5, 0, 0, palette.Line));
                 break;
             }
         }

@@ -71,6 +71,7 @@ public sealed class BoardScene
         {
             _dark = value;
             _palette = null;
+            Effects.Dark = value;
         }
     }
 
@@ -192,7 +193,7 @@ public sealed class BoardScene
         list.BoxHalf = canvas.Half;
         list.BoxRadius = canvas.Radius;
 
-        BoardBackdrop.Emit(list, canvas, Style, palette);
+        BoardBackdrop.Emit(list, canvas, Style, palette, metrics);
         if (layers.TryGet(BackdropKey, out var backdrop))
         {
             list.Clip = BoardClip.Inside;
@@ -463,9 +464,10 @@ public sealed class BoardScene
         var glows = !Palette.HighContrast;
         var neon = Style == BoardStyle.Neon;
         var x1 = x0 + track * share;
+        // The CSS shadows (neon 8 px, glass 6 px at 70 %) of a 2 pt bar peak at about a fifth of its color: erf(1 / (σ√2)).
         list.Add(OrbGpuInstance.Capsule(x0 + thickness / 2, y, Math.Max(x0 + thickness / 2, x1 - thickness / 2), y, thickness,
             color.WithAlpha(opacity), color.WithAlpha((neon ? 0 : 0.35) * opacity), 1, glows ? OrbGpuInstance.Glow(neon ? 4 : 3) : 0,
-            neon ? 1 : 0.7));
+            neon ? 0.3 : 0.18));
         var generating = group ? entry.Group.Generating > 0 : entry.Agent?.Phase == AgentPhase.Generating;
         if (!comets || !generating)
         {
