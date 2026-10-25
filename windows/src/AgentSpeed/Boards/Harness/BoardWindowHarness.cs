@@ -68,11 +68,11 @@ internal static class BoardWindowHarness
         var scale = monitor?.Scale ?? 1;
         var half = BoardPlacement.HalfSide(size, scale);
         var inset = (OrbGeometry.DefaultInset + BoardCanvas.Margin) * scale;
-        var window = new GpuBoardWindow("harness", device, clock, style, size, new PlaceholderBoardPainter(loc));
+        var window = new GpuBoardWindow("harness", device, clock, style, size, BoardPainters.Create(style, loc));
         window.Configure(style, size, new BoardEffectsPolicy(EffectsIntensity.Standard), new BoardWindowOptions(AlwaysOnTop: true, ClickThrough: true));
         window.MoveTo(new PointD(work.Right - inset - half, work.Bottom - inset - half));
 
-        var feed = new BoardDemoFeed(BoardSimScenario.Team);
+        var feed = new BoardDemoFeed(BoardSimScenario.Team) { Localizer = loc };
         var report = new System.Text.StringBuilder();
         report.AppendLine(CultureInfo.InvariantCulture,
             $"adapter: {device.AdapterName}, {BoardStyles.Key(style)} {BoardSizes.Key(size)}, scale {scale}, clock {clock.Source} at {clock.RefreshHz:0} Hz");

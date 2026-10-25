@@ -42,8 +42,7 @@ internal sealed class GlassBoardPainter : BoardStylePainter
         new(sub ? 8 : 9, sub ? 5 : 6, 5, 0.5f, new BoardTextStyle(BoardFont.Ui, 11, (FontWeight)560), false, 3, 2, scene.Size == BoardSize.S,
             scene.Palette);
 
-    protected override BoardTextStyle NumberStyle(BoardScene scene) => new(BoardFont.Display, (float)scene.Metrics.ValueSize, FontWeight.Bold,
-        -0.02f);
+    protected override BoardTextStyle NumberStyle(BoardScene scene) => new(BoardFont.Display, (float)scene.Metrics.ValueSize, FontWeight.Bold);
 
     protected override string ValueKey(in BoardRowContent row) => HotValue(row)?.ToHex() ?? string.Empty;
 

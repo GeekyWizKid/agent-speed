@@ -71,7 +71,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
 
     protected abstract BoardCapsuleLook CapsuleLook(BoardScene scene, bool sub);
 
-    /// <summary>The hero number's text style.</summary>
+    /// <summary>The hero number's text style, without tracking (the scene spaces the glyphs by <c>BoardHeroLayout.Tracking</c>).</summary>
     protected abstract BoardTextStyle NumberStyle(BoardScene scene);
 
     public BoardLayerSpec? Describe(in BoardLayerRequest request)

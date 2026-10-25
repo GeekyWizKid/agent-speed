@@ -54,6 +54,28 @@ internal static class BoardPaint
         return context.CreateLinearGradientBrush(new LinearGradientBrushProperties { StartPoint = new Vector2(x, y), EndPoint = end }, collection);
     }
 
+    /// <summary>A CSS <c>linear-gradient(<paramref name="degrees"/>deg, …)</c> across a box (0 to the top, 90 to the right).</summary>
+    public static ID2D1LinearGradientBrush Gradient(ID2D1DeviceContext context, float x, float y, float width, float height,
+        ReadOnlySpan<(float At, Rgba Color)> stops, float degrees)
+    {
+        var angle = degrees * MathF.PI / 180;
+        var direction = new Vector2(MathF.Sin(angle), -MathF.Cos(angle));
+        var half = (MathF.Abs(width * direction.X) + MathF.Abs(height * direction.Y)) / 2;
+        var center = new Vector2(x + width / 2, y + height / 2);
+        var gradient = new GradientStop[stops.Length];
+        for (var i = 0; i < stops.Length; i++)
+        {
+            gradient[i] = new GradientStop { Position = stops[i].At, Color = Color(stops[i].Color) };
+        }
+
+        using var collection = context.CreateGradientStopCollection(gradient);
+        return context.CreateLinearGradientBrush(new LinearGradientBrushProperties
+        {
+            StartPoint = center - direction * half,
+            EndPoint = center + direction * half,
+        }, collection);
+    }
+
     /// <summary>
     /// A CSS drop shadow or text shadow: <paramref name="draw"/> recorded once, blurred to <paramref name="blur"/> points (the
     /// CSS blur radius, two standard deviations) and tinted <paramref name="color"/>, behind what is drawn next.

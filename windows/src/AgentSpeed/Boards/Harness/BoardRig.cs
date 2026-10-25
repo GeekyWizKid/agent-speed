@@ -21,8 +21,8 @@ internal sealed class BoardRig : IDisposable
     {
         Style = style;
         Size = size;
-        Feed = new BoardDemoFeed(scenario, seed);
-        Frame = new BoardFrame(style, size, new PlaceholderBoardPainter(localizer), seed);
+        Feed = new BoardDemoFeed(scenario, seed) { Localizer = localizer };
+        Frame = new BoardFrame(style, size, BoardPainters.Create(style, localizer), seed);
         Frame.Scene.Configure(style, size, policy);
     }
 
