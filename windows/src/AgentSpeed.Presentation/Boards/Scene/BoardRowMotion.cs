@@ -55,12 +55,15 @@ public sealed class BoardRowMotion
 
     public string Key { get; }
 
-    /// <summary>The layer key of the row's value (flashes are tinted on it only).</summary>
+    /// <summary>The layer key of the static parts by the row's value (timing's fastest dot, neon's lead tint).</summary>
     public string ValueKey { get; }
 
     public BoardEntry Entry { get; private set; }
 
     public double Live { get; private set; }
+
+    /// <summary>The value as the row shows it (<see cref="BoardValueGlyphs.Text"/>), made once per tick.</summary>
+    public string ValueText { get; private set; } = BoardValueGlyphs.Dash.ToString();
 
     /// <summary>The row's share of the board's value (the underline), eased toward the latest tick's.</summary>
     public double Share(double now)
@@ -123,6 +126,11 @@ public sealed class BoardRowMotion
         }
 
         _last = live;
+        if (live != Live || string.IsNullOrEmpty(ValueText))
+        {
+            ValueText = BoardValueGlyphs.Text(live);
+        }
+
         Live = live;
     }
 

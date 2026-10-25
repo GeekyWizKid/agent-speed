@@ -9,7 +9,7 @@ internal enum BoardLayerKind
     /// <summary>A row without its value: rank, badge, project, model, capsule, share.</summary>
     RowBody,
 
-    /// <summary>A row's value, a layer of its own so it can flash and change without redrawing the row.</summary>
+    /// <summary>The static parts by a row's value (timing's fastest dot and rule, neon's lead tint); none when there are none.</summary>
     RowValue,
 
     /// <summary>The hero without its number: unit, title, counts and history.</summary>
@@ -25,11 +25,17 @@ internal enum BoardLayerKind
 
     /// <summary>A short-lived callout (<see cref="BoardLayerRequest.Callout"/>): a chip, timing's block or banner.</summary>
     Callout,
+
+    /// <summary>
+    /// One white glyph of the rows' values (<see cref="BoardLayerRequest.Glyph"/>; a sub row's size when
+    /// <see cref="BoardLayerRequest.Sub"/>), padded by <c>BoardValueGlyphs.Pad</c>.
+    /// </summary>
+    ValueGlyph,
 }
 
 /// <summary>Which layer a painter describes or draws: the row, glyph or callout it is for, and the scene's current tick.</summary>
 internal readonly record struct BoardLayerRequest(BoardLayerKind Kind, BoardScene Scene, BoardRowMotion? Row, char Glyph = '\0',
-    BoardCallout? Callout = null);
+    BoardCallout? Callout = null, bool Sub = false);
 
 /// <summary>A layer's size in points and its content identity: an unchanged identity is never rasterized again.</summary>
 internal readonly record struct BoardLayerSpec(double Width, double Height, string Signature);

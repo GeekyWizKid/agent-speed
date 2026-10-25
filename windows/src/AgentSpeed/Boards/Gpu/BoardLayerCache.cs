@@ -108,6 +108,14 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
                 full |= !Layer(BoardHeroNumber.GlyphKeys[i], new BoardLayerRequest(BoardLayerKind.Glyph, scene, null, BoardHeroNumber.Glyphs[i]));
             }
 
+            for (var i = 0; i < 2 * BoardValueGlyphs.Glyphs.Length && !full; i++)
+            {
+                var sub = i >= BoardValueGlyphs.Glyphs.Length;
+                var c = BoardValueGlyphs.Glyphs[i % BoardValueGlyphs.Glyphs.Length];
+                full |= !Layer(BoardValueGlyphs.Keys(sub)[i % BoardValueGlyphs.Glyphs.Length],
+                    new BoardLayerRequest(BoardLayerKind.ValueGlyph, scene, null, c, Sub: sub));
+            }
+
             foreach (var callout in scene.Callouts)
             {
                 full |= !Layer(callout.Key, new BoardLayerRequest(BoardLayerKind.Callout, scene, null, Callout: callout));

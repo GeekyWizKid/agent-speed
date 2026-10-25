@@ -43,6 +43,8 @@ internal readonly record struct BoardRowContent(
 /// </summary>
 internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
 {
+    private readonly Dictionary<(BoardTextStyle Style, char Glyph), float> _advances = [];
+    private string? _locale;
     private BoardTick? _columnTick;
     private float _column;
     private string? _fastest;
@@ -74,6 +76,12 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     /// <summary>The hero number's text style, without tracking (the scene spaces the glyphs by <c>BoardHeroLayout.Tracking</c>).</summary>
     protected abstract BoardTextStyle NumberStyle(BoardScene scene);
 
+    /// <summary>
+    /// The rows' value style (<c>.speed</c>, a sub row's <c>.sub .speed</c>) at <c>BoardValueGlyphs.Size</c>, without tracking;
+    /// <paramref name="dim"/> is the weight of the en dash shown below 0.05.
+    /// </summary>
+    protected abstract BoardTextStyle ValueStyle(bool sub, bool dim);
+
     public BoardLayerSpec? Describe(in BoardLayerRequest request)
     {
         var scene = request.Scene;
@@ -83,6 +91,11 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
         }
 
         Text.Locale = Loc.Culture.Name;
+        if (!string.Equals(_locale, Loc.Culture.Name, StringComparison.Ordinal))
+        {
+            _locale = Loc.Culture.Name;
+            _advances.Clear();
+        }
         var metrics = scene.Metrics;
         var theme = Theme(scene);
         switch (request.Kind)
@@ -100,8 +113,16 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             case BoardLayerKind.RowValue when request.Row is { Entry.Kind: BoardEntryKind.Group or BoardEntryKind.Sub } row:
             {
                 var content = Content(scene, tick, row.Entry, row.Live);
-                return new BoardLayerSpec(ValueWidth(scene.Size) + ValueBleed, scene.RowHeight(row.Entry),
-                    string.Join('|', theme, "v", row.Entry.Kind, ValueText(row.Live), ValueKey(content)));
+                return HasValueLayer(content) ? new BoardLayerSpec(ValueWidth(scene.Size) + ValueBleed, scene.RowHeight(row.Entry),
+                    string.Join('|', theme, "v", row.Entry.Kind, ValueKey(content))) : null;
+            }
+
+            case BoardLayerKind.ValueGlyph:
+            {
+                var style = ValueStyle(request.Sub, request.Glyph == BoardValueGlyphs.Dash);
+                var pad = BoardValueGlyphs.Pad;
+                return new BoardLayerSpec(Advance(request.Glyph, style) + 2 * pad, Math.Ceiling(style.Size * 1.3) + 2 * pad,
+                    string.Join('|', theme, "vg", request.Sub ? "s" : "g", request.Glyph));
             }
 
             case BoardLayerKind.Hero:
@@ -121,7 +142,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             case BoardLayerKind.Glyph:
             {
                 var style = NumberStyle(scene);
-                var advance = Text.Measure(request.Glyph.ToString(), style);
+                var advance = Advance(request.Glyph, style);
                 var pad = BoardHeroNumber.GlyphPad;
                 return new BoardLayerSpec(advance + 2 * pad, scene.Hero.NumberHeight + 2 * pad,
                     string.Join('|', theme, "g", request.Glyph, GlyphKey(scene)));
@@ -185,6 +206,14 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             case BoardLayerKind.Callout when request.Callout is { } callout:
                 PaintCallout(context, scene, callout, width, height);
                 break;
+            case BoardLayerKind.ValueGlyph:
+            {
+                // White: the scene tints each row's glyphs to the row's color.
+                using var white = BoardPaint.Brush(context, Rgba.White);
+                Text.Draw(context, request.Glyph.ToString(), ValueStyle(request.Sub, request.Glyph == BoardValueGlyphs.Dash),
+                    (float)BoardValueGlyphs.Pad, height / 2, white);
+                break;
+            }
         }
     }
 
@@ -198,7 +227,9 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
 
     protected abstract void PaintMore(ID2D1DeviceContext context, in BoardRowContent row, string text, float width, float height);
 
-    protected abstract void PaintValue(ID2D1DeviceContext context, in BoardRowContent row, float width, float height);
+    protected virtual void PaintValue(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)
+    {
+    }
 
     protected abstract void PaintHero(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float width, float height);
 
@@ -219,23 +250,16 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     /// <summary>Extra identity of a row body (what a style draws beyond the shared content).</summary>
     protected virtual string BodyKey(in BoardRowContent row) => string.Empty;
 
-    /// <summary>Identity of a value's color (glass and neon color hot values by heat).</summary>
+    /// <summary>Whether the row has static parts by its value (its value itself is composed from glyphs).</summary>
+    protected virtual bool HasValueLayer(in BoardRowContent row) => false;
+
+    /// <summary>Identity of the static parts by a row's value.</summary>
     protected virtual string ValueKey(in BoardRowContent row) => string.Empty;
 
     /// <summary>Identity of the glyphs' look beyond the theme (a heat-colored glow).</summary>
     protected virtual string GlyphKey(BoardScene scene) => string.Empty;
 
-    /// <summary>A row's value (METRICS 7), or an en dash below 0.05 (never shown as a number).</summary>
-    protected static string ValueText(double live) => live > 0.05 ? SpeedFormat.Speed(live) : "–";
-
     protected static int HeatKey(double heat) => (int)Math.Round(Math.Clamp(heat, 0, 1) * 32);
-
-    /// <summary>Text on a value: the palette's heat (darkened on light) above heat 0.45, as the prototypes color hot values.</summary>
-    protected static Rgba? HotValue(in BoardRowContent row)
-    {
-        var heat = HeatMath.Heat(row.Live, row.Tick.Redline);
-        return row.Live > 0.05 && heat > 0.45 && !row.Palette.HighContrast ? EffortCapsulePalette.Heat(heat, row.Palette.Dark) : null;
-    }
 
     /// <summary>The heat color of the board (the prototypes' <c>--heat</c>, at least <paramref name="floor"/>).</summary>
     protected static Rgba HeatColor(BoardTick tick, double floor = 0.06) => HeatPalette.Sample(Math.Max(floor, tick.Heat));
@@ -450,10 +474,22 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
         var width = 0f;
         for (var i = 0; i < text.Length; i++)
         {
-            width += Text.Measure(text[i].ToString(), style) + (i > 0 ? (float)scene.Hero.Tracking : 0);
+            width += Advance(text[i], style) + (i > 0 ? (float)scene.Hero.Tracking : 0);
         }
 
         return width;
+    }
+
+    /// <summary>A glyph's advance, measured once per style (the glyph layers are described on every tick).</summary>
+    protected float Advance(char glyph, in BoardTextStyle style)
+    {
+        if (!_advances.TryGetValue((style, glyph), out var advance))
+        {
+            advance = Text.Measure(glyph.ToString(), style);
+            _advances[(style, glyph)] = advance;
+        }
+
+        return advance;
     }
 
     /// <summary>

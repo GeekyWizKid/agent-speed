@@ -185,4 +185,54 @@ public class BoardContentTests
         Assert.False(timing.SweepLight.Additive);
         Assert.NotNull(BoardEffectsPresets.Glass.LeadSweep);
     }
+
+    private sealed class GlyphLayers : IBoardLayers
+    {
+        public bool TryGet(string key, out BoardLayerSlot slot)
+        {
+            // Every value glyph is 8 pt wide plus its pads, 20 pt tall; nothing else exists.
+            slot = new BoardLayerSlot(0, 0, 1, 1, 8 + 2 * BoardValueGlyphs.Pad, 20);
+            return key.StartsWith("#v", StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void AValueEndsAtItsRightEdgeInItsColor()
+    {
+        var list = new BoardDrawList();
+        var color = Rgba.FromHex("#FB7185").WithAlpha(0.5);
+        BoardValueGlyphs.Emit(list, new GlyphLayers(), "1.2k", sub: false, right: 300, centerY: 50, tracking: -0.26, color, alpha: 0.8, default);
+        Assert.Equal(4, list.LayerCount);
+        var layers = list.Layers;
+        var advance = 8 - 0.26;
+        Assert.Equal(300 - 4 * 8 - 3 * -0.26 - BoardValueGlyphs.Pad, layers[0].Rect.X, 3);
+        Assert.Equal(layers[0].Rect.X + advance, layers[1].Rect.X, 3);
+        Assert.Equal(40, layers[0].Rect.Y, 3);
+        Assert.Equal(0.4, layers[3].Params.X, 3);
+        Assert.Equal(1, layers[3].Tint.W, 6);
+        Assert.Equal((float)color.R, layers[3].Tint.X, 5);
+    }
+
+    [Theory]
+    [InlineData(BoardStyle.Glass, false, 3000, "hot")]
+    [InlineData(BoardStyle.Glass, true, 3000, "ink2")]
+    [InlineData(BoardStyle.Neon, true, 3000, "hot")]
+    [InlineData(BoardStyle.Timing, false, 3000, "ink")]
+    [InlineData(BoardStyle.Neon, false, 0, "ink3")]
+    [InlineData(BoardStyle.Glass, false, 50, "ink")]
+    public void ValuesTakeThePrototypesColors(BoardStyle style, bool sub, double live, string expected)
+    {
+        var palette = BoardPalette.For(style, dark: true);
+        var color = BoardValueGlyphs.Color(style, palette, sub, live, 3200);
+        var want = expected switch
+        {
+            "ink" => palette.Ink,
+            "ink2" => palette.Ink2,
+            "ink3" => palette.Ink3,
+            _ => Modes.EffortCapsulePalette.Heat(Heat.HeatMath.Heat(live, 3200), true),
+        };
+        Assert.Equal(want, color);
+        Assert.Equal("–", BoardValueGlyphs.Text(0.04));
+        Assert.All(BoardValueGlyphs.Text(1234.5), c => Assert.Contains(c, BoardValueGlyphs.Glyphs));
+    }
 }

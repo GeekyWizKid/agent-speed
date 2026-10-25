@@ -248,8 +248,12 @@ public sealed class BoardScene
 
             if (layers.TryGet(row.ValueKey, out var value))
             {
-                var (tint, amount, dim) = Flash(row, now);
-                list.AddLayer(BoardLayerInstance.Create(value, left + metrics.ListWidth - value.Width, top, alpha * dim, tint, amount, clip));
+                list.AddLayer(BoardLayerInstance.Create(value, left + metrics.ListWidth - value.Width, top, alpha, clip: clip));
+            }
+
+            if (row.Entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub)
+            {
+                Value(list, layers, row, left + metrics.ListWidth, top, height, alpha, now, clip);
             }
 
             if (row.Entry.Kind == BoardEntryKind.Group && !row.Leaving)
@@ -490,6 +494,23 @@ public sealed class BoardScene
         var half = neon ? 11 : 9;
         list.Add(OrbGpuInstance.Ellipse(head + half, y, half * 0.6, neon ? 1.6 : 1, 0, Rgba.White, 0, OrbGpuInstance.Glow(1.5),
             0.9 * fade * alpha));
+    }
+
+    // A row's value from the value glyphs, in its color, its warm flash or its dim.
+    private void Value(BoardDrawList list, IBoardLayers layers, BoardRowMotion row, double right, double top, double height, double alpha, double now,
+        RectBounds clip)
+    {
+        var sub = row.Entry.Kind == BoardEntryKind.Sub;
+        var color = BoardValueGlyphs.Color(Style, Palette, sub, row.Live, _tick?.Redline ?? HeatMath.DefaultRedline);
+        var (tint, amount, dim) = Flash(row, now);
+        if (amount > 0)
+        {
+            color = Rgba.Lerp(color, tint.WithAlpha(1), amount);
+        }
+
+        var center = top + (Style == BoardStyle.Timing && !sub ? (height - 1) / 2 : height / 2);
+        BoardValueGlyphs.Emit(list, layers, row.ValueText, sub, right - BoardValueGlyphs.Inset(Style), center, BoardValueGlyphs.Tracking(Style, sub),
+            color, alpha * dim, clip);
     }
 
     // The CSS punch: 1 → 1.06 at 35 % → 1 over 0.4 s.

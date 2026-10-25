@@ -52,7 +52,9 @@ internal sealed class NeonBoardPainter : BoardStylePainter
 
     protected override BoardTextStyle NumberStyle(BoardScene scene) => new(BoardFont.Mono, (float)scene.Metrics.ValueSize, FontWeight.Bold);
 
-    protected override string ValueKey(in BoardRowContent row) => (HotValue(row)?.ToHex() ?? string.Empty) + (row.Lead ? "|lead" : string.Empty);
+    protected override BoardTextStyle ValueStyle(bool sub, bool dim) => (sub ? SubValue : Value) with { Weight = dim ? FontWeight.Medium : FontWeight.Bold };
+
+    protected override bool HasValueLayer(in BoardRowContent row) => row.Lead && !row.Palette.HighContrast;
 
     // The LED bar shows the heat and today's peak, not the history.
     protected override int HistoryKey(IReadOnlyList<double> history) => 0;
@@ -93,21 +95,8 @@ internal sealed class NeonBoardPainter : BoardStylePainter
         Text.Draw(context, text, More, x, mid, brush, width - 6 - x);
     }
 
-    protected override void PaintValue(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)
-    {
-        var palette = row.Palette;
-        if (row.Lead)
-        {
-            LeadTint(context, row, width - (float)row.Scene.Metrics.ListWidth, height);
-        }
-
-        var sub = row.Entry.Kind == BoardEntryKind.Sub;
-        var dim = !(row.Live > 0.05);
-        var style = sub ? SubValue : Value;
-        var color = dim ? palette.Ink3 : HotValue(row) ?? (sub ? palette.Ink2 : palette.Ink);
-        using var brush = BoardPaint.Brush(context, color);
-        Text.Draw(context, ValueText(row.Live), dim ? style with { Weight = FontWeight.Medium } : style, width - 6, height / 2, brush, right: true);
-    }
+    protected override void PaintValue(ID2D1DeviceContext context, in BoardRowContent row, float width, float height) =>
+        LeadTint(context, row, width - (float)row.Scene.Metrics.ListWidth, height);
 
     protected override void PaintHero(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float width, float height)
     {

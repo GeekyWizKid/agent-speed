@@ -62,6 +62,11 @@ internal sealed class TimingBoardPainter : BoardStylePainter
 
     protected override BoardTextStyle NumberStyle(BoardScene scene) => new(BoardFont.Mono, (float)scene.Metrics.ValueSize, FontWeight.ExtraBold);
 
+    protected override BoardTextStyle ValueStyle(bool sub, bool dim) => dim ? (sub ? SubValue : Value) with { Weight = FontWeight.SemiBold }
+        : sub ? SubValue : Value;
+
+    protected override bool HasValueLayer(in BoardRowContent row) => row.Entry.Kind == BoardEntryKind.Group || row.Fastest;
+
     protected override string ValueKey(in BoardRowContent row) => row.Fastest ? "f" : string.Empty;
 
     // The bars show the last 30 s, a missing second as an empty bar.
@@ -120,14 +125,6 @@ internal sealed class TimingBoardPainter : BoardStylePainter
         if (group)
         {
             BoardPaint.FillRound(context, Bleed, height - 1, width - Bleed, 1, 0, palette.Line);
-        }
-
-        var dim = !(row.Live > 0.05);
-        var style = group ? Value : SubValue;
-        var color = dim ? palette.Ink3 : group ? palette.Ink : palette.Ink2;
-        using (var brush = BoardPaint.Brush(context, color))
-        {
-            Text.Draw(context, ValueText(row.Live), dim ? style with { Weight = FontWeight.SemiBold } : style, width - 4, mid, brush, right: true);
         }
 
         if (!row.Fastest)
