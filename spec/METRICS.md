@@ -8,7 +8,7 @@ shared fixtures in `spec/fixtures/`.
 
 | Term | Meaning |
 | --- | --- |
-| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build). This is the append-only *source order*. |
+| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build), `pi` (Pi Coding Agent). This is the append-only *source order*. |
 | Agent | One transcript file. Agent id = absolute file path. Sub-agents have their own files and are separate agents. (OpenCode: one per session row, 4.5; Antigravity: one per conversation database, 4.8.) |
 | Response | One model API call that produced a usage record. |
 | Phase | `generating` (a request is in flight), `tools` (model finished, waiting for tool results), `idle` |
@@ -32,13 +32,15 @@ responses (4.12); the speed engine still processes its normalized tokens and dur
 | ZCode | `~/.zcode/cli/db/db.sqlite`; `$ZCODE_DATA_BASE_DIR` replaces the home base, with `.zcode/cli/db` underneath | user setting (data directory, database folder, or `db.sqlite`) |
 | Kimi Code CLI (TypeScript v2) | `$KIMI_CODE_HOME/sessions`, else `~/.kimi-code/sessions` | user setting (data directory or its `sessions` folder) |
 | Grok Build | `$GROK_HOME/sessions`, else `~/.grok/sessions` | user setting (data directory or its `sessions` folder) |
+| Pi (Pi Coding Agent: TUI, `-p`, RPC) | `$PI_CODING_AGENT_SESSION_DIR`, else `$PI_CODING_AGENT_DIR/sessions`, else `~/.pi/agent/sessions` | user setting (one `sessions` folder) |
 
 `~` is `HOME` on macOS and `%USERPROFILE%` on Windows. Claude Code and Claude Desktop share one root; each file is
 assigned to a source by its `entrypoint` field (section 4.1). Ordinary Claude Desktop chat conversations are not stored
 locally and are out of scope.
 
 Discovery: recursive enumeration of `*.jsonl` (Codex also `*.jsonl.zst`, 5.3; DeepSeek: `session.v<N>.jsonl.zstd` or `session.v<N>.jsonl`; Gemini CLI:
-fixed depths, see 4.6; omp: see 4.7; Antigravity: conversation databases, see 4.8; WorkBuddy: fixed depths, see 4.9),
+fixed depths, see 4.6; omp and Pi: see 4.7 and 4.13; Antigravity: conversation databases, see 4.8; WorkBuddy: fixed
+depths, see 4.9),
 maximum depth 6, never follow symlinks, at most 20 000 files per root.
 A source is *detected* when its root (Antigravity: any store; WorkBuddy: the data folder) exists or it has data today;
 what an undetected source shows is DESIGN 2b (unavailable sources), 4 and 5.
@@ -93,6 +95,7 @@ Every response also carries `provider` (string or null): the API provider the ag
 (9.2). Codex: `payload.model_provider` of the file's first `session_meta` (`openai`, or the user's own key such as
 `custom`). DeepSeek Harness: `data.message.source.provider`, else the latest `request/header` `config.provider`.
 OpenCode: `data.model.providerID`. omp: `message.provider` (assistant) or the entry's `provider` (`model_usage`).
+Pi: `message.provider` (assistant) or the entry's `provider` (`usage` entries).
 WorkBuddy: `custom` for a model of the user's own provider (`custom:` / `custom-local:` ids, 4.9). Every other
 source: null. Empty strings count as null.
 
@@ -493,6 +496,9 @@ entirely from 18.x.
   Windows. Roots that do not exist are skipped; a path listed twice is scanned once.
 - Sessions written to custom folders (`--session-dir`, `--session`, `PI_CODING_AGENT_SESSION_DIR`; omp lists them in
   `<agent dir>/custom-session-files/`) are read only when the user setting points at their folder.
+- A root that is also the Pi root (4.13), or lies inside it, is not read as omp: omp inherited Pi's
+  `PI_CODING_AGENT_DIR`, and before Pi was a source users pointed the omp setting at `~/.pi/agent/sessions`. Those
+  files are Pi's.
 - Layout: `<root>/<bucket>/<YYYY-MM-DDTHH-MM-SS-mmmZ>_<sessionId>.jsonl` are main sessions (`<bucket>` encodes the
   working directory, `sessionId` is a UUIDv7); `<root>/<bucket>/<stem>/<name>.jsonl` belong to the session
   `<stem>.jsonl` (task sub-agents `<AgentId>.jsonl`, advisors `__advisor.jsonl` / `__advisor.<slug>.jsonl`, seance
@@ -1132,6 +1138,39 @@ existing price book on the native model batch, so tier selection and rounding ca
 Evidence and executable checks: `spec/research/harnesses.md`, `spec/tools/harness_reference.py`, and
 `spec/fixtures/harness-expected.json`.
 
+### 4.13 Pi (Pi Coding Agent)
+
+Pi (`earendil-works/pi`, MIT; npm `@earendil-works/pi-coding-agent`, before 2026 `@mariozechner/pi-coding-agent`) is
+the upstream of omp and writes the same JSONL family (session version 3). Every rule of 4.7 applies — record
+classification, timing model, state and phase table, assistant steps 1–5, tokens, metadata, deduplication and copied
+history, known approximations — with the differences below. Evidence: `spec/research/pi.md`; fixtures:
+`spec/tools/pi_fixtures.py` (`spec/fixtures/pi`).
+
+- **Root** (section 2): one root, no profiles. Layout `<root>/--<cwd>--/<YYYY-MM-DDTHH-MM-SS-mmmZ>_<uuid>.jsonl`;
+  discovery as omp (regular `.jsonl` files at least two components below the root, names starting with `.` skipped).
+  Pi has no built-in sub-agents; a file three or more components deep (written by a package) is a sub-agent as in
+  omp.
+- **Records**: there is no `title` slot, no `model_usage` and no `session_exit`; tool results never end a run (no
+  `yield`), and `stopDetails` is never written. Any other `type` only updates `lastLineMs`, except the side usage
+  below.
+- **Keys**: `"pi:" + id + ":" + stamp` (the stamp of 4.7 step 2) for assistant messages, `"pi:" + id + ":" + <entry
+  timestamp ms>` for side usage, deduplicated like omp's.
+- **Timing**: `endMs = startMs + durationMs` (truncated) when `startMs` is known and `message.durationMs` is a finite
+  number ≥ 0 (pi-ai 0.99+), else the entry `timestamp`; there is no `completedAt`.
+- **Stop reasons**: `pending` and `deferred` are treated like `error` and `aborted` (no `startMs`, phase `idle`): the
+  result of a deferred request is fetched later, without its timing.
+- **Tokens**: as omp, with `reasoning = usage.reasoning` and `cacheWrite1hInput = usage.cacheWrite1h` (a subset of
+  `cacheWrite`, 9.3; absent → 0).
+- **Side usage** (Pi's own totals add all of them): a `usage` entry (`kind` such as `cache_warm`, with its own
+  `provider`, `model` and `usage`, the guard of 4.7 step 1 on those three without `api`); the `usage` of a `toolResult`
+  message (a tool's own model calls; model null); the `usage` of a `compaction` or `branch_summary` entry (the summary
+  call; model null). Each emits a response with `startMs = null`, `endMs = ts`, `final = true` when one of the four
+  token fields is > 0, and never sets the agent's `model`.
+- **Effort** (EXECUTION-MODES): see the Pi native rule there.
+
+Approximations beyond omp's: side usage has no timing and, apart from `usage` entries, no model (it is unpriced);
+`responseModel` (the concrete model the provider reports) is not used, like omp's.
+
 ## 5. Reading files
 
 - Startup reading order (it decides which file owns a duplicated key): files sorted by modification time ascending,
@@ -1746,6 +1785,7 @@ desktop app that runs its agent on its own executable, so its row needs the argu
 | `omp` | `name == omp`, or a script host whose arguments contain `/@oh-my-pi/` or `/oh-my-pi/`. |
 | `antigravity` | `name == agy`, or `name` starts with `language_server_` (the Antigravity language server, started by the CLI, the desktop app and the IDE with `--app_data_dir`). |
 | `workbuddy`, `workbuddyAi` | The embedded CodeBuddy Code CLI, which makes the model calls itself: an executable of the edition — macOS: in the app with bundle id `com.tencent.workbuddy.mac` (WorkBuddy) or `com.workbuddy.workbuddy-ai` (WorkBuddy AI), whose main executable is named `Electron`; Windows: `name` `WorkBuddy` or `WorkBuddyAI` — whose arguments after the first contain a path with `/app.asar.unpacked/cli/` (the CLI entry `…/app.asar.unpacked/cli/bin/codebuddy`, run with `ELECTRON_RUN_AS_NODE`). Observed in the 5.8 code: pooled `--prewarm` processes that later serve one conversation each (`--serve --session-id <id>`; the command line does not change when one is taken from the pool), cold `--serve` starts, and the fallback `--acp` with first argument `wb-acp:<id>`. Not verified with a running app; the Windows install folder is unknown, so only the name is used. |
+| `pi` | `name == pi` (release binaries), or a script host whose arguments contain `/@earendil-works/pi-coding-agent/` or `/@mariozechner/pi-coding-agent/` (npm, and the installers' `<agent dir>/install/releases/<version>/node_modules/…`, started by the `<agent dir>/bin/pi` launcher). |
 
 The desktop apps' own processes are **not** agent processes, nor are their Electron or Tauri helpers: macOS
 `/Applications/{Claude,ChatGPT,Codex,OpenCode,Antigravity}.app/Contents/MacOS/<name>`; Windows executables directly in
