@@ -2398,6 +2398,7 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
                                          ("cacheWrite1hInput", r["cacheWrite1hInput"]), ("output", r["output"]),
                                          ("reasoning", r["reasoning"]), ("final", r["final"]),
                                          ("provider", r["provider"]), ("fast", r["fast"]),
+                                         ("requestCount", 1),
                                          ("costMicroUsd", index.price(r) if has_day(r["endMs"]) else None),
                                          ("effort", effort), ("speed", speed)]))
     for source, agent, record in harnesses.collect(zcode_root, kimi_root, grok_root):
