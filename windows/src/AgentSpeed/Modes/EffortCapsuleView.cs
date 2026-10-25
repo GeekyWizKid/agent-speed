@@ -62,7 +62,6 @@ internal sealed class EffortCapsuleView : Grid
         {
             Height = Capsule.Height,
             CornerRadius = new CornerRadius(Capsule.Height / 2),
-            Padding = new Thickness(Capsule.Padding, 0, Capsule.Padding, 0),
             Child = content,
             Opacity = 0,
             SnapsToDevicePixels = false,
@@ -136,6 +135,9 @@ internal sealed class EffortCapsuleView : Grid
         _shell.Background = brushes.Fill;
         _shell.BorderBrush = brushes.Stroke;
         _shell.BorderThickness = new Thickness(brushes.StrokeThickness);
+        // The stroke sits inside the 6 DIP padding, so meters and bolts keep their lines in high contrast too.
+        var inset = Capsule.Padding - brushes.StrokeThickness;
+        _shell.Padding = new Thickness(inset, 0, inset, 0);
         _shell.Margin = new Thickness(0, 0, Gap, 0);
         CapsuleMotion.To(_shell, OpacityProperty, capsule.IsVisible ? 1 : 0, CapsuleMotion.Crossfade, CapsuleMotion.Smooth, animate);
 
