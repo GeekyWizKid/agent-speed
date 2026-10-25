@@ -8,6 +8,8 @@ struct BoardTick {
     /// `live_A` in the board's metric (METRICS 6.8) and its text (METRICS 7).
     var value: Double
     var valueText: String
+    /// The metric of `value` and of every row's value (a sub-agent's is `live.value(for: metric)`).
+    var metric: SpeedMetric
     var redline: Double
     var heat: Double
     var overdrive: Double
