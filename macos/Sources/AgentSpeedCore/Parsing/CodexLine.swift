@@ -60,11 +60,27 @@ enum CodexLineKind: Equatable, Sendable {
     case other
 }
 
+/// How a line changes a rollout's mode context (EXECUTION-MODES, Codex).
+enum CodexModeUpdate: Equatable, Sendable {
+    case none
+    /// `turn_context`: every turn fact is replaced by these.
+    case turn(ExecutionModes)
+    /// `thread_settings_applied`: each setting replaces (or, without a fact, clears) the selected session fact of its kind.
+    case session([CodexThreadSetting])
+    /// `token_usage_record`: facts of that response only, never of the context.
+    case request(ExecutionModes)
+}
+
+struct CodexThreadSetting: Equatable, Sendable {
+    var kind: ExecutionModeKind
+    var provider: String?
+    var fact: ExecutionModeFact?
+}
+
 struct CodexLine: Equatable, Sendable {
     var timestampMs: Int64?
     var kind: CodexLineKind
-    var modes: ExecutionModes = .empty
-    var hasModeSelection = false
+    var modeUpdate: CodexModeUpdate = .none
 }
 
 /// Decodes the fields of a Codex envelope line that METRICS 4.2 needs. Conversation text is never captured.
@@ -87,12 +103,21 @@ enum CodexLineExtractor {
         var model: String?
         var modelProvider: String?
         var serviceTier: String?
-        var serviceTierPresent = false
+        /// `.some(nil)`: a string too long to keep, which still wins over the collaboration mode and gives no fact.
+        var effort: String??
+        var collaborationEffort: String??
+        var threadSettings: ThreadSettings?
         var responseId: String?
         var threadId: String?
         var usage: CodexRawUsage?
         var infoPresent = false
         var info: CodexLegacyInfo?
+    }
+
+    /// Outer nil: the field is absent; `.some(nil)`: present without a usable string, which clears the setting.
+    private struct ThreadSettings {
+        var serviceTier: String??
+        var reasoningEffort: String??
     }
 
     static func extract(_ bytes: UnsafeRawBufferPointer) -> LineExtraction<CodexLine> {
@@ -116,15 +141,38 @@ enum CodexLineExtractor {
             }
             try scanner.finish()
             var line = CodexLine(timestampMs: timestamp, kind: classify(envelope: envelope, payload: payload))
-            if envelope == 1 {
-                line.hasModeSelection = payload?.serviceTierPresent ?? false
-                line.modes = ExecutionModeAdapters.openAI(payload?.serviceTier, evidence: .selected, scope: .turn)
-            } else if envelope == 2 {
-                line.modes = ExecutionModeAdapters.openAI(payload?.serviceTier, evidence: .recorded, scope: .request)
-            }
+            line.modeUpdate = modeUpdate(envelope: envelope, payload: payload)
             return .line(line)
         } catch {
             return .malformed
+        }
+    }
+
+    private static func modeUpdate(envelope: Int?, payload: Payload?) -> CodexModeUpdate {
+        switch envelope {
+        case 1:
+            var facts = ExecutionModeAdapters.openAI(payload?.serviceTier, evidence: .selected, scope: .turn)
+            let raw = payload?.effort ?? payload?.collaborationEffort
+            if let raw, let effort = ExecutionModeAdapters.effort(raw, evidence: .recorded, scope: .turn) {
+                facts.insert(effort)
+            }
+            return .turn(facts)
+        case 2:
+            return .request(ExecutionModeAdapters.openAI(payload?.serviceTier, evidence: .recorded, scope: .request))
+        case 3:
+            guard payload?.type == "thread_settings_applied", let settings = payload?.threadSettings else { return .none }
+            var changes: [CodexThreadSetting] = []
+            if let tier = settings.serviceTier {
+                let fact = ExecutionModeAdapters.openAI(tier, evidence: .selected, scope: .session).facts.first
+                changes.append(CodexThreadSetting(kind: .serviceTier, provider: "openai", fact: fact))
+            }
+            if let effort = settings.reasoningEffort {
+                let fact = ExecutionModeAdapters.effort(effort, evidence: .selected, scope: .session)
+                changes.append(CodexThreadSetting(kind: .effort, provider: nil, fact: fact))
+            }
+            return .session(changes)
+        default:
+            return .none
         }
     }
 
@@ -204,8 +252,13 @@ enum CodexLineExtractor {
             } else if scanner.key(key, is: "model") {
                 payload.model = try scanner.readNonEmptyString()
             } else if scanner.key(key, is: "service_tier") || scanner.key(key, is: "serviceTier") {
-                payload.serviceTierPresent = true
                 payload.serviceTier = try scanner.readString()
+            } else if scanner.key(key, is: "effort") {
+                payload.effort = try scanner.readStringValue()
+            } else if scanner.key(key, is: "collaboration_mode") {
+                payload.collaborationEffort = try scanCollaborationEffort(&scanner)
+            } else if scanner.key(key, is: "thread_settings") {
+                payload.threadSettings = try scanThreadSettings(&scanner)
             } else if scanner.key(key, is: "model_provider") {
                 payload.modelProvider = try scanner.readNonEmptyString()
             } else if scanner.key(key, is: "response_id") {
@@ -221,6 +274,44 @@ enum CodexLineExtractor {
             }
         }
         return payload
+    }
+
+    /// `collaboration_mode.settings.reasoning_effort` when it is a string.
+    private static func scanCollaborationEffort(_ scanner: inout JSONScanner) throws(JSONScanError) -> String?? {
+        guard try scanner.beginObjectIfPresent() else { return nil }
+        var effort: String??
+        while let key = try scanner.nextMember() {
+            guard scanner.key(key, is: "settings") else {
+                try scanner.skipValue()
+                continue
+            }
+            effort = nil
+            guard try scanner.beginObjectIfPresent() else { continue }
+            while let inner = try scanner.nextMember() {
+                if scanner.key(inner, is: "reasoning_effort") {
+                    effort = try scanner.readStringValue()
+                } else {
+                    try scanner.skipValue()
+                }
+            }
+        }
+        return effort
+    }
+
+    /// `thread_settings`: a present field changes its setting, a string value sets it and any other value clears it.
+    private static func scanThreadSettings(_ scanner: inout JSONScanner) throws(JSONScanError) -> ThreadSettings? {
+        guard try scanner.beginObjectIfPresent() else { return nil }
+        var settings = ThreadSettings()
+        while let key = try scanner.nextMember() {
+            if scanner.key(key, is: "service_tier") {
+                settings.serviceTier = .some(try scanner.readString())
+            } else if scanner.key(key, is: "reasoning_effort") {
+                settings.reasoningEffort = .some(try scanner.readString())
+            } else {
+                try scanner.skipValue()
+            }
+        }
+        return settings
     }
 
     /// `payload.source`: whether it names a sub-agent, and `subagent.thread_spawn.parent_thread_id`.

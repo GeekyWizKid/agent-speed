@@ -74,7 +74,7 @@ struct DayAggregate: Equatable, Sendable {
         }
         if !record.isFinal { unfinalized += record.requestCount }
         models[record.model ?? ""] = tally
-        for attribution in record.modes.attributed {
+        for attribution in record.modes.breakdownAttributions {
             let key = ExecutionModeUsageKey(model: record.model ?? "", attribution: attribution)
             let measured = record.isFinal ? TimedResponse(record) : nil
             let part = ExecutionModeUsage(model: key.model, attribution: attribution, requests: record.requestCount,

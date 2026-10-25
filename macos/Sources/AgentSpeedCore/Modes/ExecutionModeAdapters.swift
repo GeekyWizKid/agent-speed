@@ -19,8 +19,17 @@ enum ExecutionModeAdapters {
         case "workflow":
             guard ["fast", "planning"].contains(raw ?? "") else { return nil }
             return fact(kind: .workflow, raw: raw, evidence: evidence, provider: provider, scope: scope).facts.first
+        case "effort":
+            return effort(raw, evidence: evidence, scope: scope)
         default: return nil
         }
+    }
+
+    /// A reasoning effort token: `none` is `off`; automatic and inherited selections are no fact.
+    static func effort(_ raw: String?, evidence: ExecutionModeEvidence, scope: ExecutionModeScope) -> ExecutionModeFact? {
+        guard let raw, let fact = ExecutionModeFact(kind: .effort, rawValue: raw, evidence: evidence, scope: scope),
+              !["auto", "default", "inherit", "inherited", "unknown"].contains(fact.value) else { return nil }
+        return fact.value == "none" ? fact.withCanonicalValue("off") : fact
     }
 
     static func claude(_ speed: String?) -> ExecutionModes {

@@ -105,6 +105,7 @@ struct ParserFixtureTests {
                 #expect(actual.isFinal == (wanted["final"] as? Bool), "\(relative) \(actual.key) final")
                 expectPricingFields(actual, wanted, "\(relative) \(actual.key)")
             }
+            expectModeFields(state.modes, result.responses, spec, relative)
         }
     }
 

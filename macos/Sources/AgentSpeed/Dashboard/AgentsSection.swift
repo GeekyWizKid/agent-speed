@@ -5,6 +5,8 @@ import SwiftUI
 /// shows the first rows and a disclosure for the rest; expanded it shows everyone, scrolling past a dozen rows.
 struct AgentsSection: View {
     let model: AppModel
+    /// Width of the agent rows: the panel minus its padding.
+    var rowWidth = DashboardController.width - 2 * DashboardLayout.padding
 
     @State private var order = StableAgentOrder()
     /// True while a collapse animates: the extra rows stay until the closing region has slid over them.
@@ -22,7 +24,11 @@ struct AgentsSection: View {
         let visible = min(rows.count, expanded ? DashboardLayout.maxExpandedAgents : limit)
         let hidden = expanded ? 0 : total - visible
         let tree = AgentTree(rows)
-        let depths = tree.depths
+        let depths = tree.depths.map { min($0, DashboardLayout.maxAgentDepth) }
+        let column = AgentCapsuleColumn(
+            rows: rows.indices.map { (EffortCapsule(rows[$0].modes), depths[$0]) },
+            rowWidth: rowWidth
+        )
 
         VStack(alignment: .leading, spacing: DashboardLayout.rowSpacing) {
             HStack(spacing: Spacing.s) {
@@ -49,8 +55,9 @@ struct AgentsSection: View {
                             AgentRow(
                                 model: model,
                                 agent: agent,
-                                depth: min(depths[index], DashboardLayout.maxAgentDepth),
-                                now: snapshot.timestamp
+                                depth: depths[index],
+                                now: snapshot.timestamp,
+                                capsuleColumn: column
                             )
                             .transition(.asymmetric(insertion: fadeIn, removal: .identity))
                             .zIndex(Double(rows.count - index))

@@ -1,7 +1,14 @@
 import Foundation
 
+/// Fact kinds, plus `speed`: a breakdown derived from the facts (EXECUTION-MODES, Reasoning effort and speed) that
+/// is never a fact's own kind.
 public enum ExecutionModeKind: String, CaseIterable, Codable, Sendable {
-    case serviceTier, accelerator, modelVariant, routing, workflow
+    case serviceTier, accelerator, modelVariant, routing, workflow, effort, speed
+
+    /// The kinds of report extension version 1; `effort` and `speed` stay local.
+    public static let reported: [ExecutionModeKind] = [.serviceTier, .accelerator, .modelVariant, .routing, .workflow]
+
+    public var isFactKind: Bool { self != .speed }
 }
 
 public enum ExecutionModeEvidence: String, Codable, Sendable {
@@ -30,7 +37,8 @@ public struct ExecutionModeFact: Equatable, Hashable, Codable, Sendable {
 
     public init?(kind: ExecutionModeKind, rawValue: String, evidence: ExecutionModeEvidence,
                  provider: String? = nil, scope: ExecutionModeScope, openAI: Bool = false) {
-        guard Self.isIdentifier(rawValue, limit: 64), provider.map({ Self.isIdentifier($0, limit: 32) }) ?? true else { return nil }
+        guard kind.isFactKind, Self.isIdentifier(rawValue, limit: 64),
+              provider.map({ Self.isIdentifier($0, limit: 32) }) ?? true else { return nil }
         self.kind = kind
         self.rawValue = rawValue
         self.evidence = evidence
@@ -97,6 +105,7 @@ public struct ExecutionModes: Equatable, Hashable, Codable, Sendable {
     public func merging(_ other: ExecutionModes) -> ExecutionModes { ExecutionModes(facts + other.facts) }
 
     public func attribution(for kind: ExecutionModeKind) -> ExecutionModeAttribution {
+        guard kind.isFactKind else { return speed }
         let candidates = facts.filter { $0.kind == kind && $0.evidence != .configured }
         guard let best = candidates.max(by: {
             ($0.evidence.rank, $0.scope.rank) < ($1.evidence.rank, $1.scope.rank)
@@ -108,7 +117,25 @@ public struct ExecutionModes: Equatable, Hashable, Codable, Sendable {
         return ExecutionModeAttribution(kind: kind, mode: best.value, evidence: best.evidence.rawValue, provider: best.provider)
     }
 
-    public var attributed: [ExecutionModeAttribution] {
+    /// The service tier when resolved, else the accelerator, else a `highspeed` model variant.
+    private var speed: ExecutionModeAttribution {
+        for kind in [ExecutionModeKind.serviceTier, .accelerator, .modelVariant] {
+            let result = attribution(for: kind)
+            if !result.isUnknown, kind != .modelVariant || result.mode == "highspeed" {
+                return ExecutionModeAttribution(kind: .speed, mode: result.mode, evidence: result.evidence,
+                                                provider: result.provider)
+            }
+        }
+        return ExecutionModeAttribution(kind: .speed)
+    }
+
+    /// Known attributions of the report extension's kinds.
+    public var reportedAttributions: [ExecutionModeAttribution] {
+        ExecutionModeKind.reported.map { attribution(for: $0) }.filter { !$0.isUnknown }
+    }
+
+    /// Known attributions of every local breakdown, `effort` and `speed` included.
+    public var breakdownAttributions: [ExecutionModeAttribution] {
         ExecutionModeKind.allCases.map { attribution(for: $0) }.filter { !$0.isUnknown }
     }
 
