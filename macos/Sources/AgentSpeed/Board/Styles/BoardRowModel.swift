@@ -88,6 +88,17 @@ enum BoardRowModels {
         }
     }
 
+    /// The live value behind each row of `tick.rows` (more rows: their sum).
+    static func lives(_ tick: BoardTick) -> [Double] {
+        tick.rows.map { row in
+            switch row.kind {
+            case .group(let index): tick.groups[index].live
+            case .sub(let index, let sub): tick.groups[index].subs[sub].live.value(for: tick.metric)
+            case .moreSubs(_, _, let live), .moreGroups(_, let live): live
+            }
+        }
+    }
+
     /// The shared capsule column: as wide as the widest capsule among the rows, 0 when none shows.
     static func capsuleColumn(_ rows: [BoardRowModel], compact: Bool, capsules: BoardCapsuleDrawing) -> CGFloat {
         rows.compactMap { row in row.modes.flatMap { capsules.capsuleSize(for: $0, compact: compact)?.width } }.max() ?? 0

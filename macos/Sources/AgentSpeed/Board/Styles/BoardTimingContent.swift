@@ -10,6 +10,7 @@ final class BoardTimingContent: BoardContentBuilding {
     let palette: BoardPalette
     let l10n: Localizer
     let rows: BoardTimingRows
+    private var memory = BoardTickMemory()
 
     init(size: BoardSize, dark: Bool, highContrast: Bool, l10n: Localizer, capsules: BoardCapsuleDrawing) {
         self.size = size
@@ -25,18 +26,23 @@ final class BoardTimingContent: BoardContentBuilding {
     private var rowsTop: CGFloat { pad + heroHeight + 8 }
 
     func layout(_ tick: BoardTick) -> BoardContentLayout {
+        memory.begin(tick)
         let models = BoardRowModels.make(tick, l10n: l10n)
+        let lives = BoardRowModels.lives(tick)
         let column = BoardRowModels.capsuleColumn(models, compact: rows.compact, capsules: rows.capsules)
         var items = [slab(tick)]
-        let (hero, number) = self.hero(tick)
-        items.append(hero)
+        let leader = models.first { $0.rank == 1 }?.name
+        let (hero, number) = self.hero(tick, leader: leader)
+        items += hero
         var anchors: [String: (row: CGRect, rank: CGPoint)] = [:]
-        for (row, model) in zip(tick.rows, models) {
+        for (index, row) in tick.rows.enumerated() {
             let frame = rows.frame(row, rowsTop: rowsTop, pad: pad)
-            if case .group(let index) = row.kind { anchors[tick.groups[index].id] = (frame, rows.rankCenter(frame)) }
-            items.append(rows.item(model, key: row.key, frame: frame, column: column))
+            if case .group(let group) = row.kind { anchors[tick.groups[group].id] = (frame, rows.rankCenter(frame)) }
+            items += rows.items(models[index], key: row.key, frame: frame, column: column,
+                                accents: BoardRowAccents(row, live: lives[index], tick: tick, memory: memory))
         }
         items.append(footer(tick))
+        memory.end(tick, rows: zip(tick.rows, lives).map { ($0.key, $1) })
         return BoardContentLayout(items: items, groupRows: anchors, number: number)
     }
 
@@ -72,12 +78,13 @@ final class BoardTimingContent: BoardContentBuilding {
         }
     }
 
-    private func hero(_ tick: BoardTick) -> (BoardContentItem, CGRect) {
+    private func hero(_ tick: BoardTick, leader: String?) -> ([BoardContentItem], CGRect) {
         let palette = self.palette, big = self.big, heroHeight = self.heroHeight, locale = l10n.locale
         let heat = (tick.heat * 50).rounded() / 50
         let live = BoardLabel(l10n("boards.live").uppercased(with: locale),
                               BoardFont(size: 10, weight: .bold, tracking: 0.14), color: palette.ink2)
-        let number = BoardLabel(tick.valueText, BoardFont(family: .mono, size: big, weight: .heavy, tracking: -0.04), color: palette.ink)
+        let look = BoardHeroNumber.Look(font: BoardFont(family: .mono, size: big, weight: .heavy, tracking: -0.04), color: palette.ink,
+                                        hot: BoardPalette.green, hotGlow: palette.glows ? BoardPalette.green.opacity(0.8) : nil, hotBlur: 12)
         let unit = BoardLabel(l10n("unit.tokS").uppercased(with: locale),
                               BoardFont(family: .mono, size: 11, weight: .semibold, tracking: 0.04), color: palette.ink3)
         let title = BoardLabel(tick.title, BoardFont(size: 11, weight: .bold, tracking: 0.04), color: RGBColor(hex: 0x0B0D12))
@@ -88,24 +95,19 @@ final class BoardTimingContent: BoardContentBuilding {
         let numTop = top + 16
         let barCount = size == .small ? 20 : 30
         let frame = CGRect(x: pad, y: pad + 2, width: side - 2 * pad, height: heroHeight)
-        let numberRect = CGRect(x: frame.minX, y: frame.minY + numTop, width: number.width, height: big * 1.08)
+        let number = BoardHeroNumber(tick.valueText, value: tick.value, look: look, origin: CGPoint(x: frame.minX, y: frame.minY + numTop))
         let history = tick.history.suffix(30).map { ($0 * 10).rounded() / 10 }
         let generating = tick.generating > 0
         let revision = AnyHashable([AnyHashable(tick.valueText), AnyHashable(tick.title), AnyHashable(tick.generating),
                                     AnyHashable(tick.tools), AnyHashable(Array(history)), AnyHashable(heat), AnyHashable(palette.dark),
                                     AnyHashable(palette.highContrast), AnyHashable(l10n.language.rawValue)])
-        let item = BoardContentItem(key: "hero", frame: frame, motion: .none, revision: revision) { context, box in
-            let dot = CGRect(x: 0, y: top + 1.5, width: 7, height: 7)
-            BoardDrawing.fillCircle(dot, color: generating ? BoardPalette.red : palette.ink3, in: context)
+        var hero = BoardContentItem(key: "hero", frame: frame, motion: .none, revision: revision) { context, box in
             live.draw(in: context, x: 13, baseline: live.baseline(lineBoxTop: top))
-
-            let baseline = number.baseline(lineBoxTop: numTop)
-            number.draw(in: context, x: 0, baseline: baseline)
-            unit.draw(in: context, x: number.width + 6, baseline: baseline)
+            unit.draw(in: context, x: number.label.width + 6, baseline: numTop + number.baseline)
 
             let pillTop = numTop + big * 1.08 + 7
             let pill = CGRect(x: 0, y: pillTop, width: title.width + 14, height: 17)
-            BoardDrawing.fill(pill, radius: 5, color: palette.heat(max(0.1, heat)).opacity(1), in: context)
+            BoardDrawing.fill(pill, radius: 5, color: HeatPalette.color(max(0.1, heat)), in: context)
             title.draw(in: context, x: 7, baseline: title.baseline(centeredOn: pill.midY))
             let barsWidth = CGFloat(barCount) * 5 - 2
             counts.truncated(to: max(0, box.width - barsWidth - 8 - pill.width - 7))
@@ -114,7 +116,41 @@ final class BoardTimingContent: BoardContentBuilding {
             let bars = CGRect(x: box.width - barsWidth, y: (box.height - 38) / 2, width: barsWidth, height: 38)
             BoardHeroHistory.bars(Array(history), count: barCount, in: bars, color: palette.heat(max(0.1, heat)), context: context)
         }
-        return (item, numberRect)
+        if memory.fresh, let leader, tick.events.contains(where: { $0.kind == .newLeader }) {
+            hero.accents.append(.decal(banner(leader, width: side, top: heroHeight - 16)))
+        }
+
+        let dotFrame = CGRect(x: frame.minX, y: frame.minY + top + 1.5, width: 7, height: 7)
+        var dot = BoardContentItem(key: "live", frame: dotFrame, motion: .none, revision: AnyHashable([generating, palette.dark])) { context, box in
+            BoardDrawing.fillCircle(CGRect(origin: .zero, size: box), color: generating ? BoardPalette.red : palette.ink3, in: context)
+        }
+        dot.ambient = generating ? .pulse(period: 1.6) : nil
+
+        let decals = tick.newPeak ? [number.sheen(), BoardHeroNumber.peakChip(style: .timing, l10n: l10n, glows: palette.glows)] : []
+        return ([hero, dot] + number.items(memory: memory, decals: decals), number.rect)
+    }
+
+    /// `boards.newLeader` sliding across the bottom of the hero for 1.9 s (`.banner`); in the hero's points.
+    private func banner(_ name: String, width: CGFloat, top: CGFloat) -> BoardDecal {
+        let marker = "\u{E000}"
+        let parts = l10n("boards.newLeader", marker).components(separatedBy: marker)
+        let ink = RGBColor(hex: 0x120D00)
+        let caption = BoardFont(size: 11, weight: .heavy, tracking: 0.16)
+        let labels = parts.enumerated().flatMap { index, part -> [BoardLabel] in
+            let text = BoardLabel(part.trimmingCharacters(in: .whitespaces), caption, color: ink)
+            return index < parts.count - 1 ? [text, BoardLabel(name, BoardFont(size: 11, weight: .bold, tracking: 0.02), color: ink)] : [text]
+        }.filter { $0.width > 0 }
+        let pad = self.pad
+        return BoardDecal(frame: CGRect(x: -pad, y: top, width: width, height: 22), motion: .banner(seconds: 1.9), celebration: true) { context, box in
+            BoardDrawing.gradient(CGRect(origin: .zero, size: box),
+                                  stops: [(BoardPalette.gold, 0), (RGBColor(hex: 0xFFF1A8), 0.4), (BoardPalette.gold, 0.7), (BoardPalette.gold.opacity(0), 1)],
+                                  from: .zero, to: CGPoint(x: box.width, y: 0), in: context)
+            var x = pad
+            for label in labels {
+                label.truncated(to: max(0, box.width - x - pad)).draw(in: context, x: x, baseline: label.baseline(centeredOn: box.height / 2))
+                x += label.width + 8
+            }
+        }
     }
 
     private func footer(_ tick: BoardTick) -> BoardContentItem {

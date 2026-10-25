@@ -26,7 +26,15 @@ final class BoardContentStack {
 
     let layer = CALayer()
     var spring = RowSpring.of(.glass)
-    var reduceMotion = false
+    var reduceMotion = false {
+        didSet { if reduceMotion != oldValue { refreshAmbience() } }
+    }
+    /// Style ambience (aurora drift, tube breath, live pulse); off with Effects intensity Off.
+    var ambience = true {
+        didSet { if ambience != oldValue { refreshAmbience() } }
+    }
+    /// `Celebrate new peaks`: off leaves out the new-peak and new-leader decals.
+    var celebrations = true
     /// Pixels per point of the images; a change redraws every item.
     var scale: CGFloat = 2 {
         didSet { if scale != oldValue { invalidate() } }
@@ -44,10 +52,13 @@ final class BoardContentStack {
         var revision: AnyHashable
         var frame: CGRect
         var image: CGImage?
+        var ambient: BoardContentAmbient?
     }
 
     private var entries: [String: Entry] = [:]
     private var order: [String] = []
+    /// The motion of every item shown, for the way it leaves.
+    private var leaving: [String: BoardContentItem.Motion] = [:]
 
     init() {
         layer.masksToBounds = true
@@ -63,6 +74,10 @@ final class BoardContentStack {
     }
 
     private var side: CGFloat { layer.bounds.height }
+
+    private func refreshAmbience() {
+        for entry in entries.values { setAmbient(entry.ambient, on: entry.layer) }
+    }
 
     private func invalidate() {
         for key in entries.keys { entries[key]?.revision = AnyHashable(UUID()) }
@@ -80,10 +95,13 @@ final class BoardContentStack {
             let target = layerFrame(item.frame)
             if var entry = entries[item.key] {
                 Self.setPlate(item.plate, on: entry.layer)
+                entry.layer.masksToBounds = item.clips
                 if entry.revision != item.revision || entry.frame.size != item.frame.size {
+                    let old = entry.image
                     entry.image = rasterize(item)
                     entry.layer.contents = entry.image
                     entry.revision = item.revision
+                    if animated { change(entry.layer, from: old, to: entry.image, item: item) }
                 }
                 if entry.frame != item.frame {
                     let from = entry.layer.presentation()?.position ?? entry.layer.position
@@ -105,6 +123,11 @@ final class BoardContentStack {
                 }
                 entry.layer.removeAnimation(forKey: "leave")
                 entry.layer.opacity = 1
+                if animated { play(item, on: entry.layer) }
+                if entry.ambient != item.ambient {
+                    entry.ambient = item.ambient
+                    setAmbient(item.ambient, on: entry.layer)
+                }
                 entries[item.key] = entry
             } else {
                 let child = CALayer()
@@ -113,18 +136,26 @@ final class BoardContentStack {
                 child.position = target.origin
                 child.contentsScale = scale
                 child.contentsGravity = .resize
+                child.masksToBounds = item.clips
                 Self.setPlate(item.plate, on: child)
                 let image = rasterize(item)
                 child.contents = image
                 layer.addSublayer(child)
-                entries[item.key] = Entry(layer: child, revision: item.revision, frame: item.frame, image: image)
+                entries[item.key] = Entry(layer: child, revision: item.revision, frame: item.frame, image: image,
+                                          ambient: item.ambient)
+                setAmbient(item.ambient, on: child)
                 if animated, item.motion == .row { enter(child, at: target.origin) }
+                if animated { play(item, on: child) }
             }
         }
+        var motions: [String: BoardContentItem.Motion] = [:]
+        for item in items { motions[item.key] = item.motion }
         for key in order where !seen.contains(key) {
             guard let entry = entries.removeValue(forKey: key) else { continue }
-            leave(entry.layer, animated: animated)
+            // Only rows fade out; a digit or a decal-free piece of the hero is replaced at once.
+            leave(entry.layer, animated: animated && (leaving[key] ?? .row) == .row)
         }
+        leaving = motions
         order = items.map(\.key)
         if moved {
             let fade = CATransition()
@@ -185,7 +216,7 @@ final class BoardContentStack {
 
     private func rasterize(_ item: BoardContentItem) -> CGImage? {
         rasterCount += 1
-        return BoardRaster.image(size: item.frame.size, scale: scale, space: colorSpace, draw: item.draw)
+        return BoardRaster.image(size: item.frame.size, scale: item.rasterScale ?? scale, space: colorSpace, draw: item.draw)
     }
 }
 

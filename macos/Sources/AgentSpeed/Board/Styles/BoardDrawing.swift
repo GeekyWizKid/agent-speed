@@ -41,8 +41,8 @@ enum BoardDrawing {
     static func radial(center: CGPoint, radius: CGSize, color: RGBColor, in context: CGContext) {
         guard radius.width > 0, radius.height > 0,
               let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB),
-                                        colors: [color.cgColor, color.opacity(color.alpha * 0.45).cgColor, color.opacity(0).cgColor] as CFArray,
-                                        locations: [0, 0.45, 1]) else { return }
+                                        colors: [color.cgColor, color.opacity(color.alpha * 0.5).cgColor, color.opacity(0).cgColor] as CFArray,
+                                        locations: [0, 0.5, 1]) else { return }
         context.saveGState()
         context.translateBy(x: center.x, y: center.y)
         context.scaleBy(x: 1, y: radius.height / radius.width)
@@ -54,9 +54,14 @@ enum BoardDrawing {
     static func glowing(_ color: RGBColor?, blur: CGFloat, in context: CGContext, _ body: () -> Void) {
         guard let color, blur > 0 else { return body() }
         context.saveGState()
-        context.setShadow(offset: .zero, blur: blur, color: color.cgColor)
+        setGlow(color, blur: blur, in: context)
         body()
         context.restoreGState()
+    }
+
+    /// A shadow of `blur` points around what follows (shadows are set in device pixels, outside the CTM).
+    static func setGlow(_ color: RGBColor, blur: CGFloat, in context: CGContext) {
+        context.setShadow(offset: .zero, blur: blur * abs(context.userSpaceToDeviceSpaceTransform.a), color: color.cgColor)
     }
 
     // MARK: Phase badge (DESIGN 4: three dots while generating, a wrench in tools, a grey dot when idle)

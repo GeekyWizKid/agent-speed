@@ -2,14 +2,15 @@ import AgentSpeedCore
 import AgentSpeedOrbModel
 import AppKit
 
-/// 流光玻璃 (DESIGN 2c Styles; `board-glass.html`): calm type on the glass, a heat-tinted aurora behind the hero, the
-/// 60 s sparkline, rows with glowing share underlines.
+/// 流光玻璃 (DESIGN 2c Styles; `board-glass.html`): calm type on the glass, a heat-tinted aurora drifting behind the
+/// hero, the 60 s sparkline, rows with glowing share underlines.
 @MainActor
 final class BoardGlassContent: BoardContentBuilding {
     let size: BoardSize
     let palette: BoardPalette
     let l10n: Localizer
     let rows: BoardListRows
+    private var memory = BoardTickMemory()
 
     init(size: BoardSize, dark: Bool, highContrast: Bool, l10n: Localizer, capsules: BoardCapsuleDrawing) {
         self.size = size
@@ -25,65 +26,86 @@ final class BoardGlassContent: BoardContentBuilding {
     private var rowsTop: CGFloat { pad + heroHeight + 4 }
 
     func layout(_ tick: BoardTick) -> BoardContentLayout {
+        memory.begin(tick)
         let models = BoardRowModels.make(tick, l10n: l10n)
+        let lives = BoardRowModels.lives(tick)
         let column = BoardRowModels.capsuleColumn(models, compact: rows.compact, capsules: rows.capsules)
-        var items = [aurora(tick)]
+        var items = aurora(tick)
         let (hero, number) = self.hero(tick)
-        items.append(hero)
+        items += hero
         var anchors: [String: (row: CGRect, rank: CGPoint)] = [:]
-        for (row, model) in zip(tick.rows, models) {
+        for (index, row) in tick.rows.enumerated() {
             let frame = rows.frame(row, rowsTop: rowsTop, pad: pad)
-            if case .group(let index) = row.kind { anchors[tick.groups[index].id] = (frame, rows.rankCenter(frame)) }
-            items.append(rows.item(model, key: row.key, frame: frame, column: column))
+            if case .group(let group) = row.kind { anchors[tick.groups[group].id] = (frame, rows.rankCenter(frame)) }
+            items += rows.items(models[index], key: row.key, frame: frame, column: column,
+                                accents: BoardRowAccents(row, live: lives[index], tick: tick, memory: memory))
         }
         items.append(footer(tick))
+        memory.end(tick, rows: zip(tick.rows, lives).map { ($0.key, $1) })
         return BoardContentLayout(items: items, groupRows: anchors, number: number)
     }
 
-    /// Two soft lobes of heat light behind the hero (`.aurora`) and the rule above the rows.
-    private func aurora(_ tick: BoardTick) -> BoardContentItem {
-        let heat = (tick.heat * 50).rounded() / 50
-        let palette = self.palette, side = self.side, pad = self.pad, rule = rowsTop
-        let revision = AnyHashable([AnyHashable("aurora"), AnyHashable(heat), AnyHashable(palette.dark), AnyHashable(palette.highContrast)])
-        return BoardContentItem(key: "ambience", frame: CGRect(x: 0, y: 0, width: side, height: side), motion: .none,
-                                revision: revision) { context, _ in
-            if !palette.highContrast {
-                let strength = 0.18 + heat * 0.62
-                let lobe = CGSize(width: side * 0.49, height: side * 0.495)
-                BoardDrawing.radial(center: CGPoint(x: side * 0.29, y: side * 0.205), radius: lobe,
-                                    color: palette.heat(max(0.06, heat)).opacity(strength * 0.9), in: context)
-                BoardDrawing.radial(center: CGPoint(x: side * 0.78, y: side * 0.095), radius: lobe,
-                                    color: palette.heat(min(1, heat + 0.18)).opacity(strength * 0.7 * 0.9), in: context)
+    /// Two soft lobes of heat light behind the hero (`.aurora`, drifting on 19 s and 23 s while agents work) and the
+    /// rule above the rows.
+    private func aurora(_ tick: BoardTick) -> [BoardContentItem] {
+        let palette = self.palette, side = self.side
+        var items: [BoardContentItem] = []
+        if !palette.highContrast {
+            let heat = (tick.heat * 25).rounded() / 25
+            let strength = 0.18 + heat * 0.62
+            let active = tick.generating > 0
+            // The lobes' closest-side gradients under a 34 pt blur: a linear fade reaching a blur further.
+            let radius = CGSize(width: side * 0.49 + 34, height: side * 0.495 + 34)
+            let lobes: [(CGPoint, RGBColor, BoardContentAmbient)] = [
+                (CGPoint(x: side * 0.29, y: side * 0.205), HeatPalette.color(max(0.06, heat)).opacity(strength * 0.9),
+                 .drift(dx: side * 0.176, dy: side * 0.079, scale: 1.15, period: 19)),
+                (CGPoint(x: side * 0.78, y: side * 0.095), HeatPalette.color(min(1, heat + 0.18)).opacity(strength * 0.63),
+                 .drift(dx: -side * 0.137, dy: side * 0.119, scale: 0.92, period: 23)),
+            ]
+            for (index, (center, color, drift)) in lobes.enumerated() {
+                let frame = CGRect(x: center.x - radius.width, y: center.y - radius.height, width: 2 * radius.width, height: 2 * radius.height)
+                var lobe = BoardContentItem(key: "aurora\(index)", frame: frame, motion: .none,
+                                            revision: AnyHashable([heat, palette.dark ? 1 : 0])) { context, box in
+                    BoardDrawing.radial(center: CGPoint(x: box.width / 2, y: box.height / 2), radius: radius, color: color, in: context)
+                }
+                lobe.ambient = active ? drift : nil
+                lobe.rasterScale = 0.5
+                items.append(lobe)
             }
-            BoardDrawing.fill(CGRect(x: pad, y: rule, width: side - 2 * pad, height: 1), color: palette.line, in: context)
         }
+        let rule = CGRect(x: pad, y: rowsTop, width: side - 2 * pad, height: 1)
+        items.append(BoardContentItem(key: "rule", frame: rule, motion: .none, revision: AnyHashable([palette.dark, palette.highContrast])) { context, box in
+            BoardDrawing.fill(CGRect(origin: .zero, size: box), color: palette.line, in: context)
+        })
+        return items
     }
 
-    private func hero(_ tick: BoardTick) -> (BoardContentItem, CGRect) {
+    private func hero(_ tick: BoardTick) -> ([BoardContentItem], CGRect) {
         let palette = self.palette, big = self.big, heroHeight = self.heroHeight
-        let numFont = BoardFont(size: big, weight: .bold, tracking: -0.02, tabular: true)
-        let number = BoardLabel(tick.valueText, numFont, color: palette.ink)
-        let unit = BoardLabel(l10n("unit.tokS"), BoardFont(size: 13, weight: .medium), color: palette.ink2)
-        let heatColor = palette.heatText(max(0.06, tick.heat))
-        let title = BoardLabel(tick.title, BoardFont(size: 12, weight: .semibold, tracking: 0.03), color: heatColor)
-        let counts = BoardLabel("· " + l10n("agents.context", tick.generating, tick.tools), BoardFont(size: 12), color: palette.ink2)
+        let heat = (tick.heat * 50).rounded() / 50
         let metaLine: CGFloat = 14.3
         let numTop = ((heroHeight - (big * 1.08 + 7 + metaLine)) / 2).rounded()
-        let sparkWidth: CGFloat = size == .small ? 76 : 104
         let frame = CGRect(x: pad, y: pad - 2, width: side - 2 * pad, height: heroHeight)
-        let numberRect = CGRect(x: frame.minX, y: frame.minY + numTop, width: number.width, height: big * 1.08)
-        let heat = (tick.heat * 50).rounded() / 50
+        let look = BoardHeroNumber.Look(font: BoardFont(size: big, weight: .bold, tracking: -0.02, tabular: true), color: palette.ink,
+                                        hot: palette.dark ? HeatPalette.whiteHot : palette.ink,
+                                        hotGlow: palette.glows ? palette.heat(max(0.12, heat)) : nil, hotBlur: 14)
+        let number = BoardHeroNumber(tick.valueText, value: tick.value, look: look, origin: CGPoint(x: frame.minX, y: frame.minY + numTop))
+        let unit = BoardLabel(l10n("unit.tokS"), BoardFont(size: 13, weight: .medium), color: palette.ink2)
+        let title = BoardLabel(tick.title, BoardFont(size: 12, weight: .semibold, tracking: 0.03), color: palette.heatText(max(0.06, tick.heat)))
+        let counts = BoardLabel("· " + l10n("agents.context", tick.generating, tick.tools), BoardFont(size: 12), color: palette.ink2)
+        let sparkWidth: CGFloat = size == .small ? 76 : 104
         let history = tick.history.map { ($0 * 10).rounded() / 10 }
-        let revision = AnyHashable([AnyHashable(tick.valueText), AnyHashable(tick.title), AnyHashable(counts.width),
-                                    AnyHashable(tick.generating), AnyHashable(tick.tools), AnyHashable(history), AnyHashable(heat),
-                                    AnyHashable(palette.dark), AnyHashable(palette.highContrast)])
-        let item = BoardContentItem(key: "hero", frame: frame, motion: .none, revision: revision) { context, box in
-            let baseline = number.baseline(lineBoxTop: numTop)
-            let glow = palette.glows && heat > 0 ? palette.heat(heat).opacity(0.55) : nil
-            BoardDrawing.glowing(glow, blur: heat * 14, in: context) {
-                number.draw(in: context, x: 0, baseline: baseline)
-                unit.draw(in: context, x: number.width + 6, baseline: baseline)
+        let revision = AnyHashable([AnyHashable(tick.valueText), AnyHashable(tick.title), AnyHashable(tick.generating),
+                                    AnyHashable(tick.tools), AnyHashable(history), AnyHashable(heat), AnyHashable(palette.dark),
+                                    AnyHashable(palette.highContrast), AnyHashable(l10n.language.rawValue)])
+        let hero = BoardContentItem(key: "hero", frame: frame, motion: .none, revision: revision) { context, box in
+            let baseline = numTop + number.baseline
+            if palette.glows, heat > 0 {
+                let glow = palette.heat(heat).opacity(0.55)
+                number.drawGlow(in: context, x: 0, top: numTop, color: glow, blurs: [heat * 14])
+                unit.drawGlowOnly(in: context, x: number.label.width + 6, baseline: baseline, glow: glow, blur: heat * 14)
             }
+            unit.draw(in: context, x: number.label.width + 6, baseline: baseline)
             let metaMid = numTop + big * 1.08 + 7 + metaLine / 2
             let metaBaseline = title.baseline(centeredOn: metaMid)
             let room = box.width - sparkWidth - 8
@@ -93,7 +115,8 @@ final class BoardGlassContent: BoardContentBuilding {
             let spark = CGRect(x: box.width - sparkWidth, y: (box.height - 40) / 2, width: sparkWidth, height: 40)
             BoardHeroHistory.sparkline(history, in: spark, color: palette.heat(max(0.06, heat)), context: context)
         }
-        return (item, numberRect)
+        let decals = tick.newPeak ? [number.sheen(), BoardHeroNumber.peakChip(style: .glass, l10n: l10n, glows: palette.glows)] : []
+        return ([hero] + number.items(memory: memory, decals: decals), number.rect)
     }
 
     private func footer(_ tick: BoardTick) -> BoardContentItem {

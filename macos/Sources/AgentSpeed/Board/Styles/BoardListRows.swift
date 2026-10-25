@@ -23,12 +23,51 @@ struct BoardListRows {
     /// The center of the rank, for the effects (board points).
     func rankCenter(_ frame: CGRect) -> CGPoint { CGPoint(x: frame.minX + 14, y: frame.midY) }
 
-    func item(_ model: BoardRowModel, key: String, frame: CGRect, column: CGFloat) -> BoardContentItem {
-        let revision = AnyHashable([AnyHashable(model), AnyHashable(column), AnyHashable(palette.dark), AnyHashable(palette.highContrast)])
-        let rows = self
-        return BoardContentItem(key: key, frame: frame, revision: revision) { context, box in
+    /// The row's items: its body, its rank (groups) and its value, each cached apart so a new value or rank redraws
+    /// only itself and can roll or flash; all three spring together.
+    func items(_ model: BoardRowModel, key: String, frame: CGRect, column: CGFloat, accents: BoardRowAccents) -> [BoardContentItem] {
+        let rows = self, look = AnyHashable([AnyHashable(palette.dark), AnyHashable(palette.highContrast)])
+        var body = BoardContentItem(key: key, frame: frame, revision: AnyHashable([AnyHashable(model.body), AnyHashable(column), look])) { context, box in
             rows.draw(model, column: column, in: context, size: box)
         }
+        guard model.kind != .more else { return [body] }
+        let sub = model.kind == .sub
+        let source = model.source.map { palette.source($0) } ?? .white
+        if let event = accents.event {
+            body.accents.append(.decal(BoardRowDecals.sweep(width: frame.width, height: frame.height, color: source,
+                                                           leader: event.kind == .newLeader, radius: neon ? 9 : 10)))
+        }
+        var items = [body]
+
+        if let rank = model.rank {
+            var item = BoardContentItem(key: key + "#rank", frame: CGRect(x: frame.minX + 6, y: frame.midY - 8, width: 16, height: 16),
+                                        revision: AnyHashable([AnyHashable(rank), look])) { context, _ in
+                rows.drawRank(rank, leader: rank == 1, midY: 8, x: 0, in: context)
+            }
+            item.clips = true
+            if let old = accents.previousRank { item.accents.append(.roll(rising: rank < old)) }
+            items.append(item)
+        }
+
+        let valueFrame = CGRect(x: frame.maxX - 76, y: frame.minY, width: 76, height: frame.height)
+        var value = BoardContentItem(key: key + "#value", frame: valueFrame,
+                                     revision: AnyHashable([AnyHashable(model.value), AnyHashable(model.idle), AnyHashable(model.heat), look])) { context, box in
+            rows.drawValue(model, sub: sub, right: box.width - 6, midY: box.height / 2, hot: false, in: context)
+        }
+        value.hot = BoardContentDrawing { context, box in
+            rows.drawValue(model, sub: sub, right: box.width - 6, midY: box.height / 2, hot: true, in: context)
+        }
+        switch accents.change {
+        case .rise: value.accents.append(.warm)
+        case .fall: value.accents.append(.dim)
+        case .steady: break
+        }
+        if let event = accents.event, event.from > event.to {
+            value.accents.append(.decal(BoardRowDecals.chip(style: style, climbed: event.from - event.to, rowRight: 76,
+                                                            midY: frame.height / 2, palette: palette)))
+        }
+        items.append(value)
+        return items
     }
 
     // MARK: Drawing
@@ -40,7 +79,6 @@ struct BoardListRows {
         if model.isLeader { drawLeaderPlate(in: context, size: box) }
         drawUnderline(model, sub: sub, in: context, size: box)
 
-        if let rank = model.rank { drawRank(rank, leader: model.isLeader, midY: midY, in: context) }
         if let source = model.source {
             BoardDrawing.badge(model.phase, color: palette.source(source), idle: palette.ink3, look: neon ? .glowDot : .dots,
                                glows: palette.glows, at: CGPoint(x: 30, y: midY - 5), in: context)
@@ -67,7 +105,6 @@ struct BoardListRows {
             capsules.drawCapsule(for: modes, compact: compact, dark: palette.dark, highContrast: palette.highContrast, width: column,
                                  in: context, at: CGPoint(x: capsuleX, y: midY - EffortCapsule.height / 2))
         }
-        drawValue(model, sub: sub, right: box.width - 6, midY: midY, in: context)
     }
 
     private func drawLeaderPlate(in context: CGContext, size box: CGSize) {
@@ -90,10 +127,10 @@ struct BoardListRows {
         }
     }
 
-    private func drawRank(_ rank: Int, leader: Bool, midY: CGFloat, in context: CGContext) {
+    private func drawRank(_ rank: Int, leader: Bool, midY: CGFloat, x left: CGFloat, in context: CGContext) {
         let font = neon ? BoardFont(family: .mono, size: 12, weight: .bold) : BoardFont(size: 12, weight: .semibold, tabular: true)
         let label = BoardLabel("\(rank)", font, color: palette.ink3)
-        let x = 6 + (16 - label.width) / 2
+        let x = left + (16 - label.width) / 2
         let baseline = label.baseline(centeredOn: midY)
         guard leader else { return label.draw(in: context, x: x, baseline: baseline) }
         if palette.highContrast {
@@ -127,7 +164,7 @@ struct BoardListRows {
         }
     }
 
-    private func drawValue(_ model: BoardRowModel, sub: Bool, right: CGFloat, midY: CGFloat, in context: CGContext) {
+    private func drawValue(_ model: BoardRowModel, sub: Bool, right: CGFloat, midY: CGFloat, hot: Bool, in context: CGContext) {
         let size: CGFloat = sub ? (neon ? 11 : 11.5) : 13
         let weight: NSFont.Weight = model.idle ? .medium : sub && !neon ? .semibold : neon ? .bold : .semibold
         let font = neon ? BoardFont(family: .mono, size: size, weight: weight, tracking: -0.02)
@@ -135,8 +172,14 @@ struct BoardListRows {
         let color = model.idle ? palette.ink3
             : model.heatFraction > 0.45 ? palette.heatText(model.heatFraction)
             : sub ? palette.ink2 : palette.ink
-        let label = BoardLabel(model.value, font, color: color)
-        label.draw(in: context, x: right - label.width, baseline: label.baseline(centeredOn: midY))
+        guard hot else {
+            let label = BoardLabel(model.value, font, color: color)
+            return label.draw(in: context, x: right - label.width, baseline: label.baseline(centeredOn: midY))
+        }
+        // Rising: white-hot with the row's heat around it (`valUp` / neon `vu`).
+        let label = BoardLabel(model.value, font, color: palette.dark ? (neon ? .white : HeatPalette.whiteHot) : palette.ink)
+        let glow = palette.glows ? palette.heat(max(0.12, model.heatFraction)) : nil
+        label.draw(in: context, x: right - label.width, baseline: label.baseline(centeredOn: midY) - 2, glow: glow, blur: neon ? 12 : 10)
     }
 
     private func drawMore(_ model: BoardRowModel, in context: CGContext, size box: CGSize) {

@@ -88,9 +88,10 @@ struct BoardPalette {
     static let green = RGBColor(hex: 0x22C55E)
     static let red = RGBColor(hex: 0xEF4444)
 
-    /// The heat color for graphics (bars, LEDs, rails): the ramp itself on dark boards, pushed to 3:1 on light ones.
+    /// The heat color for graphics (bars, LEDs, rails), tuned for the appearance as everywhere in the app; pushed to
+    /// 4.5:1 with Increase Contrast on light boards.
     func heat(_ h: Double) -> RGBColor {
-        dark ? HeatPalette.color(h) : DashboardPalette.legible(HeatPalette.color(h), dark: false, minimum: highContrast ? 4.5 : 3)
+        highContrast && !dark ? DashboardPalette.legible(HeatPalette.color(h), dark: false, minimum: 4.5) : HeatPalette.color(h, dark: dark)
     }
 
     /// The heat color for text: legible at 4.5:1 (7:1 with Increase Contrast) on light boards.

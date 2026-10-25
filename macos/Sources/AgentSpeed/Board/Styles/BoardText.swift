@@ -90,8 +90,18 @@ struct BoardLabel {
     func draw(in context: CGContext, x: CGFloat, baseline: CGFloat, glow: RGBColor?, blur: CGFloat) {
         guard let glow, blur > 0 else { return draw(in: context, x: x, baseline: baseline) }
         context.saveGState()
-        context.setShadow(offset: .zero, blur: blur, color: glow.cgColor)
+        BoardDrawing.setGlow(glow, blur: blur, in: context)
         draw(in: context, x: x, baseline: baseline)
+        context.restoreGState()
+    }
+
+    /// Draws only the glow of the glyphs: the glyphs are set far outside the context and their shadow cast back.
+    func drawGlowOnly(in context: CGContext, x: CGFloat, baseline: CGFloat, glow: RGBColor, blur: CGFloat) {
+        let away: CGFloat = 4000
+        let scale = abs(context.userSpaceToDeviceSpaceTransform.a)
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: away * scale, height: 0), blur: blur * scale, color: glow.cgColor)
+        draw(in: context, x: x - away, baseline: baseline)
         context.restoreGState()
     }
 
