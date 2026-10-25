@@ -33,6 +33,8 @@ final class MonitorCore: @unchecked Sendable {
     private var dirtyPaths: Set<String> = []
     private var needsRescan = false
     private var flushScheduled = false
+    /// When the earliest read that changed the engine since the last snapshot began (METRICS 11.9, Observations).
+    private var observedAtMs: Int64?
 
     init(
         configuration: MonitorConfiguration,
@@ -165,6 +167,7 @@ final class MonitorCore: @unchecked Sendable {
     private func flush() {
         flushScheduled = false
         guard let session, isLive else { return }
+        let began = Clock.monotonicMs()
         var changed = false
         if needsRescan {
             needsRescan = false
@@ -174,7 +177,10 @@ final class MonitorCore: @unchecked Sendable {
         let paths = dirtyPaths
         dirtyPaths.removeAll()
         changed = session.handleChanges(atCanonicalPaths: paths) || changed
-        if changed { publish() }
+        if changed {
+            observe(began)
+            publish()
+        }
     }
 
     private func scheduleWholeFileRead(_ job: WholeFileRead) {
@@ -182,31 +188,48 @@ final class MonitorCore: @unchecked Sendable {
         wholeFileQueue.async { [weak self] in
             guard let self, !isCancelled else { return }
             hook?(job.path)
+            let began = Clock.monotonicMs()
             let result = job.perform()
-            queue.async { [weak self] in self?.finishWholeFileRead(result) }
+            queue.async { [weak self] in self?.finishWholeFileRead(result, began: began) }
         }
     }
 
-    private func finishWholeFileRead(_ result: WholeFileResult) {
+    private func finishWholeFileRead(_ result: WholeFileResult, began: Int64) {
         guard let session, isLive else { return }
-        if session.completeWholeFileRead(result) { publish() }
+        if session.completeWholeFileRead(result) {
+            observe(began)
+            publish()
+        }
     }
 
     private func poll() {
         guard let session, isLive else { return }
-        if session.pollRecentFiles(nowMs: Clock.milliseconds(Date())) { publish() }
+        let began = Clock.monotonicMs()
+        if session.pollRecentFiles(nowMs: Clock.milliseconds(Date())) {
+            observe(began)
+            publish()
+        }
     }
 
     private func rediscover() {
         guard let session, isLive else { return }
+        let began = Clock.monotonicMs()
         let changed = session.rediscover(todayStartMs: Self.todayStartMs(for: Date()))
         updateWatcher()
-        if changed { publish() }
+        if changed {
+            observe(began)
+            publish()
+        }
+    }
+
+    private func observe(_ began: Int64) {
+        observedAtMs = min(observedAtMs ?? began, began)
     }
 
     private func publish() {
         guard let session, isLive else { return }
-        session.readDirtyDatabases()
+        let began = Clock.monotonicMs()
+        if session.readDirtyDatabases() { observe(began) }
         let now = Date()
         let todayStartMs = Self.todayStartMs(for: now)
         let requested = subsets.withLock { $0 }
@@ -214,7 +237,10 @@ final class MonitorCore: @unchecked Sendable {
             nowMs: Clock.milliseconds(now), todayStartMs: todayStartMs, emitsEvents: true, subsets: requested
         )
         let context = SnapshotContext(session: session, todayStartMs: todayStartMs)
-        mailbox.post(SnapshotBuilder.running(output, context: context), events: events)
+        var snapshot = SnapshotBuilder.running(output, context: context)
+        snapshot.observedAtMs = observedAtMs
+        observedAtMs = nil
+        mailbox.post(snapshot, events: events)
     }
 
     private func publishPlaceholder(_ state: MonitorState, session: TranscriptSession) {
