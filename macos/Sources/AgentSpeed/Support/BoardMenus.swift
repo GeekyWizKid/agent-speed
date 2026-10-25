@@ -127,9 +127,10 @@ enum BoardMenus {
 
     // MARK: Quick menu
 
-    /// `boards.show` / `boards.hide` for every board while boards exist, then `boards.add`.
+    /// `boards.show` / `boards.hide` for every board while boards exist, then `boards.add`, apart from the orb items.
     static func addQuickItems(to menu: NSMenu, model: AppModel) {
         let l10n = model.l10n
+        menu.addItem(.separator())
         for item in BoardMenuModel.quick(model.boards.document) {
             switch item {
             case .visibility(let anyVisible):
