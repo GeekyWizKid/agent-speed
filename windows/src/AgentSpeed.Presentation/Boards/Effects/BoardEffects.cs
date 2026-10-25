@@ -373,14 +373,12 @@ public sealed class BoardEffects
     public void EmitFront(BoardDrawList list)
     {
         var canvas = Canvas;
-        list.Clip = BoardClip.None;
+
+        // The prototypes' perimeter lives inside the panel's overflow: the ring's glow and the comets stay inside the square.
+        list.Clip = BoardClip.Inside;
         _comets.Emit(list, canvas, Preset, _policy.Ring, _policy.Glows);
-        if (_sweeps.Count > 0)
-        {
-            list.Clip = BoardClip.Inside;
-            _sweeps.Emit(list);
-            list.Clip = BoardClip.None;
-        }
+        _sweeps.Emit(list);
+        list.Clip = BoardClip.None;
 
         _particles.Emit(list);
         _waves.Emit(list);
