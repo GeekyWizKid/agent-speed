@@ -22,6 +22,17 @@ public static class ExecutionModeNative
             ? ExecutionModes.Of(ExecutionModeFact.Create(ExecutionModeKind.ServiceTier, tier, evidence, "openai", scope))
             : ExecutionModes.Empty;
 
+    /// <summary>The <c>effort</c> adapter: <c>none</c> is <c>off</c>; unresolved tokens give no fact; others stay distinct.</summary>
+    public static ExecutionModeFact? Effort(string? raw, ExecutionModeEvidence evidence, ExecutionModeScope scope) =>
+        ExecutionModeFact.Create(ExecutionModeKind.Effort, raw, evidence, scope: scope) is { } fact
+            ? fact.Value switch
+            {
+                "auto" or "default" or "inherit" or "inherited" or "unknown" => null,
+                "none" => fact with { Value = "off" },
+                _ => fact,
+            }
+            : null;
+
     public static ExecutionModes Workflow(string? workflow) => ExecutionModes.Of(workflow is "fast" or "planning"
         ? ExecutionModeFact.Create(ExecutionModeKind.Workflow, workflow, ExecutionModeEvidence.Selected, scope: ExecutionModeScope.Turn)
         : null);

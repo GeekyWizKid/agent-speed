@@ -439,7 +439,7 @@ public static class ReportBody
         foreach (var (key, usage) in entry.Modes.OrderBy(p => p.Key.Source).ThenBy(p => p.Key.Kind)
             .ThenBy(p => p.Key.Mode, StringComparer.Ordinal).ThenBy(p => p.Key.Evidence, StringComparer.Ordinal).ThenBy(p => p.Key.Provider, StringComparer.Ordinal))
         {
-            if (!entry.Sources.Contains(key.Source) || !Enum.IsDefined(key.Kind) || !ExecutionModes.IsIdentifier(key.Mode, 64)
+            if (!entry.Sources.Contains(key.Source) || !ExecutionModes.IsReportKind(key.Kind) || !ExecutionModes.IsIdentifier(key.Mode, 64)
                 || key.Evidence is not ("served" or "recorded" or "selected" or "unknown")
                 || ((key.Mode == "unknown") != (key.Evidence == "unknown"))
                 || (key.Provider is not null && !ExecutionModes.IsIdentifier(key.Provider, 32))
