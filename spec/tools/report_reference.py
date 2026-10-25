@@ -824,7 +824,8 @@ class ReferenceService:
     def __init__(self, *, authority: str, api_path: str = "", name: str = "Agent Speed reference server",
                  api_key_mode: str = "none", api_keys: tuple = (), rules: dict | None = None,
                  limits: dict | None = None, sections: tuple = SECTIONS, log=None,
-                 extensions: dict | None = None):
+                 extensions: dict | None = None, websocket: dict | None = None):
+        """websocket: stream settings of METRICS 11.9 to offer the WebSocket transport (missing ones get defaults)."""
         self.authority, self.api_path = authority.lower(), api_path.rstrip("/")
         self.name, self.api_key_mode, self.api_keys = name, api_key_mode, set(api_keys)
         self.rules = username_rules(rules)
@@ -839,6 +840,10 @@ class ReferenceService:
         self.device_bucket = TokenBucket(3, 0.25)
         self.log = log or (lambda line: None)
         self.extensions = {name: 1 for name in EXTENSIONS if supported(extensions, name)}
+        self.websocket = None
+        if websocket is not None:
+            from report_websocket import DEFAULT_STREAM
+            self.websocket = {**DEFAULT_STREAM, **websocket}
         self.extension_state = None
         if self.extensions:
             from report_profile_reference import ProfileExtensions
@@ -856,6 +861,10 @@ class ReferenceService:
                 "limits": dict(self.limits), "sections": list(self.sections)}
         if self.extensions:
             result["extensions"] = dict(self.extensions)
+        if self.websocket:
+            from report_websocket import EXTENSION, SUBPROTOCOL, WS_PATH
+            result["extensions"] = {**result.get("extensions", {}), EXTENSION: 1}
+            result["websocket"] = {"path": WS_PATH, "subprotocol": SUBPROTOCOL, **self.websocket}
         return result
 
     # -- helpers
@@ -884,12 +893,14 @@ class ReferenceService:
     # -- entry point
 
     def handle(self, method: str, path: str, headers: dict, body: bytes, *, client_ip: str = "127.0.0.1",
-               now: float | None = None):
-        """Returns (status, response headers, JSON body or None). Header names may have any case."""
+               now: float | None = None, channel: str = "http"):
+        """Returns (status, response headers, JSON body or None). Header names may have any case. A WebSocket
+        upgrade that passes every check returns 101 with the device id; channel "websocket" is a report carried by
+        an open connection, whose rate the connection limits itself."""
         now = time.time() if now is None else now
         headers = {k.lower(): v.strip() for k, v in headers.items()}
         self._prune(now)
-        if self.ip_bucket.take(client_ip, now):
+        if channel == "http" and self.ip_bucket.take(client_ip, now):
             return self._error(429, "rate_limited", retryAfterSeconds=5)
         route_path = path.split("?", 1)[0]
         if method == "GET" and route_path == "/.well-known/agent-speed-report":
@@ -911,6 +922,8 @@ class ReferenceService:
             allowed = ("POST",)
         elif route == "/v1/reports":
             allowed = ("POST",)
+        elif route == "/v1/reports/ws" and self.websocket and channel == "http":
+            allowed = ("GET",)
         elif match and match.group(2):
             allowed = ("PUT",)
         elif match:
@@ -975,8 +988,10 @@ class ReferenceService:
             return self._register(device_id, pub, document, api_key, now)
         if extension_methods:
             return self.extension_state.handle(device_id, method, route, headers, body, document, now)
+        if route == "/v1/reports/ws":
+            return 101, {}, {"deviceId": device_id}
         if route == "/v1/reports":
-            return self._report(device_id, headers, body, document, now)
+            return self._report(device_id, headers, body, document, now, channel)
         if match.group(2):
             return self._rotate(device_id, method, path, headers, body, document)
         if method == "PATCH":
@@ -1085,7 +1100,7 @@ class ReferenceService:
         self.log(f"forget {device['username']!r} device {device_id[:8]}: device, username and reports deleted")
         return 200, {}, {"status": "deleted"}
 
-    def _report(self, device_id, headers, body, document, now):
+    def _report(self, device_id, headers, body, document, now, channel="http"):
         if document is None:
             return self._error(400, "bad_request", "empty body")
         if "schema" not in document:
@@ -1099,6 +1114,9 @@ class ReferenceService:
         if extension_errors:
             field, reason = extension_errors[0]
             return self._error(422, "payload_invalid", reason, field=field)
+        realtime = document.get("realtime")
+        if realtime is not None and (realtime["observedAt"] is None) != (realtime["observationAgeMs"] is None):
+            return self._error(422, "payload_invalid", "observedAt and observationAgeMs disagree", field="/realtime")
         device = self.devices[device_id]
         if document["deviceId"] != device_id:
             return self._error(400, "device_mismatch")
@@ -1113,7 +1131,7 @@ class ReferenceService:
             if self.seqs[key][0] == digest:
                 return 200, {}, {"status": "duplicate"}
             return self._error(409, "seq_conflict")
-        wait = self.device_bucket.take(device_id, now)
+        wait = self.device_bucket.take(device_id, now) if channel == "http" else 0
         if wait:
             return self._error(429, "rate_limited", retryAfterSeconds=max(1, int(wait + 0.999)))
         self.seqs[key] = (digest, now + SEQ_TTL_SECONDS)  # recorded together with the acceptance
