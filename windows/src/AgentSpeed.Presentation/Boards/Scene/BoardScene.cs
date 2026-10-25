@@ -95,6 +95,8 @@ public sealed class BoardScene
         var previous = _tick;
         _tick = tick;
         var reduce = Effects.Policy.ReduceMotion;
+        // Without frames (a hidden board) rows that left are dropped here, so nothing accumulates.
+        Prune(now);
         foreach (var row in _order)
         {
             row.Leave(now);
@@ -167,14 +169,7 @@ public sealed class BoardScene
 
         var clip = RectBounds.From(m + metrics.ListLeft, m + metrics.ListTop, metrics.ListWidth, metrics.ListHeight);
         list.Clip = BoardClip.Inside;
-        for (var i = _order.Count - 1; i >= 0; i--)
-        {
-            if (_order[i].Gone(now))
-            {
-                _rows.Remove(_order[i].Key);
-                _order.RemoveAt(i);
-            }
-        }
+        Prune(now);
 
         foreach (var row in _order)
         {
@@ -287,6 +282,18 @@ public sealed class BoardScene
         _lastFrame = double.NaN;
         Effects.Clear();
         Effects.Resume();
+    }
+
+    private void Prune(double now)
+    {
+        for (var i = _order.Count - 1; i >= 0; i--)
+        {
+            if (_order[i].Gone(now))
+            {
+                _rows.Remove(_order[i].Key);
+                _order.RemoveAt(i);
+            }
+        }
     }
 
     private void EmitHero(double now, IBoardLayers layers, BoardDrawList list)

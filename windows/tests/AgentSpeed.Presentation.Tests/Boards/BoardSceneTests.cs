@@ -104,6 +104,18 @@ public class BoardSceneTests
     }
 
     [Fact]
+    public void RowsThatLeftAreDroppedWithoutFrames()
+    {
+        var scene = Scene();
+        for (var i = 0; i < 40; i++)
+        {
+            scene.Apply(Tick([("a" + i, 100), ("b", 50)]), i * 0.5);
+        }
+
+        Assert.Equal(3, scene.Rows.Count);
+    }
+
+    [Fact]
     public void ARiseOfMoreThanEightPercentPunchesTheNumber()
     {
         var scene = Scene();
