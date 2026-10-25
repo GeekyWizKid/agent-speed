@@ -52,7 +52,8 @@ public class BoardSceneTests
         var list = new BoardDrawList();
         Frames(scene, list, 0, 0.1);
         Assert.Equal(FrameClass.None, scene.Demand(0.1));
-        Assert.Equal(2 * 2 + 1 + 1, list.LayerCount);
+        // Two rows (body and value), the backdrop, the hero, the number's one glyph and the footer.
+        Assert.Equal(2 * 2 + 1 + 1 + 1 + 1, list.LayerCount);
     }
 
     [Fact]

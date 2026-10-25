@@ -93,8 +93,18 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
 
         if (!full)
         {
-            full |= !Layer(scene.HeroKey, new BoardLayerRequest(BoardLayerKind.Hero, scene, null));
+            full |= !Layer(BoardScene.HeroKey, new BoardLayerRequest(BoardLayerKind.Hero, scene, null));
             full |= !Layer(BoardScene.FooterKey, new BoardLayerRequest(BoardLayerKind.Footer, scene, null));
+            full |= !Layer(BoardScene.BackdropKey, new BoardLayerRequest(BoardLayerKind.Backdrop, scene, null));
+            for (var i = 0; i < BoardHeroNumber.Glyphs.Length && !full; i++)
+            {
+                full |= !Layer(BoardHeroNumber.GlyphKeys[i], new BoardLayerRequest(BoardLayerKind.Glyph, scene, null, BoardHeroNumber.Glyphs[i]));
+            }
+
+            foreach (var callout in scene.Callouts)
+            {
+                full |= !Layer(callout.Key, new BoardLayerRequest(BoardLayerKind.Callout, scene, null, Callout: callout));
+            }
         }
 
         if (!_atlas.EndDraw())
@@ -107,8 +117,6 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
             return DrawResult.Full;
         }
 
-        // The other hero layer stays for the crossfade.
-        _live.Add(scene.HeroKey == BoardScene.HeroKeyA ? BoardScene.HeroKeyB : BoardScene.HeroKeyA);
         _stale.Clear();
         foreach (var key in _atlas.Keys)
         {
