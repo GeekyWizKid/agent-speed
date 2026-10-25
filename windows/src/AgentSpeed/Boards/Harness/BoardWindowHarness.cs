@@ -21,14 +21,15 @@ namespace AgentSpeed.Boards.Harness;
 /// <summary>
 /// Developer harness <c>AGENT_SPEED_BOARD_WINDOW=FILE</c>: one real board window (click-through, bottom-right of the primary
 /// work area) on the orbs' clock and the compositor ticker, presenting through its composition swap chain while the demo
-/// runs the bench story (idle, climb, redline, overtakes, new leaders), then hidden for 2 s, then closed. Reports what was
-/// presented per second and per frame class, frames skipped as unchanged or refused by a busy compositor, the frames drawn
-/// while hidden (must be 0), the process CPU and a capture of the last frame (<c>FILE.png</c>). Runs next to the installed
-/// app. <c>AGENT_SPEED_BOARD_WINDOW_STYLE</c>, <c>_SIZE</c> (default S) and <c>_SECONDS</c> (default 8) adjust it.
+/// runs: a warm-up, then redline (with the team's overtakes and new leaders), cruise and idle, then 2 s hidden, then closed.
+/// Per phase it reports the process CPU, what was presented per second, the frames built per class, frames skipped as
+/// unchanged or refused by a busy compositor; hidden must build nothing. <c>FILE.png</c> is a capture at the end of redline.
+/// Runs next to the installed app. <c>AGENT_SPEED_BOARD_WINDOW_STYLE</c>, <c>_SIZE</c> (default S) and <c>_SECONDS</c> (per
+/// measured phase, default 5) adjust it.
 /// </summary>
 internal static class BoardWindowHarness
 {
-    private const double HiddenSeconds = 2;
+    private sealed record Phase(string Name, double Seconds, double? Target, bool Quiet = false, bool Measured = true, bool Hidden = false);
 
     public static int Run(string path)
     {
@@ -42,7 +43,17 @@ internal static class BoardWindowHarness
         var style = BoardStyles.Parse(Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_WINDOW_STYLE") ?? "neon");
         var size = BoardSizes.Parse(Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_WINDOW_SIZE") ?? "S");
         var seconds = double.TryParse(Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_WINDOW_SECONDS"), NumberStyles.Float,
-            CultureInfo.InvariantCulture, out var s) && s > 0 ? Math.Min(s, 60) : 8;
+            CultureInfo.InvariantCulture, out var s) && s > 0 ? Math.Min(s, 30) : 5;
+        Phase[] phases =
+        [
+            new("warm-up", 3, 3200, Measured: false),
+            new("redline", seconds, 3200),
+            new("settle", 1, 700, Measured: false),
+            new("cruise", seconds, 700),
+            new("settle", 2, 0, Quiet: true, Measured: false),
+            new("idle", seconds, 0, Quiet: true),
+            new("hidden", 2, 3200, Hidden: true),
+        ];
         var loc = new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
         var watch = Stopwatch.StartNew();
         var clock = new OrbClock(dispatcher, () => 1000 + watch.Elapsed.TotalSeconds);
@@ -63,47 +74,70 @@ internal static class BoardWindowHarness
         var events = 0;
         var ticker = new DispatcherTimer(TimeSpan.FromSeconds(BoardSim.TickSeconds), DispatcherPriority.Normal, (_, _) =>
         {
-            var t = watch.Elapsed.TotalSeconds;
-            feed.Sim.TargetTotal = t < 2 ? 0 : t < 6 ? 2400 * (t - 2) / 4 : 3200;
             var tick = feed.Step(style, size);
             events += tick.Events.Count;
             window.Apply(tick);
         }, dispatcher);
 
-        var cycles = ProcessCpu.Cycles();
-        var presented = BoardSurface.FramesPresented;
-        var skipped = BoardSurface.FramesSkipped;
-        var busy = BoardSurface.FramesBusy;
-        var byClass = (long[])BoardSurface.FramesByClass.Clone();
-        var started = watch.Elapsed.TotalSeconds;
         _ = ProcessCpu.CycleRate();
         window.Show();
         ticker.Start();
+        RunPhase(0);
+        Dispatcher.Run();
+        return 0;
 
-        After(dispatcher, seconds, () =>
+        void RunPhase(int index)
         {
-            var wall = watch.Elapsed.TotalSeconds - started;
-            var cpu = ProcessCpu.Percent(cycles, ProcessCpu.Cycles(), wall);
-            string Fps(FrameClass c) => ((BoardSurface.FramesByClass[(int)c] - byClass[(int)c]) / wall).ToString("0.0", CultureInfo.InvariantCulture);
-            report.AppendLine(CultureInfo.InvariantCulture,
-                $"shown {wall:0.0} s: cpu {cpu:0.00}% of one core, {(BoardSurface.FramesPresented - presented) / wall:0.0} presented/s, built per class 60: {Fps(FrameClass.Fps60)}/s, 30: {Fps(FrameClass.Fps30)}/s, none: {Fps(FrameClass.None)}/s; {BoardSurface.FramesSkipped - skipped} unchanged, {BoardSurface.FramesBusy - busy} busy, {events} events, {window.Surface.Frame.Layers.Atlas.Rasterized} layers rasterized");
-            Save(window, clock, path + ".png", report);
-            presented = BoardSurface.FramesPresented + BoardSurface.FramesSkipped;
-            window.Hide();
-            After(dispatcher, HiddenSeconds, () =>
+            if (index == phases.Length)
             {
-                report.AppendLine(CultureInfo.InvariantCulture,
-                    $"hidden {HiddenSeconds:0} s: {BoardSurface.FramesPresented + BoardSurface.FramesSkipped - presented} frames built");
                 ticker.Stop();
                 window.Dispose();
                 File.WriteAllText(path, report.ToString());
                 dispatcher.InvokeShutdown();
-            });
-        });
+                return;
+            }
 
-        File.WriteAllText(path, report.ToString());
-        Dispatcher.Run();
-        return 0;
+            var phase = phases[index];
+            feed.Sim.Quiet = phase.Quiet;
+            feed.Sim.TargetTotal = phase.Target;
+            if (phase.Hidden)
+            {
+                window.Hide();
+            }
+
+            var cycles = ProcessCpu.Cycles();
+            var presented = BoardSurface.FramesPresented;
+            var skipped = BoardSurface.FramesSkipped;
+            var busy = BoardSurface.FramesBusy;
+            var byClass = (long[])BoardSurface.FramesByClass.Clone();
+            var rasterized = window.Surface.Frame.Layers.Atlas.Rasterized;
+            var eventsBefore = events;
+            var started = watch.Elapsed.TotalSeconds;
+            After(dispatcher, phase.Seconds, () =>
+            {
+                var wall = watch.Elapsed.TotalSeconds - started;
+                var cpu = ProcessCpu.Percent(cycles, ProcessCpu.Cycles(), wall);
+                string Fps(FrameClass c) => ((BoardSurface.FramesByClass[(int)c] - byClass[(int)c]) / wall).ToString("0.0", CultureInfo.InvariantCulture);
+                var built = BoardSurface.FramesPresented + BoardSurface.FramesSkipped + BoardSurface.FramesBusy - presented - skipped - busy;
+                if (phase.Hidden)
+                {
+                    report.AppendLine(CultureInfo.InvariantCulture, $"hidden {wall:0.0} s: {built} frames built, cpu {cpu:0.00}% of one core");
+                }
+                else if (phase.Measured)
+                {
+                    report.AppendLine(CultureInfo.InvariantCulture,
+                        $"{phase.Name} {wall:0.0} s: cpu {cpu:0.00}% of one core, {(BoardSurface.FramesPresented - presented) / wall:0.0} presented/s, built per class 60: {Fps(FrameClass.Fps60)}/s, 30: {Fps(FrameClass.Fps30)}/s, none: {Fps(FrameClass.None)}/s; {BoardSurface.FramesSkipped - skipped} unchanged, {BoardSurface.FramesBusy - busy} busy, {events - eventsBefore} events, {window.Surface.Frame.Layers.Atlas.Rasterized - rasterized} layers rasterized");
+                }
+
+                if (phase.Name == "redline")
+                {
+                    Save(window, clock, path + ".png", report);
+                }
+
+                File.WriteAllText(path, report.ToString());
+                RunPhase(index + 1);
+            });
+        }
     }
 
     private static void After(Dispatcher dispatcher, double seconds, Action action)
