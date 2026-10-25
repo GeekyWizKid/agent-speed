@@ -46,7 +46,7 @@ internal sealed class GlassBoardPainter : BoardStylePainter
 
     protected override BoardTextStyle ValueStyle(bool sub, bool dim) => (sub ? SubValue : Value) with { Weight = dim ? FontWeight.Medium : FontWeight.SemiBold };
 
-    protected override string GlyphKey(BoardScene scene) => HeatKey(scene.Tick?.Heat ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    protected override string GlyphKey(BoardScene scene) => HeatKey(GlyphHeat(scene.Tick?.Heat ?? 0)).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     protected override void PaintGroup(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)
     {
@@ -145,7 +145,7 @@ internal sealed class GlassBoardPainter : BoardStylePainter
     protected override void PaintGlyph(ID2D1DeviceContext context, BoardScene scene, char glyph, float width, float height)
     {
         var palette = scene.Palette;
-        var heat = scene.Tick?.Heat ?? 0;
+        var heat = GlyphHeat(scene.Tick?.Heat ?? 0);
         DrawGlyph(context, scene, glyph, palette.Ink, palette.HighContrast || heat <= 0.02 ? null
             : (c, draw) => BoardPaint.Glow(c, HeatPalette.Sample(heat).WithAlpha(0.55), (float)(heat * 14), draw));
     }

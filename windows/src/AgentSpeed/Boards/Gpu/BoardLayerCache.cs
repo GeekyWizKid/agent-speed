@@ -86,7 +86,6 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
     private DrawResult Draw(BoardScene scene)
     {
         _live.Clear();
-        _atlas.BeginDraw();
         var full = false;
         foreach (var row in scene.Rows)
         {

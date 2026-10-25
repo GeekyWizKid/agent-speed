@@ -59,7 +59,11 @@ internal sealed class NeonBoardPainter : BoardStylePainter
     // The LED bar shows the heat and today's peak, not the history.
     protected override int HistoryKey(IReadOnlyList<double> history) => 0;
 
-    protected override string GlyphKey(BoardScene scene) => HeatKey(scene.Tick?.Heat ?? 0).ToString(CultureInfo.InvariantCulture);
+    protected override string GlyphKey(BoardScene scene) => HeatKey(GlyphHeat(scene.Tick?.Heat ?? 0)).ToString(CultureInfo.InvariantCulture);
+
+    // The LED bar's lit segments, and the tints at the glyphs' heat.
+    protected override int HeroHeatKey(BoardTick tick) =>
+        (int)Math.Round(Math.Clamp(tick.Heat, 0, 1) * BoardHeroLayout.Segments) * 64 + HeatKey(GlyphHeat(tick.Heat));
 
     protected override void PaintGroup(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)
     {
@@ -102,8 +106,9 @@ internal sealed class NeonBoardPainter : BoardStylePainter
     {
         var palette = scene.Palette;
         var hero = scene.Hero;
-        var heat = HeatColor(tick);
-        var soft = HeatPalette.Sample(tick.Heat).WithAlpha(0.55);
+        var tint = GlyphHeat(tick.Heat);
+        var heat = HeatPalette.Sample(Math.Max(0.06, tint));
+        var soft = HeatPalette.Sample(tint).WithAlpha(0.55);
         var glows = !palette.HighContrast;
         var tone = glows ? heat : palette.Ink;
 
@@ -187,7 +192,7 @@ internal sealed class NeonBoardPainter : BoardStylePainter
     protected override void PaintGlyph(ID2D1DeviceContext context, BoardScene scene, char glyph, float width, float height)
     {
         var palette = scene.Palette;
-        var heat = scene.Tick?.Heat ?? 0;
+        var heat = GlyphHeat(scene.Tick?.Heat ?? 0);
         if (palette.HighContrast)
         {
             DrawGlyph(context, scene, glyph, palette.Ink, null);

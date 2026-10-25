@@ -45,6 +45,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
 {
     private readonly Dictionary<(BoardTextStyle Style, char Glyph), float> _advances = [];
     private string? _locale;
+    private double _glyphHeat = double.NaN;
     private BoardTick? _columnTick;
     private float _column;
     private string? _fastest;
@@ -129,7 +130,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             {
                 var hero = scene.Hero;
                 return new BoardLayerSpec(hero.Width, hero.Height, string.Join('|', theme, "h", tick.ValueText, tick.Title, tick.GeneratingAgents,
-                    tick.ToolAgents, tick.Generating, HeatKey(tick.Heat), HistoryKey(tick.History), HeatKey(HeatMath.Heat(tick.PeakToday, tick.Redline))));
+                    tick.ToolAgents, tick.Generating, HeroHeatKey(tick), HistoryKey(tick.History), HeatKey(HeatMath.Heat(tick.PeakToday, tick.Redline))));
             }
 
             case BoardLayerKind.Footer:
@@ -260,6 +261,23 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     protected virtual string GlyphKey(BoardScene scene) => string.Empty;
 
     protected static int HeatKey(double heat) => (int)Math.Round(Math.Clamp(heat, 0, 1) * 32);
+
+    /// <summary>Identity of the heat the hero is drawn at.</summary>
+    protected virtual int HeroHeatKey(BoardTick tick) => HeatKey(tick.Heat);
+
+    /// <summary>
+    /// The heat the glyphs' glow (and neon's hero tints) are drawn at: it follows the board's heat in steps of 0.08, and at once
+    /// across 0.02 (no glow below), so 14 glyph layers are not rasterized again for every small change.
+    /// </summary>
+    protected double GlyphHeat(double heat)
+    {
+        if (double.IsNaN(_glyphHeat) || Math.Abs(heat - _glyphHeat) >= 0.08 || heat <= 0.02 != _glyphHeat <= 0.02)
+        {
+            _glyphHeat = heat;
+        }
+
+        return _glyphHeat;
+    }
 
     /// <summary>The heat color of the board (the prototypes' <c>--heat</c>, at least <paramref name="floor"/>).</summary>
     protected static Rgba HeatColor(BoardTick tick, double floor = 0.06) => HeatPalette.Sample(Math.Max(floor, tick.Heat));
