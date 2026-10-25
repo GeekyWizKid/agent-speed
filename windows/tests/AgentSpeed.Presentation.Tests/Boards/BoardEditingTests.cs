@@ -1,5 +1,6 @@
 using AgentSpeed.Core;
 using AgentSpeed.Presentation.Boards;
+using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Presentation.Settings.Boards;
 using AgentSpeed.Presentation.Settings.Orbs;
@@ -80,5 +81,28 @@ public class BoardEditingTests
         var back = SettingsSerializer.Deserialize(SettingsSerializer.Serialize(settings)).Boards;
 
         Assert.Equal(document, back);
+    }
+
+    [Fact]
+    public void SettingsRowsNameTheStyleSourcesAndSize()
+    {
+        var en = new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.En);
+        var board = new BoardDefinition("a") { Style = BoardStyle.Timing, Size = BoardSize.L, Sources = OrbSources.Of(SourceKind.Codex) };
+
+        Assert.Equal(en["boards.style.timing"], BoardRowText.Name(board, en));
+        Assert.Equal(OrbNaming.SourceName(SourceKind.Codex, en) + " · L", BoardRowText.Detail(board, en));
+        Assert.Equal(en["boards.style.timing"] + ", " + BoardRowText.Detail(board, en), BoardRowText.Accessible(board, en));
+        Assert.EndsWith(en["orbs.hidden"], BoardRowText.Accessible(board with { Visible = false }, en));
+    }
+
+    [Fact]
+    public void TheListCountsBoardsAndAddExplainsTheLimit()
+    {
+        var en = new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.En);
+        Assert.Equal(en.Format("orbs.count", 2, 4), BoardRowText.Count(Two(), en));
+        Assert.Equal(en["boards.add"], BoardRowText.AddTooltip(Two(), en));
+
+        var full = new BoardsDocument(Enumerable.Range(0, 4).Select(i => new BoardDefinition("b" + i)));
+        Assert.Equal(en.Format("boards.limit", 4), BoardRowText.AddTooltip(full, en));
     }
 }

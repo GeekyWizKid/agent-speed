@@ -6,6 +6,7 @@
              xmlns:controls="clr-namespace:AgentSpeed.Controls"
              xmlns:pane="clr-namespace:AgentSpeed.Settings.OrbsPane"
              xmlns:tt="clr-namespace:AgentSpeed.Settings.TitleThemes"
+             xmlns:boards="clr-namespace:AgentSpeed.Settings.BoardsPane"
              Focusable="False">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
@@ -433,5 +434,8 @@
                 </StackPanel>
             </Border>
         </StackPanel>
+
+        <!-- Leaderboard boards (DESIGN 2c): their list and editor under the orbs -->
+        <boards:BoardsSection DataContext="{Binding DataContext.Boards, RelativeSource={RelativeSource AncestorType=UserControl}}" />
     </StackPanel>
 </UserControl>

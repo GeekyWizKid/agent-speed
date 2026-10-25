@@ -594,6 +594,11 @@
                     <CheckBox x:Name="OrbToggle" Style="{StaticResource ToggleSwitch}" Content="{loc:Loc settings.orb}"
                               Click="OnOrbToggled" AutomationProperties.Name="{loc:Loc settings.orb.show}" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <!-- The leaderboard boards' menu (DESIGN 2c): show or hide them, add one -->
+                        <Button x:Name="BoardsButton" Style="{StaticResource SubtleButton}" Click="OnBoardsMenu" Margin="0,0,2,0"
+                                ToolTip="{loc:Loc boards.title}" AutomationProperties.Name="{loc:Loc boards.title}">
+                            <TextBlock Style="{StaticResource SymbolIcon}" Text="&#xE8FD;" />
+                        </Button>
                         <Button x:Name="InfoButton" Style="{StaticResource SubtleButton}" Click="OnInfo"
                                 ToolTip="{loc:Loc win.dashboard.metricInfo}" AutomationProperties.Name="{loc:Loc win.dashboard.metricInfo}">
                             <TextBlock Style="{StaticResource SymbolIcon}" Text="&#xE946;" />

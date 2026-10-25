@@ -249,6 +249,11 @@ internal sealed class SettingsViewModel : ObservableObject
                     Orbs.DarkTheme = value;
                 }
 
+                if (Boards is not null)
+                {
+                    Boards.DarkTheme = value;
+                }
+
                 if (TitleThemes is not null)
                 {
                     TitleThemes.DarkTheme = value;
@@ -664,6 +669,7 @@ internal sealed class SettingsViewModel : ObservableObject
 
         RefreshTitleLadder();
         Orbs?.Relocalize(localizer);
+        Boards?.Relocalize(localizer);
         TitleThemes?.Relocalize(localizer);
         Cost.Relocalize();
         Traffic?.Relocalize(localizer);
@@ -854,6 +860,9 @@ internal sealed class SettingsViewModel : ObservableObject
             TitleThemes?.Editor.OnLookChanged();
         }
     }
+
+    /// <summary>The leaderboard boards' list and editor under the orbs (DESIGN 2c); set by the app.</summary>
+    public BoardsPane.BoardsPaneViewModel? Boards { get; set; }
 
     /// <summary>The title themes (DESIGN 1); set by the app. Creates the General page's Title themes group.</summary>
     public TitleThemesService? TitleService

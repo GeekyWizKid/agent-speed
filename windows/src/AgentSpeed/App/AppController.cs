@@ -392,6 +392,8 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
                 _settingsModel.Orbs = new Settings.OrbsPane.OrbsPaneViewModel(_settings, _orbs, _speed, _loc) { TitleService = _titles };
             }
 
+            _settingsModel.Boards ??= new Settings.BoardsPane.BoardsPaneViewModel(_settings, _speed, _loc, AddBoard, RemoveBoard) { DarkTheme = _theme.IsDark };
+
             _settingsModel.ReduceMotion = _theme.ReduceMotion;
             _settingsModel.DarkTheme = _theme.IsDark;
             _settingsModel.UpdateLive(_speed.Snapshot, _taskbar?.Presence ?? TaskbarPresence.Hidden);
@@ -900,6 +902,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             _dashboard.UnitToggleRequested += (_, _) => ToggleLiveUnit();
             _dashboard.TrafficHistoryRequested += (_, source) => ShowHistory(source, traffic: true);
             _dashboard.TrafficSettingsRequested += (_, _) => OpenSettings("traffic");
+            _dashboard.BoardsMenuRequested += (_, _) => ShowDashboardBoardsMenu();
             AttachReporting(_dashboard);
             _dashboard.IsVisibleChanged += (_, _) =>
             {

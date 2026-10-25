@@ -53,7 +53,18 @@ internal sealed partial class AppController : IBoardHost
         }
     }
 
-    public void OpenBoardSettings(string? boardId) => OpenSettings("orb");
+    /// <summary>The dashboard footer's boards menu: <c>boards.show</c> / <c>boards.hide</c>, <c>boards.add</c>.</summary>
+    private void ShowDashboardBoardsMenu()
+    {
+        var level = new MenuLevel([.. QuickMenuModel.BoardRows(Settings.Boards, _loc)]);
+        _dashboard?.ShowBoardsMenu(MenuBuilder.Build(level, this, _loc));
+    }
+
+    public void OpenBoardSettings(string? boardId)
+    {
+        OpenSettings("orb");
+        _settingsModel?.Boards?.Select(boardId);
+    }
 
     /// <summary>A new board next to the orb or board it came from (else at the main display's corner).</summary>
     public void AddBoard(string? fromId)

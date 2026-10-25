@@ -16,6 +16,8 @@ public static class BoardEditing
 
     public static BoardsDocument SetAllSources(BoardsDocument document, string id) => Update(document, id, b => b with { Sources = OrbSources.All });
 
+    public static BoardsDocument SetSources(BoardsDocument document, string id, OrbSources sources) => Update(document, id, b => b with { Sources = sources });
+
     /// <summary>Checks or unchecks one source (an all-sources board becomes that source); null for the last tracked source.</summary>
     public static BoardsDocument? ToggleSource(BoardsDocument document, string id, SourceKind kind)
     {
