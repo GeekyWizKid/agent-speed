@@ -39,11 +39,11 @@ internal static class BoardFrameHarness
 
     private static readonly Column[] Columns =
     [
-        new("calm", BoardSimScenario.Calm, null, 6, Moment.AtTime, new BoardEffectsPolicy()),
-        new("cruise", BoardSimScenario.Team, 700, 6, Moment.AtTime, new BoardEffectsPolicy()),
-        new("redline", BoardSimScenario.Swarm, 3200, 8, Moment.AtTime, new BoardEffectsPolicy()),
-        new("overtake", BoardSimScenario.Duel, 2400, 3, Moment.AfterOvertake, new BoardEffectsPolicy()),
-        new("new leader", BoardSimScenario.Duel, 2400, 3, Moment.AfterNewLeader, new BoardEffectsPolicy()),
+        new("calm", BoardSimScenario.Calm, null, 6, Moment.AtTime, new BoardEffectsPolicy(EffectsIntensity.Standard)),
+        new("cruise", BoardSimScenario.Team, 700, 6, Moment.AtTime, new BoardEffectsPolicy(EffectsIntensity.Standard)),
+        new("redline", BoardSimScenario.Swarm, 3200, 8, Moment.AtTime, new BoardEffectsPolicy(EffectsIntensity.Standard)),
+        new("overtake", BoardSimScenario.Team, 2400, 3, Moment.AfterOvertake, new BoardEffectsPolicy(EffectsIntensity.Standard)),
+        new("new leader", BoardSimScenario.Team, 2400, 3, Moment.AfterNewLeader, new BoardEffectsPolicy(EffectsIntensity.Standard)),
         new("reduce motion", BoardSimScenario.Swarm, 3200, 8, Moment.AtTime, new BoardEffectsPolicy(ReduceMotion: true)),
         new("effects off", BoardSimScenario.Swarm, 3200, 8, Moment.AtTime, new BoardEffectsPolicy(EffectsIntensity.Off)),
         new("high contrast", BoardSimScenario.Swarm, 3200, 8, Moment.AtTime, new BoardEffectsPolicy(HighContrast: true)),

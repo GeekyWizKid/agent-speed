@@ -34,10 +34,10 @@ internal static class BoardBenchHarness
     [
         new("idle", 1, BoardSimScenario.Calm, _ => 0, true, EffectsIntensity.Standard),
         new("cruise", 1, BoardSimScenario.Team, _ => 700, false, EffectsIntensity.Standard),
-        new("redline", 1, BoardSimScenario.Duel, _ => 3200, false, EffectsIntensity.Standard),
-        new("redline max", 1, BoardSimScenario.Duel, _ => 3200, false, EffectsIntensity.Max),
-        new("story", 1, BoardSimScenario.Duel, Story, false, EffectsIntensity.Standard),
-        new("4 boards redline", 4, BoardSimScenario.Duel, _ => 3200, false, EffectsIntensity.Standard),
+        new("redline", 1, BoardSimScenario.Team, _ => 3200, false, EffectsIntensity.Standard),
+        new("redline max", 1, BoardSimScenario.Team, _ => 3200, false, EffectsIntensity.Max),
+        new("story", 1, BoardSimScenario.Team, Story, false, EffectsIntensity.Standard),
+        new("4 boards redline", 4, BoardSimScenario.Team, _ => 3200, false, EffectsIntensity.Standard),
     ];
 
     public static int Run(string path)
@@ -64,7 +64,7 @@ internal static class BoardBenchHarness
             foreach (var style in styles)
             {
                 // Untimed: tiered JIT, DirectWrite and the driver settle before the first scenario.
-                _ = Measure(device, style, size, new Scenario("warm-up", 2, BoardSimScenario.Duel, _ => 3200, false, EffectsIntensity.Max), scale, 4, loc);
+                _ = Measure(device, style, size, new Scenario("warm-up", 2, BoardSimScenario.Team, _ => 3200, false, EffectsIntensity.Max), scale, 4, loc);
                 foreach (var scenario in Scenarios)
                 {
                     var line = Measure(device, style, size, scenario, scale, seconds, loc);
@@ -81,7 +81,7 @@ internal static class BoardBenchHarness
         return 0;
     }
 
-    // Idle for 2 s, a climb to 2400 over 4 s, then redline with the duel's overtakes and new leaders.
+    // Idle for 2 s, a climb to 2400 over 4 s, then redline with the team's overtakes and new leaders.
     private static double? Story(double t) => t < 2 ? 0 : t < 6 ? 2400 * (t - 2) / 4 : 3200;
 
     private static string Measure(GpuDevice device, BoardStyle style, BoardSize size, Scenario scenario, double scale, double seconds, Localizer loc)

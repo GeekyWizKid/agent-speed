@@ -14,6 +14,7 @@ using AgentSpeed.Presentation.Boards.Effects;
 using AgentSpeed.Presentation.Layout;
 using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Orb;
+using AgentSpeed.Presentation.Settings;
 
 namespace AgentSpeed.Boards.Harness;
 
@@ -52,10 +53,10 @@ internal static class BoardWindowHarness
         var half = BoardPlacement.HalfSide(size, scale);
         var inset = (OrbGeometry.DefaultInset + BoardCanvas.Margin) * scale;
         var window = new GpuBoardWindow("harness", device, clock, style, size, new PlaceholderBoardPainter(loc));
-        window.Configure(style, size, new BoardEffectsPolicy(), new BoardWindowOptions(AlwaysOnTop: true, ClickThrough: true));
+        window.Configure(style, size, new BoardEffectsPolicy(EffectsIntensity.Standard), new BoardWindowOptions(AlwaysOnTop: true, ClickThrough: true));
         window.MoveTo(new PointD(work.Right - inset - half, work.Bottom - inset - half));
 
-        var feed = new BoardDemoFeed(BoardSimScenario.Duel);
+        var feed = new BoardDemoFeed(BoardSimScenario.Team);
         var report = new System.Text.StringBuilder();
         report.AppendLine(CultureInfo.InvariantCulture,
             $"adapter: {device.AdapterName}, {BoardStyles.Key(style)} {BoardSizes.Key(size)}, scale {scale}, clock {clock.Source} at {clock.RefreshHz:0} Hz");
@@ -107,7 +108,7 @@ internal static class BoardWindowHarness
 
     private static void After(Dispatcher dispatcher, double seconds, Action action)
     {
-        var timer = new DispatcherTimer(TimeSpan.FromSeconds(seconds), DispatcherPriority.Normal, null, dispatcher);
+        var timer = new DispatcherTimer(DispatcherPriority.Normal, dispatcher) { Interval = TimeSpan.FromSeconds(seconds) };
         timer.Tick += (_, _) =>
         {
             timer.Stop();
