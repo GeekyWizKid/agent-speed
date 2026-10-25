@@ -22,7 +22,7 @@ namespace AgentSpeed.Boards.Harness;
 /// Developer harness <c>AGENT_SPEED_BOARD_WINDOW=FILE</c>: one real board window (click-through, bottom-right of the primary
 /// work area) on the orbs' clock and the compositor ticker, presenting through its composition swap chain while the demo
 /// runs: the process's baseline with no board shown and no data, a warm-up, then redline (with the team's overtakes and new
-/// leaders), cruise and idle, then 2 s hidden, then closed. Per phase it reports the process CPU and the demo feed's share of
+/// leaders), cruise and idle, then hidden with and without data, then closed. Per phase it reports the process CPU and the demo feed's share of
 /// it (the simulation is the harness's cost, not the board's), what was presented per second, the frames built per class,
 /// frames skipped as unchanged or refused by a busy compositor; hidden must build nothing. <c>FILE.png</c> is a capture at the end of redline.
 /// Runs next to the installed app. <c>AGENT_SPEED_BOARD_WINDOW_STYLE</c>, <c>_SIZE</c> (default S) and <c>_SECONDS</c> (per
@@ -55,7 +55,8 @@ internal static class BoardWindowHarness
             new("cruise", seconds, 700),
             new("settle", 2, 0, Quiet: true, Measured: false),
             new("idle", seconds, 0, Quiet: true),
-            new("hidden", 2, 3200, Hidden: true),
+            new("hidden", 5, 3200, Hidden: true),
+            new("hidden, no data", 5, 0, Quiet: true, Hidden: true, Ticks: false),
         ];
         var loc = new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
         var watch = Stopwatch.StartNew();
