@@ -169,14 +169,3 @@ public enum ReportStreamRejection {
         return Int(text)
     }
 }
-
-/// Answer latencies of delivered reports (METRICS 11.9, Latency).
-public enum ReportLatency {
-    /// Nearest rank: the smallest sample with at least `p` % of the samples at or below it.
-    public static func percentile(_ samples: [Int64], _ p: Int) -> Int64? {
-        guard !samples.isEmpty else { return nil }
-        let ordered = samples.sorted()
-        let rank = max(1, (p * ordered.count + 99) / 100)
-        return ordered[rank - 1]
-    }
-}
