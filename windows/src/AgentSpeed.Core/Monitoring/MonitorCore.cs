@@ -55,6 +55,7 @@ internal sealed partial class MonitorCore : IDisposable
     private long _removedOversizedLines;
     private int _responsesSeen;
     private bool _partialHistory;
+    private long? _observedAtMs;
 
     public MonitorCore(
         MonitorConfiguration configuration,
@@ -128,6 +129,9 @@ internal sealed partial class MonitorCore : IDisposable
 
     /// <summary>The live clock for live reporting's counting rule (METRICS 11.4); tests replace it.</summary>
     internal Func<long> Clock { get; set; } = static () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    /// <summary>Live reporting's monotonic clock, which keeps counting while the computer sleeps (METRICS 11.9); tests replace it.</summary>
+    internal Func<long> MonotonicClock { get; set; } = static () => Environment.TickCount64;
 
     /// <summary>Transcript roots (file families).</summary>
     public IReadOnlyList<SourceRoot> Roots => _roots;
@@ -203,9 +207,12 @@ internal sealed partial class MonitorCore : IDisposable
 
             try
             {
-                var prepared = read.Task.GetAwaiter().GetResult();
-                changed |= TryCommit(tracked, prepared, seeded: false)
-                    && (prepared.Result.BytesRead > 0 || prepared.Result.WasReset);
+                var (prepared, began) = read.Task.GetAwaiter().GetResult();
+                if (TryCommit(tracked, prepared, seeded: false) && (prepared.Result.BytesRead > 0 || prepared.Result.WasReset))
+                {
+                    Observe(began);
+                    changed = true;
+                }
             }
             catch (OperationCanceledException)
             {
@@ -293,6 +300,12 @@ internal sealed partial class MonitorCore : IDisposable
     /// <summary>Handles paths reported by a watcher. Returns true when anything was read.</summary>
     public bool ProcessPaths(IEnumerable<string> paths, long nowMs, long todayStartMs)
     {
+        var began = MonotonicClock();
+        return Observed(began, ProcessPathsCore(paths, todayStartMs));
+    }
+
+    private bool ProcessPathsCore(IEnumerable<string> paths, long todayStartMs)
+    {
         var changed = false;
         var openCodeChanged = false;
         var zcodeChanged = false;
@@ -361,6 +374,12 @@ internal sealed partial class MonitorCore : IDisposable
     /// <summary>1-second fallback: stats files modified in the last 2 minutes.</summary>
     public bool PollRecent(long nowMs)
     {
+        var began = MonotonicClock();
+        return Observed(began, PollRecentCore(nowMs));
+    }
+
+    private bool PollRecentCore(long nowMs)
+    {
         var cutoff = DateTime.UnixEpoch.AddMilliseconds(nowMs - RecentWriteWindowMs);
         var changed = _openCodeSeeded && _openCode?.RefreshIfChanged() is { } update && ApplyOpenCode(update, seeded: false);
         changed |= _zcodeSeeded && RefreshZCode();
@@ -397,6 +416,12 @@ internal sealed partial class MonitorCore : IDisposable
 
     /// <summary>10-second full rediscovery; also seeds roots that appeared after startup.</summary>
     public bool Rediscover(long nowMs, long todayStartMs, CancellationToken cancellationToken)
+    {
+        var began = MonotonicClock();
+        return Observed(began, RediscoverCore(nowMs, todayStartMs, cancellationToken));
+    }
+
+    private bool RediscoverCore(long nowMs, long todayStartMs, CancellationToken cancellationToken)
     {
         var changed = false;
         if (_openCode is { } openCode && _openCodeSeeded)
@@ -592,8 +617,23 @@ internal sealed partial class MonitorCore : IDisposable
             TodayCost = frame.TodayCost,
             Report = frame.Report,
             TodayModes = frame.TodayModes,
+            ObservedAtMs = _observedAtMs,
         };
+        _observedAtMs = null;
         return (snapshot, frame.Events);
+    }
+
+    /// <summary>A read that began at <paramref name="began"/> changed the engine: the next snapshot keeps the earliest such time.</summary>
+    private void Observe(long began) => _observedAtMs = _observedAtMs is { } earliest ? Math.Min(earliest, began) : began;
+
+    private bool Observed(long began, bool changed)
+    {
+        if (changed)
+        {
+            Observe(began);
+        }
+
+        return changed;
     }
 
     /// <summary>A disabled source carries no cost, like its tokens.</summary>
@@ -907,10 +947,12 @@ internal sealed partial class MonitorCore : IDisposable
 
         var token = _backgroundStop.Token;
         var before = BeforeBackgroundRead;
+        var clock = MonotonicClock;
         var task = Task.Run(() =>
         {
             before?.Invoke(tracked.Path);
-            return Prepare(tracked, token);
+            var began = clock();
+            return (Prepare(tracked, token), began);
         }, token);
         _wholeReads[tracked] = new BackgroundRead(task);
         task.ContinueWith(
@@ -1176,9 +1218,10 @@ internal sealed partial class MonitorCore : IDisposable
 
     private readonly record struct Prepared(ILineBatch Batch, TailReadResult Result);
 
-    private sealed class BackgroundRead(Task<Prepared> task)
+    /// <param name="task">The read and the monotonic time it began.</param>
+    private sealed class BackgroundRead(Task<(Prepared Prepared, long Began)> task)
     {
-        public Task<Prepared> Task { get; } = task;
+        public Task<(Prepared Prepared, long Began)> Task { get; } = task;
 
         /// <summary>The file changed again while it was being read.</summary>
         public bool Again { get; set; }
