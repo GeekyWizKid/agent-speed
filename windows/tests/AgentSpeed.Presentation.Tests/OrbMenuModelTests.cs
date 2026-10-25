@@ -53,7 +53,7 @@ public class OrbMenuModelTests
                 En["orbs.sources.all"], Separator,
                 En["orbs.style"], En["orbs.sources"], En["orbs.unit"], En["orbs.traffic"], En["orbs.showName"], En["menu.size"], En["menu.effects"], Separator,
                 En["menu.alwaysOnTop"], En["menu.clickThrough"], Separator,
-                En["orbs.add"], En["menu.orb.duplicate"], En["menu.orb.split"], En["menu.orb.mergeAll"], Separator,
+                En["orbs.add"], En["menu.orb.duplicate"], En["menu.orb.split"], En["menu.orb.mergeAll"], En["boards.add"], Separator,
                 En["menu.orb.hide"], En["menu.orb.remove"], Separator,
                 En["menu.orb.settings"], En["menu.dashboard"], En["menu.quit"],
             ],
@@ -327,7 +327,7 @@ public class OrbMenuModelTests
             [
                 En["menu.dashboard"], En["history.open"], Separator,
                 En["menu.size"], En["menu.effects"], En["menu.alwaysOnTop"], En["menu.clickThrough"], En["menu.hideOrb"],
-                En["settings.bar.show"], Separator,
+                En["boards.add"], En["settings.bar.show"], Separator,
                 En["menu.settings"], En["menu.about"], En["update.check"] + "…", Separator, En["menu.quit"],
             ],
             Outline(menu));
@@ -363,7 +363,7 @@ public class OrbMenuModelTests
         Assert.Equal(
             [
                 En["menu.dashboard"], En["history.open"], Separator,
-                En["settings.orb"], En["menu.effects"], En["menu.hideOrbs"], En["settings.bar.show"], Separator,
+                En["settings.orb"], En["menu.effects"], En["menu.hideOrbs"], En["boards.add"], En["settings.bar.show"], Separator,
                 En["menu.settings"], En["menu.about"], En["update.check"] + "…", Separator, En["menu.quit"],
             ],
             Outline(menu));

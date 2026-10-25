@@ -311,5 +311,17 @@
     "zh-Hans": "面板",
     "en": "Dashboard",
     "ja": "ダッシュボード"
+  },
+  "win.boards.tip.speed": {
+    "zh-Hant": "速度 %@ tok/s",
+    "zh-Hans": "速度 %@ tok/s",
+    "en": "Speed %@ tok/s",
+    "ja": "速度 %@ tok/s"
+  },
+  "win.boards.tip.speedSubs": {
+    "zh-Hant": "速度 %@ tok/s（子 agent %@）",
+    "zh-Hans": "速度 %@ tok/s（子 agent %@）",
+    "en": "Speed %@ tok/s (sub-agents %@)",
+    "ja": "速度 %@ tok/s（サブ agent %@）"
   }
 }
