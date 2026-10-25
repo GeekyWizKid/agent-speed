@@ -1,3 +1,4 @@
+import AgentSpeedCore
 import AgentSpeedOrbModel
 import AppKit
 
@@ -5,7 +6,9 @@ import AppKit
 /// prototypes: for each style and size, `board-<style>-<size>-<state>[-light].png` over the content of the `team`
 /// scenario after 40 ticks (the prototypes' `?steps=40&scenario=team`): `still` at the simulation's own heat with
 /// Reduce Motion (the prototypes' settled frame), idle, cruise, redline, 0.15 s into an overtake and 0.3 s into a
-/// new-leader celebration. The glass backdrop is its tint without the system blur. Quits when done.
+/// new-leader celebration, and `accents`: the still followed by a tick that rises, passes and sets a peak, its rising
+/// digits and values drawn white-hot and its decals (chips, sweeps, banner, sheen) at their hold. The glass backdrop is
+/// its tint without the system blur. Quits when done.
 ///
 /// `AGENT_SPEED_BOARD_STYLES`, `AGENT_SPEED_BOARD_SIZE` (S, M, L; comma separated, default M), `AGENT_SPEED_BOARD_STATES`
 /// (comma separated), `AGENT_SPEED_BOARD_LEVEL` (off, soft, standard, max), `AGENT_SPEED_BOARD_THEMES` (dark, light;
@@ -22,6 +25,8 @@ enum BoardFrameHarness {
         var after = 2.0
         /// The simulation's own heat with Reduce Motion, as the prototypes' settled frames.
         var settled = false
+        /// Lays out a scripted next tick and draws its content accents at their peak.
+        var accents = false
 
         enum Event {
             case overtake
@@ -36,6 +41,7 @@ enum BoardFrameHarness {
         State(name: "redline", heat: 0.93, overdrive: 0.25, active: true),
         State(name: "overtake", heat: 0.62, overdrive: 0, active: true, event: .overtake, after: 0.15),
         State(name: "newleader", heat: 0.7, overdrive: 0, active: true, event: .newLeader, after: 0.3),
+        State(name: "accents", heat: 0, overdrive: 0, active: true, settled: true, accents: true),
     ]
 
     static func run(into directory: URL) {
@@ -75,7 +81,8 @@ enum BoardFrameHarness {
         simulation.paused = !state.active
         let feed = BoardSimFeed(simulation: simulation, style: style, size: size, dark: dark, l10n: l10n, highContrast: contrast)
         for _ in 0..<40 { feed.step() }
-        let layout = feed.layout
+        var layout = feed.layout
+        if state.accents { layout = feed.builder.layout(accentTick(feed.tick)) }
         var fx = BoardEffects(style: style, side: side, seed: 11) { HeatPalette.color($0).simd }
         fx.setIntensity(level)
         if state.settled {
@@ -95,7 +102,46 @@ enum BoardFrameHarness {
             }
         }
         step(&fx, seconds: state.after)
-        return compose(fx: fx, items: layout.items, style: style, side: side, dark: dark, contrast: contrast)
+        return compose(fx: fx, items: layout.items, style: style, side: side, dark: dark, contrast: contrast, accents: state.accents)
+    }
+
+    /// The tick after `tick`: the total up 20 %, #2 taking the lead, #4 passing #3, #2's value up 30 %, a new peak.
+    private static func accentTick(_ tick: BoardTick) -> BoardTick {
+        var next = tick
+        next.value = tick.value * 1.2 + 40
+        next.valueText = SpeedFormat.speed(next.value)
+        next.newPeak = true
+        guard next.groups.count >= 4 else { return next }
+        next.groups[1].live *= 1.3
+        next.events = [BoardRankEvent(kind: .newLeader, id: next.groups[0].id, from: 2, to: 1),
+                       BoardRankEvent(kind: .overtake, id: next.groups[2].id, from: 4, to: 3)]
+        return next
+    }
+
+    /// An item's look at the peak of its accents: white-hot while rising, its decals at their hold.
+    private static func accentDrawings(_ item: BoardContentItem) -> (draw: (CGContext, CGSize) -> Void, decals: [BoardDecal]) {
+        var draw = item.draw
+        var decals: [BoardDecal] = []
+        for accent in item.accents {
+            switch accent {
+            case .roll(rising: true), .warm: if let hot = item.hot { draw = hot.draw }
+            case .decal(let decal): decals.append(decal)
+            default: break
+            }
+        }
+        return (draw, decals)
+    }
+
+    private static func drawDecal(_ decal: BoardDecal, at origin: CGPoint, in canvas: PreviewCanvas) {
+        let size = decal.frame.size
+        let image = BoardRaster.image(size: size, scale: 2) { context, size in
+            guard case .sweep = decal.motion else { return decal.draw(context, size) }
+            context.addPath(decal.mask ?? CGPath(rect: CGRect(origin: .zero, size: size), transform: nil))
+            context.clip()
+            context.translateBy(x: (size.width - decal.bandWidth) / 2, y: 0)
+            decal.draw(context, CGSize(width: decal.bandWidth, height: size.height))
+        }
+        if let image { canvas.draw(image, at: CGPoint(x: origin.x + decal.frame.minX, y: origin.y + decal.frame.minY), size: size) }
     }
 
     static func step(_ fx: inout BoardEffects, seconds: Double) {
@@ -107,7 +153,7 @@ enum BoardFrameHarness {
     }
 
     private static func compose(fx: BoardEffects, items: [BoardContentItem], style: BoardStyle, side: Double,
-                                dark: Bool, contrast: Bool) -> CGImage? {
+                                dark: Bool, contrast: Bool, accents: Bool = false) -> CGImage? {
         let margin = BoardEffects.margin
         let canvasSide = side + 2 * margin
         let background = dark ? NSColor(srgbRed: 0.10, green: 0.11, blue: 0.14, alpha: 1)
@@ -142,10 +188,18 @@ enum BoardFrameHarness {
                 canvas.context.setFillColor(plate.color)
                 canvas.context.fillPath()
             }
-            guard let image = BoardRaster.image(size: item.frame.size, scale: 2, draw: item.draw) else { continue }
+            let draw = accents ? accentDrawings(item).draw : item.draw
+            guard let image = BoardRaster.image(size: item.frame.size, scale: 2, draw: draw) else { continue }
             canvas.draw(image, at: CGPoint(x: margin + item.frame.minX, y: margin + item.frame.minY), size: item.frame.size)
         }
         canvas.context.restoreGState()
+        if accents {
+            for item in items {
+                for decal in accentDrawings(item).decals {
+                    drawDecal(decal, at: CGPoint(x: margin + item.frame.minX, y: margin + item.frame.minY), in: canvas)
+                }
+            }
+        }
 
         BoardEffectsRenderer.overlay(fx, into: &scene, highContrast: contrast)
         if let overlay = OrbSnapshot.image(scene, side: canvasSide, scale: 2) {

@@ -129,7 +129,7 @@ final class BoardNeonContent: BoardContentBuilding {
     }
 
     /// The neon tube on the edge (`.panel::after`): always lit, brighter with heat, breathing faster as it rises
-    /// (3.2 s → 1 s; quantized so a new heat rarely restarts the breath).
+    /// (3.2 s → 1 s; quantized so a new heat rarely restarts the breath) while agents work; an idle board is still.
     private func tube(_ tick: BoardTick) -> BoardContentItem {
         let heat = (tick.heat * 50).rounded() / 50
         let palette = self.palette, side = self.side
@@ -155,7 +155,7 @@ final class BoardNeonContent: BoardContentBuilding {
             }
             BoardDrawing.stroke(rect, radius: corner, width: palette.highContrast ? 1 : 1.2, color: edge, in: context)
         }
-        if !palette.highContrast {
+        if !palette.highContrast, tick.generating > 0 {
             let breath = (tick.heat * 10).rounded() / 10
             tube.ambient = .breathe(period: 3.2 - 2.2 * breath, low: Float((0.3 + 0.5 * breath) / (0.45 + 0.55 * breath)))
         }

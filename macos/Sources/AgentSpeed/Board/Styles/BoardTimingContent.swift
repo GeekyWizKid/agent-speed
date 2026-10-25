@@ -130,7 +130,9 @@ final class BoardTimingContent: BoardContentBuilding {
         }
         dot.ambient = generating ? .pulse(period: 1.6) : nil
 
-        let decals = tick.newPeak ? [number.sheen(), BoardHeroNumber.peakChip(style: .timing, l10n: l10n, glows: palette.glows)] : []
+        // The tower has no room above its number: the chip pops on the live line, after `boards.live`.
+        let chip = CGPoint(x: 13 + live.width + 8, y: top + 11.5 - 7.75 - numTop)
+        let decals = tick.newPeak ? [number.sheen(), BoardHeroNumber.peakChip(style: .timing, l10n: l10n, glows: palette.glows, origin: chip)] : []
         return ([hero, dot] + number.items(memory: memory, decals: decals), number.rect)
     }
 

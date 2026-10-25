@@ -98,6 +98,8 @@ enum BoardRowDecals {
                            height: height + 2 * margin)
         return BoardDecal(frame: frame, motion: .pop(seconds: 1.6)) { context, _ in
             let chip = CGRect(x: margin, y: margin, width: width, height: height)
+            // Glass's tint sits on an opaque base so the capsule under it does not show through.
+            if style == .glass { BoardDrawing.fill(chip, radius: radius, color: palette.dark ? RGBColor(hex: 0x14161D) : .white, in: context) }
             BoardDrawing.glowing(glow ? BoardPalette.mint.opacity(0.8) : nil, blur: 12, in: context) {
                 BoardDrawing.fill(chip, radius: radius, color: fill, in: context)
             }

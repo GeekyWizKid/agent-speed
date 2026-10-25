@@ -99,14 +99,16 @@ struct BoardHeroNumber {
         }
     }
 
-    /// `boards.newPeak` popping above the number for 2.2 s (`.peakchip`); in the number's points.
-    static func peakChip(style: BoardStyle, l10n: Localizer, glows: Bool) -> BoardDecal {
+    /// `boards.newPeak` popping above the number for 2.2 s (`.peakchip`); in the number's points, its top-left at `origin`
+    /// when given.
+    static func peakChip(style: BoardStyle, l10n: Localizer, glows: Bool, origin: CGPoint? = nil) -> BoardDecal {
         let glass = style == .glass
         let font = glass ? BoardFont(size: 10, weight: .bold, tracking: 0.08) : BoardFont(family: .mono, size: 9.5, weight: .bold, tracking: 0.16)
         let label = BoardLabel(l10n("boards.newPeak"), font, color: RGBColor(hex: 0x241A00))
         let chip = CGSize(width: label.width + 12, height: font.size + 6)
         let margin: CGFloat = glows ? 14 : 0
-        let frame = CGRect(x: -margin, y: (glass ? -14 : -13) - margin, width: chip.width + 2 * margin, height: chip.height + 2 * margin)
+        let corner = origin ?? CGPoint(x: 0, y: glass ? -14 : -13)
+        let frame = CGRect(x: corner.x - margin, y: corner.y - margin, width: chip.width + 2 * margin, height: chip.height + 2 * margin)
         return BoardDecal(frame: frame, motion: .pop(seconds: 2.2), celebration: true) { context, _ in
             let rect = CGRect(x: margin, y: margin, width: chip.width, height: chip.height)
             BoardDrawing.glowing(glows ? BoardPalette.gold.opacity(glass ? 0.45 : 0.7) : nil, blur: glass ? 14 : 16, in: context) {
