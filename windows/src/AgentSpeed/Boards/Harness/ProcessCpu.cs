@@ -10,7 +10,10 @@ internal static class ProcessCpu
 
     public static ulong Cycles() => NativeMethods.QueryProcessCycleTime(NativeMethods.GetCurrentProcess(), out var cycles) ? cycles : 0;
 
-    /// <summary>The cycle counter's rate, measured once by a thread spinning for 250 ms.</summary>
+    /// <summary>
+    /// The cycle counter's rate, measured once by a thread spinning: the best of ten 40 ms spins, since a spin the scheduler
+    /// interrupts (other programs busy on the machine) counts fewer cycles and would inflate every percentage.
+    /// </summary>
     public static double CycleRate()
     {
         if (s_rate > 0)
@@ -19,14 +22,18 @@ internal static class ProcessCpu
         }
 
         var thread = NativeMethods.GetCurrentThread();
-        NativeMethods.QueryThreadCycleTime(thread, out var c0);
-        var watch = Stopwatch.StartNew();
-        while (watch.Elapsed.TotalMilliseconds < 250)
+        for (var i = 0; i < 10; i++)
         {
+            NativeMethods.QueryThreadCycleTime(thread, out var c0);
+            var watch = Stopwatch.StartNew();
+            while (watch.Elapsed.TotalMilliseconds < 40)
+            {
+            }
+
+            NativeMethods.QueryThreadCycleTime(thread, out var c1);
+            s_rate = Math.Max(s_rate, (c1 - c0) / watch.Elapsed.TotalSeconds);
         }
 
-        NativeMethods.QueryThreadCycleTime(thread, out var c1);
-        s_rate = (c1 - c0) / watch.Elapsed.TotalSeconds;
         return s_rate;
     }
 

@@ -150,10 +150,11 @@ public sealed class BoardComets
             return;
         }
 
+        // The square grown by the spread and blurred: about half strength at its grown edge, no hard band.
         var color = HeatPalette.Sample(_heat).WithAlpha(0.55);
         var half = canvas.Half + spread;
-        list.Add(OrbGpuInstance.RoundedRect(canvas.Center, canvas.Center, half, half, 0, canvas.Radius + spread, color, core: 1,
-            glow: OrbGpuInstance.Glow(sigma), glowAlpha: 0.5));
+        list.Add(OrbGpuInstance.RoundedRect(canvas.Center, canvas.Center, half, half, 0, canvas.Radius + spread, color, core: 0,
+            glow: OrbGpuInstance.Glow(sigma), glowAlpha: 0.55));
     }
 
     /// <summary>The ring and the comets (above the content).</summary>

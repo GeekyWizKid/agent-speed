@@ -52,7 +52,8 @@ public class BoardSceneTests
         var list = new BoardDrawList();
         Frames(scene, list, 0, 0.1);
         Assert.Equal(FrameClass.None, scene.Demand(0.1));
-        Assert.Equal(2 * 2 + 1 + 1, list.LayerCount);
+        // Two rows (body, value layer and their value's dash glyph), the backdrop, the hero, the number's one glyph and the footer.
+        Assert.Equal(2 * 3 + 1 + 1 + 1 + 1, list.LayerCount);
     }
 
     [Fact]
@@ -167,5 +168,19 @@ public class BoardSceneTests
         }
 
         Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
+    }
+
+    [Fact]
+    public void TimingRowsCarryTheirIntervalAndOthersNone()
+    {
+        var timing = new BoardScene(BoardStyle.Timing, BoardSize.M, 3);
+        timing.Apply(Tick([("a", 300), ("b", 271)]), 0);
+        Assert.Equal(string.Empty, timing.Rows.First(r => r.Key == "a").IntervalText);
+        Assert.Equal("−29", timing.Rows.First(r => r.Key == "b").IntervalText);
+        Assert.Equal("271", timing.Rows.First(r => r.Key == "b").ValueText);
+
+        var glass = Scene();
+        glass.Apply(Tick([("a", 300), ("b", 271)]), 0);
+        Assert.All(glass.Rows, r => Assert.Equal(string.Empty, r.IntervalText));
     }
 }

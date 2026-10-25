@@ -27,12 +27,18 @@ public sealed class BoardRowMotion
     public const double DimSeconds = 0.5;
     public const double FlashThreshold = 0.05;
 
+    /// <summary>The share underline's width transition (CSS <c>width .55s cubic-bezier(.2,.8,.2,1)</c>).</summary>
+    public const double ShareSeconds = 0.55;
+
     private DampedSpring _y;
     private double _target;
     private double _enterStart = double.NegativeInfinity;
     private double _leaveStart = double.NaN;
     private double _flashStart = double.NegativeInfinity;
     private double _last = double.NaN;
+    private double _shareFrom;
+    private double _shareTo;
+    private double _shareStart = double.NegativeInfinity;
 
     public BoardRowMotion(string key, BoardStyle style, BoardEntry entry, double now, bool appear)
     {
@@ -49,12 +55,42 @@ public sealed class BoardRowMotion
 
     public string Key { get; }
 
-    /// <summary>The layer key of the row's value (flashes are tinted on it only).</summary>
+    /// <summary>The layer key of the static parts by the row's value (timing's fastest dot, neon's lead tint).</summary>
     public string ValueKey { get; }
 
     public BoardEntry Entry { get; private set; }
 
     public double Live { get; private set; }
+
+    /// <summary>Timing's interval to the group above (<see cref="BoardValueGlyphs.Interval"/>), empty for the leader and other rows.</summary>
+    public string IntervalText { get; set; } = string.Empty;
+
+    /// <summary>The value as the row shows it (<see cref="BoardValueGlyphs.Text"/>), made once per tick.</summary>
+    public string ValueText { get; private set; } = BoardValueGlyphs.Dash.ToString();
+
+    /// <summary>The row's share of the board's value (the underline), eased toward the latest tick's.</summary>
+    public double Share(double now)
+    {
+        var t = (now - _shareStart) / ShareSeconds;
+        return t is >= 0 and < 1 ? _shareFrom + (_shareTo - _shareFrom) * Easing.OutCubic(t) : _shareTo;
+    }
+
+    /// <summary>Sets the share of the latest tick; the underline eases to it unless motion is reduced.</summary>
+    public void SetShare(double share, double now, bool animate)
+    {
+        share = double.IsFinite(share) ? Math.Clamp(share, 0, 1) : 0;
+        if (Math.Abs(share - _shareTo) < 1e-6)
+        {
+            return;
+        }
+
+        _shareFrom = animate ? Share(now) : share;
+        _shareTo = share;
+        _shareStart = animate ? now : double.NegativeInfinity;
+    }
+
+    /// <summary>The underline is still easing.</summary>
+    public bool Sharing(double now) => now - _shareStart < ShareSeconds;
 
     /// <summary>The flash: +1 warm, −1 dim, 0 none.</summary>
     public int FlashDirection { get; private set; }
@@ -93,6 +129,11 @@ public sealed class BoardRowMotion
         }
 
         _last = live;
+        if (live != Live || string.IsNullOrEmpty(ValueText))
+        {
+            ValueText = BoardValueGlyphs.Text(live);
+        }
+
         Live = live;
     }
 
@@ -130,13 +171,14 @@ public sealed class BoardRowMotion
     /// <summary>Moving to its place, entering or leaving (DESIGN 2c Frame policy: a row move needs 60 fps).</summary>
     public bool Moving(double now) => !_y.IsSettled(_target, 0.05) || now - _enterStart < FadeSeconds || Leaving;
 
-    /// <summary>Its value flashes warm or dims (a color change only: 30 fps is enough).</summary>
-    public bool Flashing(double now) => FlashProgress(now) < 1;
+    /// <summary>Its value flashes warm or dims, or its underline eases (no travel: 30 fps is enough).</summary>
+    public bool Flashing(double now) => FlashProgress(now) < 1 || Sharing(now);
 
     public void Settle()
     {
         _y.Snap(_target);
         _enterStart = double.NegativeInfinity;
         _flashStart = double.NegativeInfinity;
+        _shareStart = double.NegativeInfinity;
     }
 }

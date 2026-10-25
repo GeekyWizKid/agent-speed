@@ -5,6 +5,16 @@ using AgentSpeed.Presentation.Orb.Gpu;
 
 namespace AgentSpeed.Presentation.Boards.Effects;
 
+/// <summary>One stop of a sweep's gradient: where it lies in the CSS image (0–1) and its color, or the climber's color at that alpha.</summary>
+public readonly record struct BoardSweepStop(double At, Rgba Color, bool Source = false);
+
+/// <summary>
+/// A style's sweep (the prototypes' <c>.sweep</c> / <c>.wipe</c>): a gradient image <paramref name="Size"/> rows wide slid across
+/// the row from CSS background position <paramref name="From"/> to <paramref name="To"/> with <c>cubic-bezier(.3, .7, .2, 1)</c>,
+/// added to the row (screen) or laid over it (timing's multiply on light).
+/// </summary>
+public sealed record BoardSweepLook(double Size, double From, double To, double Seconds, IReadOnlyList<BoardSweepStop> Stops, bool Additive = true);
+
 /// <summary>A band of light crossing one row (canvas points).</summary>
 public struct BoardSweep
 {
@@ -13,19 +23,17 @@ public struct BoardSweep
     public float CenterY;
     public float HalfHeight;
     public float Age;
-    public float Life;
-    public Rgba Color;
+    public BoardSweepLook Look;
+    public Rgba Source;
 }
 
 /// <summary>
-/// The light sweep across an overtaking row (DESIGN 2c Overtake; the prototypes' <c>.sweep</c> / <c>.wipe</c>: a soft band
-/// from the left edge to the right one with <c>cubic-bezier(.3, .7, .2, 1)</c>), in the climber's source color lifted
-/// toward white. Rows move while it plays, so the host passes each sweep's current row top with <see cref="Follow"/>.
+/// The light sweeps across overtaking rows (DESIGN 2c Overtake), each in its style's gradient and the climber's source color,
+/// clipped to the row. Rows move while they play, so the host passes each sweep's current row center with <see cref="Follow"/>.
 /// </summary>
 public sealed class BoardSweeps
 {
     public const int Capacity = 8;
-    private const double BandHalfWidth = 16;
 
     private readonly BoardSweep[] _items = new BoardSweep[Capacity];
     private readonly string?[] _keys = new string?[Capacity];
@@ -35,11 +43,13 @@ public sealed class BoardSweeps
     public void Clear()
     {
         Count = 0;
+        Array.Clear(_items);
         Array.Clear(_keys);
     }
 
-    public void Add(string key, double left, double right, double centerY, double height, Rgba color, double seconds)
+    public void Add(string key, double left, double right, double centerY, double height, Rgba source, BoardSweepLook look)
     {
+        ArgumentNullException.ThrowIfNull(look);
         if (Count == Capacity)
         {
             RemoveAt(0);
@@ -52,8 +62,8 @@ public sealed class BoardSweeps
             Right = (float)right,
             CenterY = (float)centerY,
             HalfHeight = (float)Math.Max(1, height / 2 - 1),
-            Life = (float)Math.Max(0.05, seconds),
-            Color = Rgba.Lerp(color, Rgba.White, 0.45),
+            Look = look,
+            Source = source,
         };
     }
 
@@ -76,7 +86,7 @@ public sealed class BoardSweeps
         {
             var sweep = _items[read];
             sweep.Age += (float)dt;
-            if (sweep.Age < sweep.Life)
+            if (sweep.Age < sweep.Look.Seconds)
             {
                 _keys[write] = _keys[read];
                 _items[write++] = sweep;
@@ -86,6 +96,7 @@ public sealed class BoardSweeps
         for (var i = write; i < Count; i++)
         {
             _keys[i] = null;
+            _items[i] = default;
         }
 
         Count = write;
@@ -93,20 +104,42 @@ public sealed class BoardSweeps
 
     public void Emit(BoardDrawList list)
     {
+        ArgumentNullException.ThrowIfNull(list);
         for (var i = 0; i < Count; i++)
         {
             ref readonly var sweep = ref _items[i];
-            var t = Easing.CubicBezier(0.3, 0.7, 0.2, 1, Math.Clamp(sweep.Age / sweep.Life, 0, 1));
-            var x = sweep.Left - BandHalfWidth + (sweep.Right - sweep.Left + 2 * BandHalfWidth) * t;
-            var peak = sweep.Color.WithAlpha(0.4 * (1 - t * 0.5));
-            var clear = sweep.Color.WithAlpha(0);
-            var half = BandHalfWidth / 2;
-            list.Add(OrbGpuInstance.RoundedRect(x - half, sweep.CenterY, half, sweep.HalfHeight, 0, 0, clear).LinearGradient(peak, half, 0),
-                OrbBlend.Additive);
-            list.Add(OrbGpuInstance.RoundedRect(x + half, sweep.CenterY, half, sweep.HalfHeight, 0, 0, peak).LinearGradient(clear, half, 0),
-                OrbBlend.Additive);
+            var look = sweep.Look;
+            var t = Easing.CubicBezier(0.3, 0.7, 0.2, 1, Math.Clamp(sweep.Age / look.Seconds, 0, 1));
+            var width = (double)sweep.Right - sweep.Left;
+            // CSS background-position p puts the image's left edge at (1 − size) × p row widths.
+            var origin = sweep.Left + width * (1 - look.Size) * (look.From + (look.To - look.From) * t);
+            var blend = look.Additive ? OrbBlend.Additive : OrbBlend.Over;
+            var stops = look.Stops;
+            for (var s = 1; s < stops.Count; s++)
+            {
+                var a = stops[s - 1];
+                var b = stops[s];
+                var x0 = origin + width * look.Size * a.At;
+                var x1 = origin + width * look.Size * b.At;
+                var c0 = Resolve(a, sweep.Source);
+                var c1 = Resolve(b, sweep.Source);
+                if (x1 <= sweep.Left || x0 >= sweep.Right || x1 - x0 < 0.01)
+                {
+                    continue;
+                }
+
+                // Clipped to the row: the colors at the clipped ends.
+                var l = Math.Max(x0, sweep.Left);
+                var r = Math.Min(x1, sweep.Right);
+                var from = Rgba.Lerp(c0, c1, (l - x0) / (x1 - x0));
+                var to = Rgba.Lerp(c0, c1, (r - x0) / (x1 - x0));
+                var half = (r - l) / 2;
+                list.Add(OrbGpuInstance.RoundedRect(l + half, sweep.CenterY, half, sweep.HalfHeight, 0, 0, from).LinearGradient(to, half, 0), blend);
+            }
         }
     }
+
+    private static Rgba Resolve(in BoardSweepStop stop, Rgba source) => stop.Source ? source.WithAlpha(stop.Color.A) : stop.Color;
 
     private void RemoveAt(int index)
     {

@@ -28,7 +28,9 @@ public enum BoardEmbers
 /// <param name="OvertakeColor">The burst's first color, or null for the climber's source color.</param>
 /// <param name="OvertakeArc">Lightning from the climber's rank to the row it passed.</param>
 /// <param name="LeaderStrike">Lightning from the top edge to the new leader's rank and a flash of the board.</param>
-/// <param name="SweepSeconds">Duration of the light sweep across an overtaking row.</param>
+/// <param name="Sweep">The light sweep across an overtaking row.</param>
+/// <param name="SweepLight">The sweep on a light appearance, when the style has its own.</param>
+/// <param name="LeadSweep">The sweep of a new leader's row, when the style has its own (glass's gold).</param>
 public sealed record BoardEffectsPreset(
     IReadOnlyList<int> Comets,
     double RingWidth,
@@ -40,7 +42,9 @@ public sealed record BoardEffectsPreset(
     Rgba? OvertakeColor,
     bool OvertakeArc,
     bool LeaderStrike,
-    double SweepSeconds)
+    BoardSweepLook Sweep,
+    BoardSweepLook? SweepLight = null,
+    BoardSweepLook? LeadSweep = null)
 {
     public int CometsAt(int tier) => Comets[Math.Clamp(tier, 0, Comets.Count - 1)];
 }
@@ -50,14 +54,23 @@ public static class BoardEffectsPresets
     private static readonly Rgba Placeholder = Rgba.White;
 
     public static BoardEffectsPreset Glass { get; } = new([1, 1, 2, 3, 4], 1.6, 70, 6, false, BoardEmbers.Rising,
-        new BoardBurst(14, 120, 0.7, new BoardColors(Placeholder, Rgba.White), 1.5, 60), null, false, false, 0.75);
+        new BoardBurst(14, 120, 0.7, new BoardColors(Placeholder, Rgba.White), 1.5, 60), null, false, false,
+        new BoardSweepLook(2.6, 1.3, -0.6, 0.75, [new(0.2, Rgba.White.WithAlpha(0)), new(0.48, Rgba.White.WithAlpha(0.35)), new(0.66, Rgba.White.WithAlpha(0))]),
+        LeadSweep: new BoardSweepLook(2.6, 1.3, -0.6, 0.75, [new(0.18, Rgba.FromHex("#FFE278").WithAlpha(0)),
+            new(0.46, Rgba.FromHex("#FFE278").WithAlpha(0.55)), new(0.5, Rgba.White.WithAlpha(0.7)), new(0.66, Rgba.White.WithAlpha(0))]));
 
     // The timing prototype draws no bloom; DESIGN 2c gives every style one, so timing takes glass's.
     public static BoardEffectsPreset Timing { get; } = new([1, 1, 2, 2, 3], 1.2, 70, 6, false, BoardEmbers.Spray,
-        new BoardBurst(12, 130, 0.6, new BoardColors(Placeholder, Rgba.White), 1.4, 50), Rgba.FromHex("#22C55E"), false, false, 0.7);
+        new BoardBurst(12, 130, 0.6, new BoardColors(Placeholder, Rgba.White), 1.4, 50), Rgba.FromHex("#22C55E"), false, false,
+        new BoardSweepLook(3, 1.2, -0.4, 0.7, [new(0, Placeholder.WithAlpha(0), true), new(0.45, Placeholder.WithAlpha(0.55), true),
+            new(0.5, Rgba.White.WithAlpha(0.55)), new(0.56, Rgba.White.WithAlpha(0))]),
+        new BoardSweepLook(3, 1.2, -0.4, 0.7, [new(0, Placeholder.WithAlpha(0), true), new(0.48, Placeholder.WithAlpha(0.35), true),
+            new(0.56, Placeholder.WithAlpha(0), true)], Additive: false));
 
     public static BoardEffectsPreset Neon { get; } = new([1, 2, 3, 4, 4], 1.4, 80, 8, true, BoardEmbers.RisingWithArc,
-        new BoardBurst(16, 140, 0.7, new BoardColors(Placeholder, Rgba.White), 1.5, 60), null, true, true, 0.6);
+        new BoardBurst(16, 140, 0.7, new BoardColors(Placeholder, Rgba.White), 1.5, 60), null, true, true,
+        new BoardSweepLook(2.6, 1.3, -0.6, 0.6, [new(0.2, Placeholder.WithAlpha(0), true), new(0.44, Placeholder.WithAlpha(0.5), true),
+            new(0.5, Rgba.White.WithAlpha(0.75)), new(0.58, Rgba.White.WithAlpha(0))]));
 
     public static BoardEffectsPreset For(BoardStyle style) => style switch
     {

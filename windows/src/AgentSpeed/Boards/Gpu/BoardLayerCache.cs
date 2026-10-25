@@ -29,6 +29,12 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
 
     public BoardLayerAtlas Atlas => _atlas;
 
+    /// <summary>Stopwatch ticks spent describing layers, painting them and flushing the atlas (the bench's breakdown).</summary>
+    public (long Describe, long Paint, long Flush) Ticks => (_describeTicks, _paintTicks, _flushTicks);
+
+    /// <summary>Stopwatch ticks spent painting and layers painted, per <see cref="BoardLayerKind"/> (the bench's breakdown).</summary>
+    public (long[] Ticks, long[] Count) PaintsByKind => (_paintByKind, _paintedByKind);
+
     /// <summary>Whether the texture must be made current again before the next frame (device, scale or size changed).</summary>
     public bool IsStale(GpuDevice device, double scale, BoardScene scene) =>
         _atlas.View is null || _atlas.Width != WidthFor(scene, scale) || Math.Abs(_atlas.Scale - scale) > 0.001 || Generation != device.Generation;
@@ -76,10 +82,15 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
         (Painter as IDisposable)?.Dispose();
     }
 
+    private long _describeTicks;
+    private long _paintTicks;
+    private long _flushTicks;
+    private readonly long[] _paintByKind = new long[Enum.GetValues<BoardLayerKind>().Length];
+    private readonly long[] _paintedByKind = new long[Enum.GetValues<BoardLayerKind>().Length];
+
     private DrawResult Draw(BoardScene scene)
     {
         _live.Clear();
-        _atlas.BeginDraw();
         var full = false;
         foreach (var row in scene.Rows)
         {
@@ -93,11 +104,32 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
 
         if (!full)
         {
-            full |= !Layer(scene.HeroKey, new BoardLayerRequest(BoardLayerKind.Hero, scene, null));
+            full |= !Layer(BoardScene.HeroKey, new BoardLayerRequest(BoardLayerKind.Hero, scene, null));
             full |= !Layer(BoardScene.FooterKey, new BoardLayerRequest(BoardLayerKind.Footer, scene, null));
+            full |= !Layer(BoardScene.BackdropKey, new BoardLayerRequest(BoardLayerKind.Backdrop, scene, null));
+            for (var i = 0; i < BoardHeroNumber.Glyphs.Length && !full; i++)
+            {
+                full |= !Layer(BoardHeroNumber.GlyphKeys[i], new BoardLayerRequest(BoardLayerKind.Glyph, scene, null, BoardHeroNumber.Glyphs[i]));
+            }
+
+            var glyphs = BoardValueGlyphs.Glyphs.Length;
+            for (var i = 0; i < BoardValueGlyphs.Sets(scene.Style) * glyphs && !full; i++)
+            {
+                var set = (BoardValueSet)(i / glyphs);
+                full |= !Layer(BoardValueGlyphs.Keys(set)[i % glyphs],
+                    new BoardLayerRequest(BoardLayerKind.ValueGlyph, scene, null, BoardValueGlyphs.Glyphs[i % glyphs], Set: set));
+            }
+
+            foreach (var callout in scene.Callouts)
+            {
+                full |= !Layer(callout.Key, new BoardLayerRequest(BoardLayerKind.Callout, scene, null, Callout: callout));
+            }
         }
 
-        if (!_atlas.EndDraw())
+        var flush = System.Diagnostics.Stopwatch.GetTimestamp();
+        var ended = _atlas.EndDraw();
+        _flushTicks += System.Diagnostics.Stopwatch.GetTimestamp() - flush;
+        if (!ended)
         {
             return DrawResult.Lost;
         }
@@ -107,8 +139,6 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
             return DrawResult.Full;
         }
 
-        // The other hero layer stays for the crossfade.
-        _live.Add(scene.HeroKey == BoardScene.HeroKeyA ? BoardScene.HeroKeyB : BoardScene.HeroKeyA);
         _stale.Clear();
         foreach (var key in _atlas.Keys)
         {
@@ -128,7 +158,10 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
 
     private bool Layer(string key, BoardLayerRequest request)
     {
-        if (Painter.Describe(request) is not { } spec)
+        var start = System.Diagnostics.Stopwatch.GetTimestamp();
+        var described = Painter.Describe(request);
+        _describeTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+        if (described is not { } spec)
         {
             return true;
         }
@@ -140,7 +173,13 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
         }
 
         var painter = Painter;
-        return _atlas.TryDraw(key, spec.Width, spec.Height, spec.Signature, context => painter.Paint(context, request, spec));
+        start = System.Diagnostics.Stopwatch.GetTimestamp();
+        var drawn = _atlas.TryDraw(key, spec.Width, spec.Height, spec.Signature, context => painter.Paint(context, request, spec));
+        var spent = System.Diagnostics.Stopwatch.GetTimestamp() - start;
+        _paintTicks += spent;
+        _paintByKind[(int)request.Kind] += spent;
+        _paintedByKind[(int)request.Kind]++;
+        return drawn;
     }
 
     private static int WidthFor(BoardScene scene, double scale)

@@ -19,6 +19,29 @@ public sealed record BoardTick(
     IReadOnlyList<BoardRankEvent> Events,
     bool NewPeak)
 {
+    /// <summary>The speed title in the board's title theme, localized (DESIGN 1).</summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>Agents of the board's sources in phase generating and in tools (<c>agents.context</c>).</summary>
+    public int GeneratingAgents { get; init; }
+
+    public int ToolAgents { get; init; }
+
+    /// <summary><c>live_A</c> once per second, oldest first (glass draws the last 60, timing the last 30).</summary>
+    public IReadOnlyList<double> History { get; init; } = [];
+
+    /// <summary><c>peakToday_A</c>, which neon marks on its LED bar.</summary>
+    public double PeakToday { get; init; }
+
+    /// <summary>Today's output tokens of the board's sources, formatted (METRICS 7).</summary>
+    public string TodayText { get; init; } = string.Empty;
+
+    /// <summary>Today's cost (section 9), formatted; null when unknown.</summary>
+    public string? CostText { get; init; }
+
+    /// <summary><c>peakToday_A</c>, formatted.</summary>
+    public string PeakText { get; init; } = string.Empty;
+
     public double Heat => HeatMath.Heat(Value, Redline);
 
     public double Overdrive => HeatMath.Overdrive(Value, Redline);

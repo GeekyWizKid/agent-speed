@@ -32,7 +32,7 @@ public struct BoardLayerInstance
     /// <summary>A warm flash or dim: rgb (straight) and how much of it replaces the layer's color.</summary>
     public Vector4 Tint;
 
-    /// <summary>Opacity, unused × 3.</summary>
+    /// <summary>Opacity; the gold sheen's center x (canvas points), half width and strength (none when the half width is 0).</summary>
     public Vector4 Params;
 
     /// <summary>Clip rect min x, min y, max x, max y (the ranking list's frame); empty when max x ≤ min x.</summary>
@@ -49,6 +49,14 @@ public struct BoardLayerInstance
         Params = new Vector4((float)Math.Clamp(opacity, 0, 1), 0, 0, 0),
         Clip = new Vector4(clip.Left, clip.Top, clip.Right, clip.Bottom),
     };
+
+    /// <summary>A gold band across the layer's glyphs (a new peak, DESIGN 2c Hero number), white at its center.</summary>
+    public void Sheen(double center, double halfWidth, double strength)
+    {
+        Params.Y = (float)center;
+        Params.Z = (float)Math.Max(0, halfWidth);
+        Params.W = (float)Math.Clamp(strength, 0, 1);
+    }
 
     /// <summary>Multiplies the opacity (crossfades).</summary>
     public void ScaleAlpha(float factor) => Params.X *= factor;

@@ -1,3 +1,5 @@
+using System.Globalization;
+using AgentSpeed.Core;
 using AgentSpeed.Presentation.Boards.Effects;
 using AgentSpeed.Presentation.Boards.Gpu;
 using AgentSpeed.Presentation.Colors;
@@ -15,30 +17,31 @@ namespace AgentSpeed.Presentation.Boards.Scene;
 /// effects behind and above them. The draw list is in canvas points (<see cref="BoardCanvas"/>); nothing allocates per frame.
 /// </summary>
 /// <remarks>
-/// Layer keys: a row's body is its plan key and its value <c>key#v</c>; the hero alternates <see cref="HeroKeyA"/> and
-/// <see cref="HeroKeyB"/> so a new value crossfades over the old one (<see cref="HeroKey"/> is the one to rasterize), and the
-/// footer is <see cref="FooterKey"/>.
+/// Layer keys: a row's body is its plan key and its value <c>key#v</c>; the hero (everything but its number) is
+/// <see cref="HeroKey"/>, the number's glyphs <see cref="BoardHeroNumber.GlyphKeys"/>, the footer <see cref="FooterKey"/>, the
+/// static pattern behind the content <see cref="BackdropKey"/>, and each live callout its <see cref="BoardCallout.Key"/>.
 /// </remarks>
 public sealed class BoardScene
 {
-    public const string HeroKeyA = "#hero.a";
-    public const string HeroKeyB = "#hero.b";
+    public const string HeroKey = "#hero";
     public const string FooterKey = "#footer";
+    public const string BackdropKey = "#backdrop";
 
     /// <summary>A rise of more than 8 % + 20 tok/s in one tick punches the number (DESIGN 2c Hero number).</summary>
     public const double PunchRatio = 0.08;
     public const double PunchFloor = 20;
     public const double PunchSeconds = 0.4;
-    public const double HeroFadeSeconds = 0.24;
 
     private readonly Dictionary<string, BoardRowMotion> _rows = new(StringComparer.Ordinal);
     private readonly List<BoardRowMotion> _order = [];
+    private readonly BoardHeroNumber _number = new();
+    private readonly BoardCallouts _callouts = new();
     private BoardTick? _tick;
+    private BoardPalette? _palette;
     private double _lastFrame = double.NaN;
-    private double _heroChanged = double.NegativeInfinity;
+    private double _ambience;
     private double _punchStart = double.NegativeInfinity;
-    private string _heroText = string.Empty;
-    private bool _heroB;
+    private bool _dark = true;
 
     public BoardScene(BoardStyle style, BoardSize size, uint seed = 1)
     {
@@ -58,8 +61,29 @@ public sealed class BoardScene
 
     public BoardTick? Tick => _tick;
 
-    /// <summary>The hero layer the platform rasterizes for the current tick.</summary>
-    public string HeroKey => _heroB ? HeroKeyB : HeroKeyA;
+    /// <summary>Where the style's hero puts its parts.</summary>
+    public BoardHeroLayout Hero { get; private set; } = BoardHeroLayout.For(BoardStyle.Glass, BoardSize.M);
+
+    /// <summary>The appearance (DESIGN 2c: light and dark follow Appearance); the platform redraws the layers after a change.</summary>
+    public bool Dark
+    {
+        get => _dark;
+        set
+        {
+            _dark = value;
+            _palette = null;
+            Effects.Dark = value;
+        }
+    }
+
+    /// <summary>The style's colors in the current appearance and contrast.</summary>
+    public BoardPalette Palette => _palette ??= BoardPalette.For(Style, _dark, Effects.Policy.HighContrast);
+
+    /// <summary>The number on display (its glyphs are composed every frame).</summary>
+    public string NumberText => _number.Text;
+
+    /// <summary>The callouts alive (chips, the timing block and banner), whose layers the platform rasterizes.</summary>
+    public IReadOnlyList<BoardCallout> Callouts => _callouts.Items;
 
     /// <summary>The row whose tint hover lifts (DESIGN 2c: hover lifts the row tint only).</summary>
     public string? Hovered { get; set; }
@@ -76,9 +100,11 @@ public sealed class BoardScene
         Style = style;
         Size = size;
         Metrics = BoardMetrics.For(style, size);
+        Hero = BoardHeroLayout.For(style, size);
         Effects.Configure(style, size);
         Effects.Policy = policy;
-        HeroNumber = (Metrics.Pad, Metrics.HeroTop + 18, Metrics.ValueSize * 2.8, Metrics.ValueSize);
+        _palette = null;
+        HeroNumber = (Metrics.Pad, Metrics.HeroTop + Hero.NumberTop, Metrics.ValueSize * 2.8, Hero.NumberHeight);
         if (restyle)
         {
             foreach (var row in _order)
@@ -104,6 +130,7 @@ public sealed class BoardScene
 
         var first = previous is null;
         var placed = new List<BoardRowMotion>(tick.Entries.Count);
+        var above = double.NaN;
         foreach (var entry in tick.Entries)
         {
             if (!_rows.TryGetValue(entry.Key, out var row))
@@ -112,7 +139,17 @@ public sealed class BoardScene
                 _rows[entry.Key] = row;
             }
 
-            row.Update(entry, tick.LiveOf(entry), now, reduce);
+            var live = tick.LiveOf(entry);
+            row.Update(entry, live, now, reduce);
+            if (entry.Kind == BoardEntryKind.Group)
+            {
+                // Groups come in rank order: the interval is to the group placed just above.
+                row.IntervalText = Style == BoardStyle.Timing && entry.Rank > 1 && double.IsFinite(above)
+                    ? BoardValueGlyphs.Interval(above, entry.Group.Live) : string.Empty;
+                above = entry.Group.Live;
+            }
+
+            row.SetShare(entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub && tick.Value > 0 ? live / tick.Value : 0, now, !first && !reduce);
             placed.Add(row);
         }
 
@@ -134,12 +171,8 @@ public sealed class BoardScene
             }
         }
 
-        if (!string.Equals(tick.ValueText, _heroText, StringComparison.Ordinal))
-        {
-            _heroText = tick.ValueText;
-            _heroB = !_heroB;
-            _heroChanged = first ? double.NegativeInfinity : now;
-        }
+        _number.Set(tick.ValueText, previous is null || tick.Value >= previous.Value, now, !first && !reduce);
+        _callouts.Prune(now);
 
         Effects.SetHeat(tick.Heat, tick.Overdrive, tick.Tier, tick.Generating);
         if (previous is not null)
@@ -148,7 +181,10 @@ public sealed class BoardScene
         }
     }
 
-    /// <summary>The frame at <paramref name="now"/>: backdrop, effects behind, layers, effects above.</summary>
+    /// <summary>
+    /// The frame at <paramref name="now"/>: the square and its pattern, the ambience and effects behind, the rows with their
+    /// underlines and callouts, the hero and its number, the footer, then the rail or tube and the effects above.
+    /// </summary>
     public void Render(double now, IBoardLayers layers, BoardDrawList list)
     {
         ArgumentNullException.ThrowIfNull(layers);
@@ -156,20 +192,40 @@ public sealed class BoardScene
         var dt = double.IsNaN(_lastFrame) ? 0 : Math.Clamp(now - _lastFrame, 0, BoardEffects.MaxStep);
         _lastFrame = now;
         Effects.Advance(now);
+
+        // The ambience drifts only while the board animates: an idle board is static (2c Frame policy), so a tick that changes
+        // nothing draws the same frame.
+        if (Effects.Demand != FrameClass.None)
+        {
+            _ambience += dt;
+        }
         var canvas = Canvas;
         var m = BoardCanvas.Margin;
         var metrics = Metrics;
-        var reduce = Effects.Policy.ReduceMotion;
+        var policy = Effects.Policy;
+        var reduce = policy.ReduceMotion;
+        var palette = Palette;
+        var heat = _tick?.Heat ?? 0;
         list.Canvas = canvas.Extent;
         list.BoxHalf = canvas.Half;
         list.BoxRadius = canvas.Radius;
 
-        BoardBackdrop.Emit(list, canvas, Style, Effects.Policy.HighContrast);
+        BoardBackdrop.Emit(list, canvas, Style, palette, metrics);
+        if (layers.TryGet(BackdropKey, out var backdrop))
+        {
+            list.Clip = BoardClip.Inside;
+            list.AddLayer(BoardLayerInstance.Create(backdrop, m, m, 1));
+            list.Clip = BoardClip.None;
+        }
+
+        BoardAmbience.EmitBack(list, canvas, Style, palette, heat, _ambience, policy);
         Effects.EmitBack(list);
 
         var clip = RectBounds.From(m + metrics.ListLeft, m + metrics.ListTop, metrics.ListWidth, metrics.ListHeight);
         list.Clip = BoardClip.Inside;
         Prune(now);
+        _callouts.Prune(now);
+        var comets = policy.Comets && !palette.HighContrast && Effects.Demand != FrameClass.None;
 
         foreach (var row in _order)
         {
@@ -182,10 +238,16 @@ public sealed class BoardScene
 
             var top = m + metrics.ListTop + row.Y + row.EnterLift(now, reduce);
             var left = m + metrics.ListLeft;
+            var height = RowHeight(row.Entry);
             if (string.Equals(row.Key, Hovered, StringComparison.Ordinal) && row.Entry.Kind == BoardEntryKind.Group)
             {
-                list.Add(OrbGpuInstance.RoundedRect(left + metrics.ListWidth / 2, top + row.Entry.Height / 2, metrics.ListWidth / 2,
-                    row.Entry.Height / 2 - 1, 0, 9, Rgba.White.WithAlpha(0.06 * alpha)));
+                list.Add(OrbGpuInstance.RoundedRect(left + metrics.ListWidth / 2, top + height / 2, metrics.ListWidth / 2, height / 2, 0,
+                    Style == BoardStyle.Timing ? 4 : 9.5, palette.Fill.MultiplyAlpha(alpha)));
+            }
+
+            if (Style != BoardStyle.Timing)
+            {
+                Underline(list, row, left, top, height, alpha, now, comets);
             }
 
             if (layers.TryGet(row.Key, out var body))
@@ -195,8 +257,18 @@ public sealed class BoardScene
 
             if (layers.TryGet(row.ValueKey, out var value))
             {
-                var (tint, amount, dim) = Flash(row, now);
-                list.AddLayer(BoardLayerInstance.Create(value, left + metrics.ListWidth - value.Width, top, alpha * dim, tint, amount, clip));
+                list.AddLayer(BoardLayerInstance.Create(value, left + metrics.ListWidth - value.Width, top, alpha, clip: clip));
+            }
+
+            if (row.Entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub)
+            {
+                Value(list, layers, row, left + metrics.ListWidth, top, height, alpha, now, clip);
+            }
+
+            if (row.IntervalText.Length > 0 && Size != BoardSize.S)
+            {
+                BoardValueGlyphs.Emit(list, layers, row.IntervalText, BoardValueSet.Interval, left + metrics.ListWidth - BoardValueGlyphs.IntervalRight,
+                    top + (height - 1) / 2, 0, palette.Ink3, alpha, clip);
             }
 
             if (row.Entry.Kind == BoardEntryKind.Group && !row.Leaving)
@@ -205,6 +277,7 @@ public sealed class BoardScene
             }
         }
 
+        EmitRowCallouts(now, layers, list, clip);
         list.Clip = BoardClip.None;
         EmitHero(now, layers, list);
         if (layers.TryGet(FooterKey, out var footer))
@@ -212,12 +285,14 @@ public sealed class BoardScene
             list.AddLayer(BoardLayerInstance.Create(footer, m + metrics.Pad, m + metrics.FooterTop, 1));
         }
 
+        BoardAmbience.EmitFront(list, canvas, Style, palette, metrics, Hero, heat, _tick?.Generating ?? false, _ambience, policy);
         Effects.EmitFront(list);
     }
 
     /// <summary>
     /// The frames the board needs (DESIGN 2c, Frame policy): the effects' class, raised to 60 fps while a row moves or fades,
-    /// the hero's digits roll or it punches, and to 30 fps while a value flashes or dims.
+    /// digits roll, the number punches or a callout pops, and to 30 fps while a value flashes, a digit glows or an underline
+    /// eases.
     /// </summary>
     public FrameClass Demand(double now)
     {
@@ -227,12 +302,13 @@ public sealed class BoardScene
             return demand;
         }
 
-        if (now - _heroChanged < HeroFadeSeconds || now - _punchStart < PunchSeconds)
+        var look = BoardNumberLook.For(Style);
+        if (now - _punchStart < PunchSeconds || _number.Rolling(now, look) || _callouts.Alive(now))
         {
             return FrameClass.Fps60;
         }
 
-        var flashing = false;
+        var flashing = _number.Animating(now, look);
         foreach (var row in _order)
         {
             if (row.Moving(now))
@@ -244,6 +320,13 @@ public sealed class BoardScene
         }
 
         return flashing ? FramePolicy.Max(demand, FrameClass.Fps30) : demand;
+    }
+
+    /// <summary>A row's own height without the gap below it (glass and neon space group rows 2 pt apart).</summary>
+    public double RowHeight(BoardEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return entry.Kind == BoardEntryKind.Group && Style != BoardStyle.Timing ? entry.Height - 2 : entry.Height;
     }
 
     /// <summary>The group row under a canvas point, for hover, tooltips and clicks.</summary>
@@ -277,7 +360,8 @@ public sealed class BoardScene
             row.Settle();
         }
 
-        _heroChanged = double.NegativeInfinity;
+        _number.Settle();
+        _callouts.Clear();
         _punchStart = double.NegativeInfinity;
         _lastFrame = double.NaN;
         Effects.Clear();
@@ -301,30 +385,147 @@ public sealed class BoardScene
         var m = BoardCanvas.Margin;
         var x = m + Metrics.Pad;
         var y = m + Metrics.HeroTop;
-        var fade = Easing.OutCubic(Math.Clamp((now - _heroChanged) / HeroFadeSeconds, 0, 1));
-        var punch = PunchScale(now);
-        var oldKey = _heroB ? HeroKeyA : HeroKeyB;
-        if (fade < 1 && layers.TryGet(oldKey, out var old))
-        {
-            list.AddLayer(Scaled(old, x, y, 1 - fade, punch));
-        }
-
         if (layers.TryGet(HeroKey, out var hero))
         {
-            list.AddLayer(Scaled(hero, x, y, fade, punch));
+            list.AddLayer(BoardLayerInstance.Create(hero, x, y, 1));
+        }
+
+        var top = y + Hero.NumberTop;
+        var width = _number.Emit(list, layers, x, top, Hero.NumberHeight, Hero.Tracking, now, PunchScale(now), BoardNumberLook.For(Style),
+            _tick?.Heat ?? 0, Effects.Policy.ReduceMotion);
+        if (width > 0)
+        {
+            HeroNumber = (Metrics.Pad, Metrics.HeroTop + Hero.NumberTop, width, Hero.NumberHeight);
+        }
+
+        for (var i = 0; i < _callouts.Count; i++)
+        {
+            var callout = _callouts.Items[i];
+            if (!layers.TryGet(callout.Key, out var slot))
+            {
+                continue;
+            }
+
+            var t = callout.Progress(now);
+            if (callout.Kind == BoardCalloutKind.NewPeak)
+            {
+                var (alpha, dx, dy, scale) = BoardCallouts.Chip(Style, callout.Kind, t);
+                var pad = BoardCallouts.ChipPad;
+                BoardCallouts.Emit(list, slot, x + dx - pad, top - (Style == BoardStyle.Neon ? 13 : 14) + dy - pad, alpha, scale);
+            }
+            else if (callout.Kind == BoardCalloutKind.NewLeader)
+            {
+                var (from, to) = BoardCallouts.Wipe(t);
+                var bannerTop = m + Metrics.Pad + Metrics.HeroHeight - 14;
+                list.AddLayer(BoardLayerInstance.Create(slot, m, bannerTop, 1, clip: RectBounds.From(m + slot.Width * from, bannerTop,
+                    slot.Width * (to - from), slot.Height)));
+            }
         }
     }
 
-    private BoardLayerInstance Scaled(in BoardLayerSlot slot, double x, double y, double alpha, double scale)
+    private void EmitRowCallouts(double now, IBoardLayers layers, BoardDrawList list, RectBounds clip)
     {
-        // The punch scales about the number's center.
-        var (left, top, width, height) = HeroNumber;
-        var cx = BoardCanvas.Margin + left + width / 2;
-        var cy = BoardCanvas.Margin + top + height / 2;
-        var instance = BoardLayerInstance.Create(slot, cx + (x - cx) * scale, cy + (y - cy) * scale, alpha);
-        instance.Rect.Z *= (float)scale;
-        instance.Rect.W *= (float)scale;
-        return instance;
+        var m = BoardCanvas.Margin;
+        var metrics = Metrics;
+        for (var i = 0; i < _callouts.Count; i++)
+        {
+            var callout = _callouts.Items[i];
+            if (callout.Kind is not (BoardCalloutKind.Climb or BoardCalloutKind.Block) || !layers.TryGet(callout.Key, out var slot) ||
+                RowOf(callout.Row) is not { } row)
+            {
+                continue;
+            }
+
+            var mid = m + metrics.ListTop + row.Y + RowHeight(row.Entry) / 2;
+            var t = callout.Progress(now);
+            if (callout.Kind == BoardCalloutKind.Block)
+            {
+                list.AddLayer(BoardLayerInstance.Create(slot, m + metrics.ListLeft + 4, mid - slot.Height / 2, 1 - Easing.OutCubic(t), clip: clip));
+                continue;
+            }
+
+            var (alpha, dx, _, scale) = BoardCallouts.Chip(Style, callout.Kind, t);
+            var pad = BoardCallouts.ChipPad;
+            var right = m + metrics.ListLeft + metrics.ListWidth - (Style == BoardStyle.Timing ? 92 : 52);
+            BoardCallouts.Emit(list, slot, right - slot.Width + pad + dx, mid - slot.Height / 2, alpha * row.Alpha(now), scale, clip);
+        }
+    }
+
+    private BoardRowMotion? RowOf(string? key)
+    {
+        foreach (var row in _order)
+        {
+            if (string.Equals(row.Key, key, StringComparison.Ordinal))
+            {
+                return row;
+            }
+        }
+
+        return null;
+    }
+
+    // The share underline (glass and neon): from the name to the value, as long as the row's share of the board's value, in
+    // the row's heat; a white comet runs along it while the row generates.
+    private void Underline(BoardDrawList list, BoardRowMotion row, double left, double top, double height, double alpha, double now, bool comets)
+    {
+        var entry = row.Entry;
+        if (entry.Kind is not (BoardEntryKind.Group or BoardEntryKind.Sub))
+        {
+            return;
+        }
+
+        var share = row.Share(now);
+        var group = entry.Kind == BoardEntryKind.Group;
+        var x0 = left + (group ? 40 : 46);
+        var track = left + Metrics.ListWidth - 6 - x0;
+        if (share * track < 0.5 || track <= 0)
+        {
+            return;
+        }
+
+        var thickness = group ? 2 : 1.5;
+        var y = top + height - 1 - thickness / 2;
+        var heat = HeatMath.Heat(row.Live, _tick?.Redline ?? HeatMath.DefaultRedline);
+        var color = HeatPalette.Sample(Math.Max(0.12, heat));
+        var opacity = alpha * (group ? 1 : 0.7);
+        var glows = !Palette.HighContrast;
+        var neon = Style == BoardStyle.Neon;
+        var x1 = x0 + track * share;
+        // The CSS shadows (neon 8 px, glass 6 px at 70 %) of a 2 pt bar peak at about a fifth of its color: erf(1 / (σ√2)).
+        list.Add(OrbGpuInstance.Capsule(x0 + thickness / 2, y, Math.Max(x0 + thickness / 2, x1 - thickness / 2), y, thickness,
+            color.WithAlpha(opacity), color.WithAlpha((neon ? 0 : 0.35) * opacity), 1, glows ? OrbGpuInstance.Glow(neon ? 4 : 3) : 0,
+            neon ? 0.3 : 0.18));
+        var generating = group ? entry.Group.Generating > 0 : entry.Agent?.Phase == AgentPhase.Generating;
+        if (!comets || !generating)
+        {
+            return;
+        }
+
+        // CSS comet: from −18 pt to the bar's end, over 3.2 s − 2.4 s × heat, fading in and out.
+        var seconds = 3.2 - 2.4 * heat;
+        var phase = ((now + (row.Key.GetHashCode() & 0xFFFF) / 65536.0 * seconds) % seconds) / seconds;
+        var head = x0 - 18 + (track * share - 6 + 18) * Easing.InOutSine(phase);
+        var fade = phase < 0.15 ? phase / 0.15 : phase > 0.85 ? (1 - phase) / 0.15 : 1;
+        var half = neon ? 11 : 9;
+        list.Add(OrbGpuInstance.Ellipse(head + half, y, half * 0.6, neon ? 1.6 : 1, 0, Rgba.White, 0, OrbGpuInstance.Glow(1.5),
+            0.9 * fade * alpha));
+    }
+
+    // A row's value from the value glyphs, in its color, its warm flash or its dim.
+    private void Value(BoardDrawList list, IBoardLayers layers, BoardRowMotion row, double right, double top, double height, double alpha, double now,
+        RectBounds clip)
+    {
+        var sub = row.Entry.Kind == BoardEntryKind.Sub;
+        var color = BoardValueGlyphs.Color(Style, Palette, sub, row.Live, _tick?.Redline ?? HeatMath.DefaultRedline);
+        var (tint, amount, dim) = Flash(row, now);
+        if (amount > 0)
+        {
+            color = Rgba.Lerp(color, tint.WithAlpha(1), amount);
+        }
+
+        var center = top + (Style == BoardStyle.Timing && !sub ? (height - 1) / 2 : height / 2);
+        BoardValueGlyphs.Emit(list, layers, row.ValueText, sub ? BoardValueSet.Sub : BoardValueSet.Group, right - BoardValueGlyphs.Inset(Style), center,
+            BoardValueGlyphs.Tracking(Style, sub), color, alpha * dim, clip);
     }
 
     // The CSS punch: 1 → 1.06 at 35 % → 1 over 0.4 s.
@@ -369,10 +570,16 @@ public sealed class BoardScene
             Effects.Punch(left, top, width, height, (tick.Value - previous.Value) / Math.Max(1, previous.Value));
         }
 
+        var celebrate = Effects.Policy.Celebrate && !reduce;
         if (tick.NewPeak)
         {
             var (left, top, width, height) = HeroNumber;
             Effects.NewPeak(left + width / 2, top + height / 2);
+            if (celebrate)
+            {
+                _number.Sheen(now);
+                _callouts.Add(new BoardCallout("#peak", BoardCalloutKind.NewPeak, string.Empty, null, now));
+            }
         }
 
         foreach (var e in tick.Events)
@@ -382,7 +589,8 @@ public sealed class BoardScene
                 continue;
             }
 
-            if (e.Kind == BoardRankEventKind.NewLeader)
+            var leader = e.Kind == BoardRankEventKind.NewLeader;
+            if (leader)
             {
                 Effects.NewLeader(fx);
             }
@@ -390,7 +598,36 @@ public sealed class BoardScene
             {
                 Effects.Overtake(fx);
             }
+
+            if (reduce)
+            {
+                continue;
+            }
+
+            _callouts.Add(new BoardCallout(e.Id + "#climb", BoardCalloutKind.Climb, "▲" + (e.From - e.To).ToString(CultureInfo.InvariantCulture),
+                e.Id, now));
+            if (Style == BoardStyle.Timing)
+            {
+                _callouts.Add(new BoardCallout(e.Id + "#block", BoardCalloutKind.Block, e.To.ToString(CultureInfo.InvariantCulture), e.Id, now));
+                if (leader && celebrate && GroupOf(tick, e.Id) is { } group)
+                {
+                    _callouts.Add(new BoardCallout("#leader", BoardCalloutKind.NewLeader, group.Root.Project, e.Id, now));
+                }
+            }
         }
+    }
+
+    private static BoardGroup? GroupOf(BoardTick tick, string id)
+    {
+        foreach (var entry in tick.Entries)
+        {
+            if (entry.Kind == BoardEntryKind.Group && string.Equals(entry.Key, id, StringComparison.Ordinal))
+            {
+                return entry.Group;
+            }
+        }
+
+        return null;
     }
 
     private BoardRowFx? RowFx(BoardTick tick, BoardRankEvent e)

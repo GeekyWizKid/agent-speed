@@ -1,5 +1,6 @@
 // Cached board layers (DESIGN 2c, Two layers): rows, the hero and the footer, rasterized by Direct2D only when their data
-// changes, composited at animated places, faded, tinted (a value's warm flash) and clipped to the ranking list's frame.
+// changes, composited at animated places, faded, tinted (a value's warm flash), swept by a new peak's gold sheen and clipped to
+// the ranking list's frame.
 
 Texture2D layers : register(t2);
 
@@ -8,7 +9,7 @@ struct LayerIn
     float4 rect : INSTANCE0;   // x, y (top-left), width, height in points
     float4 uv : INSTANCE1;     // atlas u0, v0, u1, v1
     float4 tint : INSTANCE2;   // rgb (straight), how much of it replaces the layer's color
-    float4 params : INSTANCE3; // opacity, unused x3
+    float4 params : INSTANCE3; // opacity, sheen center x (points), sheen half width (none when 0), sheen strength
     float4 clip : INSTANCE4;   // min x, min y, max x, max y; none when max x <= min x
     uint vid : SV_VertexID;
 };
@@ -52,6 +53,19 @@ float4 PsLayer(LayerOut input) : SV_Target
 
     float4 texel = layers.SampleLevel(linear_clamp, input.uv, 0);
     float3 rgb = lerp(texel.rgb, input.tint.rgb * texel.a, input.tint.a);
+    if (input.params.z > 0.0)
+    {
+        // The prototypes' gild: white at the band's center, #FFE58A a quarter out, then back to the glyph's own color.
+        float d = abs(input.canvas.x - input.params.y) / input.params.z;
+        if (d < 1.0)
+        {
+            float3 gold = float3(1.0, 0.898, 0.541);
+            float3 band = d < 0.25 ? lerp(float3(1.0, 1.0, 1.0), gold, d / 0.25) : gold;
+            float amount = input.params.w * (d < 0.25 ? 1.0 : 1.0 - (d - 0.25) / 0.75);
+            rgb = lerp(rgb, band * texel.a, amount);
+        }
+    }
+
     float k = input.params.x * keep * orb_clip_coverage(input.canvas);
     if (texel.a * k <= 0.0005)
     {

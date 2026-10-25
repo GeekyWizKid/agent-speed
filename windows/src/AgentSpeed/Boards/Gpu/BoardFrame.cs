@@ -28,6 +28,9 @@ internal sealed class BoardFrame : IDisposable
 
     public BoardDrawList List { get; } = new();
 
+    /// <summary>Stopwatch ticks spent checking and rasterizing layers (the bench's breakdown).</summary>
+    public long UpdateTicks { get; private set; }
+
     /// <summary>The layers must be checked again before the next frame (a tick, a restyle, a resize).</summary>
     public void Invalidate() => _dirty = true;
 
@@ -36,6 +39,7 @@ internal sealed class BoardFrame : IDisposable
     {
         if (_dirty || Layers.IsStale(device, scale, Scene))
         {
+            var start = System.Diagnostics.Stopwatch.GetTimestamp();
             try
             {
                 if (!Layers.Update(device, Scene, scale))
@@ -47,6 +51,11 @@ internal sealed class BoardFrame : IDisposable
             {
                 AppLog.Warn("A board's layers failed on the GPU.", ex);
                 return false;
+            }
+
+            finally
+            {
+                UpdateTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
             }
 
             _dirty = false;
