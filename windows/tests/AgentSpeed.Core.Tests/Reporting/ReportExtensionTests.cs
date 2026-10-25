@@ -42,7 +42,8 @@ public sealed class ReportExtensionTests
         Assert.Equal(1, ledger.Counters.Total.Requests);
         var delta = ledger.Counters.Since(baseline);
         Assert.Equal((0L, 90L, 100L, 3000L), Numbers(delta.Total));
-        foreach (var kind in Enum.GetValues<ExecutionModeKind>())
+        Assert.DoesNotContain(delta.ByMode, p => !ExecutionModes.IsReportKind(p.Key.Kind));
+        foreach (var kind in ExecutionModes.ReportKinds)
         {
             var row = Assert.Single(delta.ByMode, p => p.Key.Kind == kind);
             Assert.Equal(("unknown", "unknown"), (row.Key.Mode, row.Key.Evidence));
@@ -50,7 +51,7 @@ public sealed class ReportExtensionTests
         }
         var model = Model(ledger.Counters, new(true, true));
         Assert.Equal(1, model.GetProperty("requests").GetInt64());
-        Assert.Equal(5, model.GetProperty("modeUsage").GetArrayLength());
+        Assert.Equal(ExecutionModes.ReportKinds.Count, model.GetProperty("modeUsage").GetArrayLength());
         Assert.Equal("claudeCode", Assert.Single(model.GetProperty("harnessRequests").EnumerateArray()).GetProperty("source").GetString());
     }
 
