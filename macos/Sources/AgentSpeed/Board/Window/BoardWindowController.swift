@@ -89,6 +89,18 @@ final class BoardWindowController {
         updateRendering()
     }
 
+    /// A new board fades in where it was placed (DESIGN 2c `boards.add`, as a new orb appears).
+    func fadeIn(duration: TimeInterval = 0.25) {
+        let alpha = CGFloat(min(max(config.opacity, 0), 1))
+        panel.alphaValue = 0
+        effectsPanel.alphaValue = 0
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            panel.animator().alphaValue = alpha
+            effectsPanel.animator().alphaValue = alpha
+        }
+    }
+
     func close() {
         hide()
         animator.stop()

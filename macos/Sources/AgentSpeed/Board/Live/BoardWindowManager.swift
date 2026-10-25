@@ -177,7 +177,10 @@ final class BoardWindowManager {
         let others = orbShapes() + shapes(excluding: id)
         let target = FloatingPlacement.placeNew(template(for: board), near: anchor, others: others, visible: screen.visibleFrame)
         presenter.window.move(to: target, animated: false)
-        if board.visible { presenter.window.show() }
+        if board.visible {
+            presenter.window.show()
+            presenter.window.fadeIn(duration: model.accessibility.reduceMotion ? 0.2 : 0.3)
+        }
         settled(id, center: target)
     }
 
