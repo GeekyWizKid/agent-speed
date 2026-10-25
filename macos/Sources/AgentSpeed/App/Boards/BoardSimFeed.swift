@@ -1,37 +1,55 @@
+import AgentSpeedCore
 import AgentSpeedOrbModel
 import AppKit
 
-/// Feeds a board from `BoardSimulation` one engine tick at a time, as the prototypes' pages do: lays out the
-/// placeholder content (only when asked, so a board nobody sees costs no layout) and plays the tick's heat, overtakes,
-/// new leader, number punch and new peak on the effects.
+/// Feeds a board from `BoardSimulation` one engine tick at a time, as the prototypes' pages do: makes the tick's
+/// `BoardTick`, lays it out with the style's real content builder (only when asked, so a board nobody sees costs no
+/// layout) and plays the tick's heat, overtakes, new leader, number punch and new peak on the effects.
 @MainActor
 final class BoardSimFeed {
     var simulation: BoardSimulation
-    var content: BoardPlaceholderContent
+    let builder: BoardContentBuilding
+    let style: BoardStyle
+    let size: BoardSize
+    let l10n: Localizer
     let redline: Double
     private(set) var snapshot: BoardSimulation.Snapshot
-    private var cached: BoardPlaceholderContent.Layout?
+    private(set) var tick: BoardTick
+    private var cached: BoardContentLayout?
     private var lastLive: Double?
     private var lastPeak: Double?
 
-    init(simulation: BoardSimulation, content: BoardPlaceholderContent, redline: Double = 2000) {
+    init(simulation: BoardSimulation, style: BoardStyle, size: BoardSize, dark: Bool, l10n: Localizer, redline: Double = 2000,
+         highContrast: Bool = false) {
         self.simulation = simulation
-        self.content = content
+        self.style = style
+        self.size = size
+        self.l10n = l10n
         self.redline = redline
+        builder = BoardContentBuilders.make(style: style, size: size, dark: dark, l10n: l10n, capsule: nil, highContrast: highContrast)
         snapshot = self.simulation.snapshot()
+        tick = BoardSimTick.make(snapshot, style: style, size: size, redline: redline, previousPeak: nil, l10n: l10n)
+    }
+
+    /// The harnesses' language: `AGENT_SPEED_BOARD_LANG` (zh-Hant, zh-Hans, en, ja), else zh-Hant as the prototypes.
+    static func harnessLocalizer() -> Localizer {
+        let raw = ProcessInfo.processInfo.environment["AGENT_SPEED_BOARD_LANG"] ?? "zh-Hant"
+        return Localizer(preference: LanguagePreference(rawValue: raw) ?? .zhHant)
     }
 
     /// Advances one engine tick.
     func step() {
+        let peak = snapshot.peak
         simulation.advance()
         snapshot = simulation.snapshot()
+        tick = BoardSimTick.make(snapshot, style: style, size: size, redline: redline, previousPeak: peak, l10n: l10n)
         cached = nil
     }
 
     /// The content of the current tick, laid out once.
-    var layout: BoardPlaceholderContent.Layout {
+    var layout: BoardContentLayout {
         if let cached { return cached }
-        let layout = content.layout(snapshot, redline: redline)
+        let layout = builder.layout(tick)
         cached = layout
         return layout
     }
@@ -59,11 +77,61 @@ final class BoardSimFeed {
                 fx.overtake(row: anchor.row, rank: anchor.rank, color: color, passedRankY: passed)
             }
         }
-        if let lastLive, lastLive > 0, live > lastLive * 1.08 + 20 {
-            fx.punch(number: layout.number, rise: (live - lastLive) / max(1, lastLive))
+        if BoardContentRules.punches(from: lastLive, to: live) {
+            fx.punch(number: layout.number, rise: (live - (lastLive ?? 0)) / max(1, lastLive ?? 1))
         }
         if let lastPeak, snapshot.peak > lastPeak + 1 {
             fx.newPeak(at: CGPoint(x: layout.number.midX, y: layout.number.midY))
         }
+    }
+}
+
+/// A `BoardSimulation` snapshot as the app's feed would make it: agents as `AgentStatus` grouped by `BoardGrouping`
+/// in the simulation's ranked order, planned rows, a once-per-second history and the footer texts.
+@MainActor
+enum BoardSimTick {
+    /// sim.js `TITLES`: the title key reached at each fraction of the redline.
+    private static let titles: [(String, Double)] = [
+        ("walk", 0.5 / 2000), ("bicycle", 0.02), ("ebike", 0.03), ("motorcycle", 0.04), ("car", 0.06), ("sportsCar", 0.08),
+        ("bulletTrain", 0.12), ("raceCar", 0.17), ("maglev", 0.24), ("jetliner", 0.34), ("fighterJet", 0.5),
+        ("hypersonic", 0.7), ("rocket", 1.0),
+    ]
+
+    static func make(_ snapshot: BoardSimulation.Snapshot, style: BoardStyle, size: BoardSize, redline: Double, previousPeak: Double?,
+                     l10n: Localizer) -> BoardTick {
+        let agents = snapshot.groups.flatMap { [$0.root] + $0.subs }.map(status)
+        let grouped = Dictionary(uniqueKeysWithValues: BoardGrouping.groups(agents, metric: .output).map { ($0.id, $0) })
+        let groups = snapshot.groups.compactMap { grouped[$0.id] }
+        let liveByID = Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0.live.output) })
+        let rows = BoardLayoutPlanner.plan(groups.map { group in BoardPlanGroup(group) { liveByID[$0] ?? 0 } },
+                                           metrics: .of(style, size))
+        let live = snapshot.live
+        let title = titles.last { live >= $0.1 * redline }.map { "title." + $0.0 } ?? "tier.idle"
+        let history = stride(from: snapshot.history.count - 1, through: 0, by: -2).map { snapshot.history[$0] }.reversed()
+        return BoardTick(
+            value: live, valueText: SpeedFormat.speed(live), metric: .output, redline: redline,
+            heat: HeatPalette.heat(value: live, redline: redline), overdrive: HeatPalette.overdrive(value: live, redline: redline),
+            title: l10n(title), generating: snapshot.generating, tools: snapshot.tools, history: Array(history.suffix(60)),
+            groups: groups, rows: rows, events: snapshot.events, newPeak: previousPeak.map { snapshot.peak > $0 + 1 } ?? false,
+            todayText: SpeedFormat.tokens(Int(snapshot.today)), costText: String(format: "$%.2f", snapshot.cost),
+            peakText: SpeedFormat.speed(snapshot.peak), peak: snapshot.peak)
+    }
+
+    private static func status(_ agent: BoardSimulation.Agent) -> AgentStatus {
+        var facts: [ExecutionModeFact] = []
+        if let effort = agent.effort,
+           let fact = ExecutionModeFact(kind: .effort, rawValue: effort, evidence: .recorded, scope: .turn) { facts.append(fact) }
+        if let speed = agent.speed,
+           let fact = ExecutionModeFact(kind: .serviceTier, rawValue: speed, evidence: .recorded, scope: .turn) { facts.append(fact) }
+        let phase: AgentPhase = switch agent.phase {
+        case .generating: .generating
+        case .tools: .tools
+        case .idle: .idle
+        }
+        return AgentStatus(id: agent.id, source: SourceKind(rawValue: agent.source) ?? .claudeCode,
+                           project: agent.parentID == nil ? agent.project : agent.label, model: agent.model, phase: phase,
+                           isSubagent: agent.parentID != nil, live: Rate(output: agent.live, total: agent.live * 1.6),
+                           recentSpeed: nil, lastActivity: Date(timeIntervalSince1970: 1_800_000_000 + agent.lastActive),
+                           parentId: agent.parentID, modes: ExecutionModes(facts))
     }
 }
