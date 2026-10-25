@@ -2,9 +2,9 @@ import AgentSpeedOrbModel
 import AppKit
 
 /// Runs a board's `BoardEffects` on the shared frame clock (DESIGN 2c Frame policy): the overlay canvas advances the
-/// simulation and draws it, the backdrop canvas draws the warp under the rows. Each canvas asks for the effects'
-/// frame class while the board can be seen and for nothing otherwise, so an idle, hidden or occluded board renders
-/// nothing.
+/// simulation and draws it, and while the warp runs it draws the backdrop canvas (the warp under the rows) in the
+/// same submission. The overlay asks for the effects' frame class while the board can be seen and for nothing
+/// otherwise, so an idle, hidden or occluded board renders nothing.
 @MainActor
 final class BoardEffectsDriver {
     let overlay = OrbCanvasView(frame: .zero)
@@ -66,10 +66,10 @@ final class BoardEffectsDriver {
     private func updateRequests() {
         let frameClass = canRender ? effects.frameClass : .none
         overlay.request = OrbFrameRequest(frameClass: frameClass)
-        let warping = backdrop.request.frameClass != .none
-        backdrop.request = OrbFrameRequest(frameClass: canRender && effects.warpOn ? frameClass : .none)
+        let warping = overlay.companion != nil
+        overlay.companion = canRender && frameClass != .none && (effects.warpOn || effects.starCount > 0) ? backdrop : nil
         // The last warp frame stays on screen: clear it once.
-        if warping, backdrop.request.frameClass == .none { backdrop.setNeedsFrame() }
+        if warping, overlay.companion == nil { backdrop.setNeedsFrame() }
         if frameClass == .none { lastTime = nil }
     }
 
@@ -77,6 +77,6 @@ final class BoardEffectsDriver {
     private func refresh(warp warpWasOn: Bool = true) {
         guard canRender else { return }
         if overlay.request.frameClass == .none { overlay.setNeedsFrame() }
-        if backdrop.request.frameClass == .none, warpWasOn || effects.starCount > 0 { backdrop.setNeedsFrame() }
+        if overlay.companion == nil, warpWasOn || effects.starCount > 0 { backdrop.setNeedsFrame() }
     }
 }
