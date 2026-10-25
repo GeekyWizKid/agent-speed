@@ -46,21 +46,27 @@ struct BoardHeroNumber {
         let rising = memory.value.map { value >= $0 } ?? true
         let punch = memory.fresh && BoardContentRules.punches(from: memory.value, to: value)
         let anchor = CGPoint(x: origin.x, y: origin.y + height * 0.8)
-        let look = self.look, baseline = self.baseline, pad: CGFloat = 3
+        let look = self.look, pad: CGFloat = 3
+        // Slots sit on whole points with the glyph at its exact place inside, so the digits land on the glow's cut-outs.
+        let top = origin.y.rounded(.down)
+        let baseline = self.baseline + origin.y - top
+        let offsets = label.glyphOffsets
         var items: [BoardContentItem] = []
         for (index, character) in characters.enumerated() {
-            let start = CTLineGetOffsetForStringIndex(label.line, index, nil)
-            let end = CTLineGetOffsetForStringIndex(label.line, index + 1, nil)
-            let frame = CGRect(x: origin.x + start - pad, y: origin.y, width: end - start + 2 * pad, height: height)
+            let start = index < offsets.count ? offsets[index] : label.width
+            let end = index + 1 < offsets.count ? offsets[index + 1] : label.width
+            let left = (origin.x + start - pad).rounded(.down)
+            let x = origin.x + start - left
+            let frame = CGRect(x: left, y: top, width: (x + end - start + pad).rounded(.up), height: (height + origin.y - top).rounded(.up))
             let glyph = String(character)
-            let revision = AnyHashable([AnyHashable(glyph), AnyHashable(look.font), AnyHashable(look.fringes),
-                                        AnyHashable([look.color.red, look.color.green, look.color.blue, look.color.alpha])])
+            let revision = AnyHashable([AnyHashable(glyph), AnyHashable(look.font), AnyHashable(look.fringes), AnyHashable(x),
+                                        AnyHashable(baseline), AnyHashable([look.color.red, look.color.green, look.color.blue, look.color.alpha])])
             var item = BoardContentItem(key: "num\(characters.count).\(index)", frame: frame, motion: .none, revision: revision) { context, _ in
-                Self.draw(glyph, look: look, color: look.color, glow: nil, blur: 0, x: pad, baseline: baseline, in: context)
+                Self.draw(glyph, look: look, color: look.color, glow: nil, blur: 0, x: x, baseline: baseline, in: context)
             }
             item.clips = true
             item.hot = BoardContentDrawing { context, _ in
-                Self.draw(glyph, look: look, color: look.hot, glow: look.hotGlow, blur: look.hotBlur, x: pad, baseline: baseline, in: context)
+                Self.draw(glyph, look: look, color: look.hot, glow: look.hotGlow, blur: look.hotBlur, x: x, baseline: baseline, in: context)
             }
             if rolling, let previous, previous[index] != character { item.accents.append(.roll(rising: rising)) }
             if punch { item.accents.append(.punch(anchor: anchor)) }
@@ -98,9 +104,9 @@ struct BoardHeroNumber {
         let glass = style == .glass
         let font = glass ? BoardFont(size: 10, weight: .bold, tracking: 0.08) : BoardFont(family: .mono, size: 9.5, weight: .bold, tracking: 0.16)
         let label = BoardLabel(l10n("boards.newPeak"), font, color: RGBColor(hex: 0x241A00))
-        let chip = CGSize(width: label.width + 12, height: 16)
+        let chip = CGSize(width: label.width + 12, height: font.size + 6)
         let margin: CGFloat = glows ? 14 : 0
-        let frame = CGRect(x: -margin, y: -14 - chip.height / 2 - margin, width: chip.width + 2 * margin, height: chip.height + 2 * margin)
+        let frame = CGRect(x: -margin, y: (glass ? -14 : -13) - margin, width: chip.width + 2 * margin, height: chip.height + 2 * margin)
         return BoardDecal(frame: frame, motion: .pop(seconds: 2.2), celebration: true) { context, _ in
             let rect = CGRect(x: margin, y: margin, width: chip.width, height: chip.height)
             BoardDrawing.glowing(glows ? BoardPalette.gold.opacity(glass ? 0.45 : 0.7) : nil, blur: glass ? 14 : 16, in: context) {

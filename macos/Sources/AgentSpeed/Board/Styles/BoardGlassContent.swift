@@ -83,8 +83,8 @@ final class BoardGlassContent: BoardContentBuilding {
     private func hero(_ tick: BoardTick) -> ([BoardContentItem], CGRect) {
         let palette = self.palette, big = self.big, heroHeight = self.heroHeight
         let heat = (tick.heat * 50).rounded() / 50
-        let metaLine: CGFloat = 14.3
-        let numTop = ((heroHeight - (big * 1.08 + 7 + metaLine)) / 2).rounded()
+        let metaLine: CGFloat = 17
+        let numTop = (heroHeight - (big * 1.08 + 7 + metaLine)) / 2
         let frame = CGRect(x: pad, y: pad - 2, width: side - 2 * pad, height: heroHeight)
         let look = BoardHeroNumber.Look(font: BoardFont(size: big, weight: .bold, tracking: -0.02, tabular: true), color: palette.ink,
                                         hot: palette.dark ? HeatPalette.whiteHot : palette.ink,
@@ -112,7 +112,8 @@ final class BoardGlassContent: BoardContentBuilding {
             let shownTitle = title.truncated(to: room)
             shownTitle.draw(in: context, x: 0, baseline: metaBaseline)
             counts.truncated(to: max(0, room - shownTitle.width - 6)).draw(in: context, x: shownTitle.width + 6, baseline: metaBaseline)
-            let spark = CGRect(x: box.width - sparkWidth, y: (box.height - 40) / 2, width: sparkWidth, height: 40)
+            // The page's inline SVG sits atop a line box 3 pt taller than itself.
+            let spark = CGRect(x: box.width - sparkWidth, y: (box.height - 43) / 2, width: sparkWidth, height: 40)
             BoardHeroHistory.sparkline(history, in: spark, color: palette.heat(max(0.06, heat)), context: context)
         }
         let decals = tick.newPeak ? [number.sheen(), BoardHeroNumber.peakChip(style: .glass, l10n: l10n, glows: palette.glows)] : []

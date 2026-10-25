@@ -90,11 +90,14 @@ final class BoardTimingContent: BoardContentBuilding {
         let title = BoardLabel(tick.title, BoardFont(size: 11, weight: .bold, tracking: 0.04), color: RGBColor(hex: 0x0B0D12))
         let counts = BoardLabel(l10n("agents.context", tick.generating, tick.tools).uppercased(with: locale),
                                 BoardFont(family: .mono, size: 10.5, weight: .semibold, tracking: 0.03), color: palette.ink3)
-        let column = 10 + 6 + big * 1.08 + 7 + 17
-        let top = ((heroHeight - column) / 2).rounded()
-        let numTop = top + 16
+        // The live line is a 18 pt line box (the page's strut) with its 10 pt label 6.5 pt down; the column outgrows
+        // the hero at every size, so it starts at the top and the bars center on it.
+        let column = 18 + 6 + big * 1.08 + 7 + 17
+        let top = max(0, ((heroHeight - column) / 2).rounded())
+        let numTop = top + 24
         let barCount = size == .small ? 20 : 30
-        let frame = CGRect(x: pad, y: pad + 2, width: side - 2 * pad, height: heroHeight)
+        // The meta line runs past the hero's height into the rows' top, as on the page.
+        let frame = CGRect(x: pad, y: pad + 2, width: side - 2 * pad, height: max(heroHeight, top + column).rounded(.up))
         let number = BoardHeroNumber(tick.valueText, value: tick.value, look: look, origin: CGPoint(x: frame.minX, y: frame.minY + numTop))
         let history = tick.history.suffix(30).map { ($0 * 10).rounded() / 10 }
         let generating = tick.generating > 0
@@ -102,7 +105,7 @@ final class BoardTimingContent: BoardContentBuilding {
                                     AnyHashable(tick.tools), AnyHashable(Array(history)), AnyHashable(heat), AnyHashable(palette.dark),
                                     AnyHashable(palette.highContrast), AnyHashable(l10n.language.rawValue)])
         var hero = BoardContentItem(key: "hero", frame: frame, motion: .none, revision: revision) { context, box in
-            live.draw(in: context, x: 13, baseline: live.baseline(lineBoxTop: top))
+            live.draw(in: context, x: 13, baseline: live.baseline(lineBoxTop: top + 6.5))
             unit.draw(in: context, x: number.label.width + 6, baseline: numTop + number.baseline)
 
             let pillTop = numTop + big * 1.08 + 7
@@ -110,17 +113,18 @@ final class BoardTimingContent: BoardContentBuilding {
             BoardDrawing.fill(pill, radius: 5, color: HeatPalette.color(max(0.1, heat)), in: context)
             title.draw(in: context, x: 7, baseline: title.baseline(centeredOn: pill.midY))
             let barsWidth = CGFloat(barCount) * 5 - 2
-            counts.truncated(to: max(0, box.width - barsWidth - 8 - pill.width - 7))
+            // The meta line sits below the bars, so the counts may run under them (the page lets them overflow).
+            counts.truncated(to: max(0, box.width - pill.width - 7))
                 .draw(in: context, x: pill.maxX + 7, baseline: counts.baseline(centeredOn: pill.midY))
 
-            let bars = CGRect(x: box.width - barsWidth, y: (box.height - 38) / 2, width: barsWidth, height: 38)
+            let bars = CGRect(x: box.width - barsWidth, y: top + (max(heroHeight, column) - 38) / 2, width: barsWidth, height: 38)
             BoardHeroHistory.bars(Array(history), count: barCount, in: bars, color: palette.heat(max(0.1, heat)), context: context)
         }
         if memory.fresh, let leader, tick.events.contains(where: { $0.kind == .newLeader }) {
             hero.accents.append(.decal(banner(leader, width: side, top: heroHeight - 16)))
         }
 
-        let dotFrame = CGRect(x: frame.minX, y: frame.minY + top + 1.5, width: 7, height: 7)
+        let dotFrame = CGRect(x: frame.minX, y: frame.minY + top + 8, width: 7, height: 7)
         var dot = BoardContentItem(key: "live", frame: dotFrame, motion: .none, revision: AnyHashable([generating, palette.dark])) { context, box in
             BoardDrawing.fillCircle(CGRect(origin: .zero, size: box), color: generating ? BoardPalette.red : palette.ink3, in: context)
         }

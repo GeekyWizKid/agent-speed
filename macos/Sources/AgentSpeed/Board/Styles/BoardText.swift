@@ -95,14 +95,29 @@ struct BoardLabel {
         context.restoreGState()
     }
 
-    /// Draws only the glow of the glyphs: the glyphs are set far outside the context and their shadow cast back.
+    /// Draws only the glow of the glyphs: glyphs with their glow in a layer of their own, then the glyphs cut out of it.
     func drawGlowOnly(in context: CGContext, x: CGFloat, baseline: CGFloat, glow: RGBColor, blur: CGFloat) {
-        let away: CGFloat = 4000
-        let scale = abs(context.userSpaceToDeviceSpaceTransform.a)
         context.saveGState()
-        context.setShadow(offset: CGSize(width: away * scale, height: 0), blur: blur * scale, color: glow.cgColor)
-        draw(in: context, x: x - away, baseline: baseline)
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        draw(in: context, x: x, baseline: baseline, glow: glow, blur: blur)
+        context.setBlendMode(.destinationOut)
+        draw(in: context, x: x, baseline: baseline)
+        context.endTransparencyLayer()
         context.restoreGState()
+    }
+
+    /// Where each character's glyph starts (caret offsets sit mid-way in the tracking, glyphs do not).
+    var glyphOffsets: [CGFloat] {
+        var offsets = [CGFloat](repeating: 0, count: CTLineGetStringRange(line).length)
+        for run in CTLineGetGlyphRuns(line) as? [CTRun] ?? [] {
+            let count = CTRunGetGlyphCount(run)
+            var positions = [CGPoint](repeating: .zero, count: count)
+            var indices = [CFIndex](repeating: 0, count: count)
+            CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
+            CTRunGetStringIndices(run, CFRange(location: 0, length: 0), &indices)
+            for (index, position) in zip(indices, positions) where index < offsets.count { offsets[index] = position.x }
+        }
+        return offsets
     }
 
     /// Fills the glyphs with a linear gradient from `start` to `end` (CSS `background-clip: text`).
