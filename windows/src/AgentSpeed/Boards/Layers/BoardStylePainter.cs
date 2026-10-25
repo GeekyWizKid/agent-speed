@@ -41,7 +41,7 @@ internal readonly record struct BoardRowContent(
 /// capsule column, and the parts every style draws alike (glyph layers, the elbow of sub rows, the more lines' dots).
 /// A layer's signature holds everything it shows, so an unchanged layer is never rasterized again.
 /// </summary>
-internal abstract class BoardStylePainter : IDisposable
+internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
 {
     private BoardTick? _columnTick;
     private float _column;
@@ -65,6 +65,9 @@ internal abstract class BoardStylePainter : IDisposable
 
     /// <summary>Width of the value column's layer at the row's right end.</summary>
     protected abstract float ValueWidth(BoardSize size);
+
+    /// <summary>How far the value layer reaches left over the body (timing's fastest dot sits just before the value).</summary>
+    protected virtual float ValueBleed => 0;
 
     protected abstract BoardCapsuleLook CapsuleLook(BoardScene scene, bool sub);
 
@@ -97,7 +100,7 @@ internal abstract class BoardStylePainter : IDisposable
             case BoardLayerKind.RowValue when request.Row is { Entry.Kind: BoardEntryKind.Group or BoardEntryKind.Sub } row:
             {
                 var content = Content(scene, tick, row.Entry, row.Live);
-                return new BoardLayerSpec(ValueWidth(scene.Size), scene.RowHeight(row.Entry),
+                return new BoardLayerSpec(ValueWidth(scene.Size) + ValueBleed, scene.RowHeight(row.Entry),
                     string.Join('|', theme, "v", row.Entry.Kind, ValueText(row.Live), ValueKey(content)));
             }
 

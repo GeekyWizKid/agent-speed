@@ -81,6 +81,33 @@ internal static class BoardPaint
         context.DrawImage(shadow, InterpolationMode.Linear, CompositeMode.SourceOver);
     }
 
+    /// <summary>
+    /// A CSS box shadow in the content's own colors: <paramref name="draw"/> recorded once and blurred to
+    /// <paramref name="blur"/> points, behind what is drawn next (neon's LED segments).
+    /// </summary>
+    public static void Bloom(ID2D1DeviceContext context, float blur, Action<ID2D1DeviceContext> draw)
+    {
+        if (blur <= 0)
+        {
+            return;
+        }
+
+        var transform = context.Transform;
+        using var previous = context.Target;
+        using var list = context.CreateCommandList();
+        context.Target = list;
+        context.Transform = Matrix3x2.Identity;
+        draw(context);
+        context.Target = previous;
+        list.Close();
+        context.Transform = transform;
+        using var effect = new GaussianBlur(context);
+        effect.SetInput(0, list, true);
+        effect.StandardDeviation = blur / 2;
+        effect.BorderMode = BorderMode.Soft;
+        context.DrawImage(effect, InterpolationMode.Linear, CompositeMode.SourceOver);
+    }
+
     /// <summary>The prototypes' speed bolt (<c>M4.8 0 0.6 5.6h2.7L2.6 10 7.4 4.1H4.6z</c>, 8 × 10) at (<paramref name="x"/>, <paramref name="y"/>).</summary>
     public static void Bolt(ID2D1DeviceContext context, float x, float y, float scale, ID2D1Brush brush)
     {
