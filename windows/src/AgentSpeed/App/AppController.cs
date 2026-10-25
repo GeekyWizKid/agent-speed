@@ -1015,9 +1015,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
     private void OnSettingsChanged(AppSettings previous, AppSettings current)
     {
-        if (previous with { HeroLastTitle = current.HeroLastTitle } == current)
+        if (previous with { HeroLastTitle = current.HeroLastTitle, HistoryModeKind = current.HistoryModeKind } == current)
         {
-            // Only the parked hero vehicle was remembered; nothing on screen depends on it.
+            // Only the parked hero vehicle or the history's effort / speed choice was remembered; the history shows it already.
             return;
         }
 
@@ -1038,6 +1038,12 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         if (previous.Traffic.IncludeTools != current.Traffic.IncludeTools || previous.EnabledSourceSet() != current.EnabledSourceSet())
         {
             _history?.OnTrafficSettingsChanged();
+        }
+
+        if (previous.Effects != current.Effects)
+        {
+            // The history's top-rung meters shimmer only with effects on.
+            _history?.OnThemeChanged();
         }
 
         if (previous.Language != current.Language)
