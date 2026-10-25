@@ -4,6 +4,11 @@ import CoreGraphics
 /// One cached piece of a board's content (DESIGN 2c Two layers): the hero, a ranking row, the footer. Laid out and
 /// rasterized only when `revision` changes; frames only move the cached layer.
 struct BoardContentItem {
+    struct Plate: Equatable {
+        var color: CGColor
+        var cornerRadius: CGFloat
+    }
+
     enum Motion {
         /// Stays put (hero, footer).
         case none
@@ -16,6 +21,9 @@ struct BoardContentItem {
     /// Board points, y down.
     var frame: CGRect
     var motion: Motion = .row
+    /// A flat rounded fill behind the drawing, composited by the render server (a row's plate is never rasterized,
+    /// so a changing value redraws only its text).
+    var plate: Plate?
     /// Whatever the drawing depends on; equal revisions reuse the cached image.
     var revision: AnyHashable
     /// Draws the item in a context of `size` points (y down, origin at the item's top-left).

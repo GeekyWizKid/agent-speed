@@ -29,7 +29,12 @@ final class BoardContentStack {
     var reduceMotion = false
     /// Pixels per point of the images; a change redraws every item.
     var scale: CGFloat = 2 {
-        didSet { if scale != oldValue { for key in entries.keys { entries[key]?.revision = AnyHashable(UUID()) } } }
+        didSet { if scale != oldValue { invalidate() } }
+    }
+    /// The window's color space: images drawn in it reach the render server as they are, without a per-commit copy
+    /// and color conversion of every changed row. A change redraws every item.
+    var colorSpace: CGColorSpace? {
+        didSet { if colorSpace != oldValue { invalidate() } }
     }
     /// Images rasterized since launch (benchmarks: data changes only, never per frame).
     private(set) var rasterCount = 0
@@ -59,6 +64,10 @@ final class BoardContentStack {
 
     private var side: CGFloat { layer.bounds.height }
 
+    private func invalidate() {
+        for key in entries.keys { entries[key]?.revision = AnyHashable(UUID()) }
+    }
+
     /// Shows `items`: new ones fade in from 10 pt below, missing ones fade out, moved ones spring to their place
     /// (Reduce Motion: a crossfade instead). `animated` false places everything at once.
     func apply(_ items: [BoardContentItem], animated: Bool) {
@@ -70,6 +79,7 @@ final class BoardContentStack {
             seen.insert(item.key)
             let target = layerFrame(item.frame)
             if var entry = entries[item.key] {
+                Self.setPlate(item.plate, on: entry.layer)
                 if entry.revision != item.revision || entry.frame.size != item.frame.size {
                     entry.image = rasterize(item)
                     entry.layer.contents = entry.image
@@ -103,6 +113,7 @@ final class BoardContentStack {
                 child.position = target.origin
                 child.contentsScale = scale
                 child.contentsGravity = .resize
+                Self.setPlate(item.plate, on: child)
                 let image = rasterize(item)
                 child.contents = image
                 layer.addSublayer(child)
@@ -127,6 +138,12 @@ final class BoardContentStack {
     /// The cached images at their resting frames (board points, y down), back to front, for offscreen frames.
     var snapshot: [(image: CGImage, frame: CGRect)] {
         order.compactMap { key in entries[key].flatMap { entry in entry.image.map { ($0, entry.frame) } } }
+    }
+
+    private static func setPlate(_ plate: BoardContentItem.Plate?, on layer: CALayer) {
+        if layer.backgroundColor != plate?.color { layer.backgroundColor = plate?.color }
+        let radius = plate?.cornerRadius ?? 0
+        if layer.cornerRadius != radius { layer.cornerRadius = radius }
     }
 
     private func layerFrame(_ frame: CGRect) -> CGRect {
@@ -168,17 +185,18 @@ final class BoardContentStack {
 
     private func rasterize(_ item: BoardContentItem) -> CGImage? {
         rasterCount += 1
-        return BoardRaster.image(size: item.frame.size, scale: scale, draw: item.draw)
+        return BoardRaster.image(size: item.frame.size, scale: scale, space: colorSpace, draw: item.draw)
     }
 }
 
 /// Offscreen bitmaps for the board's cached content.
 enum BoardRaster {
-    /// A premultiplied sRGB image of `size` points at `scale`, drawn by `draw` in a y-down context.
-    static func image(size: CGSize, scale: CGFloat, draw: (CGContext, CGSize) -> Void) -> CGImage? {
+    /// A premultiplied image of `size` points at `scale` in `space` (sRGB by default), drawn by `draw` in a y-down
+    /// context.
+    static func image(size: CGSize, scale: CGFloat, space: CGColorSpace? = nil, draw: (CGContext, CGSize) -> Void) -> CGImage? {
         let width = max(1, Int((size.width * scale).rounded(.up)))
         let height = max(1, Int((size.height * scale).rounded(.up)))
-        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+        guard let space = space ?? CGColorSpace(name: CGColorSpace.sRGB),
               let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
                                       space: space, bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
                                           | CGBitmapInfo.byteOrder32Little.rawValue)

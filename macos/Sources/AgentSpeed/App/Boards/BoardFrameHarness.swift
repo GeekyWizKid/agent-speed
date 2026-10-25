@@ -112,6 +112,13 @@ enum BoardFrameHarness {
         canvas.context.addPath(path)
         canvas.context.clip()
         for item in items {
+            if let plate = item.plate {
+                let rect = item.frame.offsetBy(dx: margin, dy: margin)
+                canvas.context.addPath(CGPath(roundedRect: rect, cornerWidth: plate.cornerRadius, cornerHeight: plate.cornerRadius,
+                                              transform: nil))
+                canvas.context.setFillColor(plate.color)
+                canvas.context.fillPath()
+            }
             guard let image = BoardRaster.image(size: item.frame.size, scale: 2, draw: item.draw) else { continue }
             canvas.draw(image, at: CGPoint(x: margin + item.frame.minX, y: margin + item.frame.minY), size: item.frame.size)
         }

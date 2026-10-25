@@ -41,6 +41,7 @@ struct BoardPlaceholderContent {
         let value = SpeedFormat.speed(snapshot.live)
         let title = HeatPalette.color(heat, dark: dark).nsColor
         let ink = self.ink, ink2 = self.ink2
+        let plate = ink.withAlphaComponent(0.06).cgColor
         let counts = "\(snapshot.generating) · \(snapshot.tools)"
         items.append(BoardContentItem(key: "hero", frame: hero, motion: .none,
                                       revision: AnyHashable([value, counts, String(Int(heat * 20)), dark ? "d" : "l"])) { _, box in
@@ -59,12 +60,9 @@ struct BoardPlaceholderContent {
                 let share = group.live / total
                 let label = SpeedFormat.speed(group.live)
                 anchors[group.id] = (frame, CGPoint(x: frame.minX + 13, y: frame.midY))
-                items.append(BoardContentItem(key: row.key, frame: frame,
+                items.append(BoardContentItem(key: row.key, frame: frame, plate: .init(color: plate, cornerRadius: 9),
                                               revision: AnyHashable([String(index), group.root.project, label,
                                                                      String(Int(share * 50)), dark ? "d" : "l"])) { context, box in
-                    context.setFillColor(ink.withAlphaComponent(0.06).cgColor)
-                    context.addPath(CGPath(roundedRect: CGRect(origin: .zero, size: box), cornerWidth: 9, cornerHeight: 9, transform: nil))
-                    context.fillPath()
                     Self.text("\(index + 1)", at: CGPoint(x: 8, y: box.height / 2 - 8), size: 13, weight: .bold, color: ink, mono: true)
                     context.setFillColor(color.cgColor)
                     context.fillEllipse(in: CGRect(x: 30, y: box.height / 2 - 4, width: 8, height: 8))
@@ -110,9 +108,16 @@ struct BoardPlaceholderContent {
         RGBColor(hex: BoardSimulation.sources[source] ?? 0xFFFFFF).nsColor
     }
 
+    private static var fonts: [String: NSFont] = [:]
+
     private static func text(_ string: String, at point: CGPoint, size: CGFloat, weight: NSFont.Weight, color: NSColor,
                              mono: Bool = false) {
-        let font = mono ? NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight) : NSFont.systemFont(ofSize: size, weight: weight)
+        let key = "\(size)-\(weight.rawValue)-\(mono)"
+        let font = fonts[key] ?? {
+            let font = mono ? NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight) : NSFont.systemFont(ofSize: size, weight: weight)
+            fonts[key] = font
+            return font
+        }()
         NSAttributedString(string: string, attributes: [.font: font, .foregroundColor: color]).draw(at: point)
     }
 }

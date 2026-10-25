@@ -98,5 +98,11 @@ final class BoardHostView: NSView {
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         content.scale = window?.backingScaleFactor ?? 2
+        content.colorSpace = window?.colorSpace?.cgColorSpace
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        viewDidChangeBackingProperties()
     }
 }
