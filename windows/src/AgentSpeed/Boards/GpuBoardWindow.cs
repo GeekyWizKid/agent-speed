@@ -36,11 +36,13 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
     private readonly DispatcherTimer _passThroughPoll;
     private readonly DispatcherTimer _housekeeping;
     private readonly MotionClient _mover;
+    private readonly BoardAutomation _automation;
     private BoardWindowOptions _options;
     private bool _passThrough;
     private bool _dragging;
     private bool _dragMoved;
     private POINT _dragStartCursor;
+    private (int X, int Y) _press;
     private PointD _dragStartCenter;
     private PointD _dragTarget;
     private PointD _center;
@@ -62,6 +64,7 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
         _host = new OrbHostWindow("Agent Speed Board", this, topmost: true);
         _surface = new BoardSurface(device, orbClock, style, size, painter, seed) { Hwnd = _host.Handle };
         _mover = new MotionClient(this);
+        _automation = new BoardAutomation(() => _host.Handle, RowBounds);
         _passThroughPoll = new DispatcherTimer(TimeSpan.FromMilliseconds(40), DispatcherPriority.Input, (_, _) => PollPassThrough(),
             Dispatcher.CurrentDispatcher);
         _passThroughPoll.Stop();
@@ -90,11 +93,40 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
 
     public event EventHandler? DashboardRequested;
 
-    /// <summary>The group row under the cursor changed (the tooltip of phase 2).</summary>
+    /// <summary>The group row under the cursor changed (the tooltip, the expansion's interaction).</summary>
     public event EventHandler<string?>? HoveredRowChanged;
 
-    /// <summary>PHASE 2: the board's list element (<c>a11y.board</c>) and its row items.</summary>
-    public IRawElementProviderSimple? AutomationProvider => null;
+    /// <summary>A click without a drag on a group row (its key): the group's sub-agents expand or collapse.</summary>
+    public event EventHandler<string>? RowClicked;
+
+    /// <summary>The board's list element (<c>a11y.board</c>), its row items and its actions.</summary>
+    public BoardAutomation Automation => _automation;
+
+    public IRawElementProviderSimple? AutomationProvider => _automation;
+
+    /// <summary>A shown row's rectangle in screen pixels, or null.</summary>
+    public RECT? RowRect(string key)
+    {
+        if (_host.Handle == 0 || !User32.GetWindowRect(_host.Handle, out var window))
+        {
+            return null;
+        }
+
+        var scene = _surface.Scene;
+        foreach (var row in scene.Rows)
+        {
+            if (!row.Leaving && string.Equals(row.Key, key, StringComparison.Ordinal))
+            {
+                var metrics = scene.Metrics;
+                var left = window.Left + (BoardCanvas.Margin + metrics.ListLeft) * DisplayScale;
+                var top = window.Top + (BoardCanvas.Margin + metrics.ListTop + row.Y) * DisplayScale;
+                return new RECT((int)Math.Round(left), (int)Math.Round(top), (int)Math.Round(left + metrics.ListWidth * DisplayScale),
+                    (int)Math.Round(top + row.Entry.Height * DisplayScale));
+            }
+        }
+
+        return null;
+    }
 
     public void Configure(BoardStyle style, BoardSize size, BoardEffectsPolicy policy, BoardWindowOptions options)
     {
@@ -209,6 +241,7 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
             return;
         }
 
+        _press = (x, y);
         if (BeginDrag())
         {
             _host.CaptureMouse();
@@ -328,6 +361,11 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
         if (!_dragMoved)
         {
             StopFrames();
+            if (_surface.Scene.HitRow(_press.X / DisplayScale, _press.Y / DisplayScale) is { Entry.Kind: BoardEntryKind.Group } row)
+            {
+                RowClicked?.Invoke(this, row.Key);
+            }
+
             return;
         }
 
@@ -466,6 +504,9 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
             SetHovered(null);
         }
     }
+
+    private System.Windows.Rect RowBounds(string key) =>
+        RowRect(key) is { } r ? new System.Windows.Rect(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top) : System.Windows.Rect.Empty;
 
     private void Housekeeping() => _surface.Paused = WindowEffects.IsCloaked(_host.Handle);
 

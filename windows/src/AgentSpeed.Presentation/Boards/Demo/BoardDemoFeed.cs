@@ -77,8 +77,8 @@ public sealed class BoardDemoFeed
             result.Events, newPeak)
         {
             Title = Localizer is { } loc ? DisplayText.TitleName(title, loc) : string.Empty,
-            GeneratingAgents = generating,
-            ToolAgents = tools,
+            GeneratingCount = generating,
+            ToolsCount = tools,
             History = Seconds(Sim.History),
             PeakToday = Sim.Peak,
             TodayText = SpeedFormat.Tokens((long)Sim.Today),

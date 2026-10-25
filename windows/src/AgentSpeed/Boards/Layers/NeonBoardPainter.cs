@@ -143,7 +143,7 @@ internal sealed class NeonBoardPainter : BoardStylePainter
 
         using (var ink3 = BoardPaint.Brush(context, palette.Ink3))
         {
-            Text.Draw(context, "· " + Loc.Format("agents.context", tick.GeneratingAgents, tick.ToolAgents), Counts, x, meta, ink3, width - x);
+            Text.Draw(context, "· " + Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Counts, x, meta, ink3, width - x);
         }
 
         Led(context, tick, hero.History, palette);

@@ -117,7 +117,7 @@ internal sealed class GlassBoardPainter : BoardStylePainter
         {
             var x = Text.Draw(context, tick.Title, Title, 0, meta, titleBrush, (float)hero.History.Left - 8);
             x += string.IsNullOrEmpty(tick.Title) ? 0 : 6;
-            Text.Draw(context, "· " + Loc.Format("agents.context", tick.GeneratingAgents, tick.ToolAgents), Meta, x, meta, metaBrush,
+            Text.Draw(context, "· " + Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Meta, x, meta, metaBrush,
                 (float)hero.History.Left - 8 - x);
         }
 

@@ -178,7 +178,7 @@ internal sealed class TimingBoardPainter : BoardStylePainter
         }
 
         // The meta line sits below the bars, so the counts may run under them (localized counts are longer than GEN · TOOL).
-        Text.Draw(context, Loc.Format("agents.context", tick.GeneratingAgents, tick.ToolAgents), Counts, x, meta + 8.5f, ink3, width - x);
+        Text.Draw(context, Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Counts, x, meta + 8.5f, ink3, width - x);
         Bars(context, tick, hero.History, scene.Size == BoardSize.S ? 20 : BoardHeroLayout.Bars, palette.HighContrast ? palette.Ink : heat);
     }
 

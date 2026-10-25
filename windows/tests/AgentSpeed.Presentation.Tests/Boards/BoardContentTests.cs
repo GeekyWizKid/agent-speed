@@ -130,7 +130,7 @@ public class BoardContentTests
 
         Assert.NotNull(tick);
         Assert.False(string.IsNullOrEmpty(tick.Title));
-        Assert.True(tick.GeneratingAgents > 0);
+        Assert.True(tick.GeneratingCount > 0);
         Assert.NotEmpty(tick.History);
         Assert.Equal(tick.Value, tick.History[^1], 6);
         Assert.True(tick.PeakToday >= tick.Value);

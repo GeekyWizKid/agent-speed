@@ -130,8 +130,8 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             {
                 // A little wider than the hero, so the sparkline's end dot at its right edge is whole.
                 var hero = scene.Hero;
-                return new BoardLayerSpec(hero.Width + 4, hero.Height, string.Join('|', theme, "h", tick.ValueText, tick.Title, tick.GeneratingAgents,
-                    tick.ToolAgents, tick.Generating, HeroHeatKey(tick), HistoryKey(tick.History), HeatKey(HeatMath.Heat(tick.PeakToday, tick.Redline))));
+                return new BoardLayerSpec(hero.Width + 4, hero.Height, string.Join('|', theme, "h", tick.ValueText, tick.Title, tick.GeneratingCount,
+                    tick.ToolsCount, tick.Generating, HeroHeatKey(tick), HistoryKey(tick.History), HeatKey(HeatMath.Heat(tick.PeakToday, tick.Redline))));
             }
 
             case BoardLayerKind.Footer:
