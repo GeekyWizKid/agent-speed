@@ -2136,3 +2136,192 @@ ranges is a sleep), activity ranges, output increments (`from`, `to`, `step`, `o
 default `ok`). `expect.delivered` lists `[seq, endMs, windowMs, activity, output]` of every delivered report and
 `expect.lost` the lost `seq`s. The expected values were written by hand from 11.5 and the simulator must reproduce
 them.
+
+### 11.9 WebSocket transport
+
+The user picks the transport of a service (DESIGN 11): **HTTP** (default, 11.5) or **WebSocket**. With WebSocket the
+client follows the WebSocket extension of the protocol (`spec/REPORTING-WEBSOCKET.md`, kept with the partner
+documents): reports are built when data changes, sent over one long-lived connection and acknowledged one by one. The
+report body is the v1 body of 11.2–11.7 with one added object, `realtime` (below). Nothing of 11.5 (interval, retry,
+outbox, backoff) applies to this transport; this section replaces it. `spec/tools/report_websocket.py` implements
+this section as a second simulator; `spec/tools/report_reference.py` writes and checks
+`spec/fixtures/report-vectors.json` → `websocket` with it; both apps run the same cases through their own stream
+scheduler.
+
+**Availability.** The transport is available when the confirmed document has `extensions.reportWebSocket` equal to
+the JSON integer `1` and a valid `websocket` object: `path` exactly `/v1/reports/ws`, `subprotocol` exactly
+`agent-speed-report.v1`, and the optional integers `minIntervalMs` 10–1000 (default 50), `maxInFlight` 1–64 (8),
+`ackTimeoutMs` 500–10 000 (2000), `maxMessageBytes` 32 768–65 536 (65 536), `pingIntervalSeconds` 10–60 (20),
+`pongTimeoutSeconds` 5–30 (10) and below `pingIntervalSeconds`. A field that is present with another type or out of
+its range makes the whole object invalid (never clamped, unlike `limits`); unknown fields are ignored; an invalid
+object or another extension value leaves the HTTP document valid. Unavailable while WebSocket is chosen: nothing
+connects and nothing is sent over HTTP; the choice is kept. The connection URL is `api` with `https` → `wss` (`http`
+→ `ws` only for the loopback test service of REPORTING 2.2), authority and base path kept, plus `path`. A change of
+these settings in a refreshed document applies at the next connection.
+
+**Connection.** One connection at a time, opened with the v1 signature headers over `GET`, the URL path and an empty
+body (11.6 clock correction applies), the API key when set, `Sec-WebSocket-Protocol: agent-speed-report.v1`, no
+compression extension, no cookies, no authentication challenge answered, no redirect followed. The `101` response
+must select that subprotocol, else the connection is closed and counts as `close 1002`. At most 10 s from `connect`
+to `101` and 10 s from `101` to a valid `ready`; then `abort` and a failure. While open the client sends a Ping every
+`pingIntervalSeconds` and aborts with a failure when no Pong arrives within `pongTimeoutSeconds` (the libraries answer
+the service's Pings themselves; this bounds the "two Ping intervals without a frame" rule). `abort` drops the socket
+without a close handshake; `close 1000` sends a close frame.
+
+**Messages.** Each report is one text message `{"type":"report","headers":{…},"body":"…"}`: the four
+`X-AgentSpeed-*` headers of a v1 signature over `POST`, the `api` base path + `/v1/reports` and the body bytes (a
+fresh nonce per report), and `body` the compact body as a JSON string; the whole message stays within
+`maxMessageBytes` and the body within 11.7 (drop `models`, then `sources`; a message still too large is dropped and
+counted as `stale`). The body string is written with `"` and `\` escaped, control characters as `\b \f \n \r \t`
+or `\u00xx`, and everything else as is (`/` and non-ASCII included). Received messages are parsed strictly (UTF-8
+text, one JSON object, no duplicate member names, no lone surrogates, no NaN, depth ≤ 32, at most `maxMessageBytes`):
+`ready` with `protocol`, `version` 1, `transportVersion` 1, `serverTime` and the six limits as integers; `ack` with
+`run.id`, `run.seq` (≥ 1), `status` `accepted` or `duplicate`, `bodySha256` (64 lower-case hex digits), `receivedAt`,
+`acceptedAt`, `processingMs` and an optional `rank` ≥ 1; `error` with `run` (object or `null`), `httpStatus`
+400–599, `error.code`, optional `error.retryAfterSeconds` and `error.serverTime`, and `fatal`. A message of another
+`type` is ignored; an invalid message from the service, or a binary one, counts as `close 1002`.
+
+**`realtime`** (only in WebSocket bodies, last member of the body):
+
+| Field | Value |
+| --- | --- |
+| `sourceMode` | `log` (transcripts and databases read on change notifications, section 5); `mixed` when the report carries the `traffic` section with status `ok` (traffic is sampled, 10.10) |
+| `observedAt` | `sentAt − observationAgeMs` on the same corrected clock, or `null` when the window had no new data |
+| `observationAgeMs` | `builtAt − observed` (monotonic ms) of the window's earliest observation (below), or `null` |
+| `sourceResolutionMs` | `1000` for `log` (the 1 s fallback stat of section 5 bounds a missed notification); `null` for `mixed` (the traffic interval adapts, 10.10) |
+
+*Observations.* The monitor records, for every read that changed the engine (a file or database read on a change
+notification, the 1 s fallback, a completed whole-file read), the monotonic time the read began; the snapshot
+published after it carries the earliest such time since the previous snapshot. A tick passes it to the scheduler
+when the tick is *changed* (below); the window keeps the earliest one since it started.
+
+**Scheduler state** (per run, monotonic ms): `seq`, `windowStart`, the window's `observed`, `dirty`, `lastBuildAt`,
+`lastActivity` (the `activity` of the last built report), `lastActive` and the mode of 11.5, the connection
+(`closed`, `connecting`, `opening`, `open`, `closing`) with its deadline, `readyAt`, `awaiting` (reports written and
+not yet answered, with their write time and observation), `failures`, `reconnectAt`, `rateLimitedUntil`, `stop` (a
+reason, or none), the strike counts `rejectStrikes`, `nonceStrikes`, `signatureStrikes`, `runConflicts`, `oversize`,
+and the `ready` mismatch flags. A run starts as in 11.5 and also when the user changes the transport, after
+`seq_conflict` and on every launch; a new run closes the connection of the old one (no `leaving`) and drops its
+awaiting reports as `unknown`. The counters `built`, `accepted`, `duplicate`, `rejected`, `stale`, `saturated`,
+`unknown`, `unmatched` and the latency samples belong to the transport session (from turning reporting on, a launch,
+or a change of service or transport), not to a run, so `seq_conflict` keeps them.
+
+**Ready** is the readiness of 11.5 (reporting on, confirmed, registered, network on, not paused, no error that needs
+the user) and the transport available and no `stop`. A tick is **changed** when the ledger received an increment at
+it, or when one of the values a report would carry at it, rounded as sent (11.7) — `live.outputTokS`,
+`live.totalTokS`, `live.estimatedShare`, `live.agents.generating`, `.tools`, `.active` — differs from the last built
+report's.
+
+**Each tick `t`** (an engine tick, a snapshot after a read, or a wake-up the scheduler asked for), in this order.
+*Discard* empties the ledger, sets `windowStart = t` and clears the window's observation; *leave* builds `leaving`
+when fewer than `maxInFlight` reports are awaited (no minimum interval), writes it, and makes the connection
+`closing` with the deadline `t + 1000` — closed with `close 1000` at once when nothing is awaited.
+
+1. User events as 11.5 step 1. `networkOff`: `abort` (every awaiting report `dropped unknown`, connection `closed`).
+2. Gap (11.5 step 2): discard; a connection that is not `closed` is aborted (after a sleep the socket is stale).
+3. Mode and `lastActive` as 11.5; `dirty` becomes true when the tick is changed or the mode differs from
+   `lastActivity`; a changed tick's observation joins the window (the earliest stays). A `closing` connection at or
+   past its deadline is aborted.
+4. **Leaving on a user action** (pause, turning reporting off, quit): when the connection is `open`, the previous
+   mode was not `quiet` and `t ≥ rateLimitedUntil`: leave.
+5. **Not ready** (paused, off, network off, `stop`, transport unavailable): an `open` connection is closed with
+   `close 1000` when nothing is awaited, else becomes `closing` with the deadline `t + 1000`; a `connecting` or
+   `opening` one is aborted; discard; stop here.
+6. **Quiet**: on the tick the mode becomes `quiet` with the connection `open`: leave. On any quiet tick a
+   `connecting` or `opening` attempt is aborted; discard; stop here (nothing connects until activity returns).
+7. **Connect**: when the connection is `closed`, `t ≥ reconnectAt`, `t ≥ rateLimitedUntil` and no refreshed settings
+   are awaited (*`ready`* below): `connect` (connection `connecting`, deadline `t + 10 000`); discard; stop here.
+   `connecting` / `opening` at or past their deadline: `abort`, failure (below); discard; stop here. `closing`:
+   discard; stop here.
+8. **Answers overdue**: when `t > writeTime + ackTimeoutMs` for an awaiting report: `abort`, failure; discard; stop
+   here.
+9. **Due**: `dirty` and `t − lastBuildAt ≥ minIntervalMs` (`lastBuildAt` is none after `ready`, which also sets
+   `dirty`), or `t − (lastBuildAt, else readyAt) ≥ H` (`heartbeatSeconds`, 11.5) in either mode — the service keeps a
+   device online by its reports, so a long tool run with nothing changing still sends one. When due and fewer than
+   `maxInFlight` reports are awaited: **build** — `seq + 1`, the ledger and the instantaneous values at `t`,
+   `activity` = the mode, `windowMs = t − windowStart`, then `windowStart = t`, the observation cleared,
+   `dirty = false`, `lastBuildAt = t`, `lastActivity` = the mode; when its observation age is above 1000 ms it is
+   `dropped stale`, otherwise written at once (`write`, awaited from `t`). When due and `maxInFlight` reports are
+   awaited: discard (the window is lost, `saturated`), `dirty = false`. When `dirty` and not due: `wake` at
+   `lastBuildAt + minIntervalMs` (once per distinct time).
+
+**Answers** (only from the current connection; events of an ended one are ignored). An `ack` matches an awaiting
+report by `run.id`, `seq` and `bodySha256`; a matched one is `delivered` (`accepted` or `duplicate`; the last
+delivery time, the latency sample below and `rank` are taken from it, and the five strike counts return to 0); when
+the connection has been `open` for at least 60 s, `failures = 0`. Anything else is `unmatched`. An `error` whose
+`run` matches an awaiting report drops it as `rejected`; its code then gives the reaction below, also for `run: null`.
+When a `fatal` error's reaction leaves the connection up, the client aborts it and counts a failure, so the close that
+the service sends after it is never acted on. A `closing` connection is closed with `close 1000` once nothing is
+awaited.
+
+Whenever a connection ends — `abort`, `close`, a close by the service, a failed handshake — the reports it still
+awaits are `dropped unknown` (their outcome is not known; they are never resent) and the connection is `closed`.
+
+**Failures** (a refused handshake whose reaction does not stop, wait or start over, a deadline, an unexpected close
+or abort, a fatal error): the connection ends, `failures + 1`, `reconnectAt = t + d × jitter` with `d` = 500, 1000,
+2000, 4000, 8000, 16 000, then 30 000 ms for the 1st, 2nd … failure (jitter in [0.8, 1.2]; the fixtures use 1).
+`Retry-After` always wins: `rateLimitedUntil = max(current, t + s)` with `s` clamped to 5 s – 1 h (60 s when a `429`
+or a `4429`/`4503` close gives none); a wait is not a failure. A `stop` aborts a connection that is still up.
+
+**Reactions** to an `error` code, a handshake rejection (its HTTP status and v1 error body) or a close code; an
+explicit `error` received on a connection takes precedence over the close code that follows it:
+
+| Code or close | Reaction |
+| --- | --- |
+| `timestamp_out_of_window` | correct the clock (11.6, `serverTime`); a handshake rejection is a failure |
+| `nonce_replayed` | `nonceStrikes + 1`; at 3 `stop nonce`; a handshake rejection is a failure |
+| `signature_invalid` | `react recheckRegistration` (REPORTING 8.3: pending key, then `POST /v1/devices`); `signatureStrikes + 1`, at 3 `stop keyMismatch`, else `close 1000` and a failure |
+| `api_key_required`, `api_key_invalid`, close `4001` | `stop apiKey` |
+| `forbidden`, close `4003` | `stop forbidden` |
+| `unknown_device`, close `4004` | `react reRegister` (at most once per hour, REPORTING 8.3), failure |
+| `username_mismatch` | `react rename` |
+| `seq_conflict` | `abort`, `react newRun`: a new `run.id` with `seq` from 1 and a new window (the mode, `failures` and waits stay); it connects at the next tick |
+| `run_conflict` | `close 1000` (every awaiting report `dropped unknown`), `runConflicts + 1`; at 2 `stop clientState`, else reconnect at the next tick |
+| `version_unsupported` | `react refreshDiscovery`, `stop upgrade` |
+| `payload_too_large`, close `1009` | `react refreshDiscovery`; a close is a failure; `oversize + 1`, at 3 `stop incompatible` |
+| `report_stale` | nothing more |
+| `rate_limited`, a `503` with `retryAfterSeconds`, close `4429` / `4503` | `abort`, `wait` (`Retry-After` as above) |
+| `gone`, close `4410` | `stop gone` (reporting turns off, REPORTING 8.3) |
+| close `4009` | `stop replaced` (another connection of this device took over) |
+| close `4000` | failure (reconnect with the current key) |
+| close `1002`, `1003`, `1007` | `stop incompatible` |
+| `bad_request`, `payload_invalid`, `device_mismatch`, `not_found`, `method_not_allowed`, other 4xx | `rejectStrikes + 1`, at 3 `stop rejected`; a handshake rejection is also a failure |
+| a `5xx` code, close `1000` not asked for, `1001`, `1011`, `1006` and every other close | failure |
+
+A refused handshake takes the code of its v1 error body (`retryAfterSeconds` from the body, else the `Retry-After`
+header, delay seconds only); a body that cannot be read is classified by its status: `401` as `signature_invalid`,
+`403` as `forbidden`, `404` as `unknown_device`, `410` as `gone`, `413` as `payload_too_large`, `429` as
+`rate_limited`, `503` with a `Retry-After` header as `rate_limited`, any other 4xx as `bad_request`, 5xx and others
+as a failure. Every refused handshake whose reaction does not stop, wait or start over is also a failure. `stop`
+ends automatic attempts until the user acts (`stop mismatch` and `stop replaced` offer *Try Again*, which clears the
+stop and reconnects) or the settings change; `stop gone` turns reporting off.
+
+**`ready`.** A valid `ready` (on an `opening` connection) whose six limits equal the document's opens the
+connection: `readyAt = t`, discard, `dirty = true`, `lastBuildAt` none; its limits govern the connection. A `ready`
+that differs: `close 1000`, `react refreshDiscovery` (forced, once), and the next connection waits for the refreshed
+settings (`settings`) and uses them; a second differing `ready` before a matching one, a failed refresh or a document
+without the capability (`settings` with none while waiting) gives `stop mismatch`. A refreshed document without the
+capability at any other time makes the transport unavailable. Nothing is written before a valid `ready`. *Try Again*
+(`retry`) clears a `stop`, the strike counts, the mismatch flags and `failures`, and connects at the next tick.
+
+**Latency.** For each delivered report with an observation the client keeps `answer time − observed` (monotonic,
+the conservative upper bound of REPORTING-WEBSOCKET 12) in a ring of the last 512 samples; settings show its p50 and
+p95 next to the counters (DESIGN 11).
+
+**Fixtures** (`report-vectors.json` → `websocket`): `discovery` (document → stream settings or `null`), `url`, the
+signed `handshake` and `report` of REPORTING-WEBSOCKET 14, `encoding` (body → message text with given headers),
+`realtime`, `messages` (service message text → parsed fields, `{"type":"other"}` or `"invalid"`), `rejections`
+(status, body, `Retry-After` → code and wait), `backoff`, `latency` (samples → p50 and p95, nearest rank) and
+`scheduler`. A scheduler case gives `config` (stream settings, `heartbeatSeconds`, `available`) and events at
+monotonic ms: `tick` (`active`, `changed`, `observedAgo` — the observation is `t − observedAgo` —, `events`; `until`
+and `step` repeat it), `open` (101 with the subprotocol), `ready` (`limits` that differ from the configured ones),
+`ack` (`seq`, `status`, `sha` `"match"` or `"other"`), `error` (`seq` or none, `code`, `httpStatus`, `retryAfter`,
+`fatal`), `close` (`code`, sent by the service or the network), `reject` (a refused handshake: `status`, `code`,
+`retryAfter`), `settings` (refreshed stream settings, `null` for none) and `retry` (*Try Again*). Events at the same
+time run in the listed order; a requested wake-up becomes a tick without new data (the `active` of the latest tick)
+unless a listed tick has the same time. Writes are instant. `expect.log` lists every action as text — `<t> connect`,
+`abort`, `close 1000`, `build <seq> <activity> <windowMs> <observationAgeMs or ->`, `write <seq>`,
+`delivered <seq> <status>`, `dropped <seq> <stale|rejected|unknown>`, `saturated`, `react <name>`, `stop <reason>`,
+`backoff <reconnectAt>`, `wait <rateLimitedUntil>`, `wake <at>` —, `expect.counters` the counters other than 0,
+`expect.latency` the samples, `expect.state` the connection, `seq`, `failures`, `stop` and the last delivery time.
+The expected values were written by hand from this section; the simulator and both apps must reproduce them.

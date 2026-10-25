@@ -9,7 +9,8 @@ Standard library only. It implements:
 - usernames: validation, fitting a computer name, comparison keys (REPORTING 4.3);
 - report validation with spec/report-schema.json plus the rules a schema cannot express (REPORTING 6);
 - every server rule of REPORTING 4, 7 and 8 as an in-memory service (used by report_server.py);
-- the client report scheduler of METRICS 11.5 as a simulator;
+- the client report scheduler of METRICS 11.5 as a simulator (the WebSocket transport of METRICS 11.9 is in
+  report_websocket.py);
 - what a client accepts from a discovery document (REPORTING 2.2, 3.2);
 - spec/fixtures/report-vectors.json: checked by default, regenerated with --write.
 
@@ -637,6 +638,9 @@ def report_errors(report, schema: dict, *, strict: bool = True, sections: tuple 
                 errors.append(f"models.{m['id']}: deltaMicroUsd must be present exactly with the cost section")
     if report["activity"] == "idle" and (live["agents"]["generating"] or live["agents"]["tools"]):
         errors.append("activity: idle while agents are working")
+    if "realtime" in report and (report["realtime"]["observedAt"] is None) != (
+            report["realtime"]["observationAgeMs"] is None):
+        errors.append("realtime: observedAt and observationAgeMs must both be null or both be set")
     return errors
 
 
@@ -743,9 +747,12 @@ def parse_discovery(document, fetched_from: str) -> dict:
     if sections is not None and not all(isinstance(name, str) for name in sections):
         raise DiscoveryError("sections")
     result["sections"] = [name for name in SECTIONS if sections is None or name in sections]
-    enabled = {name: 1 for name in EXTENSIONS if supported(document.get("extensions"), name)}
+    from report_websocket import EXTENSION, stream_settings
+
+    enabled = {name: 1 for name in (*EXTENSIONS, EXTENSION) if supported(document.get("extensions"), name)}
     if enabled:
         result["extensions"] = enabled
+    result["websocket"] = stream_settings(document)
     return result
 
 
@@ -1342,6 +1349,8 @@ def _registration(device_id: str, username: str, pub, platform: str = "macOS", t
 
 
 def build_vectors() -> dict:
+    from report_websocket import build_websocket_vectors
+
     keys = _keys()
     d1, d2, d3 = (int(keys[name]["d"], 16) for name in ("device", "other", "rotated"))
     p1, p2, p3 = public_key(d1), public_key(d2), public_key(d3)
@@ -1458,6 +1467,7 @@ def build_vectors() -> dict:
         "usernames": USERNAME_CASES,
         "scheduler": SCHEDULER_CASES,
         "discovery": DISCOVERY_CASES,
+        "websocket": build_websocket_vectors(keys),
     }
 
 
@@ -1968,6 +1978,9 @@ def check_vectors(vectors: dict, verbose: bool) -> list[str]:
             got = {"invalid": str(error)}
         if got != case["expect"]:
             failures.append(f"discovery: {case['name']}: got {json.dumps(got)}")
+    from report_websocket import check_websocket_vectors
+
+    failures += check_websocket_vectors(vectors["websocket"], vectors["keys"])
     return failures
 
 
@@ -2174,10 +2187,11 @@ def main() -> int:
         failures.append("report-vectors.json is not what --write produces (run with --write after a spec change)")
     for failure in failures:
         print(f"FAIL {failure}", file=sys.stderr)
-    counts = (len(vectors["verify"]), len(vectors["server"]), len(vectors["scheduler"]), len(vectors["discovery"]))
+    counts = (len(vectors["verify"]), len(vectors["server"]), len(vectors["scheduler"]), len(vectors["discovery"]),
+              len(vectors["websocket"]["scheduler"]), len(vectors["websocket"]["messages"]))
     print(f"{'FAILED' if failures else 'ok'}: {len(failures)} failures; {counts[0]} signature cases, "
-          f"{counts[1]} server cases, {counts[2]} scheduler cases, {counts[3]} discovery cases; "
-          f"{cross_check(vectors)}")
+          f"{counts[1]} server cases, {counts[2]} scheduler cases, {counts[3]} discovery cases, "
+          f"{counts[4]} WebSocket scheduler and {counts[5]} message cases; {cross_check(vectors)}")
     return 1 if failures else 0
 
 
