@@ -151,6 +151,9 @@ public sealed class ReportDiscovery
 
     public ReportExtensions Extensions { get; private init; } = new();
 
+    /// <summary>The WebSocket transport's settings (METRICS 11.9, Availability); null when the transport is unavailable.</summary>
+    public ReportStreamSettings? WebSocket { get; private init; }
+
     /// <summary>False when the service shares no protocol version with this client ("needs a newer Agent Speed").</summary>
     public bool SupportsThisClient => Versions.Contains(SupportedVersion);
 
@@ -250,7 +253,8 @@ public sealed class ReportDiscovery
             apiKey.Add(("url", ReportJson.Of(ApiKeyUrl)));
         }
 
-        return ReportJson.Object(
+        var members = new List<(string, ReportJson)>
+        {
             ("protocol", ReportJson.Of(ProtocolName)),
             ("versions", ReportJson.Array(Versions.Select(v => ReportJson.Of(v)))),
             ("service", ReportJson.Object(service)),
@@ -268,7 +272,14 @@ public sealed class ReportDiscovery
                 ("maxBodyBytes", ReportJson.Of(Limits.MaxBodyBytes)),
                 ("maxModels", ReportJson.Of(Limits.MaxModels)))),
             ("sections", ReportJson.Array(ReportSections.All.Where(Sections.Contains).Select(s => ReportJson.Of(ReportSections.Name(s))))),
-            ("extensions", Extensions.Json));
+            ("extensions", Extensions.Json),
+        };
+        if (WebSocket is { } websocket)
+        {
+            members.Add(("websocket", websocket.Json));
+        }
+
+        return ReportJson.Object(members);
     }
 
     private static ReportDiscovery Read(Fields root, bool loopback)
@@ -361,6 +372,8 @@ public sealed class ReportDiscovery
             sections = [.. ReportSections.All];
         }
 
+        var extensions = new ReportExtensions(root.Extension("modelHarnessRequests"), root.Extension("executionModes"), root.Extension("profileAvatar"),
+            root.Extension("sharedIdentity"), root.Extension(ReportWebSocketProtocol.Extension));
         return new ReportDiscovery
         {
             Versions = versions,
@@ -378,7 +391,8 @@ public sealed class ReportDiscovery
             UsernameRules = rules,
             Limits = limits,
             Sections = sections,
-            Extensions = new(root.Extension("modelHarnessRequests"), root.Extension("executionModes"), root.Extension("profileAvatar"), root.Extension("sharedIdentity")),
+            Extensions = extensions,
+            WebSocket = extensions.ReportWebSocket && root.Raw("websocket") is { } websocket ? ReportStreamSettings.Parse(websocket) : null,
         };
     }
 
@@ -402,6 +416,9 @@ public sealed class ReportDiscovery
             where T : class => value ?? throw new DiscoveryInvalid(Field(key));
 
         private JsonElement? Member(string key) => element.TryGetProperty(key, out var value) ? value : null;
+
+        /// <summary>A member of any kind, for objects whose own rules decide (the <c>websocket</c> object never invalidates the document).</summary>
+        public JsonElement? Raw(string key) => Member(key);
 
         public Fields? Object(string key) => Member(key) switch
         {

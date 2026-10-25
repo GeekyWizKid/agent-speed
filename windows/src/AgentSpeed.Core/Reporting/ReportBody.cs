@@ -79,7 +79,14 @@ public sealed record ReportOptions(
     int PriceVersion = 1)
 {
     public ReportExtensions Extensions { get; init; } = new();
+
+    /// <summary>A WebSocket body (METRICS 11.9): it ends with <c>realtime</c> and its message must fit too; null for HTTP.</summary>
+    public ReportStreamBody? Stream { get; init; }
 }
+
+/// <param name="ObservationAgeMs">The window's observation age at build, or null when the window had no new data.</param>
+/// <param name="MaxMessageBytes">The connection's <c>maxMessageBytes</c>, which the whole <c>report</c> message stays within.</param>
+public sealed record ReportStreamBody(long? ObservationAgeMs, int MaxMessageBytes);
 
 /// <summary>The report body of REPORTING 6 from a window, the tick's values and the options (METRICS 11.2, 11.7).</summary>
 public static class ReportBody
@@ -99,7 +106,7 @@ public static class ReportBody
     {
         var document = Json(envelope, content, sample, options);
         var data = document.ToCompactBytes();
-        if (data.Length > options.BodyLimit && (options.Extensions.ExecutionModes || options.Extensions.ModelHarnessRequests))
+        if (!Fits(data, options) && (options.Extensions.ExecutionModes || options.Extensions.ModelHarnessRequests))
         {
             options = options with { Extensions = options.Extensions with { ExecutionModes = false, ModelHarnessRequests = false } };
             document = Json(envelope, content, sample, options);
@@ -107,7 +114,7 @@ public static class ReportBody
         }
         foreach (var section in new[] { ReportSection.Models, ReportSection.Sources })
         {
-            if (data.Length <= options.BodyLimit)
+            if (Fits(data, options))
             {
                 break;
             }
@@ -119,6 +126,10 @@ public static class ReportBody
 
         return (document, data);
     }
+
+    /// <summary>Within the body limit and, for a WebSocket body, its message within <c>maxMessageBytes</c>.</summary>
+    public static bool Fits(byte[] data, ReportOptions options) =>
+        data.Length <= options.BodyLimit && (options.Stream is not { } stream || ReportWebSocketProtocol.MessageBytes(data) <= stream.MaxMessageBytes);
 
     public static ReportJson Json(ReportEnvelope envelope, ReportWindowContent content, ReportSample sample, ReportOptions options)
     {
@@ -182,6 +193,12 @@ public static class ReportBody
         if (sections.Contains(ReportSection.Models) && options.MaxModels > 0)
         {
             members.Add(("models", ReportJson.Array(ModelEntries(content, sample, options.MaxModels, sections.Contains(ReportSection.Cost), options.Extensions))));
+        }
+
+        if (options.Stream is { } stream)
+        {
+            var mixed = sections.Contains(ReportSection.Traffic) && sample.Traffic.Status == ReportTrafficStatus.Ok;
+            members.Add(("realtime", ReportWebSocketProtocol.Realtime(mixed, envelope.SentAtMs, stream.ObservationAgeMs)));
         }
 
         return ReportJson.Object(members);
