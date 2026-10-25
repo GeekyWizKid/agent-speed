@@ -740,8 +740,7 @@ internal sealed class SettingsViewModel : ObservableObject
             return _loc["source.disabled"];
         }
 
-        var text = status.Available ? _loc.Format("source.sessions", status.SessionCount) : _loc["source.folderMissing"];
-        return status.ConfiguredModes.IsEmpty ? text : text + Environment.NewLine + ExecutionModeText.Detail(status.ConfiguredModes, _loc);
+        return status.Available ? _loc.Format("source.sessions", status.SessionCount) : _loc["source.folderMissing"];
     }
 
     private void Apply(Func<AppSettings, AppSettings> change)
