@@ -97,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppCommands {
         }
         orbs = OrbWindowManager(model: model)
         boardWindows = BoardWindowManager(model: model) { [weak self] in self?.orbShapes() ?? [] }
+        orbs?.boardShapes = { [weak self] in self?.boardWindows?.shapes() ?? [] }
 
         MainMenu.install(model: model)
         if options.demo { model.startDemoLoop() }
