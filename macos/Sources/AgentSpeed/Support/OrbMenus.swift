@@ -54,6 +54,7 @@ enum OrbMenus {
         let merge = ActionMenuItem(l10n("menu.orb.mergeAll")) { [weak orbs] in orbs?.merge(keeping: id) }
         merge.isEnabled = orbs.canMerge
         menu.addItem(merge)
+        menu.addItem(BoardMenus.addItem(model: model, origin: .orb(id)))
 
         menu.addItem(.separator())
         let visibleCount = orbs.orbs.filter(\.visible).count

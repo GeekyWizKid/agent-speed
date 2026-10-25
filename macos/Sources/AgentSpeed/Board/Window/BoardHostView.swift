@@ -9,6 +9,9 @@ final class BoardHostView: NSView {
     var onMouseDragged: ((NSEvent) -> Void)?
     var onMouseUp: ((NSEvent) -> Void)?
     var onRightMouseDown: ((NSEvent) -> Void)?
+    /// The pointer moved over the board or left it (hover tooltips and row tint).
+    var onMouseMoved: ((NSEvent) -> Void)?
+    var onMouseExited: ((NSEvent) -> Void)?
 
     let content = BoardContentStack()
     private let glass = NSVisualEffectView()
@@ -17,6 +20,7 @@ final class BoardHostView: NSView {
     private let warp: OrbCanvasView
     private var style = BoardStyle.glass
     private var dark = true
+    private var tracking: NSTrackingArea?
 
     init(warp: OrbCanvasView) {
         self.warp = warp
@@ -94,6 +98,17 @@ final class BoardHostView: NSView {
     override func mouseDragged(with event: NSEvent) { onMouseDragged?(event) }
     override func mouseUp(with event: NSEvent) { onMouseUp?(event) }
     override func rightMouseDown(with event: NSEvent) { onRightMouseDown?(event) }
+    override func mouseMoved(with event: NSEvent) { onMouseMoved?(event) }
+    override func mouseExited(with event: NSEvent) { onMouseExited?(event) }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking { removeTrackingArea(tracking) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        tracking = area
+    }
 
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
