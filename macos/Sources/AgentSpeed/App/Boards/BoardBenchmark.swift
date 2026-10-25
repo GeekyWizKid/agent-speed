@@ -23,8 +23,11 @@ final class BoardBenchmark {
 
     struct State {
         let name: String
-        /// Total speed as a fraction of the redline (0: every agent idle).
+        /// Total speed as a fraction of the redline (0: every agent idle), ramping to `rampTo` over the window.
         let fraction: Double
+        var rampTo: Double?
+        /// The simulation's own events (overtakes, punches, peaks); off measures the pure frame class.
+        var simEvents = true
         var event = Event.none
         var check = Check.shown
         /// CPU budget (DESIGN 2c, macOS, % of one core).
@@ -36,6 +39,7 @@ final class BoardBenchmark {
         let state: State
         let cpu: Double
         let fps: Double
+        let backdropFPS: Double
         /// Share of the window spent in 60, 30 and no-frame classes.
         let classes: (Double, Double, Double)
         let cpuMicros: Double
@@ -44,7 +48,8 @@ final class BoardBenchmark {
 
     static let states = [
         State(name: "idle", fraction: 0, budget: 0.3),
-        State(name: "cruise", fraction: 0.1, budget: 3),
+        State(name: "cruise", fraction: 0.1, simEvents: false, budget: 3),
+        State(name: "climb", fraction: 0.1, rampTo: 0.9, budget: 6),
         State(name: "redline", fraction: 0.9, event: .overtakes, budget: 6),
         State(name: "overtakes", fraction: 0.45, event: .overtakes, budget: 6),
         State(name: "newleader", fraction: 0.7, event: .newLeader, budget: 6),
@@ -61,7 +66,9 @@ final class BoardBenchmark {
     private var rows: [Row] = []
     private var board: BoardWindowController?
     private var feed: BoardSimFeed?
-    private var event = Event.none
+    private var state = BoardBenchmark.states[0]
+    private var stateStart = Date()
+    private var scale = 1.0
     private var ticks = 0
 
     static func start(into directory: URL) {
@@ -121,11 +128,11 @@ final class BoardBenchmark {
         simulation.paused = true
         let feed = BoardSimFeed(simulation: simulation, content: BoardPlaceholderContent(style: style, size: size, dark: true),
                                 redline: Self.redline)
-        board.host.content.apply(feed.current().items, animated: false)
+        board.contentProvider = { feed.layout.items }
         board.show()
         self.board = board
         self.feed = feed
-        let scale = Self.unitSpeed(simulation)
+        scale = Self.unitSpeed(simulation)
         let timer = Timer.scheduledTimer(withTimeInterval: simulation.tick, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.step() }
         }
@@ -133,8 +140,9 @@ final class BoardBenchmark {
 
         for state in states {
             feed.simulation.paused = state.fraction == 0
-            feed.simulation.speedScale = state.fraction * Self.redline / scale
-            event = state.event
+            self.state = state
+            stateStart = .distantFuture
+            setSpeed()
             var occluder: NSWindow?
             switch state.check {
             case .shown: break
@@ -143,6 +151,7 @@ final class BoardBenchmark {
             }
             // The live speed is a 3 s window: let it reach the state, and idle let every effect end.
             try? await Task.sleep(for: .seconds(state.fraction == 0 ? 6 : 4))
+            stateStart = Date()
             await measure(style: style, state: state, board: board)
             occluder?.orderOut(nil)
             if state.check == .hidden { board.show() }
@@ -173,13 +182,14 @@ final class BoardBenchmark {
         let wall = Date().timeIntervalSince(wallStart)
         let cpu = (Self.cpuTime() - cpuStart) / wall * 100
         let frames = board.driver.overlay.framesDrawn
+        let backdropFrames = board.driver.backdrop.framesDrawn
         let nanoseconds = canvases.reduce(UInt64(0)) { $0 + $1.cpuNanoseconds }
         var gpuSeconds = 0.0
         for canvas in canvases {
             if let (seconds, _) = canvas.encoder?.gpuTime.drain() { gpuSeconds += seconds }
         }
         let total = Double(max(1, samples.0 + samples.1 + samples.2))
-        let row = Row(style: style, state: state, cpu: cpu, fps: Double(frames) / wall,
+        let row = Row(style: style, state: state, cpu: cpu, fps: Double(frames) / wall, backdropFPS: Double(backdropFrames) / wall,
                       classes: (Double(samples.0) / total, Double(samples.1) / total, Double(samples.2) / total),
                       cpuMicros: frames > 0 ? Double(nanoseconds) / Double(frames) / 1000 : 0,
                       gpuMillis: frames > 0 ? gpuSeconds / Double(frames) * 1000 : 0)
@@ -190,14 +200,18 @@ final class BoardBenchmark {
     /// One engine tick: the simulation, the content layers and the effects, plus the state's scripted events.
     private func step() {
         guard let board, let feed else { return }
-        let tick = feed.step()
-        board.host.content.apply(tick.items, animated: true)
+        setSpeed()
+        feed.step()
+        board.contentChanged()
         ticks += 1
-        let event = self.event
+        let event = state.event
+        let simEvents = state.simEvents
         let ticks = self.ticks
+        let rendering = board.isRendering
         board.driver.update { fx in
-            feed.play(tick, on: &fx)
-            let rows = tick.snapshot.groups.compactMap { tick.layout.groupRows[$0.id] }
+            feed.play(on: &fx, events: rendering && simEvents)
+            guard rendering else { return }
+            let rows = feed.snapshot.groups.compactMap { feed.layout.groupRows[$0.id] }
             guard rows.count >= 3 else { return }
             let color = RGBColor(hex: 0x34D399).simd
             switch event {
@@ -211,6 +225,17 @@ final class BoardBenchmark {
                 fx.newLeader(row: rows[0].row, rank: rows[0].rank, color: color, passedRankY: rows[1].rank.y)
             }
         }
+    }
+
+    /// The state's speed; a ramp climbs over the measuring window.
+    private func setSpeed() {
+        guard let feed else { return }
+        var fraction = state.fraction
+        if let to = state.rampTo {
+            let u = min(max(Date().timeIntervalSince(stateStart) / seconds, 0), 1)
+            fraction += (to - fraction) * u
+        }
+        feed.simulation.speedScale = fraction * Self.redline / scale
     }
 
     /// The simulation's mean total speed at `speedScale` 1 over a minute of ticks (to scale a state's fraction).
@@ -247,9 +272,9 @@ final class BoardBenchmark {
         let gpu = row.gpuMillis > 1.5 ? " GPU OVER" : ""
         let classes = String(format: "60:%3.0f%% 30:%3.0f%% none:%3.0f%%", row.classes.0 * 100, row.classes.1 * 100,
                              row.classes.2 * 100)
-        return String(format: "%-7@ %-10@ CPU %6.2f %%  ≤ %3.1f  %-4@  %5.1f fps  [%@]  %6.0f µs/frame  %5.2f ms GPU%@",
-                      row.style.rawValue, row.state.name, row.cpu, row.state.budget, pass, row.fps, classes, row.cpuMicros,
-                      row.gpuMillis, gpu)
+        return String(format: "%-7@ %-10@ CPU %6.2f %%  ≤ %3.1f  %-4@  %5.1f fps (warp %4.1f)  [%@]  %6.0f µs/frame  %5.2f ms GPU%@",
+                      row.style.rawValue, row.state.name, row.cpu, row.state.budget, pass, row.fps, row.backdropFPS, classes,
+                      row.cpuMicros, row.gpuMillis, gpu)
     }
 
     private func writeReport() {

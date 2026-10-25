@@ -33,8 +33,7 @@ enum BoardDemoHarness {
         var simulation = BoardSimulation(scenario: environment["AGENT_SPEED_BOARD_SCENARIO"] ?? "swarm")
         simulation.speedScale = environment["AGENT_SPEED_BOARD_SPEED"].flatMap(Double.init) ?? 1
         let feed = BoardSimFeed(simulation: simulation, content: BoardPlaceholderContent(style: style, size: size, dark: dark))
-        let first = feed.current()
-        board.host.content.apply(first.items, animated: false)
+        board.contentProvider = { feed.layout.items }
         board.show()
         self.board = board
         self.feed = feed
@@ -49,8 +48,8 @@ enum BoardDemoHarness {
 
     private static func step() {
         guard let board, let feed else { return }
-        let tick = feed.step()
-        board.host.content.apply(tick.items, animated: true)
-        board.driver.update { feed.play(tick, on: &$0) }
+        feed.step()
+        board.contentChanged()
+        board.driver.update { feed.play(on: &$0, events: board.isRendering) }
     }
 }

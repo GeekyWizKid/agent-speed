@@ -230,6 +230,12 @@ public struct BoardEffects {
 
     public var liveBolts: Int { bolts.reduce(0) { $0 + ($1.alive ? 1 : 0) } }
 
+    /// What a frame of the settled effects shows: a change that keeps it equal needs no redraw.
+    public var still: BoardEffectsStill {
+        BoardEffectsStill(style: preset.style, side: side, intensity: intensity, reduceMotion: reduceMotion,
+                          heat: shownHeat, overdrive: shownOverdrive, phase: phase, gold: gold, comets: comets)
+    }
+
     private static func approach(_ value: Double, _ target: Double, _ ease: Double) -> Double {
         let next = value + (target - value) * ease
         return abs(target - next) < 0.001 ? target : next

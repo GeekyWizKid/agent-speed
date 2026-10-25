@@ -41,12 +41,14 @@ final class BoardEffectsDriver {
         updateRequests()
     }
 
-    /// Changes the effects (heat, events, settings) and wakes the canvases when they need frames or one redraw.
+    /// Changes the effects (heat, events, settings) and wakes the canvases when they need frames or one redraw; a
+    /// change that leaves the picture as it is draws nothing.
     func update(_ change: (inout BoardEffects) -> Void) {
         let warpWasOn = effects.starCount > 0
+        let before = effects.still
         change(&effects)
         updateRequests()
-        refresh(warp: warpWasOn)
+        if effects.still != before || warpWasOn != (effects.starCount > 0) { refresh(warp: warpWasOn) }
     }
 
     func setBoard(side: Double, corner: CGFloat) {

@@ -28,11 +28,17 @@ final class BoardWindowController {
     var onContextMenu: ((NSEvent) -> Void)?
     /// A click (a press that never became a drag) at a point of the board (board points, y down).
     var onClick: ((CGPoint) -> Void)?
+    /// Lays out the board's content; asked on `contentChanged()` while the board renders, and once when it renders
+    /// again after being hidden or occluded (a board nobody sees lays out and rasterizes nothing).
+    var contentProvider: (() -> [BoardContentItem])?
+    /// The board can be seen, so content and effects are worth drawing.
+    var isRendering: Bool { driver.canRender }
 
     private let animator: OrbWindowAnimator
     private var visibility: OrbWindowVisibilityMonitor?
     private var drag: OrbDragSession?
     private var shown = false
+    private var contentStale = true
 
     init(config: BoardConfig, center: CGPoint, dark: Bool) {
         self.config = config
@@ -124,9 +130,20 @@ final class BoardWindowController {
         effectsPanel.alphaValue = alpha
     }
 
+    /// The data behind the content changed (≤ 2 per second).
+    func contentChanged(animated: Bool = true) {
+        guard isRendering, let contentProvider else {
+            contentStale = true
+            return
+        }
+        contentStale = false
+        host.content.apply(contentProvider(), animated: animated && !reduceMotion)
+    }
+
     private func updateRendering() {
         driver.canRender = shown && panel.isVisible && config.visible && config.opacity > 0.01
             && (visibility?.allowsVisibility ?? true)
+        if isRendering, contentStale { contentChanged(animated: false) }
     }
 
     private func place(at point: CGPoint) {

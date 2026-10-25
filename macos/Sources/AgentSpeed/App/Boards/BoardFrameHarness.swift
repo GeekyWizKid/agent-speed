@@ -56,14 +56,14 @@ enum BoardFrameHarness {
         var simulation = BoardSimulation(scenario: "team")
         simulation.paused = !state.active
         let feed = BoardSimFeed(simulation: simulation, content: content)
-        var tick = feed.current()
-        for _ in 0..<12 { tick = feed.step() }
+        for _ in 0..<12 { feed.step() }
+        let layout = feed.layout
         var fx = BoardEffects(style: style, side: side, seed: 11) { HeatPalette.color($0).simd }
         fx.setIntensity(level)
         fx.setHeat(state.heat, overdrive: state.overdrive, active: state.active)
         fx.settleNow()
         step(&fx, seconds: max(0, 2.0 - state.after))
-        let rows = tick.snapshot.groups.compactMap { tick.layout.groupRows[$0.id] }
+        let rows = feed.snapshot.groups.compactMap { layout.groupRows[$0.id] }
         if let event = state.event, rows.count >= 3 {
             let color = RGBColor(hex: 0x34D399).simd
             switch event {
@@ -72,7 +72,7 @@ enum BoardFrameHarness {
             }
         }
         step(&fx, seconds: state.after)
-        return compose(fx: fx, tick: tick, style: style, side: side, dark: dark)
+        return compose(fx: fx, items: layout.items, style: style, side: side, dark: dark)
     }
 
     static func step(_ fx: inout BoardEffects, seconds: Double) {
@@ -83,7 +83,7 @@ enum BoardFrameHarness {
         }
     }
 
-    private static func compose(fx: BoardEffects, tick: BoardSimFeed.Tick, style: BoardStyle, side: Double,
+    private static func compose(fx: BoardEffects, items: [BoardContentItem], style: BoardStyle, side: Double,
                                 dark: Bool) -> CGImage? {
         let margin = BoardEffects.margin
         let canvasSide = side + 2 * margin
@@ -111,7 +111,7 @@ enum BoardFrameHarness {
         canvas.context.saveGState()
         canvas.context.addPath(path)
         canvas.context.clip()
-        for item in tick.items {
+        for item in items {
             guard let image = BoardRaster.image(size: item.frame.size, scale: 2, draw: item.draw) else { continue }
             canvas.draw(image, at: CGPoint(x: margin + item.frame.minX, y: margin + item.frame.minY), size: item.frame.size)
         }

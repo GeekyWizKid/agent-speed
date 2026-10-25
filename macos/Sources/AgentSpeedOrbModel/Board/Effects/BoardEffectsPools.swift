@@ -65,3 +65,16 @@ public struct BoardComet: Equatable, Sendable {
     public var opacity = 0.0
     public var targetOpacity = 0.0
 }
+
+/// The inputs of a settled effects frame (see `BoardEffects.still`).
+public struct BoardEffectsStill: Equatable, Sendable {
+    var style: BoardStyle
+    var side: Double
+    var intensity: BoardEffectsIntensity
+    var reduceMotion: Bool
+    var heat: Double
+    var overdrive: Double
+    var phase: Double
+    var gold: Double
+    var comets: ContiguousArray<BoardComet>
+}
