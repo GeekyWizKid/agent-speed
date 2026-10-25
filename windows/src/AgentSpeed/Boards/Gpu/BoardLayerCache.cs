@@ -29,6 +29,9 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
 
     public BoardLayerAtlas Atlas => _atlas;
 
+    /// <summary>Stopwatch ticks spent describing layers, painting them and flushing the atlas (the bench's breakdown).</summary>
+    public (long Describe, long Paint, long Flush) Ticks => (_describeTicks, _paintTicks, _flushTicks);
+
     /// <summary>Whether the texture must be made current again before the next frame (device, scale or size changed).</summary>
     public bool IsStale(GpuDevice device, double scale, BoardScene scene) =>
         _atlas.View is null || _atlas.Width != WidthFor(scene, scale) || Math.Abs(_atlas.Scale - scale) > 0.001 || Generation != device.Generation;
@@ -76,6 +79,10 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
         (Painter as IDisposable)?.Dispose();
     }
 
+    private long _describeTicks;
+    private long _paintTicks;
+    private long _flushTicks;
+
     private DrawResult Draw(BoardScene scene)
     {
         _live.Clear();
@@ -107,7 +114,10 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
             }
         }
 
-        if (!_atlas.EndDraw())
+        var flush = System.Diagnostics.Stopwatch.GetTimestamp();
+        var ended = _atlas.EndDraw();
+        _flushTicks += System.Diagnostics.Stopwatch.GetTimestamp() - flush;
+        if (!ended)
         {
             return DrawResult.Lost;
         }
@@ -136,7 +146,10 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
 
     private bool Layer(string key, BoardLayerRequest request)
     {
-        if (Painter.Describe(request) is not { } spec)
+        var start = System.Diagnostics.Stopwatch.GetTimestamp();
+        var described = Painter.Describe(request);
+        _describeTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+        if (described is not { } spec)
         {
             return true;
         }
@@ -148,7 +161,10 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
         }
 
         var painter = Painter;
-        return _atlas.TryDraw(key, spec.Width, spec.Height, spec.Signature, context => painter.Paint(context, request, spec));
+        start = System.Diagnostics.Stopwatch.GetTimestamp();
+        var drawn = _atlas.TryDraw(key, spec.Width, spec.Height, spec.Signature, context => painter.Paint(context, request, spec));
+        _paintTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+        return drawn;
     }
 
     private static int WidthFor(BoardScene scene, double scale)

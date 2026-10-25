@@ -20,8 +20,8 @@ namespace AgentSpeed.Boards.Harness;
 /// frame class's ticks (crowding included) into its own offscreen target, fed by the demo through the real ranking. Per
 /// scenario: the process CPU (% of one core), frames per second and per frame class, the CPU of a frame's build, layers
 /// rasterized per second, the GPU time per frame and the board's GPU memory (layer texture and a two-buffer swap chain).
-/// Presenting is not included. <c>AGENT_SPEED_BOARD_BENCH_STYLES</c>, <c>_SCALE</c> (default 2, the budgets' 200 %),
-/// <c>_SIZE</c> (default M) and <c>_SECONDS</c> (default 10) adjust it.
+/// Presenting is not included. <c>AGENT_SPEED_BOARD_BENCH_STYLES</c>, <c>_SCENARIOS</c> (names, comma-separated),
+/// <c>_SCALE</c> (default 2, the budgets' 200 %), <c>_SIZE</c> (default M) and <c>_SECONDS</c> (default 10) adjust it.
 /// </summary>
 internal static class BoardBenchHarness
 {
@@ -51,6 +51,9 @@ internal static class BoardBenchHarness
         var scale = Number("AGENT_SPEED_BOARD_BENCH_SCALE", 2);
         var seconds = Number("AGENT_SPEED_BOARD_BENCH_SECONDS", 10);
         var size = BoardSizes.Parse(Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_BENCH_SIZE") ?? "M");
+        var only = Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_BENCH_SCENARIOS") is { Length: > 0 } names
+            ? names.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal)
+            : null;
         var styles = (Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_BENCH_STYLES") ?? "glass,timing,neon")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(BoardStyles.Parse).Distinct().ToArray();
         var loc = new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
@@ -67,6 +70,11 @@ internal static class BoardBenchHarness
                 _ = Measure(device, style, size, new Scenario("warm-up", 2, BoardSimScenario.Team, _ => 3200, false, EffectsIntensity.Max), scale, 4, loc);
                 foreach (var scenario in Scenarios)
                 {
+                    if (only is not null && !only.Contains(scenario.Name))
+                    {
+                        continue;
+                    }
+
                     var line = Measure(device, style, size, scenario, scale, seconds, loc);
                     report.AppendLine(CultureInfo.InvariantCulture, $"{BoardStyles.Key(style)} {scenario.Name}: {line}");
                     File.WriteAllText(path, report.ToString());
@@ -109,6 +117,7 @@ internal static class BoardBenchHarness
         var feedTicks = 0L;
         var drawTicks = 0L;
         var updateStart = 0L;
+        (long Describe, long Paint, long Flush) layerStart = default;
         var rasterStart = 0L;
         var events = 0;
         var byClass = new long[Enum.GetValues<FrameClass>().Length];
@@ -134,6 +143,8 @@ internal static class BoardBenchHarness
                 feedTicks = 0;
                 drawTicks = 0;
                 updateStart = rigs.Sum(r => r.Frame.UpdateTicks);
+                layerStart = (rigs.Sum(r => r.Frame.Layers.Ticks.Describe), rigs.Sum(r => r.Frame.Layers.Ticks.Paint),
+                    rigs.Sum(r => r.Frame.Layers.Ticks.Flush));
                 events = 0;
                 skipped = 0;
                 Array.Clear(byClass);
@@ -224,6 +235,9 @@ internal static class BoardBenchHarness
         var gpu = BoardGpuRenderer.Timer?.Drain() ?? (0.0, 0);
         var rasterized = rigs.Sum(r => r.Frame.Layers.Atlas.Rasterized) - rasterStart;
         var updateTicks = rigs.Sum(r => r.Frame.UpdateTicks) - updateStart;
+        var describeTicks = rigs.Sum(r => r.Frame.Layers.Ticks.Describe) - layerStart.Describe;
+        var paintTicks = rigs.Sum(r => r.Frame.Layers.Ticks.Paint) - layerStart.Paint;
+        var flushTicks = rigs.Sum(r => r.Frame.Layers.Ticks.Flush) - layerStart.Flush;
         var atlas = rigs[0].Frame.Layers.Atlas;
         var swap = targets[0].Pixels * targets[0].Pixels * 4.0 * 2;
         var memory = (atlas.Width * (double)atlas.Height * 4 + swap) / (1024 * 1024);
@@ -242,7 +256,7 @@ internal static class BoardBenchHarness
         string Fps(FrameClass c) => (byClass[(int)c] / wall).ToString("0.0", CultureInfo.InvariantCulture);
         string Share(long ticks) => (ticks * 100.0 / Stopwatch.Frequency / wall).ToString("0.00", CultureInfo.InvariantCulture);
         return string.Create(CultureInfo.InvariantCulture,
-            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height}); cpu on this thread: feed {Share(feedTicks)}%, layers {Share(updateTicks)}%, frames {Share(buildTicks - updateTicks)}%, draws {Share(drawTicks)}%");
+            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height}); cpu on this thread: feed {Share(feedTicks)}%, layers {Share(updateTicks)}% (describe {Share(describeTicks)}, paint {Share(paintTicks)}, flush {Share(flushTicks)}), frames {Share(buildTicks - updateTicks)}%, draws {Share(drawTicks)}%");
     }
 
     private static double Number(string name, double fallback) =>

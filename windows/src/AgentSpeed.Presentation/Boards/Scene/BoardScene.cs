@@ -39,6 +39,7 @@ public sealed class BoardScene
     private BoardTick? _tick;
     private BoardPalette? _palette;
     private double _lastFrame = double.NaN;
+    private double _ambience;
     private double _punchStart = double.NegativeInfinity;
     private bool _dark = true;
 
@@ -182,6 +183,13 @@ public sealed class BoardScene
         var dt = double.IsNaN(_lastFrame) ? 0 : Math.Clamp(now - _lastFrame, 0, BoardEffects.MaxStep);
         _lastFrame = now;
         Effects.Advance(now);
+
+        // The ambience drifts only while the board animates: an idle board is static (2c Frame policy), so a tick that changes
+        // nothing draws the same frame.
+        if (Effects.Demand != FrameClass.None)
+        {
+            _ambience += dt;
+        }
         var canvas = Canvas;
         var m = BoardCanvas.Margin;
         var metrics = Metrics;
@@ -201,7 +209,7 @@ public sealed class BoardScene
             list.Clip = BoardClip.None;
         }
 
-        BoardAmbience.EmitBack(list, canvas, Style, palette, heat, now, policy);
+        BoardAmbience.EmitBack(list, canvas, Style, palette, heat, _ambience, policy);
         Effects.EmitBack(list);
 
         var clip = RectBounds.From(m + metrics.ListLeft, m + metrics.ListTop, metrics.ListWidth, metrics.ListHeight);
@@ -258,7 +266,7 @@ public sealed class BoardScene
             list.AddLayer(BoardLayerInstance.Create(footer, m + metrics.Pad, m + metrics.FooterTop, 1));
         }
 
-        BoardAmbience.EmitFront(list, canvas, Style, palette, metrics, Hero, heat, _tick?.Generating ?? false, now, policy);
+        BoardAmbience.EmitFront(list, canvas, Style, palette, metrics, Hero, heat, _tick?.Generating ?? false, _ambience, policy);
         Effects.EmitFront(list);
     }
 
