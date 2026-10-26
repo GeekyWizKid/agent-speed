@@ -52,9 +52,9 @@ public class BoardSceneTests
         var list = new BoardDrawList();
         Frames(scene, list, 0, 0.1);
         Assert.Equal(FrameClass.None, scene.Demand(0.1));
-        // Two rows (body, phase badge, value layer and their value's dash glyph), the backdrop, the hero, the number's one glyph and
-        // the footer.
-        Assert.Equal(2 * 4 + 1 + 1 + 1 + 1, list.LayerCount);
+        // Two rows (body, phase badge, value layer and their value's dash glyph), the backdrop, the hero with its history and unit,
+        // the number's one glyph and the footer.
+        Assert.Equal(2 * 4 + 1 + 3 + 1 + 1, list.LayerCount);
     }
 
     [Fact]

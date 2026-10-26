@@ -19,12 +19,18 @@ namespace AgentSpeed.Presentation.Boards.Scene;
 /// </summary>
 /// <remarks>
 /// Layer keys: a row's body is its plan key and its value <c>key#v</c>; the hero (everything but its number) is
-/// <see cref="HeroKey"/>, the number's glyphs <see cref="BoardHeroNumber.GlyphKeys"/>, the footer <see cref="FooterKey"/>, the
+/// <see cref="HeroKey"/> with its <see cref="UnitKey"/> and <see cref="HistoryKey"/>, the number's glyphs <see cref="BoardHeroNumber.GlyphKeys"/>, the footer <see cref="FooterKey"/>, the
 /// static pattern behind the content <see cref="BackdropKey"/>, and each live callout its <see cref="BoardCallout.Key"/>.
 /// </remarks>
 public sealed class BoardScene
 {
     public const string HeroKey = "#hero";
+
+    /// <summary>The unit after the number (placed by the number's width, so the hero does not depend on the value).</summary>
+    public const string UnitKey = "#unit";
+
+    /// <summary>The sparkline, the bars or the LED bar.</summary>
+    public const string HistoryKey = "#history";
     public const string FooterKey = "#footer";
     public const string BackdropKey = "#backdrop";
 
@@ -404,6 +410,12 @@ public sealed class BoardScene
             list.AddLayer(BoardLayerInstance.Create(hero, x, y, 1));
         }
 
+        if (layers.TryGet(HistoryKey, out var history))
+        {
+            var pad = BoardHeroLayout.HistoryPad;
+            list.AddLayer(BoardLayerInstance.Create(history, x + Hero.History.Left - pad, y + Hero.History.Top - pad, 1));
+        }
+
         var top = y + Hero.NumberTop;
         // High contrast keeps the number solid: no chromatic fringes.
         var look = BoardNumberLook.For(Style);
@@ -417,6 +429,10 @@ public sealed class BoardScene
         if (width > 0)
         {
             HeroNumber = (Metrics.Pad, Metrics.HeroTop + Hero.NumberTop, width, Hero.NumberHeight);
+            if (layers.TryGet(UnitKey, out var unit))
+            {
+                list.AddLayer(BoardLayerInstance.Create(unit, x + width + Hero.UnitGap - BoardHeroLayout.UnitPad, y, 1));
+            }
         }
 
         for (var i = 0; i < _callouts.Count; i++)

@@ -51,6 +51,12 @@ public sealed record BoardHeroLayout(
     /// <summary>Neon's LED segments.</summary>
     public const int Segments = 24;
 
+    /// <summary>Room around the unit's layer for its glow (the layer is the hero's height, the unit at this x).</summary>
+    public const double UnitPad = 16;
+
+    /// <summary>Room around the history's layer for the sparkline's end dot, the bars' rounding and the LED bloom.</summary>
+    public const double HistoryPad = 8;
+
     public static BoardHeroLayout For(BoardStyle style, BoardSize size)
     {
         var metrics = BoardMetrics.For(style, size);

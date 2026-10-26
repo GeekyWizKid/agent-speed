@@ -63,9 +63,9 @@ internal sealed class NeonBoardPainter : BoardStylePainter
 
     protected override string GlyphKey(BoardScene scene) => HeatKey(GlyphHeat(scene.Tick?.Heat ?? 0)).ToString(CultureInfo.InvariantCulture);
 
-    // The LED bar's lit segments, and the tints at the glyphs' heat.
-    protected override int HeroHeatKey(BoardTick tick) =>
-        (int)Math.Round(Math.Clamp(tick.Heat, 0, 1) * BoardHeroLayout.Segments) * 64 + HeatKey(GlyphHeat(tick.Heat));
+    // The LED bar's lit segments and today's peak mark.
+    protected override int HistoryLookKey(BoardTick tick) =>
+        (int)Math.Round(Math.Clamp(tick.Heat, 0, 1) * BoardHeroLayout.Segments) * 64 + HeatKey(HeatMath.Heat(tick.PeakToday, tick.Redline));
 
     protected override bool Shimmers => true;
 
@@ -122,29 +122,15 @@ internal sealed class NeonBoardPainter : BoardStylePainter
     protected override void PaintValue(ID2D1DeviceContext context, in BoardRowContent row, float width, float height) =>
         LeadTint(context, row, width - (float)row.Scene.Metrics.ListWidth, height);
 
+    protected override BoardTextStyle UnitStyle => Unit;
+
     protected override void PaintHero(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float width, float height)
     {
         var palette = scene.Palette;
         var hero = scene.Hero;
-        var tint = GlyphHeat(tick.Heat);
-        var heat = HeatPalette.Sample(Math.Max(0.06, tint));
-        var soft = HeatPalette.Sample(tint).WithAlpha(0.55);
+        var soft = HeatPalette.Sample(GlyphHeat(tick.Heat)).WithAlpha(0.55);
         var glows = !palette.HighContrast;
-        var tone = glows ? heat : palette.Ink;
-
-        var baseline = NumberBaseline(scene);
-        var unitX = NumberWidth(scene, tick.ValueText) + (float)hero.UnitGap;
-        using (var unit = Text.Layout(Loc["unit.tokS"], Unit))
-        {
-            var top = baseline - unit.LineMetrics[0].Baseline;
-            if (glows)
-            {
-                BoardPaint.Glow(context, soft, 8, c => DrawLayout(c, unit, unitX, top, Rgba.White));
-            }
-
-            DrawLayout(context, unit, unitX, top, tone);
-        }
-
+        var tone = glows ? HeroHeat(tick) : palette.Ink;
         var meta = (float)hero.MetaTop + 6;
         var x = 0f;
         if (!string.IsNullOrEmpty(tick.Title))
@@ -160,13 +146,25 @@ internal sealed class NeonBoardPainter : BoardStylePainter
             x = Math.Min(title.Metrics.WidthIncludingTrailingWhitespace, width / 2) + 8;
         }
 
-        using (var ink3 = BoardPaint.Brush(context, palette.Ink3))
+        using var ink3 = BoardPaint.Brush(context, palette.Ink3);
+        Text.Draw(context, "· " + Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Counts, x, meta, ink3, width - x);
+    }
+
+    protected override void PaintUnit(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float x)
+    {
+        var glows = !scene.Palette.HighContrast;
+        using var unit = Text.Layout(Loc["unit.tokS"], Unit);
+        var top = NumberBaseline(scene) - unit.LineMetrics[0].Baseline;
+        if (glows)
         {
-            Text.Draw(context, "· " + Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Counts, x, meta, ink3, width - x);
+            BoardPaint.Glow(context, HeatPalette.Sample(GlyphHeat(tick.Heat)).WithAlpha(0.55), 8, c => DrawLayout(c, unit, x, top, Rgba.White));
         }
 
-        Led(context, tick, hero.History, palette);
+        DrawLayout(context, unit, x, top, glows ? HeroHeat(tick) : scene.Palette.Ink);
     }
+
+    protected override void PaintHistory(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, BoardBox box) =>
+        Led(context, tick, box, scene.Palette);
 
     protected override void PaintFooter(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float width, float height)
     {

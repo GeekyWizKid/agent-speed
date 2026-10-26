@@ -100,43 +100,44 @@ internal sealed class GlassBoardPainter : BoardStylePainter
         Text.Draw(context, text, More, x, mid, brush, width - 6 - x);
     }
 
+    protected override BoardTextStyle UnitStyle => Unit;
+
     protected override void PaintHero(ID2D1DeviceContext context, BoardScene scene, Presentation.Boards.Scene.BoardTick tick, float width,
         float height)
     {
         var palette = scene.Palette;
         var hero = scene.Hero;
-        var heat = HeatColor(tick);
-        var baseline = NumberBaseline(scene);
-        var unitX = NumberWidth(scene, tick.ValueText) + (float)hero.UnitGap;
-        var unit = Loc["unit.tokS"];
-        using (var unitLayout = Text.Layout(unit, Unit))
-        {
-            var top = baseline - unitLayout.LineMetrics[0].Baseline;
-            if (!palette.HighContrast && tick.Heat > 0.02)
-            {
-                BoardPaint.Glow(context, HeatPalette.Sample(tick.Heat).WithAlpha(0.55), (float)(tick.Heat * 14), c =>
-                {
-                    using var white = BoardPaint.Brush(c, Rgba.White);
-                    c.DrawTextLayout(new Vector2(unitX, top), unitLayout, white);
-                });
-            }
-
-            using var ink2 = BoardPaint.Brush(context, palette.Ink2);
-            context.DrawTextLayout(new Vector2(unitX, top), unitLayout, ink2);
-        }
-
         var meta = (float)hero.MetaTop + 8;
-        using (var titleBrush = BoardPaint.Brush(context, palette.HighContrast ? palette.Ink : heat))
-        using (var metaBrush = BoardPaint.Brush(context, palette.Ink2))
+        using var titleBrush = BoardPaint.Brush(context, palette.HighContrast ? palette.Ink : HeroHeat(tick));
+        using var metaBrush = BoardPaint.Brush(context, palette.Ink2);
+        var x = Text.Draw(context, tick.Title, Title, 0, meta, titleBrush, (float)hero.History.Left - 8);
+        x += string.IsNullOrEmpty(tick.Title) ? 0 : 6;
+        Text.Draw(context, "· " + Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Meta, x, meta, metaBrush,
+            (float)hero.History.Left - 8 - x);
+    }
+
+    // The unit glows with the number (.value's drop shadow of 14 px × heat).
+    protected override void PaintUnit(ID2D1DeviceContext context, BoardScene scene, Presentation.Boards.Scene.BoardTick tick, float x)
+    {
+        var palette = scene.Palette;
+        var heat = GlyphHeat(tick.Heat);
+        using var layout = Text.Layout(Loc["unit.tokS"], Unit);
+        var top = NumberBaseline(scene) - layout.LineMetrics[0].Baseline;
+        if (!palette.HighContrast && heat > 0.02)
         {
-            var x = Text.Draw(context, tick.Title, Title, 0, meta, titleBrush, (float)hero.History.Left - 8);
-            x += string.IsNullOrEmpty(tick.Title) ? 0 : 6;
-            Text.Draw(context, "· " + Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Meta, x, meta, metaBrush,
-                (float)hero.History.Left - 8 - x);
+            BoardPaint.Glow(context, HeatPalette.Sample(heat).WithAlpha(0.55), (float)(heat * 14), c =>
+            {
+                using var white = BoardPaint.Brush(c, Rgba.White);
+                c.DrawTextLayout(new Vector2(x, top), layout, white);
+            });
         }
 
-        Spark(context, tick, hero.History, palette.HighContrast ? palette.Ink : heat);
+        using var ink2 = BoardPaint.Brush(context, palette.Ink2);
+        context.DrawTextLayout(new Vector2(x, top), layout, ink2);
     }
+
+    protected override void PaintHistory(ID2D1DeviceContext context, BoardScene scene, Presentation.Boards.Scene.BoardTick tick, BoardBox box) =>
+        Spark(context, tick, box, scene.Palette.HighContrast ? scene.Palette.Ink : HeroHeat(tick));
 
     protected override void PaintFooter(ID2D1DeviceContext context, BoardScene scene, Presentation.Boards.Scene.BoardTick tick, float width,
         float height)

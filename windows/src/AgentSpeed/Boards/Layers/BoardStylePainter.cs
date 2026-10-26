@@ -135,10 +135,24 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
 
             case BoardLayerKind.Hero:
             {
-                // A little wider than the hero, so the sparkline's end dot at its right edge is whole.
                 var hero = scene.Hero;
-                return new BoardLayerSpec(hero.Width + 4, hero.Height, string.Join('|', theme, "h", tick.ValueText, tick.Title, tick.GeneratingCount,
-                    tick.ToolsCount, tick.Generating, HeroHeatKey(tick), HistoryKey(tick.History), HeatKey(HeatMath.Heat(tick.PeakToday, tick.Redline))));
+                return new BoardLayerSpec(hero.Width, hero.Height, string.Join('|', theme, "h", tick.Title, tick.GeneratingCount, tick.ToolsCount,
+                    tick.Generating, HeroHeatKey(tick)));
+            }
+
+            case BoardLayerKind.Unit:
+            {
+                var pad = BoardHeroLayout.UnitPad;
+                return new BoardLayerSpec(Text.Measure(Loc["unit.tokS"], UnitStyle) + 2 * pad, scene.Hero.Height,
+                    string.Join('|', theme, "u", Loc["unit.tokS"], HeroHeatKey(tick)));
+            }
+
+            case BoardLayerKind.History:
+            {
+                var box = scene.Hero.History;
+                var pad = BoardHeroLayout.HistoryPad;
+                return new BoardLayerSpec(box.Width + 2 * pad, box.Height + 2 * pad, string.Join('|', theme, "hi", HistoryKey(tick.History),
+                    HistoryLookKey(tick)));
             }
 
             case BoardLayerKind.Footer:
@@ -203,6 +217,17 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             case BoardLayerKind.Hero:
                 PaintHero(context, scene, tick, width, height);
                 break;
+            case BoardLayerKind.Unit:
+                PaintUnit(context, scene, tick, (float)BoardHeroLayout.UnitPad);
+                break;
+            case BoardLayerKind.History:
+            {
+                var pad = BoardHeroLayout.HistoryPad;
+                var box = scene.Hero.History;
+                PaintHistory(context, scene, tick, new BoardBox(pad, pad, box.Width, box.Height));
+                break;
+            }
+
             case BoardLayerKind.Footer:
                 PaintFooter(context, scene, tick, width, height);
                 break;
@@ -257,7 +282,23 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     {
     }
 
+    /// <summary>The hero's title and counts (and timing's live label) in hero coordinates; the number, unit and history are apart.</summary>
     protected abstract void PaintHero(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float width, float height);
+
+    /// <summary>The unit's text style (its layer is as wide as the unit).</summary>
+    protected abstract BoardTextStyle UnitStyle { get; }
+
+    /// <summary>The unit starting at <paramref name="x"/>, on the number's baseline (the layer's top is the hero's).</summary>
+    protected abstract void PaintUnit(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float x);
+
+    /// <summary>The history in <paramref name="box"/> (layer coordinates).</summary>
+    protected abstract void PaintHistory(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, BoardBox box);
+
+    /// <summary>Identity of how the history is drawn beyond its values (its heat color; neon: lit segments and the peak).</summary>
+    protected virtual int HistoryLookKey(BoardTick tick) => HeatKey(GlyphHeat(tick.Heat));
+
+    /// <summary>The board's heat color in hero accents, stepped like the glyphs' glow (<see cref="GlyphHeat"/>), at least <paramref name="floor"/>.</summary>
+    protected Rgba HeroHeat(BoardTick tick, double floor = 0.06) => HeatPalette.Sample(Math.Max(floor, GlyphHeat(tick.Heat)));
 
     protected abstract void PaintFooter(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float width, float height);
 
@@ -287,8 +328,8 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
 
     protected static int HeatKey(double heat) => (int)Math.Round(Math.Clamp(heat, 0, 1) * 32);
 
-    /// <summary>Identity of the heat the hero is drawn at.</summary>
-    protected virtual int HeroHeatKey(BoardTick tick) => HeatKey(tick.Heat);
+    /// <summary>Identity of the heat the hero's accents and the unit are drawn at (stepped, <see cref="GlyphHeat"/>).</summary>
+    protected int HeroHeatKey(BoardTick tick) => HeatKey(GlyphHeat(tick.Heat));
 
     /// <summary>
     /// The heat the glyphs' glow (and neon's hero tints) are drawn at: it follows the board's heat in steps of 0.08, and at once
@@ -303,9 +344,6 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
 
         return _glyphHeat;
     }
-
-    /// <summary>The heat color of the board (the prototypes' <c>--heat</c>, at least <paramref name="floor"/>).</summary>
-    protected static Rgba HeatColor(BoardTick tick, double floor = 0.06) => HeatPalette.Sample(Math.Max(floor, tick.Heat));
 
     protected static Rgba SourceColor(SourceKind source) => HeatPalette.SourceColor(source);
 
@@ -504,19 +542,6 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
         var style = NumberStyle(scene);
         using var layout = Text.Layout("0", style);
         return BoardText.Baseline(layout, (float)scene.Hero.NumberTop + style.Size / 2);
-    }
-
-    /// <summary>The number's advance width as the scene composes it.</summary>
-    protected float NumberWidth(BoardScene scene, string text)
-    {
-        var style = NumberStyle(scene);
-        var width = 0f;
-        for (var i = 0; i < text.Length; i++)
-        {
-            width += Advance(text[i], style) + (i > 0 ? (float)scene.Hero.Tracking : 0);
-        }
-
-        return width;
     }
 
     /// <summary>A glyph's advance, measured once per style (the glyph layers are described on every tick).</summary>

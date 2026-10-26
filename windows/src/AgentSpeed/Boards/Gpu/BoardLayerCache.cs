@@ -110,6 +110,8 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
         if (!full)
         {
             full |= !Layer(BoardScene.HeroKey, new BoardLayerRequest(BoardLayerKind.Hero, scene, null));
+            full |= !Layer(BoardScene.UnitKey, new BoardLayerRequest(BoardLayerKind.Unit, scene, null));
+            full |= !Layer(BoardScene.HistoryKey, new BoardLayerRequest(BoardLayerKind.History, scene, null));
             full |= !Layer(BoardScene.FooterKey, new BoardLayerRequest(BoardLayerKind.Footer, scene, null));
             full |= !Layer(BoardScene.BackdropKey, new BoardLayerRequest(BoardLayerKind.Backdrop, scene, null));
             for (var i = 0; i < BoardHeroNumber.Glyphs.Length && !full; i++)

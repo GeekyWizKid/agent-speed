@@ -155,11 +155,12 @@ internal sealed class TimingBoardPainter : BoardStylePainter
         Dot(context, cx, mid, 3, Purple);
     }
 
+    protected override BoardTextStyle UnitStyle => Unit;
+
     protected override void PaintHero(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float width, float height)
     {
         var palette = scene.Palette;
         var hero = scene.Hero;
-        var heat = HeatColor(tick, 0.1);
         var limit = (float)hero.History.Left - 8;
         using var ink2 = BoardPaint.Brush(context, palette.Ink2);
         using var ink3 = BoardPaint.Brush(context, palette.Ink3);
@@ -168,19 +169,12 @@ internal sealed class TimingBoardPainter : BoardStylePainter
         Dot(context, (float)dot.CenterX, (float)dot.CenterY, 3.5f, tick.Generating ? Red : palette.Ink3);
         Text.Draw(context, Loc["boards.live"], Live, (float)dot.Right + 6, (float)dot.CenterY, ink2, limit - (float)dot.Right - 6);
 
-        var baseline = NumberBaseline(scene);
-        var unitX = NumberWidth(scene, tick.ValueText) + (float)hero.UnitGap;
-        using (var unit = Text.Layout(Loc["unit.tokS"], Unit))
-        {
-            context.DrawTextLayout(new Vector2(unitX, baseline - unit.LineMetrics[0].Baseline), unit, ink3);
-        }
-
         var meta = (float)hero.MetaTop;
         var x = 0f;
         if (!string.IsNullOrEmpty(tick.Title))
         {
             var pill = Math.Min(Text.Measure(tick.Title, Pill) + 14, limit);
-            BoardPaint.FillRound(context, 0, meta, pill, 17, 5, palette.HighContrast ? palette.Ink : heat);
+            BoardPaint.FillRound(context, 0, meta, pill, 17, 5, palette.HighContrast ? palette.Ink : HeroHeat(tick, 0.1));
             using var pillInk = BoardPaint.Brush(context, palette.HighContrast ? palette.Panel : Rgba.FromHex("#0B0D12"));
             Text.Draw(context, tick.Title, Pill, 7, meta + 8.5f, pillInk, pill - 12);
             x = pill + 7;
@@ -188,8 +182,17 @@ internal sealed class TimingBoardPainter : BoardStylePainter
 
         // The meta line sits below the bars, so the counts may run under them (localized counts are longer than GEN · TOOL).
         Text.Draw(context, Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Counts, x, meta + 8.5f, ink3, width - x);
-        Bars(context, tick, hero.History, scene.Size == BoardSize.S ? 20 : BoardHeroLayout.Bars, palette.HighContrast ? palette.Ink : heat);
     }
+
+    protected override void PaintUnit(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float x)
+    {
+        using var unit = Text.Layout(Loc["unit.tokS"], Unit);
+        using var ink3 = BoardPaint.Brush(context, scene.Palette.Ink3);
+        context.DrawTextLayout(new Vector2(x, NumberBaseline(scene) - unit.LineMetrics[0].Baseline), unit, ink3);
+    }
+
+    protected override void PaintHistory(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, BoardBox box) =>
+        Bars(context, tick, box, scene.Size == BoardSize.S ? 20 : BoardHeroLayout.Bars, scene.Palette.HighContrast ? scene.Palette.Ink : HeroHeat(tick, 0.1));
 
     protected override void PaintFooter(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float width, float height)
     {

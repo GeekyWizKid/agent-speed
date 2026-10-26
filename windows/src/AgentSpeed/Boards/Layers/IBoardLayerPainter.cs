@@ -12,8 +12,14 @@ internal enum BoardLayerKind
     /// <summary>The static parts by a row's value (timing's fastest dot and rule, neon's lead tint); none when there are none.</summary>
     RowValue,
 
-    /// <summary>The hero without its number: unit, title, counts and history.</summary>
+    /// <summary>The hero without its number, unit and history: title and counts (timing: its live label).</summary>
     Hero,
+
+    /// <summary>The number's unit (<c>BoardHeroLayout.UnitPad</c> in from the layer's left, the hero's height).</summary>
+    Unit,
+
+    /// <summary>The hero's history: glass's sparkline, timing's bars, neon's LED bar (<c>BoardHeroLayout.HistoryPad</c> around it).</summary>
+    History,
 
     Footer,
 
