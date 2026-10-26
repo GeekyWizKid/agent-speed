@@ -1,9 +1,9 @@
 using AgentSpeed.Presentation.Motion;
 
-namespace AgentSpeed.Presentation.Orb.Traffic;
+namespace AgentSpeed.Presentation.Orb.Lines;
 
 /// <summary>
-/// Where a style puts the traffic readout (DESIGN 10, Floating orb readout), in diameters from the center, y down.
+/// Where a style puts the two-line readout (DESIGN 10, Floating orb readout), in diameters from the center, y down.
 /// </summary>
 /// <param name="NearestBaseline">Baseline of the line nearest the value.</param>
 /// <param name="Below">The lines sit below the value (<c>needle</c>, ↓ line nearest); otherwise above it (↑ line nearest).</param>
@@ -13,7 +13,7 @@ namespace AgentSpeed.Presentation.Orb.Traffic;
 /// The readout stack moves down while the block shows, so block, value, unit, title and pill stay centered as one stack;
 /// <c>reactor</c> and <c>needle</c> keep their readout in a fixed window or hub.
 /// </param>
-public sealed record OrbTrafficPlacement(double NearestBaseline, bool Below, double Size, double Fit, bool Recenters = false)
+public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, double Size, double Fit, bool Recenters = false)
 {
     /// <summary>Line pitch, × t.</summary>
     public const double Pitch = 1.32;
@@ -21,12 +21,12 @@ public sealed record OrbTrafficPlacement(double NearestBaseline, bool Below, dou
     /// <summary>Gaps between arrow, number and unit, × t.</summary>
     public const double Gap = 0.16;
 
-    /// <summary>Arrow box, × t.</summary>
+    /// <summary>Arrow box, × t: the glyph cell, widened to a text glyph's own advance.</summary>
     public const double ArrowWidth = 0.50;
 
     public const double ArrowHeight = 0.66;
 
-    /// <summary>Unit size, × t.</summary>
+    /// <summary>Unit size, and a text glyph's size, × t.</summary>
     public const double UnitScale = 0.82;
 
     /// <summary>Cap height of the orb fonts, × size.</summary>
@@ -38,15 +38,15 @@ public sealed record OrbTrafficPlacement(double NearestBaseline, bool Below, dou
     /// <summary>Clearance kept between the title and the agent dots, × S.</summary>
     public const double DotsClearance = 0.05;
 
-    public static OrbTrafficPlacement Led { get; } = new(-0.245, false, 0.050, 0.44, Recenters: true);
+    public static OrbLinesPlacement Led { get; } = new(-0.245, false, 0.050, 0.44, Recenters: true);
 
-    public static OrbTrafficPlacement Liquid { get; } = Led;
+    public static OrbLinesPlacement Liquid { get; } = Led;
 
-    public static OrbTrafficPlacement Reactor { get; } = new(-0.175, false, 0.046, 0.32);
+    public static OrbLinesPlacement Reactor { get; } = new(-0.175, false, 0.046, 0.32);
 
-    public static OrbTrafficPlacement Needle { get; } = new(0.108, true, 0.046, 0.285);
+    public static OrbLinesPlacement Needle { get; } = new(0.108, true, 0.046, 0.285);
 
-    public static OrbTrafficPlacement Minimal { get; } = new(-0.228, false, 0.054, 0.50, Recenters: true);
+    public static OrbLinesPlacement Minimal { get; } = new(-0.228, false, 0.054, 0.50, Recenters: true);
 
     /// <summary>
     /// <c>needle</c>: while the readout is enabled and fits, <c>tok/s</c> leaves the hub for the dial face above it
@@ -56,7 +56,7 @@ public sealed record OrbTrafficPlacement(double NearestBaseline, bool Below, dou
 
     public const double NeedleDialUnitSize = 0.046;
 
-    public static OrbTrafficPlacement For(OrbStyle style) => style switch
+    public static OrbLinesPlacement For(OrbStyle style) => style switch
     {
         OrbStyle.Needle => Needle,
         OrbStyle.Liquid => Liquid,
@@ -68,8 +68,8 @@ public sealed record OrbTrafficPlacement(double NearestBaseline, bool Below, dou
     /// <summary>Never below the 7 pt floor of every orb label.</summary>
     public double TextSize(double s) => Math.Max(OrbReadoutLayout.MinTextSize, Size * s);
 
-    /// <summary>Baselines of the download (first) and upload lines, from the center <paramref name="y"/>.</summary>
-    public (double Down, double Up) Baselines(double y, double s)
+    /// <summary>Baselines of the top and bottom lines, from the center <paramref name="y"/>.</summary>
+    public (double Top, double Bottom) Baselines(double y, double s)
     {
         var nearest = y + NearestBaseline * s;
         var pitch = Pitch * TextSize(s);

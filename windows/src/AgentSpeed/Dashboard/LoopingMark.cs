@@ -1,0 +1,86 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media.Animation;
+using AgentSpeed.Modes;
+
+namespace AgentSpeed.Dashboard;
+
+/// <summary>
+/// The agent row's looping mark (DESIGN 4): an amber Segoe Fluent Sync glyph, 11 DIP, 4 DIP before the project name while
+/// the agent goes in circles (METRICS 6.10). Fades in 0.25 s and out 0.6 s; Reduce Motion shows and hides it at once.
+/// </summary>
+internal sealed class LoopingMark : TextBlock
+{
+    public const string Glyph = "";
+    public const double Size = 11;
+    public const double Gap = 4;
+
+    public static readonly DependencyProperty IsLoopingProperty = DependencyProperty.Register(
+        nameof(IsLooping), typeof(bool), typeof(LoopingMark), new PropertyMetadata(false, (d, _) => ((LoopingMark)d).Show(animate: true)));
+
+    public static readonly DependencyProperty AppearanceProperty = DependencyProperty.Register(
+        nameof(Appearance), typeof(CapsuleAppearance), typeof(LoopingMark),
+        new PropertyMetadata(default(CapsuleAppearance), (d, _) => ((LoopingMark)d).Paint()));
+
+    private static readonly Duration FadeIn = new(TimeSpan.FromSeconds(0.25));
+    private static readonly Duration FadeOut = new(TimeSpan.FromSeconds(0.6));
+
+    public LoopingMark()
+    {
+        Text = Glyph;
+        FontSize = Size;
+        Margin = new Thickness(0, 0, Gap, 0);
+        VerticalAlignment = VerticalAlignment.Center;
+        SetResourceReference(FontFamilyProperty, "AppSymbolFontFamily");
+        Paint();
+        Show(animate: false);
+    }
+
+    public bool IsLooping
+    {
+        get => (bool)GetValue(IsLoopingProperty);
+        set => SetValue(IsLoopingProperty, value);
+    }
+
+    public CapsuleAppearance Appearance
+    {
+        get => (CapsuleAppearance)GetValue(AppearanceProperty);
+        set => SetValue(AppearanceProperty, value);
+    }
+
+    private void Paint() => Foreground = Appearance.Brushes.Bolt;
+
+    private void Show(bool animate)
+    {
+        var shown = IsLooping;
+        if (shown)
+        {
+            Visibility = Visibility.Visible;
+        }
+
+        BeginAnimation(OpacityProperty, null);
+        if (!animate || Appearance.ReduceMotion || !IsLoaded)
+        {
+            Opacity = shown ? 1 : 0;
+            Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+            return;
+        }
+
+        var fade = new DoubleAnimation(Opacity, shown ? 1 : 0, shown ? FadeIn : FadeOut)
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        };
+        if (!shown)
+        {
+            fade.Completed += (_, _) =>
+            {
+                if (!IsLooping)
+                {
+                    Visibility = Visibility.Collapsed;
+                }
+            };
+        }
+
+        BeginAnimation(OpacityProperty, fade);
+    }
+}

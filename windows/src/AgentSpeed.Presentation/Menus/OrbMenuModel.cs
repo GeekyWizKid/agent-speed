@@ -117,22 +117,26 @@ public static class OrbMenuModel
     }
 
     /// <summary>
-    /// <c>orbs.traffic</c> ▸ <c>orbs.traffic.sources</c> / <c>orbs.traffic.machine</c> / <c>orbs.traffic.off</c>, a check on
-    /// the current one (DESIGN 10); disabled while measuring is off. Without per-process data the sources choice adds
-    /// <c>traffic.unavailable.short</c>. The quick menu's per-orb submenu has the same item.
+    /// <c>orbs.traffic</c> ▸ <c>orbs.traffic.sources</c> / <c>orbs.traffic.machine</c> / <c>orbs.traffic.intelligence</c> /
+    /// <c>orbs.traffic.off</c>, a check on the current one (DESIGN 10). The network choices are disabled while measuring is
+    /// off (intelligence needs no measuring); without per-process data the sources choice adds <c>traffic.unavailable.short</c>.
+    /// The quick menu's per-orb submenu has the same item.
     /// </summary>
     internal static MenuRow TrafficMenu(OrbDefinition orb, AppSettings settings, Localizer localizer, bool sourceTraffic)
     {
-        var enabled = settings.Traffic.Enabled;
+        var measuring = settings.Traffic.Enabled;
+        MenuRow Choice(string key, OrbTraffic traffic) =>
+            Toggle(localizer[key], orb.Traffic == traffic, new MenuAction.SetOrbTraffic(orb.Id, traffic), measuring || !OrbTraffics.IsNetwork(traffic));
         return Submenu(localizer["orbs.traffic"],
         [
-            Toggle(localizer["orbs.traffic.sources"], orb.Traffic == OrbTraffic.Sources, new MenuAction.SetOrbTraffic(orb.Id, OrbTraffic.Sources)) with
+            Choice("orbs.traffic.sources", OrbTraffic.Sources) with
             {
-                Detail = enabled && !sourceTraffic ? localizer["traffic.unavailable.short"] : null,
+                Detail = measuring && !sourceTraffic ? localizer["traffic.unavailable.short"] : null,
             },
-            Toggle(localizer["orbs.traffic.machine"], orb.Traffic == OrbTraffic.Machine, new MenuAction.SetOrbTraffic(orb.Id, OrbTraffic.Machine)),
-            Toggle(localizer["orbs.traffic.off"], orb.Traffic == OrbTraffic.Off, new MenuAction.SetOrbTraffic(orb.Id, OrbTraffic.Off)),
-        ]) with { IsEnabled = enabled };
+            Choice("orbs.traffic.machine", OrbTraffic.Machine),
+            Choice("orbs.traffic.intelligence", OrbTraffic.Intelligence),
+            Choice("orbs.traffic.off", OrbTraffic.Off),
+        ]);
     }
 
     private static MenuRow StyleMenu(OrbDefinition orb, Localizer localizer) =>

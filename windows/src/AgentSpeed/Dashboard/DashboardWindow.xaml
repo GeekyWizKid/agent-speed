@@ -321,7 +321,12 @@
                                                 <ColumnDefinition Width="56" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel VerticalAlignment="Center" Margin="0,3,8,3">
-                                                <TextBlock Text="{Binding Project}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <!-- The looping mark sits before the project name and never moves the row (DESIGN 4). -->
+                                                <DockPanel>
+                                                    <dash:LoopingMark DockPanel.Dock="Left" IsLooping="{Binding IsLooping}"
+                                                                      Appearance="{Binding DataContext.CapsuleAppearance, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                    <TextBlock Text="{Binding Project}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
                                                 <TextBlock Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis"
                                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             </StackPanel>

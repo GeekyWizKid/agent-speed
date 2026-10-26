@@ -1,0 +1,104 @@
+namespace AgentSpeed.Presentation.Orb.Lines;
+
+/// <summary>What the two-line readout shows (DESIGN 10): network speed, or the live intelligence of the orb's sources.</summary>
+public enum OrbLinesKind : byte
+{
+    /// <summary>Arrows: ↓ over ↑ in every style.</summary>
+    Traffic,
+
+    /// <summary>Text glyphs: the intelligence line nearest the value, the thinking line beyond it.</summary>
+    Intelligence,
+}
+
+/// <summary>One line: a glyph (an arrow's character, or text), a number right-aligned in its cell, a unit left-aligned in its cell.</summary>
+public readonly record struct OrbLine(string Glyph, string Number, string Unit);
+
+/// <summary>The readout's text at one sample, with the spoken form the orb's label adds while it is visible.</summary>
+/// <param name="First">Traffic: the ↓ line; intelligence: the intelligence line.</param>
+/// <param name="Second">Traffic: the ↑ line; intelligence: the thinking line.</param>
+/// <param name="Bits">Traffic in bits: the unit cell is as wide as <c>Mb/s</c> instead of <c>MB/s</c>.</param>
+/// <param name="Detail">More than the lines say (the orb's tooltip); null when there is nothing more.</param>
+public sealed record OrbLinesContent(OrbLinesKind Kind, OrbLine First, OrbLine Second, bool Bits, string Spoken, string? Detail = null)
+{
+    /// <summary>The lines from top to bottom: traffic keeps ↓ over ↑; the intelligence line sits nearest the value.</summary>
+    public (OrbLine Top, OrbLine Bottom) Stack(bool below) =>
+        Kind == OrbLinesKind.Traffic || below ? (First, Second) : (Second, First);
+}
+
+/// <summary>
+/// One sample for the quiet rule: its mode, what to show (null: no value now, keep the last of the same mode) and whether
+/// it counts as activity.
+/// </summary>
+public readonly record struct OrbLinesSample(OrbLinesKind Kind, OrbLinesContent? Content, bool Loud);
+
+/// <summary>
+/// What the orb's two-line readout shows with the quiet rule's two moments (DESIGN 10). Times are seconds on the shared
+/// orb clock.
+/// </summary>
+/// <param name="ShownAt">When the readout began fading in; fully shown <see cref="FadeIn"/> later.</param>
+/// <param name="QuietAt">When it begins fading out: 10 s after the last loud sample; gone <see cref="FadeOut"/> later.</param>
+public readonly record struct OrbLinesReading(OrbLinesContent Content, double ShownAt, double QuietAt)
+{
+    public const double FadeIn = 0.25;
+    public const double FadeOut = 0.6;
+
+    /// <summary>Opacity at <paramref name="time"/>; Reduce Motion makes both fades instant.</summary>
+    public double Alpha(double time, bool reduceMotion)
+    {
+        var fadeIn = reduceMotion ? 0 : FadeIn;
+        var fadeOut = reduceMotion ? 0 : FadeOut;
+        var incoming = fadeIn > 0 ? (time - ShownAt) / fadeIn : time >= ShownAt ? 1 : 0;
+        var outgoing = fadeOut > 0 ? 1 - (time - QuietAt) / fadeOut : time < QuietAt ? 1 : 0;
+        return Math.Min(Math.Clamp(incoming, 0, 1), Math.Max(outgoing, 0));
+    }
+
+    /// <summary>A fade runs at <paramref name="time"/> (frames at 30 fps).</summary>
+    public bool IsFading(double time, bool reduceMotion) =>
+        !reduceMotion && ((time >= ShownAt && time < ShownAt + FadeIn) || (time >= QuietAt && time < QuietAt + FadeOut));
+
+    /// <summary>Fully faded out at <paramref name="time"/>: nothing is drawn and new quiet samples change nothing.</summary>
+    public bool IsGone(double time) => time >= QuietAt + FadeOut;
+}
+
+/// <summary>
+/// The quiet rule of the two-line readout (DESIGN 10): visible while samples are loud (traffic of at least 1 KB/s; for
+/// intelligence an agent generating or output in the window); 10 s after the last loud one it fades out (0.6 s) and
+/// returns (0.25 s) with the next. Quiet samples of a gone readout change nothing, so a quiet orb renders no frames.
+/// </summary>
+public sealed class OrbLinesQuietRule
+{
+    public const double QuietAfter = 10;
+
+    public OrbLinesReading? Reading { get; private set; }
+
+    /// <summary>
+    /// Applies one sample at <paramref name="time"/>; returns whether the reading changed. A null sample clears the readout,
+    /// and so does a sample of another mode before it shows.
+    /// </summary>
+    public bool Apply(OrbLinesSample? sample, double time)
+    {
+        var previous = Reading;
+        Reading = sample is { } value ? Next(previous is { } current && current.Content.Kind == value.Kind ? current : null, value, time) : null;
+        return Reading != previous;
+    }
+
+    private static OrbLinesReading? Next(OrbLinesReading? current, OrbLinesSample sample, double time)
+    {
+        if (current is not { } shown || shown.IsGone(time))
+        {
+            return sample.Loud && sample.Content is { } content ? new OrbLinesReading(content, time, time + QuietAfter) : current;
+        }
+
+        var next = shown with { Content = sample.Content ?? shown.Content };
+        if (!sample.Loud)
+        {
+            return next;
+        }
+
+        // Fading out: come back from the current opacity.
+        var shownAt = time >= shown.QuietAt ? time - shown.Alpha(time, reduceMotion: false) * OrbLinesReading.FadeIn : shown.ShownAt;
+        return next with { ShownAt = shownAt, QuietAt = time + QuietAfter };
+    }
+
+    public void Clear() => Reading = null;
+}

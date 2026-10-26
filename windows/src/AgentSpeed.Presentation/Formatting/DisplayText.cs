@@ -103,9 +103,6 @@ public static class DisplayText
         _ => "，",
     };
 
-    /// <summary>A traffic rate read as words (DESIGN 10 Accessibility).</summary>
-    public static string SpokenTrafficRate(Core.Traffic.TrafficFormat.Parts parts) => TrafficText.Spoken(parts);
-
     /// <summary><c>今日 1.2M · 3 個 agent</c></summary>
     public static string TodaySummary(SpeedSnapshot snapshot, Localizer localizer)
     {

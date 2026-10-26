@@ -12,6 +12,7 @@ using AgentSpeed.Presentation.Heat;
 using AgentSpeed.Presentation.Layout;
 using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Modes;
+using AgentSpeed.Presentation.Orb.Lines;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Presentation.Titles;
 using AgentSpeed.Theme;
@@ -117,13 +118,17 @@ internal sealed class AgentRow : ObservableObject
     /// <summary>The agent's effort and speed (DESIGN 4, Agents).</summary>
     public EffortCapsule Capsule { get => _capsule; set => Set(ref _capsule, value); }
 
+    /// <summary>The agent goes in circles (METRICS 6.10): the row shows the looping mark.</summary>
+    public bool IsLooping { get => _isLooping; set => Set(ref _isLooping, value); }
+
     /// <summary>
-    /// <c>traffic.agent.tooltip</c> while the agent has attributed traffic today (DESIGN 10), then the capsule's lines
-    /// when effort or speed is known; null when neither applies.
+    /// <c>work.looping</c> while looping, <c>traffic.agent.tooltip</c> while the agent has attributed traffic today
+    /// (DESIGN 10), the capsule's lines when effort or speed is known, the agent's grade, then the work lines.
     /// </summary>
     public string? Tooltip { get => _tooltip; set => Set(ref _tooltip, value); }
 
     private EffortCapsule _capsule = new(null, null);
+    private bool _isLooping;
     private string? _tooltip;
 }
 
@@ -555,7 +560,14 @@ internal sealed partial class DashboardViewModel : ObservableObject
             row.Project = string.IsNullOrWhiteSpace(agent.Project) ? source : agent.Project;
             var detail = string.IsNullOrWhiteSpace(agent.Model) ? source : $"{source} · {agent.Model}";
             detail = agent.IsSubagent ? $"{loc["agents.subagent"]} · {detail}" : detail;
+            var looping = WorkText.Looping(agent.Work, loc);
+            row.IsLooping = looping is not null;
             var tooltip = new List<string>();
+            if (looping is not null)
+            {
+                tooltip.Add(looping);
+            }
+
             if (AgentTraffic(agent.Id) is { } traffic)
             {
                 // DESIGN 10: the agent's attributed download today ends its secondary line; the tooltip has both directions.
@@ -575,7 +587,9 @@ internal sealed partial class DashboardViewModel : ObservableObject
                 tooltip.AddRange(capsule.TooltipLines(loc));
             }
 
-            row.Tooltip = tooltip.Count > 0 ? string.Join("\n", tooltip) : null;
+            tooltip.Add(OrbLinesText.Grade(agent.Grade, loc));
+            tooltip.AddRange(WorkText.Closing(agent.Work, loc));
+            row.Tooltip = string.Join("\n", tooltip);
 
             row.Phase = agent.Phase;
             row.Color = HeatPalette.SourceColor(agent.Source).ToColor();
@@ -598,7 +612,8 @@ internal sealed partial class DashboardViewModel : ObservableObject
             var accessible = row.LiveKind == LiveValueKind.Number
                 ? string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}, {phase}, {row.LiveAccessibleName}")
                 : string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}, {phase}");
-            row.AccessibleName = capsule.IsKnown ? $"{accessible}, {capsule.AccessibilityText(loc)}" : accessible;
+            accessible = capsule.IsKnown ? $"{accessible}, {capsule.AccessibilityText(loc)}" : accessible;
+            row.AccessibleName = looping is null ? accessible : $"{accessible}, {looping}";
         }
 
         var deepest = rows.Count == 0 ? 0 : rows.Max(r => r.Indent);
