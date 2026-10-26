@@ -186,24 +186,33 @@ public class BoardContentTests
         var look = BoardEffectsPresets.For(style).Sweep;
         var sweeps = new BoardSweeps();
         sweeps.Add("row", 20, 300, 100, 30, Rgba.FromHex("#34D399"), look);
-        sweeps.Step(look.Seconds / 2);
         var list = new BoardDrawList();
-        sweeps.Emit(list);
-        Assert.True(list.Count > 0);
-        foreach (var instance in list.Instances)
+        var shown = 0;
+        for (var step = 0; step < 40; step++)
         {
-            Assert.Equal((float)OrbFill.Band, instance.Extra2.X);
-            Assert.Equal(slant * Math.PI / 180, instance.Extra2.Y, 4);
-            Assert.Equal(corner, instance.B.Z, 4);
-            Assert.Equal(15 - look.Inset, instance.B.Y, 4);
-            Assert.True(instance.Extra2.Z < instance.Extra2.W);
+            list.Reset();
+            sweeps.Emit(list);
+            shown += list.Count > 0 ? 1 : 0;
+            for (var i = 0; i < list.Count; i++)
+            {
+                var instance = list.Instances[i];
+                Assert.Equal((float)OrbFill.Band, instance.Extra2.X);
+                Assert.Equal(slant * Math.PI / 180, instance.Extra2.Y, 4);
+                Assert.Equal(corner, instance.B.Z, 4);
+                Assert.Equal(15 - look.Inset, instance.B.Y, 4);
+                Assert.True(instance.Extra2.Z < instance.Extra2.W);
+
+                // The stretches tile: each starts where the one before it ends.
+                if (i > 0)
+                {
+                    Assert.Equal(list.Instances[i - 1].Extra2.W, instance.Extra2.Z, 3);
+                }
+            }
+
+            sweeps.Step(look.Seconds / 40);
         }
 
-        // The stretches tile: each starts where the one before it ends.
-        for (var i = 1; i < list.Count; i++)
-        {
-            Assert.Equal(list.Instances[i - 1].Extra2.W, list.Instances[i].Extra2.Z, 3);
-        }
+        Assert.True(shown > 3, $"{style} sweep shows on {shown} frames");
     }
 
     [Fact]
