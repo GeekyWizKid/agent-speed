@@ -16,6 +16,8 @@ struct CodexParser: Sendable {
     private var previousLegacyTotals: CodexRawUsage?
     /// `model_provider` of the first `session_meta` (METRICS 3.2).
     private var provider: String?
+    /// Lines of a paginated sub-agent below this ordinal copy its parent's records (METRICS 3.5).
+    private var subagentStartOrdinal: Int64?
 
     init(agentId: String, fileID: FileID) {
         self.agentId = agentId
@@ -54,9 +56,13 @@ struct CodexParser: Sendable {
             myAgentPath = meta.agentPath ?? Self.defaultAgentPath
             state.isSubagent = meta.isSubagent
             provider = meta.modelProvider
+            subagentStartOrdinal = meta.subagentStartOrdinal
             return
         }
         if let created = state.thread?.createdMs, timestamp < created - Self.copiedHistoryToleranceMs {
+            return
+        }
+        if let start = subagentStartOrdinal, let ordinal = line.ordinal, ordinal < start {
             return
         }
         state.noteLine(at: timestamp)

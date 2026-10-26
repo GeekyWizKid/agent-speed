@@ -8,7 +8,8 @@ import Foundation
 final class HistoryAnalyzer {
     /// Bumped whenever a parser change alters results; stored files of other versions are analysed again.
     /// 2: per-model measured output and time (METRICS 8). 3: cost (METRICS 9.7). 5: reasoning effort and speed.
-    static let analysisVersion: Int64 = 5
+    /// 6: the copied prefix of paginated Codex sub-agents (METRICS 3.5).
+    static let analysisVersion: Int64 = 6
     /// The current price table version of the last complete run; when it changes, files with unpriced responses are
     /// analysed again (METRICS 9.7).
     static let priceVersionKey = "priceTableVersion"

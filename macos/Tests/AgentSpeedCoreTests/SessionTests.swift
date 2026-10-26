@@ -33,22 +33,22 @@ struct SessionTests {
         let session = TranscriptSession(configuration: configuration)
         let fixtureDay = Clock.milliseconds(Calendar.current.startOfDay(for: Date(timeIntervalSince1970: 1_792_490_400)))
         let summary = session.seed(todayStartMs: fixtureDay)
-        #expect(summary.filesRead == 10)
-        #expect(summary.filesDiscovered == 10)
+        #expect(summary.filesRead == 11)
+        #expect(summary.filesDiscovered == 11)
         #expect(Set(session.responses.map(\.key)) == [
             "resp-1", "resp-2", "resp-3", "resp-4", "codex-legacy:thread-legacy:20213", "codex-legacy:thread-legacy:41000",
-            "resp-z1", "resp-z2",
+            "resp-z1", "resp-z2", "resp-p1", "resp-p2",
             "msg_A", "msg_B", "msg_C", "msg_D", "msg_E", "msg_W", "dsm-1", "dsm-2", "dss-1",
         ])
         #expect(session.responses.first { $0.key == "msg_B" }?.agentId.hasSuffix("s-cli.jsonl") == true)
         #expect(session.responses.first { $0.key == "dsm-1" }?.agentId.hasSuffix("session-dsh-main/session.v4.jsonl.zstd") == true)
         #expect(session.responses.first { $0.key == "dss-1" }?.source == .deepseek)
-        #expect(session.malformedLines == 2)
+        #expect(session.malformedLines == 3)
         #expect(session.responses.first { $0.key == "msg_E" }?.isFinal == false)
         let (output, events) = session.advance(nowMs: 1_792_491_000_000, todayStartMs: fixtureDay, emitsEvents: true)
         #expect(events.isEmpty)
         let context = SnapshotContext(session: session, todayStartMs: fixtureDay)
-        #expect(context.warnings(for: output) == [.malformedLines(2), .unfinalizedUsage(1)])
+        #expect(context.warnings(for: output) == [.malformedLines(3), .unfinalizedUsage(1)])
         #expect(context.sources[.deepseek]?.available == true)
         #expect(context.sources[.deepseek]?.rootPath == directory.file("dsh/sessions").path)
         _ = directory
@@ -70,13 +70,14 @@ struct SessionTests {
         ]
         for (parentName, childName) in pairs {
             let child = try #require(agents.firstIndex { $0.id.hasSuffix("/" + childName) }, "\(childName) listed")
-            #expect(child > 0)
-            #expect(agents[child - 1].id.hasSuffix("/" + parentName), "\(childName) follows its parent")
-            #expect(agents[child].parentId == agents[child - 1].id)
-            #expect(agents[child - 1].parentId == nil)
+            let parent = try #require(agents.firstIndex { $0.id.hasSuffix("/" + parentName) }, "\(parentName) listed")
+            #expect(parent < child, "\(childName) follows its parent")
+            #expect(agents[parent].parentId == nil)
+            // Only the parent's other sub-agents (the paginated Codex one) may come between them.
+            #expect(agents[(parent + 1)...child].allSatisfy { $0.parentId == agents[parent].id })
         }
-        #expect(agents.count == 10)
-        #expect(agents.filter { $0.parentId != nil }.count == 4)
+        #expect(agents.count == 11)
+        #expect(agents.filter { $0.parentId != nil }.count == 5)
         _ = directory
     }
 
