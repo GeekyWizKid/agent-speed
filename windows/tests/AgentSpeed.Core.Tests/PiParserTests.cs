@@ -153,29 +153,60 @@ public sealed class PiParserTests : IDisposable
     }
 
     [Fact]
-    public void ACustomFolderSetInPisSettingsWhileRunningJoinsAndTakesItsFilesFromOmp()
+    public void ACustomFolderSetInPisSettingsWhileRunningIsReadFromThenOn()
     {
         var t = _now - 200_000;
-        var omp = _temp.Combine("home", ".omp", "agent", "sessions");
-        Write(CustomRoot, "--w-halo--/2026-10-20T12-00-00-000Z_s.jsonl",
-            Header(t, "/w/halo"), User("u1", t + 1000), Assistant("a1", t + 4000, t + 1010, 3000, "stop", output: 40));
-        Write(omp, "-w-nova/2026-10-20T12-00-00-000Z_o.jsonl", Header(t, "/w/nova"));
-        var enabled = new HashSet<SourceKind> { SourceKind.Omp, SourceKind.Pi };
-        var locations = new SourceLocations(string.Empty, string.Empty, string.Empty, string.Empty, [],
-            OmpRoots: [Path.GetFullPath(omp), Path.GetFullPath(CustomRoot)], PiRoots: [Path.GetFullPath(DefaultRoot)], PiAutomatic: true);
         IReadOnlyList<string> piRoots = [Path.GetFullPath(DefaultRoot)];
-        using var core = new MonitorCore(new MonitorConfiguration(enabled), locations, _now - 3_600_000) { AutomaticPiRoots = () => piRoots };
+        var locations = new SourceLocations(string.Empty, string.Empty, string.Empty, string.Empty, [],
+            PiRoots: piRoots, PiAutomatic: true);
+        using var core = new MonitorCore(new MonitorConfiguration(new HashSet<SourceKind> { SourceKind.Pi }), locations, _now - 3_600_000)
+        {
+            AutomaticPiRoots = () => piRoots,
+        };
         core.Seed(_now, _now - 3_600_000, CancellationToken.None);
-        Assert.Equal(SourceKind.Omp, Assert.Single(Build(core).Agents, a => a.Project == "halo").Source);
+        Write(CustomRoot, "2026-10-20T12-00-00-000Z_s.jsonl",
+            Header(t, "/w/halo"), User("u1", t + 1000), Assistant("a1", t + 4000, t + 1010, 3000, "stop", output: 40));
 
         piRoots = [Path.GetFullPath(DefaultRoot), Path.GetFullPath(CustomRoot)];
         Assert.True(core.Rediscover(_now, _now - 3_600_000, CancellationToken.None));
 
-        var snapshot = Build(core);
-        Assert.Equal(SourceKind.Pi, Assert.Single(snapshot.Agents, a => a.Project == "halo").Source);
-        Assert.Equal([RootFamily.Omp, RootFamily.Pi, RootFamily.Pi],
-            core.Roots.Where(r => r.Family is RootFamily.Omp or RootFamily.Pi).Select(r => r.Family));
-        Assert.Equal(40L, snapshot.Sources.Single(s => s.Kind == SourceKind.Pi).Today.Output);
+        Assert.False(core.RestartRequested);
+        Assert.Equal(40L, Build(core).Sources.Single(s => s.Kind == SourceKind.Pi).Today.Output);
+    }
+
+    /// <summary>Moving the files over would leave today's omp responses counted, so the monitor starts over (METRICS 4.7).</summary>
+    [Fact]
+    public void ACustomFolderThatCoversAnOmpRootRestartsTheMonitorSoItsFilesCountOnceAsPi()
+    {
+        var t = _now - 200_000;
+        var omp = Path.GetFullPath(_temp.Combine("home", ".omp", "agent", "sessions"));
+        Write(CustomRoot, "--w-halo--/2026-10-20T12-00-00-000Z_s.jsonl",
+            Header(t, "/w/halo"), User("u1", t + 1000), Assistant("a1", t + 4000, t + 1010, 3000, "stop", output: 40));
+        var enabled = new HashSet<SourceKind> { SourceKind.Omp, SourceKind.Pi };
+        IReadOnlyList<string> piRoots = [Path.GetFullPath(DefaultRoot)];
+        var before = new SourceLocations(string.Empty, string.Empty, string.Empty, string.Empty, [],
+            OmpRoots: [omp, Path.GetFullPath(CustomRoot)], PiRoots: piRoots, PiAutomatic: true);
+        using (var core = new MonitorCore(new MonitorConfiguration(enabled), before, _now - 3_600_000) { AutomaticPiRoots = () => piRoots })
+        {
+            core.Seed(_now, _now - 3_600_000, CancellationToken.None);
+            Assert.Equal(SourceKind.Omp, Assert.Single(Build(core).Agents).Source);
+
+            piRoots = [Path.GetFullPath(DefaultRoot), Path.GetFullPath(CustomRoot)];
+            core.Rediscover(_now, _now - 3_600_000, CancellationToken.None);
+            Assert.True(core.RestartRequested);
+        }
+
+        using var restarted = new MonitorCore(new MonitorConfiguration(enabled), before with { PiRoots = piRoots }, _now - 3_600_000)
+        {
+            AutomaticPiRoots = () => piRoots,
+        };
+        restarted.Seed(_now, _now - 3_600_000, CancellationToken.None);
+        var snapshot = Build(restarted);
+        Assert.Equal(SourceKind.Pi, Assert.Single(snapshot.Agents).Source);
+        Assert.Equal((0L, 40L), (snapshot.Sources.Single(s => s.Kind == SourceKind.Omp).Today.Output,
+            snapshot.Sources.Single(s => s.Kind == SourceKind.Pi).Today.Output));
+        restarted.Rediscover(_now, _now - 3_600_000, CancellationToken.None);
+        Assert.False(restarted.RestartRequested);
     }
 
     private MonitorCore Core(params string[] roots) => new(

@@ -135,6 +135,12 @@ internal sealed partial class MonitorCore : IDisposable
     /// <summary>Pi's automatic roots as rediscovery reads them again (METRICS 4.13); tests replace it.</summary>
     internal Func<IReadOnlyList<string>> AutomaticPiRoots { get; set; } = static () => LiveMonitor.DefaultPiRoots;
 
+    /// <summary>
+    /// A new Pi root covers a folder read as omp so far: its files must count once, as Pi, so the session starts over
+    /// with freshly resolved roots instead of moving them (today's omp responses would stay counted).
+    /// </summary>
+    public bool RestartRequested { get; private set; }
+
     /// <summary>Transcript roots (file families).</summary>
     public IReadOnlyList<SourceRoot> Roots => _roots;
 
@@ -421,6 +427,11 @@ internal sealed partial class MonitorCore : IDisposable
         }
 
         AddNewPiRoots();
+        if (RestartRequested)
+        {
+            return changed;
+        }
+
         AddNewOmpRoots();
         foreach (var root in _roots.ToList())
         {
@@ -1157,40 +1168,33 @@ internal sealed partial class MonitorCore : IDisposable
 
     /// <summary>
     /// Automatic Pi roots follow Pi's settings (METRICS 4.13): a custom session folder set while running is read from then
-    /// on, and an omp root that became Pi's stops being read as omp (METRICS 4.7).
+    /// on, and an omp root that became Pi's stops being read as omp (METRICS 4.7), also while Pi is turned off.
     /// </summary>
     private void AddNewPiRoots()
     {
-        if (!_piAutomatic || !Families.IsEnabled(RootFamily.Pi, _enabled))
+        if (!_piAutomatic)
         {
             return;
         }
 
         var known = new HashSet<string>(_roots.Where(r => r.Family == RootFamily.Pi).Select(r => r.Path), PathComparer);
-        var added = false;
-        foreach (var path in SourceLocations.NormalizeAll(AutomaticPiRoots()))
-        {
-            if (known.Add(path))
-            {
-                _roots.Add(new SourceRoot(RootFamily.Pi, path, enabled: true));
-                added = true;
-            }
-        }
-
-        if (!added)
+        var added = SourceLocations.NormalizeAll(AutomaticPiRoots()).Where(known.Add).ToList();
+        if (added.Count == 0)
         {
             return;
         }
 
-        var omp = _roots.Where(r => r.Family == RootFamily.Omp).ToList();
-        var kept = PiPaths.WithoutPi(omp.Select(r => r.Path), known).ToHashSet(PathComparer);
-        foreach (var root in omp.Where(r => !kept.Contains(r.Path)))
+        var omp = _roots.Where(r => r.Family == RootFamily.Omp).Select(r => r.Path).ToList();
+        if (PiPaths.WithoutPi(omp, added).Count < omp.Count)
         {
-            _roots.Remove(root);
-            foreach (var tracked in _files.Values.Where(f => f.Root == root).ToList())
-            {
-                Remove(tracked);
-            }
+            RestartRequested = true;
+            return;
+        }
+
+        var enabled = Families.IsEnabled(RootFamily.Pi, _enabled);
+        foreach (var path in added)
+        {
+            _roots.Add(new SourceRoot(RootFamily.Pi, path, enabled));
         }
     }
 

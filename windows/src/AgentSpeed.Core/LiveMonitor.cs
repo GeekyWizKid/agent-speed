@@ -426,6 +426,11 @@ public sealed class LiveMonitor : IDisposable
                 if (TakeRescanRequest() || elapsed >= nextDiscovery)
                 {
                     changed |= core.Rediscover(now, today, token);
+                    if (core.RestartRequested)
+                    {
+                        return;
+                    }
+
                     EnsureWatchers(core, watchers);
                     nextDiscovery = elapsed + DiscoveryInterval;
                 }
