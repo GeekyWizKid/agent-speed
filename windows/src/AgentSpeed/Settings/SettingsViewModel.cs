@@ -172,6 +172,8 @@ internal sealed class SettingsViewModel : ObservableObject
         ChangeGrokBuildCommand = new RelayCommand(() => ChangeFolder(GrokBuildPath, (s, path) => s with { GrokBuildRoot = path }));
         ResetGrokBuildCommand = new RelayCommand(() => _settings.Update(s => s with { GrokBuildRoot = null }),
             () => _settings.Current.GrokBuildRoot is not null);
+        ChangePiCommand = new RelayCommand(() => ChangeFolder(PiPath, (s, path) => s with { PiRoot = path }));
+        ResetPiCommand = new RelayCommand(() => _settings.Update(s => s with { PiRoot = null }), () => _settings.Current.PiRoot is not null);
         OpenHistoryCommand = new RelayCommand(openHistory);
         ClearHistoryCommand = new RelayCommand(() =>
         {
@@ -324,6 +326,10 @@ internal sealed class SettingsViewModel : ObservableObject
     public RelayCommand ChangeGrokBuildCommand { get; }
 
     public RelayCommand ResetGrokBuildCommand { get; }
+
+    public RelayCommand ChangePiCommand { get; }
+
+    public RelayCommand ResetPiCommand { get; }
 
     public RelayCommand OpenHistoryCommand { get; }
 
@@ -544,6 +550,12 @@ internal sealed class SettingsViewModel : ObservableObject
 
     public string GrokBuildStatus => StatusFor(SourceKind.GrokBuild);
 
+    /// <summary>Pi's default sessions root (its custom session folder is read too), or the one chosen folder.</summary>
+    public string PiPath => S.PiRoot ?? LiveMonitor.DefaultPiRoot;
+
+    /// <summary>Main session files of every Pi root with a line today; sub-agent files are not sessions (DESIGN 5).</summary>
+    public string PiStatus => StatusFor(SourceKind.Pi);
+
     public string CodexStatus => StatusFor(SourceKind.Codex);
 
     public string DshStatus => StatusFor(SourceKind.DeepSeek);
@@ -701,6 +713,7 @@ internal sealed class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(ZCodeStatus));
         OnPropertyChanged(nameof(KimiStatus));
         OnPropertyChanged(nameof(GrokBuildStatus));
+        OnPropertyChanged(nameof(PiStatus));
         OnPropertyChanged(nameof(UpdateLastCheckedText));
     }
 

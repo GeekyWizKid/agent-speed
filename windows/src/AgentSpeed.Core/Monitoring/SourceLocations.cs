@@ -6,6 +6,8 @@ namespace AgentSpeed.Core.Monitoring;
 /// <param name="OmpAutomatic">The omp roots follow the profiles on disk (no folder chosen), so new profiles join later.</param>
 /// <param name="WorkBuddyRoot">The WorkBuddy <c>projects</c> folder; empty when not available.</param>
 /// <param name="WorkBuddyAiRoot">The WorkBuddy AI <c>projects</c> folder; empty when not available.</param>
+/// <param name="PiRoots">Pi session folders: the default root and Pi's custom session folder, or the one chosen.</param>
+/// <param name="PiAutomatic">The Pi roots follow Pi's settings (no folder chosen), so a custom session folder set later joins.</param>
 internal sealed record SourceLocations(
     string CodexRoot,
     string ClaudeRoot,
@@ -19,7 +21,9 @@ internal sealed record SourceLocations(
     string WorkBuddyAiRoot = "",
     string ZCodeRoot = "",
     string KimiRoot = "",
-    string GrokBuildRoot = "")
+    string GrokBuildRoot = "",
+    IReadOnlyList<string>? PiRoots = null,
+    bool PiAutomatic = false)
 {
     public static SourceLocations Resolve(MonitorConfiguration configuration) => new(
         Normalize(configuration.CodexRoot ?? LiveMonitor.DefaultCodexRoot),
@@ -34,7 +38,9 @@ internal sealed record SourceLocations(
         WorkBuddyAiRoot: WorkBuddyRootOf(configuration.WorkBuddyAiRoot ?? LiveMonitor.DefaultWorkBuddyAiFolder),
         ZCodeRoot: Normalize(configuration.ZCodeRoot ?? LiveMonitor.DefaultZCodeRoot),
         KimiRoot: Normalize(Harnesses.HarnessPaths.SessionsOf(configuration.KimiRoot ?? LiveMonitor.DefaultKimiRoot)),
-        GrokBuildRoot: Normalize(Harnesses.HarnessPaths.SessionsOf(configuration.GrokBuildRoot ?? LiveMonitor.DefaultGrokBuildRoot)));
+        GrokBuildRoot: Normalize(Harnesses.HarnessPaths.SessionsOf(configuration.GrokBuildRoot ?? LiveMonitor.DefaultGrokBuildRoot)),
+        PiRoots: configuration.PiRoot is { } pi ? [Normalize(pi)] : NormalizeAll(LiveMonitor.DefaultPiRoots),
+        PiAutomatic: configuration.PiRoot is null);
 
     /// <summary>Codex <c>archived_sessions</c>, the sibling of the sessions root (METRICS 8).</summary>
     public string CodexArchiveRoot
@@ -48,11 +54,13 @@ internal sealed record SourceLocations(
     }
 
     /// <summary>
-    /// Transcript roots in family order; Gemini and omp may contribute several, Antigravity one <c>conversations</c>
-    /// folder per store, each WorkBuddy edition its <c>projects</c> folder. A path listed twice within a family is returned once.
+    /// Transcript roots in family order; Gemini, omp and Pi may contribute several, Antigravity one <c>conversations</c>
+    /// folder per store, each WorkBuddy edition its <c>projects</c> folder. A path listed twice within a family is returned
+    /// once; an omp root that is a Pi root or lies inside one is Pi's only (METRICS 4.7).
     /// </summary>
     public IEnumerable<(RootFamily Family, string Path)> FileRoots()
     {
+        var piRoots = Distinct(PiRoots ?? []).ToList();
         yield return (RootFamily.Codex, CodexRoot);
         yield return (RootFamily.Claude, ClaudeRoot);
         yield return (RootFamily.DeepSeek, DshRoot);
@@ -61,7 +69,7 @@ internal sealed record SourceLocations(
             yield return (RootFamily.Gemini, root);
         }
 
-        foreach (var root in Distinct(OmpRoots ?? []))
+        foreach (var root in Distinct(Pi.PiPaths.WithoutPi(OmpRoots ?? [], piRoots)))
         {
             yield return (RootFamily.Omp, root);
         }
@@ -89,6 +97,11 @@ internal sealed record SourceLocations(
         if (GrokBuildRoot.Length > 0)
         {
             yield return (RootFamily.GrokBuild, GrokBuildRoot);
+        }
+
+        foreach (var root in piRoots)
+        {
+            yield return (RootFamily.Pi, root);
         }
     }
 

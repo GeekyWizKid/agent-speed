@@ -163,6 +163,7 @@ public class DisplayTextTests
     [InlineData(SourceKind.ZCode, "source.zcode", "ZCode")]
     [InlineData(SourceKind.Kimi, "source.kimi", "Kimi Code CLI")]
     [InlineData(SourceKind.GrokBuild, "source.grokBuild", "Grok Build")]
+    [InlineData(SourceKind.Pi, "source.pi", "Pi")]
     public void EverySourceHasItsOwnName(SourceKind source, string key, string english)
     {
         Assert.Equal(key, DisplayText.SourceKey(source));
@@ -179,6 +180,18 @@ public class DisplayTextTests
             Assert.Contains("dsh", hint, StringComparison.Ordinal);
             Assert.True(Embedded.TryGet("state.noSources", language, out var noSources), language);
             Assert.False(string.IsNullOrWhiteSpace(noSources), language);
+        }
+    }
+
+    [Fact]
+    public void PiStringsExistInEveryLanguage()
+    {
+        foreach (var language in LanguageCodes.All)
+        {
+            Assert.True(Embedded.TryGet("source.pi", language, out var pi), language);
+            Assert.Equal("Pi", pi);
+            Assert.True(Embedded.TryGet("settings.sources.piHint", language, out var hint), language);
+            Assert.Contains("~/.pi/agent/sessions", hint, StringComparison.Ordinal);
         }
     }
 

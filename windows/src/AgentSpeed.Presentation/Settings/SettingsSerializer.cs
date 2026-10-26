@@ -98,6 +98,7 @@ public static class SettingsSerializer
             w.WriteBoolean("zcode", s.ZCodeEnabled);
             w.WriteBoolean("kimi", s.KimiEnabled);
             w.WriteBoolean("grokBuild", s.GrokBuildEnabled);
+            w.WriteBoolean("pi", s.PiEnabled);
             WriteNullableString(w, "codexRoot", s.CodexRoot);
             WriteNullableString(w, "claudeRoot", s.ClaudeRoot);
             WriteNullableString(w, "dshRoot", s.DshRoot);
@@ -110,6 +111,7 @@ public static class SettingsSerializer
             WriteNullableString(w, "zcodeRoot", s.ZCodeRoot);
             WriteNullableString(w, "kimiRoot", s.KimiRoot);
             WriteNullableString(w, "grokBuildRoot", s.GrokBuildRoot);
+            WriteNullableString(w, "piRoot", s.PiRoot);
             w.WriteEndObject();
 
             w.WriteStartObject("dashboard");
@@ -254,6 +256,7 @@ public static class SettingsSerializer
             ZCodeEnabled = ReadBool(sources, "zcode", d.ZCodeEnabled),
             KimiEnabled = ReadBool(sources, "kimi", d.KimiEnabled),
             GrokBuildEnabled = ReadBool(sources, "grokBuild", d.GrokBuildEnabled),
+            PiEnabled = ReadBool(sources, "pi", d.PiEnabled),
             CodexRoot = ReadString(sources, "codexRoot"),
             ClaudeRoot = ReadString(sources, "claudeRoot"),
             DshRoot = ReadString(sources, "dshRoot"),
@@ -266,6 +269,7 @@ public static class SettingsSerializer
             ZCodeRoot = ReadString(sources, "zcodeRoot"),
             KimiRoot = ReadString(sources, "kimiRoot"),
             GrokBuildRoot = ReadString(sources, "grokBuildRoot"),
+            PiRoot = ReadString(sources, "piRoot"),
             HistoryWindow = ReadWindowFrame(history is { } h ? Child(h, "window") : null),
             HistoryModeKind = ReadString(history, "modeKind") == "speed" ? ExecutionModeKind.Speed : ExecutionModeKind.Effort,
             ChartSeconds = (int)Math.Round(ReadDouble(dashboard, "chartSeconds", d.ChartSeconds)),

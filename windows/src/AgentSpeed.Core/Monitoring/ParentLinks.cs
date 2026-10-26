@@ -38,6 +38,9 @@ internal enum LinkKind : byte
     ZCodeSession,
     KimiSession,
     GrokBuildSession,
+
+    /// <summary>Pi: <c>&lt;stem&gt;/&lt;name&gt;.jsonl</c> belongs to the session file <c>&lt;stem&gt;.jsonl</c> (METRICS 4.13).</summary>
+    PiPath,
 }
 
 /// <summary>What one transcript says about its parent (METRICS 6.7).</summary>
@@ -54,6 +57,7 @@ internal readonly record struct AgentLink(
         DshParser dsh => new AgentLink(dsh.AgentId, LinkKind.DshSession, dsh.SessionId, dsh.ParentSession, dsh.CreatedMs),
         GeminiParser gemini => OfGemini(gemini),
         OmpParser omp => new AgentLink(omp.AgentId, LinkKind.OmpPath, null, omp.ParentPath, omp.HeaderMs),
+        Pi.PiParser pi => new AgentLink(pi.AgentId, LinkKind.PiPath, null, pi.ParentPath, pi.HeaderMs),
         AntigravityParser antigravity => new AgentLink(
             antigravity.AgentId,
             LinkKind.AntigravityConversation,
@@ -159,8 +163,8 @@ internal static class ParentLinks
                     }
 
                     break;
-                case LinkKind.OmpPath:
-                    if (agent.ParentThreadId is { } folder && byPath.TryGetValue(folder, out var session) && session.Kind == LinkKind.OmpPath)
+                case LinkKind.OmpPath or LinkKind.PiPath:
+                    if (agent.ParentThreadId is { } folder && byPath.TryGetValue(folder, out var session) && session.Kind == agent.Kind)
                     {
                         parent = session.Id;
                     }
@@ -225,7 +229,7 @@ internal static class ParentLinks
     }
 
     private static bool IsPathKind(LinkKind kind) =>
-        kind is LinkKind.Path or LinkKind.OmpPath or LinkKind.WorkBuddyPath or LinkKind.WorkBuddyAiPath;
+        kind is LinkKind.Path or LinkKind.OmpPath or LinkKind.PiPath or LinkKind.WorkBuddyPath or LinkKind.WorkBuddyAiPath;
 
     // Copies of one conversation in several stores: the one in the child's own conversations folder, then ordinal path.
     private static AgentLink PreferredCopy(List<AgentLink> copies, string child, bool group = false)

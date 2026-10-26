@@ -33,6 +33,9 @@ internal enum TranscriptNaming
     ZCodeDatabase,
     KimiSession,
     GrokBuildSession,
+
+    /// <summary><c>*.jsonl</c> in a root or below it, nothing starting with <c>.</c> (Pi, METRICS 4.13).</summary>
+    PiSession,
 }
 
 /// <summary>Recursive transcript enumeration that never follows reparse points or symlinks (METRICS 2).</summary>
@@ -55,7 +58,7 @@ internal static class TranscriptDiscovery
             TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase => false,
             TranscriptNaming.KimiSession => fileName.SequenceEqual("wire.jsonl"),
             TranscriptNaming.GrokBuildSession => fileName.SequenceEqual("updates.jsonl"),
-            TranscriptNaming.OmpSession => Omp.OmpDiscovery.IsSessionFileName(fileName),
+            TranscriptNaming.OmpSession or TranscriptNaming.PiSession => Omp.OmpDiscovery.IsSessionFileName(fileName),
             TranscriptNaming.AntigravityDatabase => Antigravity.AntigravityPaths.IsDatabaseName(fileName),
             TranscriptNaming.WorkBuddySession => WorkBuddy.WorkBuddyDiscovery.IsSessionFileName(fileName),
             _ => fileName.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase),
@@ -99,9 +102,9 @@ internal static class TranscriptDiscovery
             return [];
         }
 
-        if (naming == TranscriptNaming.OmpSession)
+        if (naming is TranscriptNaming.OmpSession or TranscriptNaming.PiSession)
         {
-            return Omp.OmpDiscovery.Enumerate(root, limit, cancellationToken);
+            return Omp.OmpDiscovery.Enumerate(root, limit, cancellationToken, flat: naming == TranscriptNaming.PiSession);
         }
 
         if (naming == TranscriptNaming.AntigravityDatabase)
@@ -181,9 +184,9 @@ internal static class TranscriptDiscovery
             return Gemini.GeminiDiscovery.IsSessionPath(root, path);
         }
 
-        if (naming == TranscriptNaming.OmpSession)
+        if (naming is TranscriptNaming.OmpSession or TranscriptNaming.PiSession)
         {
-            return Omp.OmpDiscovery.IsSessionPath(root, path);
+            return Omp.OmpDiscovery.IsSessionPath(root, path, flat: naming == TranscriptNaming.PiSession);
         }
 
         if (naming == TranscriptNaming.AntigravityDatabase)
