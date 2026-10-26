@@ -113,8 +113,13 @@ internal sealed class OpenClawParser : TranscriptParser<PiLine>
                 _pendingToolCalls.Clear();
                 SetPhase(AgentPhase.Generating, ts, ts);
                 break;
-            case PiRole.ToolResult when !Window.Delegated:
+            case PiRole.ToolResult:
                 RecordTools(in line.Tools, ts);
+                if (Window.Delegated)
+                {
+                    break;
+                }
+
                 if (line.ToolCallId is { } callId)
                 {
                     _pendingToolCalls.Remove(callId);
@@ -150,14 +155,16 @@ internal sealed class OpenClawParser : TranscriptParser<PiLine>
 
     private void ApplyAssistant(in PiLine line, long ts, IResponseSink sink)
     {
-        var call = line.Call;
-        if (!call.IsGuardedMessage)
+        var key = Key(line.Id!, line.StartedMs ?? ts);
+        if (Deduper.TryGetOwner(key, out var owner) && !string.Equals(owner, AgentId, StringComparison.Ordinal))
         {
             return;
         }
 
-        var key = Key(line.Id!, line.StartedMs ?? ts);
-        if (Deduper.TryGetOwner(key, out var owner) && !string.Equals(owner, AgentId, StringComparison.Ordinal))
+        // Tool calls and results as Pi (METRICS 6.10): what the window's transcript says, mirrors included.
+        RecordTools(in line.Tools, ts);
+        var call = line.Call;
+        if (!call.IsGuardedMessage)
         {
             return;
         }
@@ -166,10 +173,6 @@ internal sealed class OpenClawParser : TranscriptParser<PiLine>
         var provider = call.Provider ?? string.Empty;
         var mirror = line.Mirrored || (call.ApiIsCli && provider == "claude-cli")
             || provider.StartsWith("acp-", StringComparison.Ordinal) || Window.MirrorsOnly;
-        if (!mirror && !Window.Delegated)
-        {
-            RecordTools(in line.Tools, ts);
-        }
 
         if (!mirror && !call.UsageUnavailable && call.HasUsage)
         {

@@ -184,12 +184,12 @@ internal sealed class OpenClawDatabase : IDisposable
         return generations;
     }
 
-    /// <summary>The highest <c>seq</c> of a window; 0 when it has no rows.</summary>
-    public long MaxSeq(string sessionId)
+    /// <summary>The highest <c>seq</c> of a window; null when it has no rows.</summary>
+    public long? MaxSeq(string sessionId)
     {
         using var statement = _connection.Prepare("SELECT max(seq) FROM transcript_events WHERE session_id = ?1");
         statement.Bind(1, sessionId);
-        return statement.Step() && Integer(statement, 0) is { } seq ? seq : 0;
+        return statement.Step() ? Integer(statement, 0) : null;
     }
 
     /// <summary>

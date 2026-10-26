@@ -117,23 +117,19 @@ internal sealed class OpenClawSource
 
     /// <summary>
     /// Startup (METRICS 4.14, 5): databases in the startup order (the newer of the database and its <c>-wal</c>, then the
-    /// path); those modified within <c>todayStartMs − 15 min</c> or later are read, older ones wait for their first change.
+    /// path). Windows updated within <c>todayStartMs − 15 min</c> or later are read completely; older ones start after
+    /// their last row, so an old database costs one look at its windows.
     /// </summary>
     public OpenClawUpdate Seed(long todayStartMs, CancellationToken cancellationToken)
     {
         _thresholdMs = todayStartMs - Monitoring.MonitorCore.BacklogWindowMs;
+        Roots = _rediscover?.Invoke() ?? Roots;
         var update = new OpenClawUpdate();
-        foreach (var (path, stamp) in Discover().OrderBy(d => d.Stamp.LastWriteUtc).ThenBy(d => d.Path, StringComparer.Ordinal))
+        foreach (var (path, _) in Discover().OrderBy(d => d.Stamp.LastWriteUtc).ThenBy(d => d.Path, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var tracked = new TrackedDatabase(path);
             _databases[path] = tracked;
-            if (UnixMs(stamp.LastWriteUtc) < _thresholdMs)
-            {
-                tracked.Stamp = stamp;
-                continue;
-            }
-
             Read(tracked, update);
         }
 
@@ -347,7 +343,7 @@ internal sealed class OpenClawSource
                 tracked.Windows[window.SessionId] = state;
                 if (first && (window.UpdatedMs ?? long.MinValue) < _thresholdMs)
                 {
-                    state.LastSeq = database.MaxSeq(window.SessionId);
+                    state.LastSeq = database.MaxSeq(window.SessionId) ?? long.MinValue;
                     state.NeedsHeader = true;
                     continue;
                 }
@@ -364,7 +360,7 @@ internal sealed class OpenClawSource
                 continue;
             }
 
-            if (!rewritten && !runtime && database.MaxSeq(window.SessionId) < state.LastSeq)
+            if (!rewritten && !runtime && (database.MaxSeq(window.SessionId) ?? long.MinValue) < state.LastSeq)
             {
                 rewritten = true;
             }
@@ -437,8 +433,6 @@ internal sealed class OpenClawSource
             || (path.Length > trimmed.Length && path.StartsWith(trimmed, comparison)
                 && (path[trimmed.Length] == Path.DirectorySeparatorChar || path[trimmed.Length] == Path.AltDirectorySeparatorChar));
     }
-
-    private static long UnixMs(DateTime utc) => new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
 
     private static FileIdentity? ReadIdentity(string path)
     {

@@ -479,6 +479,7 @@ internal sealed partial class MonitorCore : IDisposable
 
         AddNewOmpRoots();
         AddNewCodexHomeRoots();
+        RefreshOpenClawWatchRoots();
         if (_openClaw is not null && !_openClawSeeded && _openClaw.Available)
         {
             var (discovered, filesRead, bytesRead) = (0, 0, 0L);
