@@ -1,4 +1,5 @@
 using System.Numerics;
+using AgentSpeed.Core;
 using AgentSpeed.Presentation.Boards;
 using AgentSpeed.Presentation.Boards.Scene;
 using AgentSpeed.Presentation.Colors;
@@ -51,9 +52,18 @@ internal sealed class GlassBoardPainter : BoardStylePainter
 
     protected override bool Shimmers => true;
 
-    // One of the three 3 pt dots (the scene places and bounces them).
-    protected override void PaintBadge(ID2D1DeviceContext context, BoardPalette palette, Rgba source, bool sub, float width, float height) =>
-        Dot(context, width / 2, height / 2, 1.5f, source);
+    // Generating: one of the three 3 pt dots (the scene places and bounces them).
+    protected override void PaintBadge(ID2D1DeviceContext context, BoardPalette palette, AgentPhase phase, Rgba source, bool sub, float width,
+        float height)
+    {
+        if (phase == AgentPhase.Generating)
+        {
+            Dot(context, width / 2, height / 2, 1.5f, source);
+            return;
+        }
+
+        base.PaintBadge(context, palette, phase, source, sub, width, height);
+    }
 
     protected override void PaintGroup(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)
     {
@@ -69,7 +79,6 @@ internal sealed class GlassBoardPainter : BoardStylePainter
         }
 
         RankText(context, row, mid);
-        Badge(context, row.Phase, SourceColor(row.Source), palette.Ink3, 30, mid, false, false);
         var right = DrawCapsule(context, row, width - 8, mid, 18);
         DrawName(context, row.Name, Name, palette.Ink, row.Detail, Detail, palette.Ink3, 48, right - 8, mid);
     }
@@ -78,7 +87,6 @@ internal sealed class GlassBoardPainter : BoardStylePainter
     {
         var palette = row.Palette;
         var mid = height / 2;
-        Badge(context, row.Phase, SourceColor(row.Source), palette.Ink3, 30, mid, false, false);
         Elbow(context, 50, mid, palette.Line);
         var right = DrawCapsule(context, row, width - 8, mid, 16);
         DrawName(context, row.Name, SubName, palette.Ink2, string.Empty, Detail, palette.Ink3, 60, right - 8, mid);

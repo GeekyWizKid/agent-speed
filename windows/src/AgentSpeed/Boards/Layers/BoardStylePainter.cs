@@ -107,15 +107,15 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
                 var width = metrics.ListWidth - (row.Entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub ? ValueWidth(scene.Size) : 0);
                 var more = row.Entry.Kind is BoardEntryKind.MoreSubs or BoardEntryKind.MoreGroups ? MoreText(row.Entry, row.Live) : string.Empty;
                 return new BoardLayerSpec(width, scene.RowHeight(row.Entry), string.Join('|', theme, "b", row.Entry.Kind, row.Entry.Rank,
-                    content.Name, content.Detail, content.Phase, content.Source, content.Capsule.Effort, content.Capsule.Speed,
+                    content.Name, content.Detail, content.Source, content.Capsule.Effort, content.Capsule.Speed,
                     content.Column.ToString("0.#", CultureInfo.InvariantCulture), content.Interval, more, BodyKey(content)), MeterX(content, (float)width));
             }
 
-            case BoardLayerKind.Badge when request.Row is { } row && BoardPulses.BadgeKey(row.Entry) is not null:
+            case BoardLayerKind.Badge when request.Row is { } row && BoardPulses.Badge(row.Entry) is { } badge:
             {
                 var sub = row.Entry.Kind == BoardEntryKind.Sub;
-                var (width, height) = BoardPulses.BadgeSize(Style, sub);
-                return new BoardLayerSpec(width, height, string.Join('|', theme, "bg", BadgeSource(row.Entry), sub));
+                var (width, height) = BoardPulses.BadgeSize(Style, sub, badge.Phase);
+                return new BoardLayerSpec(width, height, string.Join('|', theme, "bg", badge.Source, badge.Phase, sub));
             }
 
             case BoardLayerKind.RowValue when request.Row is { Entry.Kind: BoardEntryKind.Group or BoardEntryKind.Sub } row:
@@ -215,8 +215,8 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             case BoardLayerKind.Callout when request.Callout is { } callout:
                 PaintCallout(context, scene, callout, width, height);
                 break;
-            case BoardLayerKind.Badge when request.Row is { } row:
-                PaintBadge(context, scene.Palette, SourceColor(BadgeSource(row.Entry)), row.Entry.Kind == BoardEntryKind.Sub, width, height);
+            case BoardLayerKind.Badge when request.Row is { } row && BoardPulses.Badge(row.Entry) is { } badge:
+                PaintBadge(context, scene.Palette, badge.Phase, SourceColor(badge.Source), row.Entry.Kind == BoardEntryKind.Sub, width, height);
                 break;
             case BoardLayerKind.ValueGlyph:
             {
@@ -233,8 +233,13 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     {
     }
 
-    /// <summary>A generating badge centered in its layer (the scene pulses it, <see cref="BoardPulses"/>); row bodies leave it out.</summary>
-    protected abstract void PaintBadge(ID2D1DeviceContext context, BoardPalette palette, Rgba source, bool sub, float width, float height);
+    /// <summary>
+    /// A row's phase badge centered in its layer (the scene places it and pulses a generating one, <see cref="BoardPulses"/>);
+    /// row bodies leave it out. By default the tools and idle badges of <see cref="Badge"/>.
+    /// </summary>
+    protected virtual void PaintBadge(ID2D1DeviceContext context, BoardPalette palette, AgentPhase phase, Rgba source, bool sub, float width,
+        float height) =>
+        Badge(context, phase, source, palette.Ink3, width / 2 - 5, height / 2, Style == BoardStyle.Neon, !palette.HighContrast);
 
     /// <summary>Whether the style shimmers a top-rung meter (the prototypes' <c>.cap.top .meter::after</c>).</summary>
     protected virtual bool Shimmers => false;
@@ -306,9 +311,6 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
 
     protected string MoreText(BoardEntry entry, double live) =>
         Loc.Format(entry.Kind == BoardEntryKind.MoreSubs ? "boards.moreSubs" : "boards.moreGroups", entry.Rest, SpeedFormat.Speed(live));
-
-    private static SourceKind BadgeSource(BoardEntry entry) =>
-        entry.Kind == BoardEntryKind.Sub && entry.Agent is { } agent ? agent.Source : entry.Group.Root.Source;
 
     // Where a row's top-rung meter starts in its body, for the scene's shimmer; NaN when it has none.
     private double MeterX(in BoardRowContent row, float width)

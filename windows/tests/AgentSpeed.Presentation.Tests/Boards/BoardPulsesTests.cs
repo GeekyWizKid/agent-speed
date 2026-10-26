@@ -17,14 +17,32 @@ public class BoardPulsesTests
     }
 
     [Fact]
-    public void OnlyGeneratingRowsHaveABadgeLayerSharedPerSource()
+    public void BadgeLayersAreSharedPerSourceAndPhase()
     {
-        Assert.Null(BoardPulses.BadgeKey(Group(AgentPhase.Tools)));
-        Assert.Null(BoardPulses.BadgeKey(Group(AgentPhase.Idle)));
         var claude = BoardPulses.BadgeKey(Group(AgentPhase.Generating));
         Assert.NotNull(claude);
         Assert.Equal(claude, BoardPulses.BadgeKey(Group(AgentPhase.Generating)));
         Assert.NotEqual(claude, BoardPulses.BadgeKey(Group(AgentPhase.Generating, SourceKind.Codex)));
+        Assert.NotEqual(claude, BoardPulses.BadgeKey(Group(AgentPhase.Tools)));
+        Assert.NotEqual(BoardPulses.BadgeKey(Group(AgentPhase.Tools)), BoardPulses.BadgeKey(Group(AgentPhase.Idle)));
+        var keys = Enum.GetValues<SourceKind>().SelectMany(s => Enum.GetValues<AgentPhase>().Select(p => BoardPulses.BadgeKey(Group(p, s))));
+        Assert.Equal(Enum.GetValues<SourceKind>().Length * 3, keys.Distinct().Count());
+    }
+
+    [Fact]
+    public void AToolsBadgeStandsStill()
+    {
+        var list = new BoardDrawList();
+        var seen = new HashSet<(float, float)>();
+        for (var t = 0.0; t < 1.2; t += 0.1)
+        {
+            list.Reset();
+            BoardPulses.EmitBadge(list, Slot, BoardStyle.Glass, false, AgentPhase.Tools, 10, 100, 32, 1, t, 0, true, default);
+            Assert.Equal(1, list.LayerCount);
+            seen.Add((list.Layers[0].Rect.Y, list.Layers[0].Params.X));
+        }
+
+        Assert.Single(seen);
     }
 
     [Theory]
@@ -38,7 +56,7 @@ public class BoardPulsesTests
         for (var t = 0.0; t < 1.2; t += 0.1)
         {
             list.Reset();
-            BoardPulses.EmitBadge(list, Slot, style, false, 10, 100, 32, 1, t, 0, true, default);
+            BoardPulses.EmitBadge(list, Slot, style, false, AgentPhase.Generating, 10, 100, 32, 1, t, 0, true, default);
             Assert.Equal(parts, list.LayerCount);
             seen.Add((list.Layers[0].Rect.Y, list.Layers[0].Rect.Z, list.Layers[0].Params.X));
         }
@@ -49,7 +67,7 @@ public class BoardPulsesTests
         for (var t = 0.0; t < 1.2; t += 0.1)
         {
             list.Reset();
-            BoardPulses.EmitBadge(list, Slot, style, false, 10, 100, 32, 1, t, 0, false, default);
+            BoardPulses.EmitBadge(list, Slot, style, false, AgentPhase.Generating, 10, 100, 32, 1, t, 0, false, default);
             rest.Add((list.Layers[0].Rect.Y, list.Layers[0].Rect.Z, list.Layers[0].Params.X));
         }
 
@@ -60,7 +78,7 @@ public class BoardPulsesTests
     public void GlassDotsBounceOneAfterAnother()
     {
         var list = new BoardDrawList();
-        BoardPulses.EmitBadge(list, Slot, BoardStyle.Glass, false, 0, 0, 32, 1, 0.44, 0, true, default);
+        BoardPulses.EmitBadge(list, Slot, BoardStyle.Glass, false, AgentPhase.Generating, 0, 0, 32, 1, 0.44, 0, true, default);
         var tops = list.Layers.ToArray().Select(l => l.Rect.Y).ToArray();
         Assert.True(tops[0] < tops[1] && tops[1] < tops[2], string.Join(", ", tops));
         Assert.Equal(BoardPulses.DotSpacing, list.Layers[1].Rect.X - list.Layers[0].Rect.X, 4);

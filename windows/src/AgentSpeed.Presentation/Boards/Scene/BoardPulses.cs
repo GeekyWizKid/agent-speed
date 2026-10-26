@@ -5,9 +5,10 @@ using AgentSpeed.Presentation.Motion;
 namespace AgentSpeed.Presentation.Boards.Scene;
 
 /// <summary>
-/// The prototypes' endless row animations, composed on the GPU from cached layers so no row is rasterized again
-/// (DESIGN 2c Two layers): a generating badge's pulse (glass's three bouncing dots <c>.badge.gen i</c>, neon's breathing dot
-/// <c>.badge.gen::before</c>, timing's fading stripe <c>.gen .stripe</c>) and the top-rung meter's shimmer
+/// Row badges and the prototypes' endless row animations, composed on the GPU from cached layers so no row is rasterized again
+/// when an agent changes phase or a pulse moves (DESIGN 2c Two layers): every phase badge is a shared layer; a generating one
+/// pulses (glass's three bouncing dots <c>.badge.gen i</c>, neon's breathing dot <c>.badge.gen::before</c>, timing's fading
+/// stripe <c>.gen .stripe</c>), and so does the top-rung meter's shimmer
 /// (<c>.cap.top .meter::after</c>, glass and neon). They move only while the board animates anyway; otherwise, and under
 /// Reduce Motion, they rest like the prototypes' <c>.rm</c> rules.
 /// </summary>
@@ -15,55 +16,71 @@ public static class BoardPulses
 {
     private static readonly string[] Keys = BuildKeys();
 
-    /// <summary>The cached layer of a row's generating badge (shared by rows of one source and kind), null when it shows none.</summary>
+    /// <summary>
+    /// The cached layer of a row's phase badge (timing: its team stripe), shared by rows of one source, kind and phase, so a row
+    /// body never depends on its phase; null for the more lines.
+    /// </summary>
     public static string? BadgeKey(BoardEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        var (phase, source) = entry.Kind switch
-        {
-            BoardEntryKind.Group => (entry.Group.BadgePhase, entry.Group.Root.Source),
-            BoardEntryKind.Sub when entry.Agent is { } agent => (agent.Phase, agent.Source),
-            _ => (AgentPhase.Idle, default(SourceKind)),
-        };
-        if (phase != AgentPhase.Generating)
+        if (Badge(entry) is not { } badge)
         {
             return null;
         }
 
-        var index = 2 * (int)source + (entry.Kind == BoardEntryKind.Sub ? 1 : 0);
+        var index = (((int)badge.Source * 3) + (int)badge.Phase) * 2 + (entry.Kind == BoardEntryKind.Sub ? 1 : 0);
         return (uint)index < (uint)Keys.Length ? Keys[index] : null;
     }
 
+    /// <summary>The phase and source a row's badge shows (a group shows generating while any member generates).</summary>
+    public static (AgentPhase Phase, SourceKind Source)? Badge(BoardEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return entry.Kind switch
+        {
+            BoardEntryKind.Group => (entry.Group.BadgePhase, entry.Group.Root.Source),
+            BoardEntryKind.Sub when entry.Agent is { } agent => (agent.Phase, agent.Source),
+            _ => null,
+        };
+    }
+
     /// <summary>The badge layer's size in points: what it draws, centered, with room for its glow.</summary>
-    public static (double Width, double Height) BadgeSize(BoardStyle style, bool sub) => style switch
+    public static (double Width, double Height) BadgeSize(BoardStyle style, bool sub, AgentPhase phase) => style switch
     {
         BoardStyle.Neon => (44, 44),
         BoardStyle.Timing => sub ? (20, 28) : (22, 36),
-        _ => (5, 5),
+        _ => phase == AgentPhase.Generating ? (5, 5) : (12, 12),
     };
 
     /// <summary>Where the badge's center sits in its row (points from the row's top-left); glass's first of three dots.</summary>
-    public static (double X, double Y) BadgeCenter(BoardStyle style, bool sub, double rowHeight) => style switch
+    public static (double X, double Y) BadgeCenter(BoardStyle style, bool sub, AgentPhase phase, double rowHeight) => style switch
     {
-        BoardStyle.Neon => (35, rowHeight / 2),
         BoardStyle.Timing => sub ? (37, rowHeight / 2) : (36.5, (rowHeight - 1) / 2),
-        _ => (30.5, rowHeight / 2 + 0.5),
+        BoardStyle.Glass when phase == AgentPhase.Generating => (30.5, rowHeight / 2 + 0.5),
+        _ => (35, rowHeight / 2),
     };
 
     /// <summary>Glass's dots stand this far apart.</summary>
     public const double DotSpacing = 4.5;
 
     /// <summary>
-    /// Draws a row's generating badge from its layer at the row's (<paramref name="left"/>, <paramref name="top"/>):
-    /// <paramref name="phase"/> (seconds) desynchronizes rows; <paramref name="moving"/> false holds the resting frame.
+    /// Draws a row's badge from its layer at the row's (<paramref name="left"/>, <paramref name="top"/>): a generating badge
+    /// pulses (<paramref name="phase"/>, seconds, desynchronizes rows; <paramref name="moving"/> false holds the resting frame),
+    /// the others stand still.
     /// </summary>
-    public static void EmitBadge(BoardDrawList list, in BoardLayerSlot slot, BoardStyle style, bool sub, double left, double top, double height,
-        double alpha, double now, double phase, bool moving, RectBounds clip)
+    public static void EmitBadge(BoardDrawList list, in BoardLayerSlot slot, BoardStyle style, bool sub, AgentPhase badge, double left, double top,
+        double height, double alpha, double now, double phase, bool moving, RectBounds clip)
     {
         ArgumentNullException.ThrowIfNull(list);
-        var (cx, cy) = BadgeCenter(style, sub, height);
+        var (cx, cy) = BadgeCenter(style, sub, badge, height);
         cx += left;
         cy += top;
+        if (badge != AgentPhase.Generating)
+        {
+            Place(list, slot, cx, cy, 1, alpha, clip);
+            return;
+        }
+
         switch (style)
         {
             case BoardStyle.Neon:
@@ -229,10 +246,11 @@ public static class BoardPulses
             count = Math.Max(count, (int)source + 1);
         }
 
-        var keys = new string[2 * count];
+        var keys = new string[count * 3 * 2];
         for (var i = 0; i < keys.Length; i++)
         {
-            keys[i] = "#badge" + (i % 2 == 1 ? "s" : "g") + (i / 2).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var phase = (AgentPhase)(i / 2 % 3);
+            keys[i] = "#badge" + (i % 2 == 1 ? "s" : "g") + "gti"[(int)phase] + (i / 6).ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         return keys;

@@ -262,9 +262,10 @@ public sealed class BoardScene
                 }
             }
 
-            if (BoardPulses.BadgeKey(row.Entry) is { } badgeKey && layers.TryGet(badgeKey, out var badge))
+            if (BoardPulses.BadgeKey(row.Entry) is { } badgeKey && layers.TryGet(badgeKey, out var badge) &&
+                BoardPulses.Badge(row.Entry) is { } shown)
             {
-                BoardPulses.EmitBadge(list, badge, Style, row.Entry.Kind == BoardEntryKind.Sub, left, top, height, alpha, now,
+                BoardPulses.EmitBadge(list, badge, Style, row.Entry.Kind == BoardEntryKind.Sub, shown.Phase, left, top, height, alpha, now,
                     BoardPulses.PhaseOf(row.Key), pulses, clip);
             }
 
