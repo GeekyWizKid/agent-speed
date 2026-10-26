@@ -46,7 +46,9 @@ struct HistoryView: View {
         let (widths, gap) = columnLayout(content.columns)
         return ScrollViewReader { proxy in
             ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                // No pinned lazy sections (macOS issue #21): the sections above the table are eager, the rows lazy and
+                // unpinned, and the column titles stick by a drawing offset that never feeds back into layout.
+                VStack(alignment: .leading, spacing: 0) {
                     HistoryHeader(content: content, l10n: model.l10n)
                         .padding(.bottom, HistoryLayout.sectionSpacing)
                     SummaryCardsView(
@@ -83,7 +85,15 @@ struct HistoryView: View {
                         .font(HistoryFont.sectionTitle)
                         .accessibilityAddTraits(.isHeader)
                         .padding(.bottom, Spacing.xxs)
-                    Section {
+                    // The table takes the width it is offered: its columns follow the measured width, never set it, so
+                    // an eager stack cannot keep the table wider than the window.
+                    DailyTableHeader(columns: content.columns, widths: widths, gap: gap, sort: content.sort, l10n: model.l10n) {
+                        model.toggleSort($0)
+                    }
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    .stickyInScrollView()
+                    .zIndex(1)
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(content.rows.enumerated()), id: \.element.day) { index, row in
                             DailyTableRow(
                                 row: row,
@@ -101,17 +111,8 @@ struct HistoryView: View {
                             )
                             .id(row.day)
                         }
-                    } header: {
-                        DailyTableHeader(
-                            columns: content.columns,
-                            widths: widths,
-                            gap: gap,
-                            sort: content.sort,
-                            l10n: model.l10n
-                        ) { column in
-                            model.toggleSort(column)
-                        }
                     }
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.horizontal, HistoryLayout.outerPadding)
                 .padding(.top, HistoryLayout.outerPadding)

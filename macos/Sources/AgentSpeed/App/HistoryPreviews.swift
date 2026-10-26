@@ -21,6 +21,8 @@ enum HistoryPreviews {
         var sort: HistoryColumn?
         /// Renders the full scrolling column instead of the window.
         var tall = false
+        /// Scrolls the window to the end of the table, where its column titles stay at the top.
+        var scrolled = false
         /// DESIGN 9: display currency, chart metric, sources marked as subscriptions and the window's choice.
         var currency = "USD"
         var metric: HistoryChartMetric = .output
@@ -69,6 +71,11 @@ enum HistoryPreviews {
         Case(name: "today-zh-hans-min", size: HistoryWindowController.minimumSize, range: .today, language: .zhHans),
         Case(name: "table", tall: true),
         Case(name: "table-sorted", source: .claudeDesktop, sort: .speed, tall: true),
+        // Scrolled into the table: the column titles stay pinned under the toolbar (issue #21 keeps them in place).
+        Case(name: "table-scrolled", sort: .cost, scrolled: true),
+        Case(name: "table-scrolled-hover", hoverDaysAgo: 3, selectDaysAgo: [5], sort: .date, scrolled: true),
+        Case(name: "table-scrolled-min", size: HistoryWindowController.minimumSize, language: .en, scrolled: true),
+        Case(name: "table-scrolled-year", range: .year, sort: .cost, scrolled: true, currency: "TWD"),
         // Cost (DESIGN 9).
         Case(name: "cost-en", language: .en, metric: .cost),
         Case(name: "cost-twd-hover", hoverDaysAgo: 4, currency: "TWD", metric: .cost),
@@ -119,7 +126,7 @@ enum HistoryPreviews {
                 if item.tall {
                     renderColumn(viewModel: viewModel, model: model, width: item.size.width, dark: dark, to: url)
                 } else {
-                    renderWindow(viewModel: viewModel, model: model, size: item.size, dark: dark, to: url)
+                    renderWindow(viewModel: viewModel, model: model, size: item.size, dark: dark, scrolled: item.scrolled, to: url)
                 }
             }
         }
@@ -202,7 +209,8 @@ enum HistoryPreviews {
 
 
     /// The real window with its toolbar, drawn off screen.
-    private static func renderWindow(viewModel: HistoryViewModel, model: AppModel, size: NSSize, dark: Bool, to url: URL) {
+    private static func renderWindow(viewModel: HistoryViewModel, model: AppModel, size: NSSize, dark: Bool, scrolled: Bool = false,
+                                     to url: URL) {
         let host = NSHostingController(rootView: HistoryView(model: viewModel).appEnvironment(model))
         host.sizingOptions = []
         let window = HistoryWindowController.makeWindow(content: host)
@@ -215,6 +223,7 @@ enum HistoryPreviews {
         window.orderFront(nil)
         RunLoop.main.run(until: Date().addingTimeInterval(0.6))
         defer { window.orderOut(nil) }
+        if scrolled { scrollToEnd(window) }
         guard let frame = window.contentView?.superview else { return }
         frame.layoutSubtreeIfNeeded()
         frame.displayIfNeeded()
@@ -222,6 +231,25 @@ enum HistoryPreviews {
         frame.cacheDisplay(in: frame.bounds, to: rep)
         if let image = rep.cgImage { PreviewSnapshot.write(image, to: url) }
         _ = toolbar
+    }
+
+    /// Scrolls to the end; a lazy table refines its estimated height as rows come in, so until the end stays put.
+    private static func scrollToEnd(_ window: NSWindow) {
+        guard let scroll = window.contentView.flatMap(firstScrollView) else { return }
+        for _ in 0..<12 {
+            guard let document = scroll.documentView else { return }
+            let end = document.frame.height - scroll.contentView.bounds.height + scroll.contentInsets.bottom
+            if abs(scroll.contentView.bounds.origin.y - end) < 0.5 { break }
+            scroll.contentView.scroll(to: NSPoint(x: 0, y: end))
+            scroll.reflectScrolledClipView(scroll.contentView)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+    }
+
+    private static func firstScrollView(in view: NSView) -> NSScrollView? {
+        if let scroll = view as? NSScrollView { return scroll }
+        return view.subviews.lazy.compactMap(firstScrollView).first
     }
 
     /// The whole scrolling column at its natural height, to review the table.
