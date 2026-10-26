@@ -528,7 +528,28 @@
           "fast": false,
           "final": true
         }
-      ]
+      ],
+      "effort": {
+        "mode": "max",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "dsm-1": {
+          "effort": {
+            "mode": "max",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "dsm-2": {
+          "effort": {
+            "mode": "max",
+            "evidence": "recorded"
+          },
+          "speed": null
+        }
+      }
     },
     "dsh/sessions/--Users-dev-projects-quasar--/session-dsh-sub/session.v4.jsonl.zstd": {
       "source": "deepseek",

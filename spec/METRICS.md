@@ -1336,6 +1336,47 @@ contributes nothing (the orb shows it as unavailable).
   still use `live_A`.
 - The history store (8) is unaffected: its `peak` stays the all-sources `peakToday`.
 
+### 6.9 Live intelligence
+
+An index of this app, shown on floating orbs next to tok/s (DESIGN 2b, *Floating orb readout*): how strong the models
+that are generating right now are, and how much of what they write is reasoning. It is derived from the logs only and
+is not a benchmark score. `spec/tools/intelligence.py` implements this section and checks
+`spec/fixtures/intelligence-cases.json`.
+
+**Grade** of a model at an effort: `grade = class + 6 × level`, 60 – 136.
+
+- `class`: the 9.2 resolution of `model` and `provider` against the current price table. A priced entry whose base
+  `prices.output` is at least 15 USD per million tokens → **100** (flagship); at least 3 → **80** (standard); below 3
+  → **60** (light). A free entry or provider → 60; unknown → 80. Tiers, periods, off-peak and fast prices are not used:
+  the class is the model's, not the request's.
+- `level`: the meter level of the effort (EXECUTION-MODES, 0 – 5), plus 1 for a top rung (`ultra`, `ultracode`). An
+  unknown effort, or a token without a level, counts as 2 (medium, the providers' common default).
+
+A response's grade uses its own model, provider and effort (its effort attribution, EXECUTION-MODES); an agent's grade
+uses its current model and current effort.
+
+**Window sums**, with the window, intervals and estimates of 6.3, over the responses and agents of a set (all enabled
+sources, or an orb's `A`, 6.8):
+
+| Contribution | Weight `w` (output tokens) | Reasoning `ρ` | Grade `g` |
+| --- | --- | --- | --- |
+| measured response | `output × f`, `f = overlap / (end − start')` as 6.3 | `min(reasoning, output) × f` | the response's |
+| unmeasured response (6.3) | `estimatedSpeed × secs` | `w × share_ref` | the response's |
+| in-flight agent (6.3) | `estimatedSpeed × secs` | `w × share_ref` | the agent's |
+
+`share_ref` is Σ `min(reasoning, output)` ÷ Σ `output` over the agent's reference set (the set 6.2 used for
+`estimatedSpeed`, as 9.5 uses it for `costRate`), 0 when that output is 0. A source that does not record reasoning
+apart from output (DeepSeek Harness, 4.3) adds its `w` to the grade but nothing to the reasoning share: its weight is
+left out of `w'`.
+
+- `liveThinking = Σ ρ / (W / 1000)` tok/s (formatted as 7).
+- `thinkingShare = Σ ρ / Σ w'`, where `w'` is the weight of sources that record reasoning; 0 when `Σ w' = 0`.
+- `intelligence = Σ (w × g) / Σ w + 20 × thinkingShare`, shown rounded half away from zero to an integer; **none** when
+  `Σ w = 0` (nothing generated in the window).
+
+Every sum is additive over sources, so an orb adds the per-source sums of its `A` (6.8). Claude Opus 5.5 at `xhigh`
+writing 44 % reasoning: 100 + 24 + 20 × 0.44 ≈ 133. The value never drives heat, tiers, titles or peaks.
+
 ## 7. Number formatting (both platforms)
 
 | Value | Display |
