@@ -99,14 +99,16 @@ enum BoardSettingsPreviews {
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
         for item in layout.items {
             context.saveGState()
-            context.translateBy(x: item.frame.minX, y: item.frame.minY)
+            let shown = item.shownFrame
+            context.translateBy(x: shown.minX, y: shown.minY)
+            context.scaleBy(x: item.frame.width > 0 ? shown.width / item.frame.width : 1, y: 1)
             if let plate = item.plate {
                 context.addPath(CGPath(roundedRect: CGRect(origin: .zero, size: item.frame.size), cornerWidth: plate.cornerRadius,
                                        cornerHeight: plate.cornerRadius, transform: nil))
                 context.setFillColor(plate.color)
                 context.fillPath()
             }
-            item.draw(context, item.frame.size)
+            BoardRaster.tinted(item.draw, with: item.tint)(context, item.frame.size)
             context.restoreGState()
         }
         NSGraphicsContext.restoreGraphicsState()

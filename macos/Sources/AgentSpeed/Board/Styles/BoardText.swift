@@ -41,6 +41,11 @@ struct BoardLabel {
     private let attributes: [NSAttributedString.Key: Any]
 
     init(_ text: String, _ style: BoardFont, color: RGBColor) {
+        let key = Key(text: text, font: style, color: [color.red, color.green, color.blue, color.alpha])
+        if let cached = Self.cache[key] {
+            self = cached
+            return
+        }
         var attributes: [NSAttributedString.Key: Any] = [
             .font: style.font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color.cgColor,
@@ -48,7 +53,19 @@ struct BoardLabel {
         if style.tracking != 0 { attributes[.kern] = style.tracking * style.size }
         self.init(line: CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes)),
                   font: style.font, attributes: attributes)
+        // Boards lay out the same names, values and labels on every tick: a line laid out once is reused.
+        if Self.cache.count >= Self.cacheLimit { Self.cache.removeAll(keepingCapacity: true) }
+        Self.cache[key] = self
     }
+
+    private struct Key: Hashable {
+        var text: String
+        var font: BoardFont
+        var color: [Double]
+    }
+
+    private static var cache: [Key: BoardLabel] = [:]
+    private static let cacheLimit = 1024
 
     private init(line: CTLine, font: NSFont, attributes: [NSAttributedString.Key: Any]) {
         self.line = line
@@ -88,22 +105,24 @@ struct BoardLabel {
 
     /// Draws the line with a glow (CSS `text-shadow: 0 0 blur color`).
     func draw(in context: CGContext, x: CGFloat, baseline: CGFloat, glow: RGBColor?, blur: CGFloat) {
-        guard let glow, blur > 0 else { return draw(in: context, x: x, baseline: baseline) }
-        context.saveGState()
-        BoardDrawing.setGlow(glow, blur: blur, in: context)
+        if let glow, blur > 0 { BoardGlow.fill(glow, blur: blur, in: context) { draw(in: $0, x: x, baseline: baseline) } }
         draw(in: context, x: x, baseline: baseline)
-        context.restoreGState()
     }
 
-    /// Draws only the glow of the glyphs: glyphs with their glow in a layer of their own, then the glyphs cut out of it.
-    func drawGlowOnly(in context: CGContext, x: CGFloat, baseline: CGFloat, glow: RGBColor, blur: CGFloat) {
+    /// Draws only the glows of the glyphs (several `blurs` in one color, back to front), with the glyphs cut out of
+    /// them: another item draws the glyphs.
+    func drawGlowOnly(in context: CGContext, x: CGFloat, baseline: CGFloat, glow: RGBColor, blurs: [CGFloat]) {
         context.saveGState()
         context.beginTransparencyLayer(auxiliaryInfo: nil)
-        draw(in: context, x: x, baseline: baseline, glow: glow, blur: blur)
+        BoardGlow.fill(blurs.map { BoardGlow.Layer(color: glow, blur: $0) }, in: context) { draw(in: $0, x: x, baseline: baseline) }
         context.setBlendMode(.destinationOut)
         draw(in: context, x: x, baseline: baseline)
         context.endTransparencyLayer()
         context.restoreGState()
+    }
+
+    func drawGlowOnly(in context: CGContext, x: CGFloat, baseline: CGFloat, glow: RGBColor, blur: CGFloat) {
+        drawGlowOnly(in: context, x: x, baseline: baseline, glow: glow, blurs: [blur])
     }
 
     /// Where each character's glyph starts (caret offsets sit mid-way in the tracking, glyphs do not).

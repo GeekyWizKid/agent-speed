@@ -52,28 +52,31 @@ enum BoardHeroHistory {
         context.fillPath()
     }
 
-    /// Neon: 24 segments across `rect`, lit to the heat in the heat ramp, today's peak marked white-hot.
-    static func led(heat: Double, peakHeat: Double, in rect: CGRect, palette: BoardPalette, context: CGContext) {
+    /// Neon: 24 segments across `rect`, lit to the heat in the heat ramp, today's peak marked white-hot. `glows` draws
+    /// only the glows of the lit segments and the peak (a soft layer under the crisp segments), else the segments.
+    static func led(lit: Int, peak: Int?, glows: Bool, in rect: CGRect, palette: BoardPalette, context: CGContext) {
         let segments = 24
-        let (lit, peak) = BoardHistoryShape.led(heat: heat, peakHeat: peakHeat, segments: segments)
         let gap: CGFloat = 2
         let width = (rect.width - gap * CGFloat(segments - 1)) / CGFloat(segments)
+        func segment(_ index: Int) -> CGRect {
+            CGRect(x: rect.minX + CGFloat(index) * (width + gap), y: rect.minY, width: width, height: rect.height)
+        }
+        func color(_ index: Int) -> RGBColor { palette.heat(Double(index + 1) / Double(segments)) }
+        let peakColor = palette.dark ? HeatPalette.whiteHot : PaletteInk.peakLight
+        guard !glows else {
+            if lit > 0 {
+                BoardGlow.fillColored(blur: 6, in: context) { context in
+                    for index in 0..<lit { BoardDrawing.fill(segment(index), radius: 1.5, color: color(index), in: context) }
+                }
+            }
+            if let peak {
+                BoardGlow.fill(peakColor, blur: 8, in: context) { BoardDrawing.fill(segment(peak), radius: 1.5, color: peakColor, in: $0) }
+            }
+            return
+        }
         for index in 0..<segments {
-            let segment = CGRect(x: rect.minX + CGFloat(index) * (width + gap), y: rect.minY, width: width, height: rect.height)
-            let color: RGBColor
-            var glow: CGFloat = 0
-            if index < lit {
-                color = palette.heat(Double(index + 1) / Double(segments))
-                glow = 6
-            } else if index == peak {
-                color = palette.dark ? HeatPalette.whiteHot : PaletteInk.peakLight
-                glow = 8
-            } else {
-                color = palette.unlit
-            }
-            BoardDrawing.glowing(palette.glows && glow > 0 ? color : nil, blur: glow, in: context) {
-                BoardDrawing.fill(segment, radius: 1.5, color: color, in: context)
-            }
+            let fill = index < lit ? color(index) : index == peak ? peakColor : palette.unlit
+            BoardDrawing.fill(segment(index), radius: 1.5, color: fill, in: context)
         }
     }
 

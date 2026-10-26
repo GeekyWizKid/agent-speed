@@ -2,7 +2,7 @@ import AgentSpeedOrbModel
 import AppKit
 
 /// The board panel's content, back to front: the style's backdrop (glass: `NSVisualEffectView`; timing and neon a
-/// solid slab), the warp canvas, the cached content layers. Clipped to the rounded square; forwards the pointer.
+/// solid slab), neon's warp streaks, the cached content layers. Clipped to the rounded square; forwards the pointer.
 @MainActor
 final class BoardHostView: NSView {
     var onMouseDown: ((NSEvent) -> Void)?
@@ -17,13 +17,12 @@ final class BoardHostView: NSView {
     private let glass = NSVisualEffectView()
     private let slab = NSView()
     private let contentView = NSView()
-    private let warp: OrbCanvasView
+    private let warpView = NSView()
     private var style = BoardStyle.glass
     private var dark = true
     private var tracking: NSTrackingArea?
 
-    init(warp: OrbCanvasView) {
-        self.warp = warp
+    init(warp: CALayer) {
         super.init(frame: NSRect(x: 0, y: 0, width: 340, height: 340))
         wantsLayer = true
         layer?.masksToBounds = true
@@ -36,7 +35,10 @@ final class BoardHostView: NSView {
         slab.wantsLayer = true
         slab.layer?.masksToBounds = true
         addSubview(slab)
-        addSubview(warp)
+        warpView.layer = CALayer()
+        warpView.wantsLayer = true
+        warpView.layer?.addSublayer(warp)
+        addSubview(warpView)
         contentView.layer = CALayer()
         contentView.wantsLayer = true
         contentView.layer?.addSublayer(content.layer)
@@ -67,8 +69,7 @@ final class BoardHostView: NSView {
         slab.frame = bounds
         slab.layer?.cornerRadius = corner
         slab.layer?.backgroundColor = Self.slabColor(style, dark: dark).cgColor
-        warp.frame = bounds
-        warp.layer?.cornerRadius = corner
+        warpView.frame = bounds
         contentView.frame = bounds
         content.setBoard(side: side, corner: corner)
         CATransaction.commit()

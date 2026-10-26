@@ -22,6 +22,8 @@ final class BoardPresenter {
     private var look: Look
     private var builder: BoardContentBuilding
     private var layout: BoardContentLayout?
+    /// The tick `layout` was made from: an equal tick (an idle board) lays out and applies nothing.
+    private var layoutTick: BoardTick?
     private var layoutStale = true
     private var hovered: String?
     private var tooltipTimer: Timer?
@@ -73,6 +75,7 @@ final class BoardPresenter {
         window.dark = dark
         builder = BoardContentBuilders.make(style: next.style, size: next.size, dark: dark, l10n: model.l10n, capsule: nil)
         layoutStale = true
+        layoutTick = nil
         window.contentChanged(animated: false)
         publishAccessibility(force: true)
     }
@@ -80,6 +83,8 @@ final class BoardPresenter {
     func setEffects(_ intensity: BoardEffectsIntensity, celebrations: Bool, reduceMotion: Bool, highContrast: Bool) {
         if window.reduceMotion != reduceMotion { window.reduceMotion = reduceMotion }
         window.driver.highContrast = highContrast
+        window.host.content.ambience = intensity != .off
+        window.host.content.celebrations = celebrations
         window.driver.update { fx in
             if fx.intensity != intensity { fx.setIntensity(intensity) }
             if fx.celebrations != celebrations { fx.celebrations = celebrations }
@@ -92,9 +97,10 @@ final class BoardPresenter {
         guard let tick = runtime.tick else { return [] }
         if layoutStale || layout == nil {
             layout = builder.layout(tick)
+            layoutTick = tick
             layoutStale = false
         }
-        guard var items = layout?.items else { return [] }
+        guard var items = layout?.takeItems() else { return [] }
         if let hovered, let index = items.firstIndex(where: { $0.key == hovered }) {
             items[index].plate = Self.lifted(items[index].plate, dark: look.dark)
         }
@@ -103,8 +109,10 @@ final class BoardPresenter {
 
     private func tickArrived() {
         guard let tick = runtime.tick else { return }
-        layoutStale = true
-        window.contentChanged()
+        if layoutStale || tick != layoutTick {
+            layoutStale = true
+            window.contentChanged()
+        }
         let laidOut = window.isRendering && !layoutStale ? layout : nil
         let punch = runtime.frame.punch
         window.driver.update { fx in BoardEffectsPlayer.play(tick, layout: laidOut, punch: punch, on: &fx) }

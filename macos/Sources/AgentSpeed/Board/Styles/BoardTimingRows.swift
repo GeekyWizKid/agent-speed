@@ -32,6 +32,9 @@ struct BoardTimingRows {
                                                            leader: event.kind == .newLeader, radius: 0)))
         }
         var items = [body]
+        if intervalWidth > 0, !model.interval.isEmpty, !sub {
+            items.append(interval(model, key: key, frame: frame, look: look))
+        }
 
         if let rank = model.rank {
             let block = CGRect(x: frame.minX + 4, y: frame.midY - 11, width: 24, height: 22)
@@ -111,13 +114,21 @@ struct BoardTimingRows {
             capsules.drawCapsule(for: modes, compact: compact, dark: palette.dark, highContrast: palette.highContrast, width: column,
                                  in: context, at: CGPoint(x: capsuleX, y: midY - EffortCapsule.height / 2))
         }
-        if intervalWidth > 0, !model.interval.isEmpty, !sub {
+    }
+
+    /// The interval column as an item of its own (it changes on most ticks; the body stays cached).
+    private func interval(_ model: BoardRowModel, key: String, frame: CGRect, look: AnyHashable) -> BoardContentItem {
+        let box = frame.size, intervalWidth = self.intervalWidth, palette = self.palette
+        let intervalX = box.width - 4 - valueWidth - 7 - intervalWidth
+        let rect = CGRect(x: intervalX - 24, y: 0, width: intervalWidth + 28, height: box.height)
+        return .part(key + "#gap", of: frame, rect: rect, motion: .row,
+                     revision: AnyHashable([AnyHashable(model.interval), AnyHashable(model.isLeader), look])) { context in
             let leader = model.isLeader
-            let font = leader ? BoardFont(family: mono, size: 9.5, weight: .heavy, tracking: 0.08)
-                : BoardFont(family: mono, size: 10.5, weight: .semibold)
+            let font = leader ? BoardFont(family: .mono, size: 9.5, weight: .heavy, tracking: 0.08)
+                : BoardFont(family: .mono, size: 10.5, weight: .semibold)
             let gold = palette.dark ? BoardPalette.gold : RGBColor(hex: 0x9A6B00)
             let label = BoardLabel(model.interval, font, color: leader ? gold : palette.ink3)
-            label.draw(in: context, x: intervalX + intervalWidth - label.width, baseline: label.baseline(centeredOn: midY))
+            label.draw(in: context, x: intervalX + intervalWidth - label.width, baseline: label.baseline(centeredOn: box.height / 2))
         }
     }
 
@@ -140,7 +151,7 @@ struct BoardTimingRows {
         }
         if palette.highContrast { return BoardDrawing.fill(block, radius: 5, color: BoardPalette.gold, in: context) }
         BoardDrawing.glowing(BoardPalette.gold.opacity(0.35), blur: 12, in: context) {
-            BoardDrawing.fill(block, radius: 5, color: BoardPalette.gold, in: context)
+            BoardDrawing.fill(block, radius: 5, color: BoardPalette.gold, in: $0)
         }
         BoardDrawing.gradient(block, radius: 5, stops: [(RGBColor(hex: 0xFFF1A8), 0), (BoardPalette.gold, 0.45), (RGBColor(hex: 0xD49B00), 1)],
                               from: CGPoint(x: block.minX + 8, y: block.minY), to: CGPoint(x: block.maxX - 8, y: block.maxY), in: context)
@@ -157,7 +168,7 @@ struct BoardTimingRows {
         let stripe = sub ? CGRect(x: x + 1, y: midY - 5, width: 2, height: 10) : CGRect(x: x, y: midY - 9, width: 3, height: 18)
         let tint = color.opacity(sub ? 0.7 : 1)
         BoardDrawing.glowing(palette.glows && !sub ? color.opacity(0.6) : nil, blur: 6, in: context) {
-            BoardDrawing.fill(stripe, radius: 2, color: tint, in: context)
+            BoardDrawing.fill(stripe, radius: 2, color: tint, in: $0)
         }
     }
 }

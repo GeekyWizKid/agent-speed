@@ -29,11 +29,15 @@ struct BoardRowAccents {
 }
 
 extension BoardRowModel {
-    /// The row's body without its value and rank (they are items of their own), so their changes leave it cached.
+    /// The row's body without its value, rank, share and interval (they are items of their own), so their changes leave
+    /// it cached.
     var body: BoardRowModel {
         var body = self
         body.value = ""
         body.idle = false
+        body.share = 0
+        body.heat = 0
+        body.interval = ""
         if let rank { body.kind = .group(rank: rank == 1 ? 1 : 0) }
         return body
     }
@@ -101,7 +105,7 @@ enum BoardRowDecals {
             // Glass's tint sits on an opaque base so the capsule under it does not show through.
             if style == .glass { BoardDrawing.fill(chip, radius: radius, color: palette.dark ? RGBColor(hex: 0x14161D) : .white, in: context) }
             BoardDrawing.glowing(glow ? BoardPalette.mint.opacity(0.8) : nil, blur: 12, in: context) {
-                BoardDrawing.fill(chip, radius: radius, color: fill, in: context)
+                BoardDrawing.fill(chip, radius: radius, color: fill, in: $0)
             }
             label.draw(in: context, x: chip.minX + 5, baseline: label.baseline(centeredOn: chip.midY))
         }

@@ -35,7 +35,7 @@ enum BoardDemoHarness {
         simulation.speedScale = environment["AGENT_SPEED_BOARD_SPEED"].flatMap(Double.init) ?? 1
         let feed = BoardSimFeed(simulation: simulation, style: style, size: size, dark: dark, l10n: BoardSimFeed.harnessLocalizer(),
                                 highContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
-        board.contentProvider = { feed.layout.items }
+        board.contentProvider = { feed.takeItems() }
         board.show()
         self.board = board
         self.feed = feed

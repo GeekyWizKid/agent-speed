@@ -38,12 +38,18 @@ final class BoardSimFeed {
     }
 
     /// Advances one engine tick.
-    func step() {
+    /// Advances one engine tick; false when the tick shows the same content as the last (it then keeps its layout).
+    @discardableResult
+    func step() -> Bool {
         let peak = snapshot.peak
         simulation.advance()
         snapshot = simulation.snapshot()
-        tick = BoardSimTick.make(snapshot, style: style, size: size, redline: redline, previousPeak: peak, l10n: l10n)
+        let next = BoardSimTick.make(snapshot, style: style, size: size, redline: redline, previousPeak: peak, l10n: l10n)
+        // An equal tick keeps its layout (as the app's boards do), so an idle board lays out nothing.
+        guard next != tick else { return false }
+        tick = next
         cached = nil
+        return true
     }
 
     /// The content of the current tick, laid out once.
@@ -52,6 +58,12 @@ final class BoardSimFeed {
         let layout = builder.layout(tick)
         cached = layout
         return layout
+    }
+
+    /// The current tick's items for a board; one-shot accents come with the first call only.
+    func takeItems() -> [BoardContentItem] {
+        _ = layout
+        return cached?.takeItems() ?? []
     }
 
     /// Plays the current tick on the effects: heat, then (with `events`) the events at the rows' new places.
@@ -107,11 +119,18 @@ enum BoardSimTick {
                                            metrics: .of(style, size))
         let live = snapshot.live
         let title = titles.last { live >= $0.1 * redline }.map { "title." + $0.0 } ?? "tier.idle"
-        let history = stride(from: snapshot.history.count - 1, through: 0, by: -2).map { snapshot.history[$0] }.reversed()
+        // As the app's `BoardHistory`: the latest value of each simulated second, so the newest point follows every
+        // tick and the older ones move once a second.
+        var seconds = BoardHistory()
+        let start = snapshot.time - Double(snapshot.history.count - 1) * 0.5
+        for (index, value) in snapshot.history.enumerated() {
+            seconds.record(value, atMs: Int64(((start + Double(index) * 0.5) * 1000).rounded()))
+        }
+        let history = seconds.values
         return BoardTick(
             value: live, valueText: SpeedFormat.speed(live), metric: .output, redline: redline,
             heat: HeatPalette.heat(value: live, redline: redline), overdrive: HeatPalette.overdrive(value: live, redline: redline),
-            title: l10n(title), generating: snapshot.generating, tools: snapshot.tools, history: Array(history.suffix(60)),
+            title: l10n(title), generating: snapshot.generating, tools: snapshot.tools, history: history,
             groups: groups, rows: rows, events: snapshot.events, newPeak: previousPeak.map { snapshot.peak > $0 + 1 } ?? false,
             todayText: SpeedFormat.tokens(Int(snapshot.today)), costText: String(format: "$%.2f", snapshot.cost),
             peakText: SpeedFormat.speed(snapshot.peak), peak: snapshot.peak)

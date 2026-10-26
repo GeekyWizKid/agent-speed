@@ -7,6 +7,11 @@ import QuartzCore
 /// them. The container is the board's rounded square (y up, as Core Animation), clipped to its corners.
 @MainActor
 final class BoardContentStack {
+    /// How long a stretched item takes to reach a new share (the prototypes' `transition: width .55s`).
+    static let stretchSeconds = 0.55
+    /// How long a tinted item takes to reach a new color.
+    static let tintSeconds = 0.5
+
     /// The row spring per style (DESIGN 2c: glass critically damped, settle ≈ 0.45 s; timing damping 0.72; neon 0.9).
     struct RowSpring: Equatable {
         var duration: Double
@@ -51,6 +56,9 @@ final class BoardContentStack {
         let layer: CALayer
         var revision: AnyHashable
         var frame: CGRect
+        var stretch: Double?
+        var stretchAnchor: CGFloat = 0
+        var tint: CGColor?
         var image: CGImage?
         var ambient: BoardContentAmbient?
     }
@@ -90,23 +98,45 @@ final class BoardContentStack {
         CATransaction.setDisableActions(true)
         var seen = Set<String>()
         var moved = false
+        // New layers go right above the previous item's, so the stack keeps the items' order (back to front).
+        var below: CALayer?
         for item in items {
+            defer { below = entries[item.key]?.layer }
             seen.insert(item.key)
             let target = layerFrame(item.frame)
+            // An item that starts or stops being tinted gets a new layer.
+            if let entry = entries[item.key], (entry.tint == nil) != (item.tint == nil) {
+                entry.layer.removeFromSuperlayer()
+                entries[item.key] = nil
+            }
             if var entry = entries[item.key] {
-                Self.setPlate(item.plate, on: entry.layer)
-                entry.layer.masksToBounds = item.clips
+                if item.tint == nil { Self.setPlate(item.plate, on: entry.layer) }
+                if let tint = item.tint, entry.tint != tint {
+                    setTint(tint, on: entry.layer, animated: animated)
+                    entry.tint = tint
+                }
+                if entry.stretch != item.stretch || entry.stretchAnchor != item.stretchAnchor {
+                    entry.stretch = item.stretch
+                    entry.stretchAnchor = item.stretchAnchor
+                    setStretch(item.stretch, anchor: item.stretchAnchor, on: entry.layer, at: target.origin, width: target.width,
+                               animated: animated)
+                }
+                if entry.layer.masksToBounds != item.clips { entry.layer.masksToBounds = item.clips }
                 if entry.revision != item.revision || entry.frame.size != item.frame.size {
                     let old = entry.image
                     entry.image = rasterize(item)
-                    entry.layer.contents = entry.image
+                    Self.show(entry.image, on: entry.layer, tinted: item.tint != nil)
                     entry.revision = item.revision
                     if animated { change(entry.layer, from: old, to: entry.image, item: item) }
                 }
                 if entry.frame != item.frame {
                     let from = entry.layer.presentation()?.position ?? entry.layer.position
                     entry.layer.bounds = CGRect(origin: .zero, size: target.size)
-                    entry.layer.position = target.origin
+                    entry.layer.mask?.frame = entry.layer.bounds
+                    entry.layer.position = stretched(target.origin, anchor: entry.stretchAnchor)
+                    if entry.stretch != nil {
+                        entry.layer.anchorPoint = CGPoint(x: target.width > 0 ? min(1, max(0, entry.stretchAnchor / target.width)) : 0, y: 0)
+                    }
                     if animated, item.motion == .row {
                         if reduceMotion {
                             moved = true
@@ -121,8 +151,6 @@ final class BoardContentStack {
                     }
                     entry.frame = item.frame
                 }
-                entry.layer.removeAnimation(forKey: "leave")
-                entry.layer.opacity = 1
                 if animated { play(item, on: entry.layer) }
                 if entry.ambient != item.ambient {
                     entry.ambient = item.ambient
@@ -133,16 +161,29 @@ final class BoardContentStack {
                 let child = CALayer()
                 child.anchorPoint = .zero
                 child.bounds = CGRect(origin: .zero, size: target.size)
-                child.position = target.origin
+                child.position = stretched(target.origin, anchor: item.stretchAnchor)
                 child.contentsScale = scale
                 child.contentsGravity = .resize
                 child.masksToBounds = item.clips
-                Self.setPlate(item.plate, on: child)
+                if let tint = item.tint {
+                    let mask = CALayer()
+                    mask.frame = child.bounds
+                    mask.contentsScale = scale
+                    mask.contentsGravity = .resize
+                    child.mask = mask
+                    child.backgroundColor = tint
+                } else {
+                    Self.setPlate(item.plate, on: child)
+                }
                 let image = rasterize(item)
-                child.contents = image
-                layer.addSublayer(child)
-                entries[item.key] = Entry(layer: child, revision: item.revision, frame: item.frame, image: image,
-                                          ambient: item.ambient)
+                Self.show(image, on: child, tinted: item.tint != nil)
+                if let below { layer.insertSublayer(child, above: below) } else { layer.insertSublayer(child, at: 0) }
+                entries[item.key] = Entry(layer: child, revision: item.revision, frame: item.frame, stretch: item.stretch,
+                                          stretchAnchor: item.stretchAnchor, tint: item.tint, image: image, ambient: item.ambient)
+                if item.stretch != nil {
+                    setStretch(item.stretch, anchor: item.stretchAnchor, on: child, at: target.origin, width: target.width,
+                               animated: false)
+                }
                 setAmbient(item.ambient, on: child)
                 if animated, item.motion == .row { enter(child, at: target.origin) }
                 if animated { play(item, on: child) }
@@ -171,6 +212,23 @@ final class BoardContentStack {
         order.compactMap { key in entries[key].flatMap { entry in entry.image.map { ($0, entry.frame) } } }
     }
 
+    /// A tinted item's image is its mask; any other item shows it as its contents.
+    private static func show(_ image: CGImage?, on layer: CALayer, tinted: Bool) {
+        if tinted { layer.mask?.contents = image } else { layer.contents = image }
+    }
+
+    private func setTint(_ tint: CGColor, on layer: CALayer, animated: Bool) {
+        if animated, !reduceMotion, let from = layer.presentation()?.backgroundColor ?? layer.backgroundColor {
+            let blend = CABasicAnimation(keyPath: "backgroundColor")
+            blend.fromValue = from
+            blend.toValue = tint
+            blend.duration = Self.tintSeconds
+            blend.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            layer.add(blend, forKey: "tint")
+        }
+        layer.backgroundColor = tint
+    }
+
     private static func setPlate(_ plate: BoardContentItem.Plate?, on layer: CALayer) {
         if layer.backgroundColor != plate?.color { layer.backgroundColor = plate?.color }
         let radius = plate?.cornerRadius ?? 0
@@ -179,6 +237,32 @@ final class BoardContentStack {
 
     private func layerFrame(_ frame: CGRect) -> CGRect {
         CGRect(x: frame.minX, y: side - frame.maxY, width: frame.width, height: frame.height)
+    }
+
+    /// A stretched item shows `fraction` of its image from `anchor` points into its frame: the layer scales about that
+    /// point (its start, after the glow's room), so a new share eases across without a redraw, and what lies beyond the
+    /// bar (its glow) comes along. Reduce Motion: at once. The frame itself stays whole.
+    private func setStretch(_ fraction: Double?, anchor: CGFloat, on layer: CALayer, at origin: CGPoint, width: CGFloat,
+                            animated: Bool) {
+        let fraction = min(1, max(0, fraction ?? 1))
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.anchorPoint = CGPoint(x: width > 0 ? min(1, max(0, anchor / width)) : 0, y: 0)
+        layer.position = stretched(origin, anchor: anchor)
+        CATransaction.commit()
+        if animated, !reduceMotion {
+            let grow = CABasicAnimation(keyPath: "transform.scale.x")
+            grow.fromValue = layer.presentation()?.transform.m11 ?? layer.transform.m11
+            grow.toValue = fraction
+            grow.duration = Self.stretchSeconds
+            grow.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.8, 0.2, 1)
+            layer.add(grow, forKey: "stretch")
+        }
+        layer.transform = CATransform3DMakeScale(fraction, 1, 1)
+    }
+
+    private func stretched(_ origin: CGPoint, anchor: CGFloat) -> CGPoint {
+        CGPoint(x: origin.x + anchor, y: origin.y)
     }
 
     private func enter(_ child: CALayer, at position: CGPoint) {
@@ -222,6 +306,23 @@ final class BoardContentStack {
 
 /// Offscreen bitmaps for the board's cached content.
 enum BoardRaster {
+    /// `draw` as its layer shows it: with a tint, the tint through the drawing's coverage (offscreen frames).
+    static func tinted(_ draw: @escaping (CGContext, CGSize) -> Void, with tint: CGColor?) -> (CGContext, CGSize) -> Void {
+        guard let tint else { return draw }
+        return { context, size in
+            context.saveGState()
+            context.beginTransparencyLayer(auxiliaryInfo: nil)
+            context.saveGState()
+            draw(context, size)
+            context.restoreGState()
+            context.setBlendMode(.sourceIn)
+            context.setFillColor(tint)
+            context.fill(CGRect(origin: .zero, size: size))
+            context.endTransparencyLayer()
+            context.restoreGState()
+        }
+    }
+
     /// A premultiplied image of `size` points at `scale` in `space` (sRGB by default), drawn by `draw` in a y-down
     /// context.
     static func image(size: CGSize, scale: CGFloat, space: CGColorSpace? = nil, draw: (CGContext, CGSize) -> Void) -> CGImage? {
@@ -242,3 +343,6 @@ enum BoardRaster {
         return context.makeImage()
     }
 }
+
+
+

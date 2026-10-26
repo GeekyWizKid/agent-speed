@@ -3,8 +3,9 @@ import AgentSpeedOrbModel
 import CoreGraphics
 
 /// What one engine tick tells a board (DESIGN 2c Content). The live feed (the app's boards controller, from the
-/// snapshot) and the demo feed make it; a style's `BoardContentBuilding` draws it. Fields are only ever added.
-struct BoardTick {
+/// snapshot) and the demo feed make it; a style's `BoardContentBuilding` draws it. Fields are only ever added. An equal
+/// tick shows the same content, so it is not laid out again.
+struct BoardTick: Equatable {
     /// `live_A` in the board's metric (METRICS 6.8) and its text (METRICS 7).
     var value: Double
     var valueText: String
@@ -26,7 +27,8 @@ struct BoardTick {
     var events: [BoardRankEvent]
     /// A new `peakToday_A` was reached on this tick.
     var newPeak: Bool
-    /// Footer values, already formatted: today's output, today's cost (nil when unknown, section 9), `peakToday_A`.
+    /// Footer values, already formatted, without their labels (the styles set them in `boards.today` and
+    /// `boards.peak`): today's output, today's cost (nil when unknown, section 9), `peakToday_A`.
     var todayText: String
     var costText: String?
     var peakText: String
@@ -41,6 +43,14 @@ struct BoardContentLayout {
     var groupRows: [String: (row: CGRect, rank: CGPoint)]
     /// The hero number, for punches, embers and new peaks.
     var number: CGRect
+
+    /// The items to show; their one-shot accents come with the first call only, so a layout applied again (a board
+    /// shown again, a hover) replays nothing.
+    mutating func takeItems() -> [BoardContentItem] {
+        let taken = items
+        for index in items.indices where !items[index].accents.isEmpty { items[index].accents = [] }
+        return taken
+    }
 }
 
 /// Draws a style's hero, rows and footer (DESIGN 2c Styles; prototypes in spec/prototypes/board).

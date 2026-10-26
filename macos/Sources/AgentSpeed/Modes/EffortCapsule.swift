@@ -1,5 +1,6 @@
 import AgentSpeedCore
 import AppKit
+import os
 
 /// What one effort capsule draws (DESIGN 4, Agents): the effort's meter and word, and the speed's bolts.
 struct EffortCapsule: Equatable, Hashable, Sendable {
@@ -56,9 +57,15 @@ struct EffortCapsule: Equatable, Hashable, Sendable {
         return image.map { CGSize(width: ceil($0.size.width), height: ceil($0.size.height)) } ?? CGSize(width: 7, height: 10)
     }()
 
+    private static let wordWidths = OSAllocatedUnfairLock<[String: CGFloat]>(initialState: [:])
+
+    /// The word's width, measured once per word (board rows ask on every tick).
     static func wordWidth(_ word: String) -> CGFloat {
+        if let width = wordWidths.withLock({ $0[word] }) { return width }
         let font = NSFont.systemFont(ofSize: wordFontSize, weight: .medium)
-        return ceil((word as NSString).size(withAttributes: [.font: font]).width)
+        let width = ceil((word as NSString).size(withAttributes: [.font: font]).width)
+        wordWidths.withLock { $0[word] = width }
+        return width
     }
 
     static func boltsWidth(_ count: Int) -> CGFloat {

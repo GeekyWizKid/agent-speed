@@ -38,6 +38,9 @@ struct BoardListRows {
                                                            leader: event.kind == .newLeader, radius: neon ? 9 : 10)))
         }
         var items = [body]
+        if model.share > 0 {
+            items.append(underline(model, sub: sub, key: key, frame: frame, look: look))
+        }
 
         if let rank = model.rank {
             var item = BoardContentItem(key: key + "#rank", frame: CGRect(x: frame.minX + 6, y: frame.midY - 8, width: 16, height: 16),
@@ -70,6 +73,27 @@ struct BoardListRows {
         return items
     }
 
+    /// The share underline as an item of its own along the row's bottom, drawn at its full width and stretched to the
+    /// share by its layer: a new share eases across without a redraw.
+    private func underline(_ model: BoardRowModel, sub: Bool, key: String, frame: CGRect, look: AnyHashable) -> BoardContentItem {
+        let rows = self, box = frame.size
+        let reach = (neon ? 8 : 6) * 1.5 + 2
+        let left: CGFloat = sub ? 46 : 40
+        let rect = CGRect(x: left - reach, y: box.height - 3 - reach, width: box.width - left + reach, height: reach + 3)
+        var item = BoardContentItem.part(key + "#line", of: frame, rect: rect, motion: .row,
+                                         revision: AnyHashable([AnyHashable(sub), look])) { context in
+            var full = model
+            full.share = 200
+            rows.drawUnderline(full, sub: sub, ink: .white, in: context, size: box)
+        }
+        // The bar and its glow are one heat color at varying alpha: drawn once in white, tinted by its layer.
+        item.tint = palette.heat(max(0.12, model.heatFraction)).cgColor
+        item.stretch = model.shareFraction
+        // The bar grows from its start, inside the part's frame (whole points, so the start sits a little in).
+        item.stretchAnchor = frame.minX + left - item.frame.minX
+        return item
+    }
+
     // MARK: Drawing
 
     private func draw(_ model: BoardRowModel, column: CGFloat, in context: CGContext, size box: CGSize) {
@@ -77,7 +101,6 @@ struct BoardListRows {
         let sub = model.kind == .sub
         let midY = box.height / 2
         if model.isLeader { drawLeaderPlate(in: context, size: box) }
-        drawUnderline(model, sub: sub, in: context, size: box)
 
         if let source = model.source {
             BoardDrawing.badge(model.phase, color: palette.source(source), idle: palette.ink3, look: neon ? .glowDot : .dots,
@@ -148,19 +171,20 @@ struct BoardListRows {
         }
     }
 
-    private func drawUnderline(_ model: BoardRowModel, sub: Bool, in context: CGContext, size box: CGSize) {
+    /// The underline in the row's heat color, or in `ink` (white: the coverage its tinted layer fills).
+    private func drawUnderline(_ model: BoardRowModel, sub: Bool, ink: RGBColor? = nil, in context: CGContext, size box: CGSize) {
         let left: CGFloat = sub ? 46 : 40
         let track = box.width - 6 - left
         let width = track * CGFloat(model.shareFraction)
         guard width > 0.5 else { return }
         let height: CGFloat = sub ? 1.5 : 2
         let rect = CGRect(x: left, y: box.height - 1 - height, width: width, height: height)
-        let heat = palette.heat(max(0.12, model.heatFraction)).opacity(sub ? 0.7 : 1)
+        let heat = (ink ?? palette.heat(max(0.12, model.heatFraction))).opacity(sub ? 0.7 : 1)
         if palette.highContrast { return BoardDrawing.fill(rect, radius: 1, color: heat.opacity(1), in: context) }
         let start = neon ? heat.opacity(0) : heat.opacity(heat.alpha * 0.35)
         BoardDrawing.glowing(heat.opacity(neon ? heat.alpha : heat.alpha * 0.7), blur: neon ? 8 : 6, in: context) {
             BoardDrawing.gradient(rect, radius: height, stops: [(start, 0), (heat, 1)], from: CGPoint(x: rect.minX, y: 0),
-                                  to: CGPoint(x: rect.maxX, y: 0), in: context)
+                                  to: CGPoint(x: rect.maxX, y: 0), in: $0)
         }
     }
 

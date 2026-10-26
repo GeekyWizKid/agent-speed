@@ -28,6 +28,9 @@ public struct BoardEffects {
     public private(set) var reduceMotion = false
     /// `Celebrate new peaks` (DESIGN 2c): off turns a new leader into a plain overtake and drops new-peak rings.
     public var celebrations = true
+    /// The warp's streaks are simulated here (frames draw them); false when the platform animates them itself from
+    /// `warpRequested` and the heat, so they need no frames.
+    public var simulatesWarp = true
     /// The heat and overdrive given by the last `setHeat`, and the eased values the frames show.
     public private(set) var heat = 0.0
     public private(set) var overdrive = 0.0
@@ -290,7 +293,9 @@ public struct BoardEffects {
     // MARK: Warp
 
     /// Neon's hyperspace streaks from h = 0.2 (Standard and Max).
-    public var warpOn: Bool { preset.warp && particlesAllowed && shownHeat > 0.2 }
+    public var warpOn: Bool { simulatesWarp && preset.warp && particlesAllowed && shownHeat > 0.2 }
+    /// The style, settings and the tick's heat call for the warp (a platform that animates it itself shows it).
+    public var warpRequested: Bool { preset.warp && particlesAllowed && heat > 0.2 }
     public var warpCenter: SIMD2<Double> { SIMD2(side * 0.72, side * 0.28) }
 
     private mutating func advanceWarp(_ dt: Double) {

@@ -45,7 +45,7 @@ final class BoardWindowController {
         self.center = center
         self.dark = dark
         driver = BoardEffectsDriver(style: config.style, side: config.size.side)
-        host = BoardHostView(warp: driver.backdrop)
+        host = BoardHostView(warp: driver.warp.layer)
         animator = OrbWindowAnimator(center: center, diameter: CGFloat(config.size.side))
         panel.contentView = host
         effectsPanel.contentView = driver.overlay
@@ -129,6 +129,7 @@ final class BoardWindowController {
 
     private func applyLook() {
         host.apply(style: config.style, side: side, dark: dark)
+        driver.dark = dark
         driver.setBoard(side: Double(side), corner: CGFloat(config.style.cornerRadius))
         host.content.spring = .of(config.style)
     }
@@ -149,7 +150,7 @@ final class BoardWindowController {
             return
         }
         contentStale = false
-        host.content.apply(contentProvider(), animated: animated && !reduceMotion)
+        host.content.apply(contentProvider(), animated: animated)
     }
 
     private func updateRendering() {

@@ -13,7 +13,7 @@ import AppKit
 /// `AGENT_SPEED_BOARD_STYLES`, `AGENT_SPEED_BOARD_SIZE` (S, M, L; comma separated, default M), `AGENT_SPEED_BOARD_STATES`
 /// (comma separated), `AGENT_SPEED_BOARD_LEVEL` (off, soft, standard, max), `AGENT_SPEED_BOARD_THEMES` (dark, light;
 /// default dark, or light with `AGENT_SPEED_BOARD_LIGHT=1`), `AGENT_SPEED_BOARD_CONTRAST=1` (Increase Contrast),
-/// `AGENT_SPEED_BOARD_LANG`.
+/// `AGENT_SPEED_BOARD_LANG`, `AGENT_SPEED_BOARD_CHECKS=1` (the content stack's checks instead, see `BoardStackChecks`).
 @MainActor
 enum BoardFrameHarness {
     struct State {
@@ -47,6 +47,7 @@ enum BoardFrameHarness {
     static func run(into directory: URL) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let environment = ProcessInfo.processInfo.environment
+        if environment["AGENT_SPEED_BOARD_CHECKS"] == "1" { return BoardStackChecks.run(into: directory) }
         func list<T>(_ key: String, _ make: (String) -> T?) -> [T]? {
             environment[key].map { $0.split(separator: ",").compactMap { make(String($0)) } }
         }
@@ -84,6 +85,7 @@ enum BoardFrameHarness {
         var layout = feed.layout
         if state.accents { layout = feed.builder.layout(accentTick(feed.tick)) }
         var fx = BoardEffects(style: style, side: side, seed: 11) { HeatPalette.color($0).simd }
+        fx.simulatesWarp = false
         fx.setIntensity(level)
         if state.settled {
             fx.setReduceMotion(true)
@@ -167,15 +169,12 @@ enum BoardFrameHarness {
         canvas.context.fillPath()
 
         var scene = OrbScene(capacity: 2048)
-        if fx.starCount > 0 {
-            BoardEffectsRenderer.backdrop(fx, into: &scene)
-            if let warp = OrbSnapshot.image(scene, side: side, scale: 2) {
-                canvas.context.saveGState()
-                canvas.context.addPath(path)
-                canvas.context.clip()
-                canvas.draw(warp, at: board.origin, size: board.size)
-                canvas.context.restoreGState()
-            }
+        if let warp = BoardWarpSnapshot.image(fx, side: side, corner: corner, dark: dark) {
+            canvas.context.saveGState()
+            canvas.context.addPath(path)
+            canvas.context.clip()
+            canvas.draw(warp, at: board.origin, size: board.size)
+            canvas.context.restoreGState()
         }
         canvas.context.saveGState()
         canvas.context.addPath(path)
@@ -188,9 +187,10 @@ enum BoardFrameHarness {
                 canvas.context.setFillColor(plate.color)
                 canvas.context.fillPath()
             }
-            let draw = accents ? accentDrawings(item).draw : item.draw
+            let draw = BoardRaster.tinted(accents ? accentDrawings(item).draw : item.draw, with: item.tint)
             guard let image = BoardRaster.image(size: item.frame.size, scale: 2, draw: draw) else { continue }
-            canvas.draw(image, at: CGPoint(x: margin + item.frame.minX, y: margin + item.frame.minY), size: item.frame.size)
+            let shown = item.shownFrame
+            canvas.draw(image, at: CGPoint(x: margin + shown.minX, y: margin + shown.minY), size: shown.size)
         }
         canvas.context.restoreGState()
         if accents {
