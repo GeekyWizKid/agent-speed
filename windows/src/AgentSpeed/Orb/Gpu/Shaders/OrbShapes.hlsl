@@ -376,6 +376,16 @@ float4 PsShape(ShapeOut input) : SV_Target
         color = t < stop ? lerp(input.color, input.color2, t / stop)
             : float4(input.color2.rgb, input.color2.a * saturate(1.0 - (t - stop) / max(1.0 - stop, 0.0001)));
     }
+    else if (fill > 4.5 && fill < 5.5)
+    {
+        // One stretch of a slanted gradient: color at q1 → color2 at q2 along q0 (radians), nothing outside it. The stretch's
+        // ends are hard so neighboring stretches tile; stops meet in one color, so no edge shows.
+        float s = dot(p, float2(cos(input.extra2.y), sin(input.extra2.y)));
+        float from = input.extra2.z;
+        float to = input.extra2.w;
+        color = lerp(input.color, input.color2, saturate((s - from) / max(to - from, 0.0001)));
+        color.a *= (s >= from && s < to) ? 1.0 : 0.0;
+    }
 
     float coverage = saturate(0.5 - d / aa);
     float core = coverage * input.extra.x;

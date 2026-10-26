@@ -29,6 +29,9 @@ enum PreviewRenderer {
         if wants("orbs") {
             OrbsPreviews.render(model: model, into: directory)
         }
+        if wants("boards") {
+            BoardSettingsPreviews.render(model: model, into: directory)
+        }
         if wants("themes") {
             TitleThemePreviews.render(model: model, into: directory)
         }

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using AgentSpeed.Boards.Gpu;
+using AgentSpeed.Boards.Layers;
 using AgentSpeed.Orb.Gpu;
 using AgentSpeed.Presentation.Boards;
 using AgentSpeed.Presentation.Boards.Demo;
@@ -20,8 +21,8 @@ namespace AgentSpeed.Boards.Harness;
 /// frame class's ticks (crowding included) into its own offscreen target, fed by the demo through the real ranking. Per
 /// scenario: the process CPU (% of one core), frames per second and per frame class, the CPU of a frame's build, layers
 /// rasterized per second, the GPU time per frame and the board's GPU memory (layer texture and a two-buffer swap chain).
-/// Presenting is not included. <c>AGENT_SPEED_BOARD_BENCH_STYLES</c>, <c>_SCALE</c> (default 2, the budgets' 200 %),
-/// <c>_SIZE</c> (default M) and <c>_SECONDS</c> (default 10) adjust it.
+/// Presenting is not included. <c>AGENT_SPEED_BOARD_BENCH_STYLES</c>, <c>_SCENARIOS</c> (names, comma-separated),
+/// <c>_SCALE</c> (default 2, the budgets' 200 %), <c>_SIZE</c> (default M) and <c>_SECONDS</c> (default 10) adjust it.
 /// </summary>
 internal static class BoardBenchHarness
 {
@@ -32,6 +33,8 @@ internal static class BoardBenchHarness
 
     private static readonly Scenario[] Scenarios =
     [
+        // No board at all: the process's floor (the runtime's and the graphics driver's own threads) on this machine.
+        new("baseline", 0, BoardSimScenario.Calm, _ => 0, true, EffectsIntensity.Standard),
         new("idle", 1, BoardSimScenario.Calm, _ => 0, true, EffectsIntensity.Standard),
         new("cruise", 1, BoardSimScenario.Team, _ => 700, false, EffectsIntensity.Standard),
         new("redline", 1, BoardSimScenario.Team, _ => 3200, false, EffectsIntensity.Standard),
@@ -51,9 +54,13 @@ internal static class BoardBenchHarness
         var scale = Number("AGENT_SPEED_BOARD_BENCH_SCALE", 2);
         var seconds = Number("AGENT_SPEED_BOARD_BENCH_SECONDS", 10);
         var size = BoardSizes.Parse(Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_BENCH_SIZE") ?? "M");
+        var only = Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_BENCH_SCENARIOS") is { Length: > 0 } names
+            ? names.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal)
+            : null;
         var styles = (Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_BENCH_STYLES") ?? "glass,timing,neon")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(BoardStyles.Parse).Distinct().ToArray();
         var loc = new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
+        ProcessCpu.RaiseToNormal();
         BoardGpuRenderer.Timer = new GpuTimer();
         var report = new System.Text.StringBuilder();
         report.AppendLine(CultureInfo.InvariantCulture,
@@ -63,10 +70,16 @@ internal static class BoardBenchHarness
         {
             foreach (var style in styles)
             {
-                // Untimed: tiered JIT, DirectWrite and the driver settle before the first scenario.
-                _ = Measure(device, style, size, new Scenario("warm-up", 2, BoardSimScenario.Team, _ => 3200, false, EffectsIntensity.Max), scale, 4, loc);
+                // Untimed: tiered JIT (a method called once per tick needs 15 s to reach 30 calls), DirectWrite and the driver settle
+                // before the first scenario.
+                _ = Measure(device, style, size, new Scenario("warm-up", 2, BoardSimScenario.Team, Story, false, EffectsIntensity.Max), scale, 16, loc);
                 foreach (var scenario in Scenarios)
                 {
+                    if (only is not null && !only.Contains(scenario.Name))
+                    {
+                        continue;
+                    }
+
                     var line = Measure(device, style, size, scenario, scale, seconds, loc);
                     report.AppendLine(CultureInfo.InvariantCulture, $"{BoardStyles.Key(style)} {scenario.Name}: {line}");
                     File.WriteAllText(path, report.ToString());
@@ -103,9 +116,16 @@ internal static class BoardBenchHarness
         var clock = Stopwatch.StartNew();
         var measuring = false;
         var cyclesStart = 0UL;
+        Dictionary<int, (ulong Cycles, string Group)>? threadsStart = null;
         var wallStart = 0.0;
         var frames = 0;
         var buildTicks = 0L;
+        var feedTicks = 0L;
+        var drawTicks = 0L;
+        var updateStart = 0L;
+        (long Describe, long Paint, long Flush) layerStart = default;
+        var kinds = Enum.GetValues<BoardLayerKind>();
+        var kindStart = new long[kinds.Length * 2];
         var rasterStart = 0L;
         var events = 0;
         var byClass = new long[Enum.GetValues<FrameClass>().Length];
@@ -124,15 +144,26 @@ internal static class BoardBenchHarness
             if (!measuring && elapsed >= warm)
             {
                 measuring = true;
-                cyclesStart = ProcessCpu.Cycles();
-                wallStart = elapsed;
                 frames = 0;
                 buildTicks = 0;
+                feedTicks = 0;
+                drawTicks = 0;
+                updateStart = rigs.Sum(r => r.Frame.UpdateTicks);
+                layerStart = (rigs.Sum(r => r.Frame.Layers.Ticks.Describe), rigs.Sum(r => r.Frame.Layers.Ticks.Paint),
+                    rigs.Sum(r => r.Frame.Layers.Ticks.Flush));
+                for (var k = 0; k < kinds.Length; k++)
+                {
+                    kindStart[2 * k] = rigs.Sum(r => r.Frame.Layers.PaintsByKind.Ticks[k]);
+                    kindStart[2 * k + 1] = rigs.Sum(r => r.Frame.Layers.PaintsByKind.Count[k]);
+                }
                 events = 0;
                 skipped = 0;
                 Array.Clear(byClass);
                 rasterStart = rigs.Sum(r => r.Frame.Layers.Atlas.Rasterized);
                 BoardGpuRenderer.Timer?.Drain();
+                threadsStart = ProcessThreads.Snapshot();
+                cyclesStart = ProcessCpu.Cycles();
+                wallStart = clock.Elapsed.TotalSeconds;
             }
 
             if (measuring && elapsed - wallStart >= seconds)
@@ -147,7 +178,10 @@ internal static class BoardBenchHarness
             {
                 var rig = rigs[i];
                 rig.Feed.Sim.TargetTotal = scenario.Target(measuring ? elapsed - wallStart : 0);
-                if (rig.Advance(now))
+                var fed = Stopwatch.GetTimestamp();
+                var advanced = rig.Advance(now);
+                feedTicks += Stopwatch.GetTimestamp() - fed;
+                if (advanced)
                 {
                     // A tick is a change: the board draws at least once, then follows its class.
                     dirty[i] = true;
@@ -192,7 +226,9 @@ internal static class BoardBenchHarness
                 }
 
                 presented[i] = fingerprint;
+                var drawn = Stopwatch.GetTimestamp();
                 targets[i].Draw(device, rig.Frame);
+                drawTicks += Stopwatch.GetTimestamp() - drawn;
                 byClass[(int)frameClass]++;
                 frames++;
                 rendered = true;
@@ -203,19 +239,48 @@ internal static class BoardBenchHarness
                 device.Current.Context.Flush();
             }
 
-            // Wake for the next frame due or the next sim tick (every 0.5 s), whichever is first.
-            var wait = Math.Min(due == long.MaxValue ? 0.05 : due * period - clock.Elapsed.TotalSeconds, 0.05);
-            Thread.Sleep(Math.Max(1, (int)Math.Floor(wait * 1000)));
+            // Wake for the next frame due or the next sim tick (every 0.5 s), whichever is first, like the app's clock: an idle
+            // board costs its ticks only, not a polling harness.
+            var wait = (due == long.MaxValue ? double.MaxValue : due * period) - clock.Elapsed.TotalSeconds;
+            foreach (var rig in rigs)
+            {
+                wait = Math.Min(wait, rig.NextTick - (1000 + clock.Elapsed.TotalSeconds));
+            }
+
+            wait = Math.Min(wait, measuring ? wallStart + seconds - clock.Elapsed.TotalSeconds : warm - clock.Elapsed.TotalSeconds);
+            Thread.Sleep(Math.Clamp((int)Math.Floor(wait * 1000), 1, 500));
         }
 
         var wall = clock.Elapsed.TotalSeconds - wallStart;
         var cpu = (ProcessCpu.Cycles() - cyclesStart) / tsc / wall * 100;
+        var threads = threadsStart is null ? string.Empty : ProcessThreads.Top(threadsStart, ProcessThreads.Snapshot(), wall);
         var gpu = BoardGpuRenderer.Timer?.Drain() ?? (0.0, 0);
         var rasterized = rigs.Sum(r => r.Frame.Layers.Atlas.Rasterized) - rasterStart;
+        var updateTicks = rigs.Sum(r => r.Frame.UpdateTicks) - updateStart;
+        var describeTicks = rigs.Sum(r => r.Frame.Layers.Ticks.Describe) - layerStart.Describe;
+        var paintTicks = rigs.Sum(r => r.Frame.Layers.Ticks.Paint) - layerStart.Paint;
+        var flushTicks = rigs.Sum(r => r.Frame.Layers.Ticks.Flush) - layerStart.Flush;
+        var byKind = new System.Text.StringBuilder();
+        for (var k = 0; k < kinds.Length; k++)
+        {
+            var count = rigs.Sum(r => r.Frame.Layers.PaintsByKind.Count[k]) - kindStart[2 * k + 1];
+            if (count > 0)
+            {
+                var ms = (rigs.Sum(r => r.Frame.Layers.PaintsByKind.Ticks[k]) - kindStart[2 * k]) * 1000.0 / Stopwatch.Frequency;
+                byKind.Append(CultureInfo.InvariantCulture, $" {kinds[k]} {count / wall:0.0}/s × {ms / count:0.00} ms;");
+            }
+        }
+
+        if (rigs.Length == 0)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"cpu {cpu:0.00}% of one core; threads: {threads}");
+        }
+
         var atlas = rigs[0].Frame.Layers.Atlas;
         var swap = targets[0].Pixels * targets[0].Pixels * 4.0 * 2;
         var memory = (atlas.Width * (double)atlas.Height * 4 + swap) / (1024 * 1024);
         var instances = rigs[0].Frame.List.Count;
+        var batches = rigs[0].Frame.List.BatchCount;
         foreach (var target in targets)
         {
             target.Dispose();
@@ -228,8 +293,9 @@ internal static class BoardBenchHarness
 
         var perFrame = frames + skipped > 0 ? buildTicks * 1000.0 / Stopwatch.Frequency / (frames + skipped) : 0;
         string Fps(FrameClass c) => (byClass[(int)c] / wall).ToString("0.0", CultureInfo.InvariantCulture);
+        string Share(long ticks) => (ticks * 100.0 / Stopwatch.Frequency / wall).ToString("0.00", CultureInfo.InvariantCulture);
         return string.Create(CultureInfo.InvariantCulture,
-            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height})");
+            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances in {batches} batches, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height}); cpu on this thread: feed {Share(feedTicks)}%, layers {Share(updateTicks)}% (describe {Share(describeTicks)}, paint {Share(paintTicks)}, flush {Share(flushTicks)}), frames {Share(buildTicks - updateTicks)}%, draws {Share(drawTicks)}%; painted:{byKind} threads: {threads}");
     }
 
     private static double Number(string name, double fallback) =>

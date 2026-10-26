@@ -62,6 +62,7 @@ public static class OrbMenuModel
             new MenuRow(localizer["menu.orb.duplicate"]) { Action = new MenuAction.DuplicateOrb(id), IsEnabled = canAdd, ToolTip = canAdd ? null : limit },
             new MenuRow(localizer["menu.orb.split"]) { Action = new MenuAction.SplitOrb(id), IsEnabled = canSplit, ToolTip = splitTip },
             new MenuRow(localizer["menu.orb.mergeAll"]) { Action = new MenuAction.MergeOrbs(id), IsEnabled = document.CanMerge },
+            BoardMenuModel.AddRow(settings.Boards, id, localizer),
             MenuSeparator.Instance,
             hide,
             new MenuRow(localizer["menu.orb.remove"]) { Action = new MenuAction.RemoveOrb(id), IsEnabled = document.CanRemove },
@@ -139,35 +140,6 @@ public static class OrbMenuModel
         Submenu(localizer["orbs.style"], OrbStyles.All.Select(style =>
             (MenuEntry)Toggle(localizer["style." + OrbStyles.Key(style)], orb.Style == style, new MenuAction.SetOrbStyle(orb.Id, style))));
 
-    /// <summary>
-    /// <c>orbs.sources.all</c>, a separator, then every source in source order with its dot and a check when tracked.
-    /// Unavailable sources say why and stay selectable; the last tracked source cannot be unchecked.
-    /// </summary>
-    private static MenuRow SourcesMenu(OrbDefinition orb, SourceAvailability sources, Localizer localizer)
-    {
-        var rows = new List<MenuEntry>
-        {
-            Toggle(localizer["orbs.sources.all"], orb.Sources.TracksAll, new MenuAction.SetOrbAllSources(orb.Id)),
-            MenuSeparator.Instance,
-        };
-        foreach (var kind in Enum.GetValues<SourceKind>())
-        {
-            var tracked = !orb.Sources.TracksAll && orb.Sources.Known.Contains(kind);
-            var locked = tracked && !OrbEditing.CanUncheck(orb, kind);
-            var state = sources.StateOf(kind);
-            rows.Add(Toggle(OrbNaming.SourceName(kind, localizer), tracked, new MenuAction.ToggleOrbSource(orb.Id, kind), !locked) with
-            {
-                Icon = new MenuIcon.Dots([new SourceDot(kind, state == SourceState.Available)]),
-                Detail = state switch
-                {
-                    SourceState.Disabled => localizer["source.disabled"],
-                    SourceState.NotFound => localizer["source.notFound"],
-                    _ => null,
-                },
-                ToolTip = locked ? localizer["orbs.sources.lastOne"] : null,
-            });
-        }
-
-        return Submenu(localizer["orbs.sources"], rows);
-    }
+    private static MenuRow SourcesMenu(OrbDefinition orb, SourceAvailability sources, Localizer localizer) =>
+        MenuParts.SourcesMenu(orb.Sources, new MenuAction.SetOrbAllSources(orb.Id), kind => new MenuAction.ToggleOrbSource(orb.Id, kind), sources, localizer);
 }

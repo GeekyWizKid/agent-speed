@@ -105,17 +105,6 @@ internal sealed class BoardLayerAtlas : IBoardLayers, IDisposable
     public bool Holds(string key, string signature, double width, double height) =>
         _entries.TryGetValue(key, out var entry) && entry.Signature == signature && entry.PixelWidth == Pixels(width) && entry.PixelHeight == Pixels(height);
 
-    public void BeginDraw()
-    {
-        if (_context is null || _drawing)
-        {
-            return;
-        }
-
-        _context.BeginDraw();
-        _drawing = true;
-    }
-
     /// <summary>Flushes the drawing to the texture; false when the device was lost (every layer is dropped).</summary>
     public bool EndDraw()
     {
@@ -137,10 +126,11 @@ internal sealed class BoardLayerAtlas : IBoardLayers, IDisposable
     }
 
     /// <summary>
-    /// Rasterizes <paramref name="key"/> (between <see cref="BeginDraw"/> and <see cref="EndDraw"/>); false when the texture is
+    /// Rasterizes <paramref name="key"/> (the context begins drawing on the first layer of a pass, so a pass that finds every
+    /// layer current flushes nothing; <see cref="EndDraw"/> ends it); false when the texture is
     /// full (the caller clears it and draws every live layer again, or grows it).
     /// </summary>
-    public bool TryDraw(string key, double width, double height, string signature, Action<ID2D1DeviceContext> paint)
+    public bool TryDraw(string key, double width, double height, string signature, Action<ID2D1DeviceContext> paint, double meterX = double.NaN)
     {
         if (_context is null)
         {
@@ -161,6 +151,12 @@ internal sealed class BoardLayerAtlas : IBoardLayers, IDisposable
         }
 
         var content = BoardAtlasPacker.Content(box, w, h);
+        if (!_drawing)
+        {
+            _context.BeginDraw();
+            _drawing = true;
+        }
+
         _context.Transform = Matrix3x2.Identity;
         _context.PushAxisAlignedClip(new RawRectF(box.X, box.Y, box.Right, box.Bottom), AntialiasMode.Aliased);
         _context.Clear(new Color4(0, 0, 0, 0));
@@ -175,7 +171,7 @@ internal sealed class BoardLayerAtlas : IBoardLayers, IDisposable
         }
 
         var slot = new BoardLayerSlot(content.X / (float)Width, content.Y / (float)Height, content.Right / (float)Width, content.Bottom / (float)Height,
-            w / Scale, h / Scale);
+            w / Scale, h / Scale, meterX);
         _entries[key] = new Entry(box, slot, signature, w, h);
         Rasterized++;
         return true;

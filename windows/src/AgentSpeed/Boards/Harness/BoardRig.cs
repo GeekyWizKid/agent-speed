@@ -17,13 +17,15 @@ internal sealed class BoardRig : IDisposable
 {
     private double _nextTick = double.NegativeInfinity;
 
-    public BoardRig(BoardStyle style, BoardSize size, BoardSimScenario scenario, BoardEffectsPolicy policy, Localizer localizer, uint seed = 7)
+    public BoardRig(BoardStyle style, BoardSize size, BoardSimScenario scenario, BoardEffectsPolicy policy, Localizer localizer, uint seed = 7,
+        bool dark = true)
     {
         Style = style;
         Size = size;
-        Feed = new BoardDemoFeed(scenario, seed);
-        Frame = new BoardFrame(style, size, new PlaceholderBoardPainter(localizer), seed);
+        Feed = new BoardDemoFeed(scenario, seed) { Localizer = localizer };
+        Frame = new BoardFrame(style, size, BoardPainters.Create(style, localizer), seed);
         Frame.Scene.Configure(style, size, policy);
+        Frame.Scene.Dark = dark;
     }
 
     public BoardStyle Style { get; }
@@ -35,6 +37,9 @@ internal sealed class BoardRig : IDisposable
     public BoardFrame Frame { get; }
 
     public BoardScene Scene => Frame.Scene;
+
+    /// <summary>When the next sim tick is due (seconds on the caller's clock; −∞ before the first).</summary>
+    public double NextTick => _nextTick;
 
     /// <summary>Ticks applied so far.</summary>
     public int Ticks { get; private set; }

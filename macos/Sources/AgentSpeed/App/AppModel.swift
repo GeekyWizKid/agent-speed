@@ -18,6 +18,10 @@ protocol AppCommands: AnyObject {
     func resetOrbPosition(_ id: String)
     /// Opens Settings → Floating orbs with `id` selected.
     func showOrbSettings(_ id: String?)
+    /// `boards.add`, placed next to the orb or board it came from (DESIGN 2c).
+    func addBoard(from origin: BoardAddOrigin)
+    /// Opens Settings → 懸浮窗 with board `id` selected in the Boards list.
+    func showBoardSettings(_ id: String?)
     /// Opens the update window on the current update state.
     func showUpdate()
     /// Opens the live reporting preview window (DESIGN 11, Preview window), e.g. from the dashboard invitation.
@@ -41,6 +45,8 @@ final class AppModel {
     let mainFeed: OrbFeed
     /// The floating orbs (DESIGN 2b).
     let orbs: OrbsController
+    /// The leaderboard boards (DESIGN 2c).
+    let boards: BoardsController
     /// The title themes and custom title sets (DESIGN 1).
     let titles: TitleThemesController
     let accessibility: AccessibilityState
@@ -73,6 +79,7 @@ final class AppModel {
     @ObservationIgnored private var loops: [ObservationLoop] = []
     @ObservationIgnored private var appliedConfiguration: MonitorConfiguration?
     @ObservationIgnored private var orbSubsets: Set<SourceSet> = []
+    @ObservationIgnored private var boardSubsets: Set<SourceSet> = []
 
     init(
         store: SpeedStore = SpeedStore(),
@@ -88,6 +95,7 @@ final class AppModel {
         gauge = LiveGauge()
         mainFeed = OrbFeed(gauge: gauge)
         orbs = OrbsController(defaults: settings.storage)
+        boards = BoardsController(defaults: settings.storage)
         titles = TitleThemesController(defaults: settings.storage)
         accessibility = AccessibilityState()
         launchAtLogin = LaunchAtLogin()
@@ -165,6 +173,7 @@ final class AppModel {
             if self.isPreviewing != previewing { self.isPreviewing = previewing }
         })
         orbs.activate(model: self)
+        boards.activate(model: self)
         titles.activate(model: self)
         guard live else { return }
         // Stored day bindings first, so the engine never re-binds a day that was priced before (METRICS 9.7).
@@ -177,7 +186,7 @@ final class AppModel {
         let monitor = LiveMonitor(store: store, configuration: settings.monitorConfiguration, pricing: priceBook)
         self.monitor = monitor
         appliedConfiguration = settings.monitorConfiguration
-        monitor.setSubsets(orbSubsets)
+        monitor.setSubsets(orbSubsets.union(boardSubsets))
         monitor.start()
         report.activate()
         loops.append(ObservationLoop { [weak self] in
@@ -254,7 +263,14 @@ final class AppModel {
     func setOrbSubsets(_ sets: Set<SourceSet>) {
         guard sets != orbSubsets else { return }
         orbSubsets = sets
-        monitor?.setSubsets(sets)
+        monitor?.setSubsets(orbSubsets.union(boardSubsets))
+    }
+
+    /// The source sets of the boards tracking a subset (METRICS 6.8), reported with the orbs'.
+    func setBoardSubsets(_ sets: Set<SourceSet>) {
+        guard sets != boardSubsets else { return }
+        boardSubsets = sets
+        monitor?.setSubsets(orbSubsets.union(boardSubsets))
     }
 
     func shutdown() {
@@ -262,6 +278,7 @@ final class AppModel {
         trafficController?.stop()
         trafficController = nil
         orbs.shutdown()
+        boards.shutdown()
         demo?.stop()
         historyStartTimer?.invalidate()
         historyService?.stop()

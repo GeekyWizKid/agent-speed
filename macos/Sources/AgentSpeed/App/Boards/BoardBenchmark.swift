@@ -126,7 +126,7 @@ final class BoardBenchmark {
         board.host.content.scale = screen?.backingScaleFactor ?? 2
         var simulation = BoardSimulation(scenario: "team")
         simulation.paused = true
-        let feed = BoardSimFeed(simulation: simulation, content: BoardPlaceholderContent(style: style, size: size, dark: true),
+        let feed = BoardSimFeed(simulation: simulation, style: style, size: size, dark: true, l10n: BoardSimFeed.harnessLocalizer(),
                                 redline: Self.redline)
         board.contentProvider = { feed.layout.items }
         board.show()

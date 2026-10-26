@@ -150,10 +150,11 @@ public sealed class BoardComets
             return;
         }
 
+        // The square grown by the spread and blurred: about half strength at its grown edge, no hard band.
         var color = HeatPalette.Sample(_heat).WithAlpha(0.55);
         var half = canvas.Half + spread;
-        list.Add(OrbGpuInstance.RoundedRect(canvas.Center, canvas.Center, half, half, 0, canvas.Radius + spread, color, core: 1,
-            glow: OrbGpuInstance.Glow(sigma), glowAlpha: 0.5));
+        list.Add(OrbGpuInstance.RoundedRect(canvas.Center, canvas.Center, half, half, 0, canvas.Radius + spread, color, core: 0,
+            glow: OrbGpuInstance.Glow(sigma), glowAlpha: 0.55));
     }
 
     /// <summary>The ring and the comets (above the content).</summary>
@@ -179,24 +180,39 @@ public sealed class BoardComets
         var head = gold ? GoldHead : HeatPalette.Sample(Math.Min(1, _heat + 0.12));
         var tail = gold ? HeatPalette.Gold : HeatPalette.Sample(Math.Max(0.1, _heat - 0.15));
         var core = gold || _heat > 0.85 ? HeatPalette.WhiteHot : head;
-        for (var i = 0; i < MaxComets; i++)
+
+        // Every comet's tail, then every glow, then every core: comets are spaced apart, so this draws each comet as before in
+        // three batches instead of three per comet.
+        for (var pass = 0; pass < (glows ? 3 : 1); pass++)
         {
-            var alpha = _alpha[i];
-            if (alpha <= 0.002)
+            for (var i = 0; i < MaxComets; i++)
             {
-                continue;
-            }
+                var alpha = _alpha[i];
+                if (alpha <= 0.002)
+                {
+                    continue;
+                }
 
-            var at = Head(i);
-            if (!glows)
-            {
-                Segment(list, track, at - TailLaps * 0.5, at, TailSegments / 2, 1, head.WithAlpha(alpha), head.WithAlpha(alpha), fadeTail: false);
-                continue;
-            }
+                var at = Head(i);
+                if (!glows)
+                {
+                    Segment(list, track, at - TailLaps * 0.5, at, TailSegments / 2, 1, head.WithAlpha(alpha), head.WithAlpha(alpha), fadeTail: false);
+                    continue;
+                }
 
-            Segment(list, track, at - TailLaps, at, TailSegments, 1, tail.WithAlpha(0.35 * alpha), tail.WithAlpha(0), fadeTail: true);
-            Glow(list, track, at, head.WithAlpha(alpha));
-            Segment(list, track, at - CoreLaps, at, CoreSegments, 0.9, core.WithAlpha(alpha), core.WithAlpha(alpha), fadeTail: false);
+                switch (pass)
+                {
+                    case 0:
+                        Segment(list, track, at - TailLaps, at, TailSegments, 1, tail.WithAlpha(0.35 * alpha), tail.WithAlpha(0), fadeTail: true);
+                        break;
+                    case 1:
+                        Glow(list, track, at, head.WithAlpha(alpha));
+                        break;
+                    default:
+                        Segment(list, track, at - CoreLaps, at, CoreSegments, 0.9, core.WithAlpha(alpha), core.WithAlpha(alpha), fadeTail: false);
+                        break;
+                }
+            }
         }
     }
 

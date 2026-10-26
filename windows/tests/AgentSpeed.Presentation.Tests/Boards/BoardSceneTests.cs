@@ -52,7 +52,9 @@ public class BoardSceneTests
         var list = new BoardDrawList();
         Frames(scene, list, 0, 0.1);
         Assert.Equal(FrameClass.None, scene.Demand(0.1));
-        Assert.Equal(2 * 2 + 1 + 1, list.LayerCount);
+        // Two rows (body, phase badge, value layer and their value's dash glyph), the backdrop, the hero with its history and unit,
+        // the number's one glyph and the footer.
+        Assert.Equal(2 * 4 + 1 + 3 + 1 + 1, list.LayerCount);
     }
 
     [Fact]
@@ -167,5 +169,39 @@ public class BoardSceneTests
         }
 
         Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
+    }
+
+    [Fact]
+    public void RowsDrawTheirShapesThenTheirLayersInFewBatches()
+    {
+        var scene = Scene();
+        var list = new BoardDrawList();
+        scene.Apply(Tick([("a", 900), ("b", 600), ("c", 400), ("d", 200), ("e", 100)]), 0);
+        scene.Settle();
+        Frames(scene, list, 0, 0.2);
+
+        // Five generating rows with underlines and comets: shapes and layers do not alternate row by row, nor blends comet by comet.
+        var listBatches = 0;
+        foreach (var batch in list.Batches)
+        {
+            listBatches += batch.Clip == BoardClip.Inside ? 1 : 0;
+        }
+
+        Assert.True(list.BatchCount <= 14, string.Join("; ", list.Batches.ToArray().Select(b => $"{b.Pass} {b.Blend} {b.Clip} {b.Count}")));
+        Assert.True(listBatches <= 8, $"{listBatches} batches inside the square");
+    }
+
+    [Fact]
+    public void TimingRowsCarryTheirIntervalAndOthersNone()
+    {
+        var timing = new BoardScene(BoardStyle.Timing, BoardSize.M, 3);
+        timing.Apply(Tick([("a", 300), ("b", 271)]), 0);
+        Assert.Equal(string.Empty, timing.Rows.First(r => r.Key == "a").IntervalText);
+        Assert.Equal("−29", timing.Rows.First(r => r.Key == "b").IntervalText);
+        Assert.Equal("271", timing.Rows.First(r => r.Key == "b").ValueText);
+
+        var glass = Scene();
+        glass.Apply(Tick([("a", 300), ("b", 271)]), 0);
+        Assert.All(glass.Rows, r => Assert.Equal(string.Empty, r.IntervalText));
     }
 }

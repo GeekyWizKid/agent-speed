@@ -34,6 +34,9 @@ public enum OrbFill
 
     /// <summary>Circle: color at the center → color2 at q0 × the radius → transparent at the radius.</summary>
     RadialStops = 4,
+
+    /// <summary>One stretch of a slanted linear gradient, nothing outside it (see <see cref="OrbGpuInstance.Band"/>).</summary>
+    Band = 5,
 }
 
 /// <summary>
@@ -169,6 +172,19 @@ public struct OrbGpuInstance
         var copy = this;
         copy.Color2 = ToVector(end);
         copy.Extra2 = new Vector4((float)OrbFill.Linear, (float)(angleDegrees * DegreesToRadians), (float)halfLength, 1);
+        return copy;
+    }
+
+    /// <summary>
+    /// One stretch of a linear gradient between two of its stops: this color where the distance from the shape's center along
+    /// <paramref name="angleDegrees"/> is <paramref name="from"/> → <paramref name="end"/> at <paramref name="to"/>, nothing outside
+    /// it, so the stretches of one gradient tile the shape without overlapping (CSS gradients at any angle, clipped to the shape).
+    /// </summary>
+    public readonly OrbGpuInstance Band(Rgba end, double angleDegrees, double from, double to)
+    {
+        var copy = this;
+        copy.Color2 = ToVector(end);
+        copy.Extra2 = new Vector4((float)OrbFill.Band, (float)(angleDegrees * DegreesToRadians), (float)from, (float)to);
         return copy;
     }
 

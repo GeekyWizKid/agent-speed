@@ -196,6 +196,31 @@ public class BoardEffectsTests
     }
 
     [Fact]
+    public void ShockwavesStayInsideTheSquare()
+    {
+        var effects = Effects();
+        effects.Celebrate(24, 140);
+        Run(effects, 0.4);
+        var list = new BoardDrawList();
+        effects.EmitFront(list);
+        var instances = list.Instances.ToArray();
+        var waves = 0;
+        foreach (var batch in list.Batches)
+        {
+            for (var i = batch.Start; i < batch.Start + batch.Count; i++)
+            {
+                if (batch.Pass == BoardPass.Shapes && instances[i].Shape == OrbShape.Ring)
+                {
+                    Assert.Equal(BoardClip.Inside, batch.Clip);
+                    waves++;
+                }
+            }
+        }
+
+        Assert.Equal(2, waves);
+    }
+
+    [Fact]
     public void RedlineSparksLeaveTheCometHeads()
     {
         var effects = Effects();

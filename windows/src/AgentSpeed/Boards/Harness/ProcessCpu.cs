@@ -10,7 +10,10 @@ internal static class ProcessCpu
 
     public static ulong Cycles() => NativeMethods.QueryProcessCycleTime(NativeMethods.GetCurrentProcess(), out var cycles) ? cycles : 0;
 
-    /// <summary>The cycle counter's rate, measured once by a thread spinning for 250 ms.</summary>
+    /// <summary>
+    /// The cycle counter's rate, measured once by a thread spinning: the best of ten 40 ms spins, since a spin the scheduler
+    /// interrupts (other programs busy on the machine) counts fewer cycles and would inflate every percentage.
+    /// </summary>
     public static double CycleRate()
     {
         if (s_rate > 0)
@@ -19,19 +22,36 @@ internal static class ProcessCpu
         }
 
         var thread = NativeMethods.GetCurrentThread();
-        NativeMethods.QueryThreadCycleTime(thread, out var c0);
-        var watch = Stopwatch.StartNew();
-        while (watch.Elapsed.TotalMilliseconds < 250)
+        for (var i = 0; i < 10; i++)
         {
+            NativeMethods.QueryThreadCycleTime(thread, out var c0);
+            var watch = Stopwatch.StartNew();
+            while (watch.Elapsed.TotalMilliseconds < 40)
+            {
+            }
+
+            NativeMethods.QueryThreadCycleTime(thread, out var c1);
+            s_rate = Math.Max(s_rate, (c1 - c0) / watch.Elapsed.TotalSeconds);
         }
 
-        NativeMethods.QueryThreadCycleTime(thread, out var c1);
-        s_rate = (c1 - c0) / watch.Elapsed.TotalSeconds;
         return s_rate;
     }
 
     /// <summary>Percent of one core between two <see cref="Cycles"/> readings <paramref name="seconds"/> apart.</summary>
     public static double Percent(ulong from, ulong to, double seconds) => seconds > 0 ? (to - from) / CycleRate() / seconds * 100 : 0;
+
+    /// <summary>
+    /// Runs the harness at normal priority: Task Scheduler starts tasks below normal, where any busy program starves the
+    /// harness and its numbers measure the scheduler instead of the board.
+    /// </summary>
+    public static void RaiseToNormal()
+    {
+        using var process = Process.GetCurrentProcess();
+        if (process.PriorityClass is ProcessPriorityClass.BelowNormal or ProcessPriorityClass.Idle)
+        {
+            process.PriorityClass = ProcessPriorityClass.Normal;
+        }
+    }
 
     /// <summary>1 ms timer resolution while a harness sleeps between frames.</summary>
     public static uint BeginTimerPeriod() => NativeMethods.timeBeginPeriod(1);

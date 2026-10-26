@@ -110,6 +110,36 @@ internal static class MenuBuilder
             case MenuAction.OpenOrbSettings a:
                 commands.OpenOrbSettings(a.OrbId);
                 break;
+            case MenuAction.SetShowBoards a:
+                commands.SetShowBoards(a.Show);
+                break;
+            case MenuAction.SetBoardStyle a:
+                commands.SetBoardStyle(a.BoardId, a.Style);
+                break;
+            case MenuAction.SetBoardAllSources a:
+                commands.SetBoardAllSources(a.BoardId);
+                break;
+            case MenuAction.ToggleBoardSource a:
+                commands.ToggleBoardSource(a.BoardId, a.Source);
+                break;
+            case MenuAction.SetBoardSize a:
+                commands.SetBoardSize(a.BoardId, a.Size);
+                break;
+            case MenuAction.SetBoardAlwaysOnTop a:
+                commands.SetBoardAlwaysOnTop(a.BoardId, a.On);
+                break;
+            case MenuAction.SetBoardClickThrough a:
+                commands.SetBoardClickThrough(a.BoardId, a.On);
+                break;
+            case MenuAction.AddBoard a:
+                commands.AddBoard(a.FromId);
+                break;
+            case MenuAction.RemoveBoard a:
+                commands.RemoveBoard(a.BoardId);
+                break;
+            case MenuAction.OpenBoardSettings a:
+                commands.OpenBoardSettings(a.BoardId);
+                break;
             case MenuAction.PauseReporting a:
                 commands.PauseReporting(a.Indefinitely);
                 break;

@@ -62,6 +62,8 @@ public sealed class BoardSim
 {
     public const double TickSeconds = 0.5;
 
+    public const int HistoryTicks = 120;
+
     private static readonly Dictionary<string, (double Lo, double Hi)> Models = new(StringComparer.Ordinal)
     {
         ["claude-opus-5-5"] = (55, 115),
@@ -76,6 +78,7 @@ public sealed class BoardSim
     private static readonly string?[] CodexSpeeds = ["fast", "ultrafast", null];
 
     private readonly List<BoardSimAgent> _agents = [];
+    private readonly List<double> _history = new(HistoryTicks);
     private readonly uint _seed;
     private HeroRandom _random = new(1);
 
@@ -97,7 +100,13 @@ public sealed class BoardSim
 
     public double Today { get; private set; }
 
+    /// <summary>Today's cost in dollars (sim.js: 15 µ$ per token).</summary>
+    public double Cost { get; private set; }
+
     public double Peak { get; private set; }
+
+    /// <summary>The total after each tick, oldest first, at most <see cref="HistoryTicks"/> (sim.js <c>history</c>).</summary>
+    public IReadOnlyList<double> History => _history;
 
     /// <summary>When set, every live value is scaled so the total is this (a scripted climb).</summary>
     public double? TargetTotal { get; set; }
@@ -113,7 +122,9 @@ public sealed class BoardSim
         _agents.Clear();
         Time = 0;
         Today = 128.4e6;
+        Cost = 42.1;
         Peak = 9120;
+        _history.Clear();
         var r = 0;
         foreach (var root in Roots(scenario))
         {
@@ -150,11 +161,22 @@ public sealed class BoardSim
         {
             var a = _agents[i];
             var activity = epoch.AddSeconds(a.LastActive);
-            list[i] = new AgentStatus(a.Id, a.Source, a.Project, a.Model, a.Phase, a.ParentId is not null, new Rate(a.Live, a.Live * 4), null,
-                activity, a.ParentId);
+            // A sub-agent's label stands in its project, which is what tells it apart on a sub row.
+            list[i] = new AgentStatus(a.Id, a.Source, a.ParentId is null ? a.Project : a.Label, a.Model, a.Phase, a.ParentId is not null,
+                new Rate(a.Live, a.Live * 4), null, activity, a.ParentId)
+            {
+                Modes = Modes(a),
+            };
         }
 
         return list;
+    }
+
+    private static ExecutionModes Modes(BoardSimAgent a)
+    {
+        var effort = ExecutionModeFact.Create(ExecutionModeKind.Effort, a.Effort, ExecutionModeEvidence.Recorded);
+        var speed = ExecutionModeFact.Create(ExecutionModeKind.ServiceTier, a.SpeedMode, ExecutionModeEvidence.Recorded);
+        return effort is null && speed is null ? ExecutionModes.Empty : new ExecutionModes(new[] { effort, speed }.OfType<ExecutionModeFact>());
     }
 
     private BoardSimAgent Make(string id, string? parentId, Root root, string label)
@@ -265,7 +287,14 @@ public sealed class BoardSim
 
         Total = total;
         Today += total * TickSeconds;
+        Cost += total * TickSeconds * 15e-6;
         Peak = Math.Max(Peak, total);
+        if (_history.Count == HistoryTicks)
+        {
+            _history.RemoveAt(0);
+        }
+
+        _history.Add(total);
     }
 
     private void ChangeModes()

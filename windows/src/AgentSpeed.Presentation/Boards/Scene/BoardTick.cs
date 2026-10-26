@@ -19,6 +19,36 @@ public sealed record BoardTick(
     IReadOnlyList<BoardRankEvent> Events,
     bool NewPeak)
 {
+    /// <summary>Seconds of <see cref="History"/> a tick carries (the glass sparkline's 60 s).</summary>
+    public const int HistorySeconds = 60;
+
+    /// <summary>The speed title in the General title theme (DESIGN 1), as the hero draws it.</summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>Agents of the board's sources in phase generating and in tools (<c>agents.context</c>).</summary>
+    public int GeneratingCount { get; init; }
+
+    public int ToolsCount { get; init; }
+
+    /// <summary><c>live_A</c> once per second, oldest first, at most <see cref="HistorySeconds"/> (0 where nothing was recorded).</summary>
+    public IReadOnlyList<double> History { get; init; } = [];
+
+    /// <summary>Today's peak of the board's sources (<c>peakToday_A</c>, neon's LED bar marks it).</summary>
+    public double PeakToday { get; init; }
+
+    /// <summary>Today's output of the board's sources (tokens).</summary>
+    public long TodayOutput { get; init; }
+
+    /// <summary>Footer texts, already formatted: <c>boards.today</c>, today's cost (null when unknown, DESIGN 9) and <c>boards.peak</c>.</summary>
+    public string TodayText { get; init; } = string.Empty;
+
+    public string? CostText { get; init; }
+
+    public string PeakText { get; init; } = string.Empty;
+
+    /// <summary>The group whose sub-agents are expanded (DESIGN 2c, Layout per size), null when none is.</summary>
+    public string? Expanded { get; init; }
+
     public double Heat => HeatMath.Heat(Value, Redline);
 
     public double Overdrive => HeatMath.Overdrive(Value, Redline);

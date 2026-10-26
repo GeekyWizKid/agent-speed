@@ -49,7 +49,8 @@ internal static class BoardWindowHarness
         Phase[] phases =
         [
             new("baseline", 3, 0, Quiet: true, Hidden: true, Ticks: false),
-            new("warm-up", 3, 3200, Measured: false),
+            // Tiered JIT promotes a method after 30 calls: once-per-tick code needs 15 s of ticks (DESIGN 2c measures after warm-up).
+            new("warm-up", 16, 3200, Measured: false),
             new("redline", seconds, 3200),
             new("settle", 1, 700, Measured: false),
             new("cruise", seconds, 700),
@@ -60,6 +61,7 @@ internal static class BoardWindowHarness
             new("hidden, no data", 5, 0, Quiet: true, Hidden: true, Ticks: false),
         ];
         var loc = new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
+        ProcessCpu.RaiseToNormal();
         var watch = Stopwatch.StartNew();
         var clock = new OrbClock(dispatcher, () => 1000 + watch.Elapsed.TotalSeconds);
         clock.UseCompositorTicker();
@@ -68,11 +70,11 @@ internal static class BoardWindowHarness
         var scale = monitor?.Scale ?? 1;
         var half = BoardPlacement.HalfSide(size, scale);
         var inset = (OrbGeometry.DefaultInset + BoardCanvas.Margin) * scale;
-        var window = new GpuBoardWindow("harness", device, clock, style, size, new PlaceholderBoardPainter(loc));
+        var window = new GpuBoardWindow("harness", device, clock, style, size, BoardPainters.Create(style, loc));
         window.Configure(style, size, new BoardEffectsPolicy(EffectsIntensity.Standard), new BoardWindowOptions(AlwaysOnTop: true, ClickThrough: true));
         window.MoveTo(new PointD(work.Right - inset - half, work.Bottom - inset - half));
 
-        var feed = new BoardDemoFeed(BoardSimScenario.Team);
+        var feed = new BoardDemoFeed(BoardSimScenario.Team) { Localizer = loc };
         var report = new System.Text.StringBuilder();
         report.AppendLine(CultureInfo.InvariantCulture,
             $"adapter: {device.AdapterName}, {BoardStyles.Key(style)} {BoardSizes.Key(size)}, scale {scale}, clock {clock.Source} at {clock.RefreshHz:0} Hz");
@@ -118,6 +120,7 @@ internal static class BoardWindowHarness
 
             ticker.IsEnabled = phase.Ticks;
 
+            var threads = ProcessThreads.Snapshot();
             var cycles = ProcessCpu.Cycles();
             var presented = BoardSurface.FramesPresented;
             var skipped = BoardSurface.FramesSkipped;
@@ -133,6 +136,7 @@ internal static class BoardWindowHarness
             {
                 var wall = watch.Elapsed.TotalSeconds - started;
                 var cpu = ProcessCpu.Percent(cycles, ProcessCpu.Cycles(), wall);
+                var top = ProcessThreads.Top(threads, ProcessThreads.Snapshot(), wall);
                 string Fps(FrameClass c) => ((BoardSurface.FramesByClass[(int)c] - byClass[(int)c]) / wall).ToString("0.0", CultureInfo.InvariantCulture);
                 var built = BoardSurface.FramesPresented + BoardSurface.FramesSkipped + BoardSurface.FramesBusy - presented - skipped - busy;
                 var feedShare = (feedTicks - feedBefore) * 100.0 / Stopwatch.Frequency / wall;
@@ -141,12 +145,12 @@ internal static class BoardWindowHarness
                 if (phase.Hidden)
                 {
                     report.AppendLine(CultureInfo.InvariantCulture,
-                        $"{phase.Name} (hidden) {wall:0.0} s: {built} frames built, cpu {cpu:0.00}% of one core (demo feed {feedShare:0.00}%; {runtime})");
+                        $"{phase.Name} (hidden) {wall:0.0} s: {built} frames built, cpu {cpu:0.00}% of one core (demo feed {feedShare:0.00}%; {runtime}); threads: {top}");
                 }
                 else if (phase.Measured)
                 {
                     report.AppendLine(CultureInfo.InvariantCulture,
-                        $"{phase.Name} {wall:0.0} s: cpu {cpu:0.00}% of one core (demo feed {feedShare:0.00}%; {runtime}), {(BoardSurface.FramesPresented - presented) / wall:0.0} presented/s, built per class 60: {Fps(FrameClass.Fps60)}/s, 30: {Fps(FrameClass.Fps30)}/s, none: {Fps(FrameClass.None)}/s; {BoardSurface.FramesSkipped - skipped} unchanged, {BoardSurface.FramesBusy - busy} busy, {events - eventsBefore} events, {window.Surface.Frame.Layers.Atlas.Rasterized - rasterized} layers rasterized");
+                        $"{phase.Name} {wall:0.0} s: cpu {cpu:0.00}% of one core (demo feed {feedShare:0.00}%; {runtime}), {(BoardSurface.FramesPresented - presented) / wall:0.0} presented/s, built per class 60: {Fps(FrameClass.Fps60)}/s, 30: {Fps(FrameClass.Fps30)}/s, none: {Fps(FrameClass.None)}/s; {BoardSurface.FramesSkipped - skipped} unchanged, {BoardSurface.FramesBusy - busy} busy, {events - eventsBefore} events, {window.Surface.Frame.Layers.Atlas.Rasterized - rasterized} layers rasterized; threads: {top}");
                 }
 
                 if (phase.Name == "redline")
