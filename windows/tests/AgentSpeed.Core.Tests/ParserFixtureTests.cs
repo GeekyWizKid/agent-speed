@@ -130,6 +130,7 @@ public sealed class ParserFixtureTests
         SourceKind.WorkBuddy => "workbuddy",
         SourceKind.WorkBuddyAi => "workbuddyAi",
         SourceKind.Pi => "pi",
+        SourceKind.OpenClaw => "openclaw",
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 
@@ -184,7 +185,9 @@ public sealed class ParserFixtureTests
             return FeedLines(new ClaudeParser(path, deduper), content, sink, maxLines);
         }
 
-        if (relative.StartsWith("codex/", StringComparison.Ordinal))
+        // OpenClaw's agent-scoped Codex home is a Codex root (METRICS 2, 4.14).
+        if (relative.StartsWith("codex/", StringComparison.Ordinal)
+            || (relative.StartsWith("openclaw/", StringComparison.Ordinal) && relative.Contains("/codex-home/sessions/", StringComparison.Ordinal)))
         {
             var codex = new CodexParser(path, deduper);
             if (!relative.EndsWith(".jsonl.zst", StringComparison.Ordinal))

@@ -707,6 +707,7 @@ internal static class SourceNames
         SourceKind.Kimi => "kimi",
         SourceKind.GrokBuild => "grokBuild",
         SourceKind.Pi => "pi",
+        SourceKind.OpenClaw => "openclaw",
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 
@@ -726,6 +727,7 @@ internal static class SourceNames
         "kimi" => SourceKind.Kimi,
         "grokBuild" => SourceKind.GrokBuild,
         "pi" => SourceKind.Pi,
+        "openclaw" => SourceKind.OpenClaw,
         _ => null,
     };
 }

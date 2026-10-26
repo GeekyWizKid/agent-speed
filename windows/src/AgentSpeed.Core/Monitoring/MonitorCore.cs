@@ -97,6 +97,7 @@ internal sealed partial class MonitorCore : IDisposable
         }
 
         InitializeZCode(locations);
+        InitializeOpenClaw(locations);
         OpenCodeRootPath = locations.OpenCodeRoot;
         _ompAutomatic = locations.OmpAutomatic;
         _piAutomatic = locations.PiAutomatic;
@@ -150,9 +151,11 @@ internal sealed partial class MonitorCore : IDisposable
 
     /// <summary>Every folder a file watcher should observe, including the OpenCode database folder.</summary>
     public IEnumerable<SourceRoot> WatchRoots => (_zcodeRoot is { } zcode ? _roots.Append(zcode) : _roots)
-        .Concat(OpenCodeRoot is { } openCode ? [openCode] : []);
+        .Concat(OpenCodeRoot is { } openCode ? [openCode] : [])
+        .Concat(_openClawWatchRoots);
 
-    public bool AnyEnabledRootAvailable => _roots.Any(r => r.Enabled && r.Available) || OpenCodeRoot?.Available == true || _zcodeRoot?.Available == true;
+    public bool AnyEnabledRootAvailable => _roots.Any(r => r.Enabled && r.Available) || OpenCodeRoot?.Available == true
+        || _zcodeRoot?.Available == true || _openClaw?.Available == true;
 
     public int TrackedFileCount => _files.Count;
 
@@ -165,6 +168,7 @@ internal sealed partial class MonitorCore : IDisposable
     public void RefreshAvailability()
     {
         RefreshZCodeAvailability();
+        RefreshOpenClawWatchRoots();
         foreach (var root in _roots)
         {
             root.Available = SafeDirectoryExists(root.DetectionPath);
@@ -306,6 +310,7 @@ internal sealed partial class MonitorCore : IDisposable
         }
 
         SeedZCode(todayStartMs);
+        SeedOpenClaw(todayStartMs, cancellationToken, ref discovered, ref filesRead, ref bytesRead);
         return new SeedReport(stopwatch.ElapsedMilliseconds, discovered, filesRead, bytesRead, _responsesSeen);
     }
 
@@ -321,6 +326,8 @@ internal sealed partial class MonitorCore : IDisposable
         var changed = false;
         var openCodeChanged = false;
         var zcodeChanged = false;
+        var openClawChanged = false;
+        var openClawNew = false;
         foreach (var incoming in paths)
         {
             var path = incoming;
@@ -341,6 +348,13 @@ internal sealed partial class MonitorCore : IDisposable
             if (_openCode?.IsWatchedPath(path) == true)
             {
                 openCodeChanged = true;
+                continue;
+            }
+
+            if (_openClaw?.IsWatchedPath(path) == true)
+            {
+                openClawChanged = true;
+                openClawNew |= !_openClaw.IsTracked(path);
                 continue;
             }
 
@@ -380,6 +394,11 @@ internal sealed partial class MonitorCore : IDisposable
             changed |= ApplyOpenCode(openCode.Refresh(), seeded: false);
         }
 
+        if (openClawChanged)
+        {
+            changed |= RefreshOpenClaw(discover: openClawNew);
+        }
+
         return changed;
     }
 
@@ -395,6 +414,7 @@ internal sealed partial class MonitorCore : IDisposable
         var cutoff = DateTime.UnixEpoch.AddMilliseconds(nowMs - RecentWriteWindowMs);
         var changed = _openCodeSeeded && _openCode?.RefreshIfChanged() is { } update && ApplyOpenCode(update, seeded: false);
         changed |= _zcodeSeeded && RefreshZCode();
+        changed |= RefreshOpenClaw(discover: false);
         _connections.CloseIdle();
         List<TrackedFile>? due = null;
         foreach (var tracked in _files.Values)
@@ -458,6 +478,18 @@ internal sealed partial class MonitorCore : IDisposable
         }
 
         AddNewOmpRoots();
+        AddNewCodexHomeRoots();
+        if (_openClaw is not null && !_openClawSeeded && _openClaw.Available)
+        {
+            var (discovered, filesRead, bytesRead) = (0, 0, 0L);
+            SeedOpenClaw(todayStartMs, cancellationToken, ref discovered, ref filesRead, ref bytesRead);
+            changed = true;
+        }
+        else
+        {
+            changed |= RefreshOpenClaw(discover: true);
+        }
+
         foreach (var root in _roots.ToList())
         {
             if (!root.Enabled)
@@ -517,6 +549,11 @@ internal sealed partial class MonitorCore : IDisposable
             return _zcode?.ActiveSessionCount(todayStartMs) ?? 0;
         }
 
+        if (kind == SourceKind.OpenClaw)
+        {
+            return _openClaw?.ActiveSessionCount(todayStartMs) ?? 0;
+        }
+
         var mainOnly = WorkBuddyPaths.IsWorkBuddy(kind) || kind is SourceKind.Kimi or SourceKind.GrokBuild or SourceKind.Pi;
         var count = 0;
         foreach (var tracked in _files.Values)
@@ -571,16 +608,23 @@ internal sealed partial class MonitorCore : IDisposable
             warnings.Add(new MonitorWarning.UnsupportedFormat(SourceKind.Antigravity));
         }
 
+        if (_openClaw?.Unsupported == true)
+        {
+            warnings.Add(new MonitorWarning.UnsupportedFormat(SourceKind.OpenClaw));
+        }
+
         return warnings;
     }
 
     public long MalformedLineCount =>
-        _removedMalformedLines + _files.Values.Sum(f => f.Parser.MalformedLines) + (_openCode?.MalformedRows ?? 0);
+        _removedMalformedLines + _files.Values.Sum(f => f.Parser.MalformedLines) + (_openCode?.MalformedRows ?? 0)
+        + (_openClaw?.MalformedLines ?? 0);
 
     public long OversizedLineCount => _removedOversizedLines + _files.Values.Sum(f => f.Tailer.OversizedLines);
 
     public int UnreadableFileCount =>
-        _files.Values.Count(f => f.Unreadable) + (_openCode?.Status == OpenCodeStatus.Unreadable ? 1 : 0) + (_zcode?.Unreadable == true ? 1 : 0);
+        _files.Values.Count(f => f.Unreadable) + (_openCode?.Status == OpenCodeStatus.Unreadable ? 1 : 0) + (_zcode?.Unreadable == true ? 1 : 0)
+        + (_openClaw?.UnreadableCount ?? 0);
 
     public bool PartialHistory => _partialHistory;
 
@@ -706,6 +750,11 @@ internal sealed partial class MonitorCore : IDisposable
             path = _zcodeRootPath;
             available = _zcodeRoot?.Available ?? File.Exists(ZCode.ZCodeDatabase.DatabasePath(_zcodeRootPath));
             rootEnabled = _zcodeRoot is not null;
+        }
+        else if (kind == SourceKind.OpenClaw)
+        {
+            (path, available) = OpenClawStatus();
+            rootEnabled = _openClaw is not null;
         }
         else if (kind == SourceKind.OpenCode)
         {

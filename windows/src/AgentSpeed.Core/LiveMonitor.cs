@@ -133,6 +133,15 @@ public sealed class LiveMonitor : IDisposable
     /// <summary>Pi's default root followed by its custom session folders.</summary>
     internal static IReadOnlyList<string> DefaultPiRoots => Pi.PiPaths.AutomaticRoots();
 
+    /// <summary>
+    /// OpenClaw's default state folder (<c>%OPENCLAW_STATE_DIR%</c>, else <c>~/.openclaw</c> under <c>%OPENCLAW_HOME%</c> or the
+    /// home folder); unless a folder or database is chosen, every named-profile folder is read as well (METRICS 2, 4.14).
+    /// </summary>
+    public static string DefaultOpenClawRoot => OpenClaw.OpenClawPaths.DefaultStateFolder();
+
+    /// <summary>Every automatic OpenClaw state folder: the override alone, else <c>.openclaw</c> and its profiles.</summary>
+    public static IReadOnlyList<string> DefaultOpenClawRoots => OpenClaw.OpenClawPaths.AutomaticStateFolders();
+
     /// <summary>The three Antigravity stores below <c>~/.gemini</c>: CLI, desktop app, IDE (METRICS 2, 4.8).</summary>
     public static IReadOnlyList<string> DefaultAntigravityStores => AntigravityPaths.DefaultStores(Path.Combine(UserHome, ".gemini"));
 
