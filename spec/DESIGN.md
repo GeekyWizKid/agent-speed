@@ -295,12 +295,19 @@ White-hot core for highlights: `#FFF7D6`. With overdrive `o > 0`, highlights ble
 | Kimi Code CLI | `#E16F8A` rose |
 | Grok Build | `#8290A6` steel |
 | Pi | `#A855F7` violet |
+| OpenClaw | `#DE2E1F` lobster red |
 
 Pink is `#EC4899`, not the lighter `#F472B6` (too close to coral and lilac); lime is `#84CC16`, not the lighter `#A3E635`, which nearly vanishes on light backgrounds.
 
 Pi takes violet `#A855F7`: Pi's own mark is monochrome, and violet is at least 0.13 (OKLab) from every other source
 color (closest: DeepSeek blue 0.139, ZCode cobalt 0.146, lilac 0.18), while the colors near omp's lime, its fork, are
 taken by Codex, WorkBuddy and omp itself.
+
+OpenClaw takes lobster red `#DE2E1F` after its lobster mark. Red is the one hue no source uses yet; this red is at least
+0.13 (OKLab) from every other source color and from the slate `#7C8798` (closest: Kimi rose 0.138, Antigravity pink
+0.147, Claude Code coral 0.182; brighter reds such as `#EF4444` come within 0.10 of rose and pink) and reads on both
+appearances (contrast against `#1E1E1E`: 3.6; against white: 4.7). Like every source it has no icon and no short
+name: its dot and `source.openclaw` "OpenClaw", in source order (METRICS 1) after Pi.
 
 The two WorkBuddy editions share one app icon, teal-green (`#0EC8A8` → `#05C890`), which is nearly Codex mint (OKLab
 distance about 0.04; the closest existing pair, coral and amber, is 0.11 apart). So both take a darker member of that teal family,
@@ -1595,6 +1602,7 @@ rows, section 10); the file name is `agent-speed-history-<code>-<first date>-<la
 | `kimi` | `kimi` |
 | `grokBuild` | `grokBuild` |
 | `pi` | `pi` |
+| `openclaw` | `openclaw` |
 
 Empty state (the range has neither token usage nor agent traffic, section 10): centered muted gauge glyph,
 `history.empty` and `history.empty.hint`. First launch after upgrading:
@@ -2013,6 +2021,13 @@ with Mica). Sections:
     session files of every automatic root (`source.sessions`; sub-agent files are not sessions), Change… picks one
     folder and replaces the automatic roots (`mac.settings.sources.choosePi` on macOS), Reset returns to them.
     Caption `settings.sources.piHint`. An omp folder that is Pi's (METRICS 4.7) is counted under Pi only.
+  - OpenClaw: one row after Pi. The path lists the state folders found (`~/.openclaw`, then any `~/.openclaw-<profile>`;
+    METRICS 2, 4.14); the status counts the transcript windows of every agent database that are not sub-agents
+    (`source.sessions`). Change… picks one folder or database — a state folder, an agent folder (OpenClaw's
+    `agentDir`) or `openclaw-agent.sqlite` — and replaces the automatic roots (`mac.settings.sources.chooseOpenClaw`
+    on macOS, a file-or-folder picker); Reset returns to them. A database of OpenClaw 2026.7 or older (no session
+    tables) shows `warning.unsupportedFormat`. Caption `settings.sources.openclawHint`, which also says that turns
+    OpenClaw hands to Claude Code, Codex or ACP agents count under those agents.
   - Antigravity: one row. The path lists the stores found (`~/.gemini/antigravity-cli`, `antigravity`,
     `antigravity-ide`); the status counts conversation databases (`source.sessions`). Change… picks one store folder
     (or its `conversations` folder) and replaces all three; Reset returns to them. A chosen `*-backup` store is never

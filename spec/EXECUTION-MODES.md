@@ -152,6 +152,9 @@ from its current facts, below.
   message without `thinkingLevel`, written by pi-ai before 0.99, takes the selected level); side usage (METRICS 4.13)
   carries no facts. `providerThinkingLevel` (the provider's native token) is not used. No speed facts. Current: the
   context.
+- **OpenClaw** (METRICS 4.14): no facts. Its `thinking_level_change` entries are written when a session starts and when
+  a level is selected explicitly, not for the level a single message asks for, and assistant messages carry no level,
+  so no entry is reliable evidence for a request; nothing marks a served speed tier.
 - **DeepSeek Harness** (per session file; inherited history, METRICS 4.3, is skipped): every `request/header` replaces
   the context's effort fact with its `config.reasoningEffort` (adapter `effort`, evidence `recorded`, scope `request`)
   or, when the field is absent, removes it. A response (`assistant/message`) takes a snapshot of the context. No speed
