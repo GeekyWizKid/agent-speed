@@ -38,6 +38,12 @@ struct BoardContentItem {
     var clips = false
     /// Pixels per point of the image when not the window's (soft lights are kept at a fraction of it).
     var rasterScale: CGFloat?
+    /// Grows or shrinks the image along x (a share underline, a heat rail) with a continuous transition instead of a
+    /// redraw: the fraction of the frame it fills, from `stretchAnchor` points into the frame.
+    var stretch: Double?
+    /// The point of the frame a stretched item grows from, points from its left edge (a bar's start, after the glow's
+    /// room).
+    var stretchAnchor: CGFloat = 0
 }
 
 /// A drawing in a context of `size` points (y down).

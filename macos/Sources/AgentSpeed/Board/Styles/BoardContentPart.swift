@@ -2,7 +2,7 @@ import CoreGraphics
 
 extension BoardContentItem {
     /// Pixels per point of soft lights (glows, blooms): their blur hides the lower resolution and costs a quarter.
-    static let softScale: CGFloat = 1
+    static let softScale: CGFloat = 0.5
 
     /// A piece of a larger drawing cached on its own, so a change of one piece redraws only that piece: `rect` (whole
     /// points, in `parent`'s coordinates, kept inside it) of what `draw` paints in `parent`'s coordinates.

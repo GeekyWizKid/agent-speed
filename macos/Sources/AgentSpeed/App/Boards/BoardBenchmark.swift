@@ -208,14 +208,17 @@ final class BoardBenchmark {
     private func step() {
         guard let board, let feed else { return }
         setSpeed()
-        feed.step()
+        // A tick that shows the same content as the last lays out nothing (an idle board).
+        let changed = feed.step()
         let start = Self.threadNanoseconds()
+        if changed {
+            board.contentChanged()
+            ticks += 1
+        }
         defer {
             tickNanoseconds += Self.threadNanoseconds() - start
             tickCount += 1
         }
-        board.contentChanged()
-        ticks += 1
         let event = state.event
         let simEvents = state.simEvents
         let ticks = self.ticks

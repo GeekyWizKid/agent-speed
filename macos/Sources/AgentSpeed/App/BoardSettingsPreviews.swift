@@ -106,7 +106,14 @@ enum BoardSettingsPreviews {
                 context.setFillColor(plate.color)
                 context.fillPath()
             }
-            item.draw(context, item.frame.size)
+            if let stretch = item.stretch {
+                context.saveGState()
+                context.clip(to: CGRect(x: 0, y: 0, width: item.frame.width * CGFloat(stretch), height: item.frame.height))
+                item.draw(context, item.frame.size)
+                context.restoreGState()
+            } else {
+                item.draw(context, item.frame.size)
+            }
             context.restoreGState()
         }
         NSGraphicsContext.restoreGraphicsState()

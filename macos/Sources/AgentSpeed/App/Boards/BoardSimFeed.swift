@@ -38,15 +38,18 @@ final class BoardSimFeed {
     }
 
     /// Advances one engine tick.
-    func step() {
+    /// Advances one engine tick; false when the tick shows the same content as the last (it then keeps its layout).
+    @discardableResult
+    func step() -> Bool {
         let peak = snapshot.peak
         simulation.advance()
         snapshot = simulation.snapshot()
         let next = BoardSimTick.make(snapshot, style: style, size: size, redline: redline, previousPeak: peak, l10n: l10n)
         // An equal tick keeps its layout (as the app's boards do), so an idle board lays out nothing.
-        guard next != tick else { return }
+        guard next != tick else { return false }
         tick = next
         cached = nil
+        return true
     }
 
     /// The content of the current tick, laid out once.

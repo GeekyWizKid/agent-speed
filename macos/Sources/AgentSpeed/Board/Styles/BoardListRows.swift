@@ -73,16 +73,22 @@ struct BoardListRows {
         return items
     }
 
-    /// The share underline as an item of its own along the row's bottom (a new share redraws only the line), clipped
-    /// to the row as when it was part of the body.
+    /// The share underline as an item of its own along the row's bottom, drawn at its full width and stretched to the
+    /// share by its layer: a new share eases across without a redraw.
     private func underline(_ model: BoardRowModel, sub: Bool, key: String, frame: CGRect, look: AnyHashable) -> BoardContentItem {
         let rows = self, box = frame.size
         let reach = (neon ? 8 : 6) * 1.5 + 2
-        let rect = CGRect(x: (sub ? 46 : 40) - reach, y: box.height - 3 - reach, width: box.width, height: reach + 3)
-        return .part(key + "#line", of: frame, rect: rect, motion: .row,
-                     revision: AnyHashable([AnyHashable(model.share), AnyHashable(model.heat), AnyHashable(sub), look])) { context in
-            rows.drawUnderline(model, sub: sub, in: context, size: box)
+        let width = box.width - (sub ? 46 : 40)
+        let rect = CGRect(x: (sub ? 46 : 40) - reach, y: box.height - 3 - reach, width: width + reach, height: reach + 3)
+        var item = BoardContentItem.part(key + "#line", of: frame, rect: rect, motion: .row,
+                                         revision: AnyHashable([AnyHashable(model.heat), AnyHashable(sub), look])) { context in
+            var full = model
+            full.share = 200
+            rows.drawUnderline(full, sub: sub, in: context, size: box)
         }
+        item.stretch = model.shareFraction
+        item.stretchAnchor = sub ? 46 : 40
+        return item
     }
 
     // MARK: Drawing

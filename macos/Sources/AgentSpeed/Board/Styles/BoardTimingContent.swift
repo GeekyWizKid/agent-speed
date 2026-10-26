@@ -68,19 +68,18 @@ final class BoardTimingContent: BoardContentBuilding {
             context.strokePath()
         }
         let reach: CGFloat = palette.glows ? 16 : 0
-        let rail = BoardContentItem(key: "rail", frame: CGRect(x: 0, y: 0, width: side, height: 3 + reach), motion: .none,
-                                    revision: AnyHashable([AnyHashable(heat), AnyHashable(palette.dark),
-                                                           AnyHashable(palette.highContrast)])) { context, _ in
+        // Drawn at full heat and stretched to the heat by its layer, so a rising rail slides instead of redrawing.
+        var rail = BoardContentItem(key: "rail", frame: CGRect(x: 0, y: 0, width: side, height: 3 + reach), motion: .none,
+                                    revision: AnyHashable([AnyHashable(palette.dark), AnyHashable(palette.highContrast)])) { context, _ in
             BoardDrawing.fill(CGRect(x: 0, y: 0, width: side, height: 3), color: palette.line, in: context)
-            let width = side * heat
-            guard width > 0.5 else { return }
-            let rail = CGRect(x: 0, y: 0, width: width, height: 3)
+            let rail = CGRect(x: 0, y: 0, width: side, height: 3)
             let stops: [(RGBColor, CGFloat)] = [(RGBColor(hex: 0x2DD4BF), 0), (RGBColor(hex: 0x818CF8), 0.4),
                                                  (RGBColor(hex: 0xFB7185), 0.75), (RGBColor(hex: 0xFACC15), 1)]
             BoardDrawing.glowing(palette.glows ? palette.heat(max(0.1, heat)).opacity(0.7) : nil, blur: 10, in: context) {
-                BoardDrawing.gradient(rail, stops: stops, from: CGPoint(x: 0, y: 0), to: CGPoint(x: width, y: 0), in: $0)
+                BoardDrawing.gradient(rail, stops: stops, from: CGPoint(x: 0, y: 0), to: CGPoint(x: side, y: 0), in: $0)
             }
         }
+        rail.stretch = heat
         return [hatch, rail]
     }
 
