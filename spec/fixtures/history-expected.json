@@ -67,26 +67,26 @@
     {
       "date": "2026-10-20",
       "source": "codex",
-      "requests": 8,
-      "input": 82900,
-      "cachedInput": 53000,
+      "requests": 10,
+      "input": 107400,
+      "cachedInput": 74000,
       "cacheWriteInput": 0,
-      "output": 2070,
-      "reasoning": 540,
-      "measuredOutput": 2070,
-      "measuredMs": 29500,
+      "output": 2580,
+      "reasoning": 660,
+      "measuredOutput": 2580,
+      "measuredMs": 59100,
       "unfinalized": 0,
-      "costMicroUsd": 71897,
+      "costMicroUsd": 83997,
       "unpricedRequests": 0,
       "priceVersion": 1,
-      "agents": 4,
+      "agents": 5,
       "models": {
         "gpt-5.5": {
-          "requests": 2,
-          "output": 1000,
-          "measuredOutput": 1000,
-          "measuredMs": 6500,
-          "costMicroUsd": 38625,
+          "requests": 4,
+          "output": 1510,
+          "measuredOutput": 1510,
+          "measuredMs": 36100,
+          "costMicroUsd": 50725,
           "unpricedRequests": 0
         },
         "gpt-6.1-sol": {
@@ -264,6 +264,57 @@
           "measuredOutput": 0,
           "measuredMs": 0,
           "costMicroUsd": 428,
+          "unpricedRequests": 0
+        }
+      }
+    },
+    {
+      "date": "2026-10-20",
+      "source": "openclaw",
+      "requests": 10,
+      "input": 112226,
+      "cachedInput": 83900,
+      "cacheWriteInput": 18600,
+      "output": 3250,
+      "reasoning": 300,
+      "measuredOutput": 2930,
+      "measuredMs": 37106,
+      "unfinalized": 0,
+      "costMicroUsd": 288443,
+      "unpricedRequests": 1,
+      "priceVersion": 1,
+      "agents": 5,
+      "models": {
+        "claude-opus-5-5": {
+          "requests": 5,
+          "output": 1310,
+          "measuredOutput": 1310,
+          "measuredMs": 20393,
+          "costMicroUsd": 253530,
+          "unpricedRequests": 0
+        },
+        "claude-sonnet-5-5": {
+          "requests": 1,
+          "output": 310,
+          "measuredOutput": 310,
+          "measuredMs": 9194,
+          "costMicroUsd": 11850,
+          "unpricedRequests": 0
+        },
+        "gemini-3-pro": {
+          "requests": 1,
+          "output": 200,
+          "measuredOutput": 0,
+          "measuredMs": 0,
+          "costMicroUsd": 0,
+          "unpricedRequests": 1
+        },
+        "gpt-5.5": {
+          "requests": 3,
+          "output": 1430,
+          "measuredOutput": 1310,
+          "measuredMs": 7519,
+          "costMicroUsd": 23063,
           "unpricedRequests": 0
         }
       }

@@ -528,6 +528,97 @@
         "node",
         "/Users/dev/projects/pi-calculator/index.js"
        ]
+      },
+      {
+       "pid": 1300,
+       "ppid": 1,
+       "start": 9200,
+       "exe": "/opt/homebrew/bin/node",
+       "args": [
+        "node",
+        "/opt/homebrew/lib/node_modules/openclaw/openclaw.mjs",
+        "gateway",
+        "run"
+       ]
+      },
+      {
+       "pid": 1301,
+       "ppid": 1300,
+       "start": 9210,
+       "exe": "/opt/homebrew/bin/node",
+       "args": [
+        "node",
+        "--disable-warning=ExperimentalWarning",
+        "/opt/homebrew/lib/node_modules/openclaw/openclaw.mjs",
+        "gateway",
+        "run"
+       ]
+      },
+      {
+       "pid": 1302,
+       "ppid": 1301,
+       "start": 9220,
+       "exe": "/Users/dev/.local/share/claude/versions/2.1.308",
+       "args": [
+        "claude",
+        "-p",
+        "--output-format",
+        "stream-json"
+       ]
+      },
+      {
+       "pid": 1303,
+       "ppid": 1301,
+       "start": 9230,
+       "exe": "/opt/homebrew/bin/codex",
+       "args": [
+        "codex",
+        "app-server"
+       ]
+      },
+      {
+       "pid": 1304,
+       "ppid": 1301,
+       "start": 9240,
+       "exe": "/bin/zsh",
+       "args": [
+        "zsh",
+        "-c",
+        "git status"
+       ]
+      },
+      {
+       "pid": 1305,
+       "ppid": 1,
+       "start": 9250,
+       "exe": "/Users/dev/.openclaw/bin/openclaw"
+      },
+      {
+       "pid": 1306,
+       "ppid": 1,
+       "start": 9260,
+       "exe": "/Users/dev/.openclaw/tools/bun-1.3.0/bun",
+       "args": [
+        "bun",
+        "/Users/dev/.openclaw/lib/node_modules/openclaw/dist/entry.js",
+        "gateway"
+       ]
+      },
+      {
+       "pid": 1307,
+       "ppid": 1,
+       "start": 9270,
+       "exe": "/opt/homebrew/bin/node",
+       "args": [
+        "node",
+        "/Users/dev/projects/openclaw-skills/index.js"
+       ]
+      },
+      {
+       "pid": 1308,
+       "ppid": 1,
+       "start": 9280,
+       "exe": "/Applications/OpenClaw.app/Contents/MacOS/OpenClaw"
       }
      ]
     }
@@ -581,7 +672,16 @@
      "1202": "pi/tool",
      "1203": "pi/agent",
      "1204": "pi/agent",
-     "1205": null
+     "1205": null,
+     "1300": "openclaw/agent",
+     "1301": "openclaw/self",
+     "1302": "claudeCode/agent",
+     "1303": "codex/agent",
+     "1304": "openclaw/tool",
+     "1305": "openclaw/agent",
+     "1306": "openclaw/agent",
+     "1307": null,
+     "1308": null
     }
    }
   },
@@ -770,6 +870,46 @@
         "--session-id",
         "5e1d7c3a-2b9f-4a6e-8d0c-1f2e3d4c5b6b"
        ]
+      },
+      {
+       "pid": 7300,
+       "ppid": 1,
+       "start": 5200,
+       "exe": "C:\\Program Files\\nodejs\\node.exe",
+       "args": [
+        "node.exe",
+        "C:\\Users\\dev\\AppData\\Roaming\\npm\\node_modules\\openclaw\\openclaw.mjs",
+        "gateway",
+        "run"
+       ]
+      },
+      {
+       "pid": 7301,
+       "ppid": 7300,
+       "start": 5210,
+       "exe": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+       "args": [
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        "git status"
+       ]
+      },
+      {
+       "pid": 7302,
+       "ppid": 1,
+       "start": 5220,
+       "exe": "C:\\Users\\dev\\.openclaw\\tools\\bun-1.3.0\\bun.exe",
+       "args": [
+        "bun.exe",
+        "C:\\Users\\dev\\.openclaw\\lib\\node_modules\\OpenClaw\\dist\\entry.js"
+       ]
+      },
+      {
+       "pid": 7303,
+       "ppid": 1,
+       "start": 5230,
+       "exe": "C:\\Users\\dev\\AppData\\Local\\Programs\\OpenClaw Companion\\OpenClawCompanion.exe"
       }
      ]
     }
@@ -796,7 +936,11 @@
      "903": "workbuddyAi/agent",
      "904": "workbuddyAi/tool",
      "910": null,
-     "911": "workbuddy/agent"
+     "911": "workbuddy/agent",
+     "7300": "openclaw/agent",
+     "7301": "openclaw/tool",
+     "7302": "openclaw/agent",
+     "7303": null
     }
    }
   },
