@@ -240,6 +240,7 @@ public class PaletteTests
     [InlineData(SourceKind.Kimi, "#E16F8A")]
     [InlineData(SourceKind.GrokBuild, "#8290A6")]
     [InlineData(SourceKind.Pi, "#A855F7")]
+    [InlineData(SourceKind.OpenClaw, "#DE2E1F")]
     public void SourceColorsMatchDesign(SourceKind source, string hex)
     {
         Assert.Equal(hex, HeatPalette.SourceColor(source).ToHex());

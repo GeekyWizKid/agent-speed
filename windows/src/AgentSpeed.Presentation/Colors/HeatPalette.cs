@@ -89,6 +89,7 @@ public static class HeatPalette
         SourceKind.Kimi => Rgba.FromHex("#E16F8A"),
         SourceKind.GrokBuild => Rgba.FromHex("#8290A6"),
         SourceKind.Pi => Rgba.FromHex("#A855F7"),
+        SourceKind.OpenClaw => Rgba.FromHex("#DE2E1F"),
         _ => Neutral,
     };
 

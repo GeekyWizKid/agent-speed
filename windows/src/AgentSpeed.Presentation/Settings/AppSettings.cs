@@ -169,6 +169,8 @@ public sealed record AppSettings
 
     public bool PiEnabled { get; init; } = true;
 
+    public bool OpenClawEnabled { get; init; } = true;
+
     /// <summary>Null uses the default Codex sessions folder.</summary>
     public string? CodexRoot { get; init; }
 
@@ -204,6 +206,9 @@ public sealed record AppSettings
 
     /// <summary>One Pi sessions folder; null reads Pi's default root and the custom session folder of its settings.</summary>
     public string? PiRoot { get; init; }
+
+    /// <summary>One OpenClaw state folder, agent folder or database; null reads every automatic state folder.</summary>
+    public string? OpenClawRoot { get; init; }
 
     public int ChartSeconds { get; init; } = 120;
 
@@ -271,6 +276,7 @@ public sealed record AppSettings
         SourceKind.Kimi => KimiEnabled,
         SourceKind.GrokBuild => GrokBuildEnabled,
         SourceKind.Pi => PiEnabled,
+        SourceKind.OpenClaw => OpenClawEnabled,
         _ => false,
     };
 
@@ -305,6 +311,7 @@ public sealed record AppSettings
         SourceKind.Kimi => this with { KimiEnabled = enabled },
         SourceKind.GrokBuild => this with { GrokBuildEnabled = enabled },
         SourceKind.Pi => this with { PiEnabled = enabled },
+        SourceKind.OpenClaw => this with { OpenClawEnabled = enabled },
         _ => this,
     };
 
@@ -313,7 +320,8 @@ public sealed record AppSettings
         var enabled = Enum.GetValues<SourceKind>().Where(IsSourceEnabled).ToHashSet();
         return new MonitorConfiguration(enabled, CodexRoot, ClaudeRoot, DshRoot, OpenCodeRoot, GeminiRoot, OmpRoot, AntigravityRoot,
             WorkBuddyRoot: WorkBuddyRoot, WorkBuddyAiRoot: WorkBuddyAiRoot,
-            ZCodeRoot: ZCodeRoot, KimiRoot: KimiRoot, GrokBuildRoot: GrokBuildRoot, PiRoot: PiRoot);
+            ZCodeRoot: ZCodeRoot, KimiRoot: KimiRoot, GrokBuildRoot: GrokBuildRoot, PiRoot: PiRoot,
+            OpenClawRoot: OpenClawRoot);
     }
 
     /// <summary>The master switch; turning it on while every orb is individually hidden makes them all visible.</summary>
@@ -363,6 +371,7 @@ public sealed record AppSettings
         KimiRoot = CleanPath(KimiRoot),
         GrokBuildRoot = CleanPath(GrokBuildRoot),
         PiRoot = CleanPath(PiRoot),
+        OpenClawRoot = CleanPath(OpenClawRoot),
         HistoryWindow = WindowFrame.ValidHistory(HistoryWindow),
         HistoryModeKind = HistoryModeKind == ExecutionModeKind.Speed ? ExecutionModeKind.Speed : ExecutionModeKind.Effort,
         ChartSeconds = ChartMath.NormalizeRange(ChartSeconds),
