@@ -374,14 +374,15 @@ public sealed class BoardEffects
     {
         var canvas = Canvas;
 
-        // The prototypes' perimeter lives inside the panel's overflow: the ring's glow and the comets stay inside the square.
+        // The prototypes' perimeter and shockwaves live inside the panel's overflow: the ring's glow, the comets and the waves
+        // stay inside the square (a wave left unclipped would be cut by the window's edge); sparks still fly outward.
         list.Clip = BoardClip.Inside;
         _comets.Emit(list, canvas, Preset, _policy.Ring, _policy.Glows);
         _sweeps.Emit(list);
+        _waves.Emit(list);
         list.Clip = BoardClip.None;
 
         _particles.Emit(list);
-        _waves.Emit(list);
         _lightning.Emit(list, _policy.Glows);
         if (_flash > 0)
         {

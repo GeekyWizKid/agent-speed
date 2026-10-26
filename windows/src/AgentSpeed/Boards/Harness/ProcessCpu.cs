@@ -40,6 +40,19 @@ internal static class ProcessCpu
     /// <summary>Percent of one core between two <see cref="Cycles"/> readings <paramref name="seconds"/> apart.</summary>
     public static double Percent(ulong from, ulong to, double seconds) => seconds > 0 ? (to - from) / CycleRate() / seconds * 100 : 0;
 
+    /// <summary>
+    /// Runs the harness at normal priority: Task Scheduler starts tasks below normal, where any busy program starves the
+    /// harness and its numbers measure the scheduler instead of the board.
+    /// </summary>
+    public static void RaiseToNormal()
+    {
+        using var process = Process.GetCurrentProcess();
+        if (process.PriorityClass is ProcessPriorityClass.BelowNormal or ProcessPriorityClass.Idle)
+        {
+            process.PriorityClass = ProcessPriorityClass.Normal;
+        }
+    }
+
     /// <summary>1 ms timer resolution while a harness sleeps between frames.</summary>
     public static uint BeginTimerPeriod() => NativeMethods.timeBeginPeriod(1);
 

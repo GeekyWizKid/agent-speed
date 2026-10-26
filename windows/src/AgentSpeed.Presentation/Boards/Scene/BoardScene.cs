@@ -4,6 +4,7 @@ using AgentSpeed.Presentation.Boards.Effects;
 using AgentSpeed.Presentation.Boards.Gpu;
 using AgentSpeed.Presentation.Colors;
 using AgentSpeed.Presentation.Heat;
+using AgentSpeed.Presentation.Modes;
 using AgentSpeed.Presentation.Motion;
 using AgentSpeed.Presentation.Orb;
 using AgentSpeed.Presentation.Orb.Gpu;
@@ -273,7 +274,7 @@ public sealed class BoardScene
 
             if (row.Entry.Kind == BoardEntryKind.Group && !row.Leaving)
             {
-                Effects.FollowRow(row.Key, metrics.ListTop + row.Y + row.Entry.Height / 2);
+                Effects.FollowRow(row.Key, metrics.ListTop + row.Y + RowHeight(row.Entry) / 2);
             }
         }
 
@@ -391,8 +392,15 @@ public sealed class BoardScene
         }
 
         var top = y + Hero.NumberTop;
-        var width = _number.Emit(list, layers, x, top, Hero.NumberHeight, Hero.Tracking, now, PunchScale(now), BoardNumberLook.For(Style),
-            _tick?.Heat ?? 0, Effects.Policy.ReduceMotion);
+        // High contrast keeps the number solid: no chromatic fringes.
+        var look = BoardNumberLook.For(Style);
+        if (Palette.HighContrast)
+        {
+            look = look with { Fringes = false };
+        }
+
+        var width = _number.Emit(list, layers, x, top, Hero.NumberHeight, Hero.Tracking, now, PunchScale(now), look, _tick?.Heat ?? 0,
+            Effects.Policy.ReduceMotion);
         if (width > 0)
         {
             HeroNumber = (Metrics.Pad, Metrics.HeroTop + Hero.NumberTop, width, Hero.NumberHeight);
@@ -501,14 +509,15 @@ public sealed class BoardScene
             return;
         }
 
-        // CSS comet: from −18 pt to the bar's end, over 3.2 s − 2.4 s × heat, fading in and out.
+        // CSS comet: a white radial dash (glass 18 × 4 pt, neon 22 × 6) from its own width before the bar to the bar's end,
+        // over 3.2 s − 2.4 s × heat, fading in and out.
         var seconds = 3.2 - 2.4 * heat;
         var phase = ((now + (row.Key.GetHashCode() & 0xFFFF) / 65536.0 * seconds) % seconds) / seconds;
-        var head = x0 - 18 + (track * share - 6 + 18) * Easing.InOutSine(phase);
-        var fade = phase < 0.15 ? phase / 0.15 : phase > 0.85 ? (1 - phase) / 0.15 : 1;
         var half = neon ? 11 : 9;
-        list.Add(OrbGpuInstance.Ellipse(head + half, y, half * 0.6, neon ? 1.6 : 1, 0, Rgba.White, 0, OrbGpuInstance.Glow(1.5),
-            0.9 * fade * alpha));
+        var head = x0 - 2 * half + (track * share - (neon ? 8 : 6) + 2 * half) * Easing.InOutSine(phase);
+        var fade = phase < 0.15 ? phase / 0.15 : phase > 0.85 ? (1 - phase) / 0.15 : 1;
+        list.Add(OrbGpuInstance.Ellipse(head + half, y, half * 0.55, neon ? 1.2 : 0.7, 0, Rgba.White, 0, OrbGpuInstance.Glow(1),
+            (neon ? 1 : 0.9) * fade * alpha));
     }
 
     // A row's value from the value glyphs, in its color, its warm flash or its dim.
@@ -554,9 +563,16 @@ public sealed class BoardScene
             return (default, 0, 0.45 + 0.55 * Easing.OutCubic(t));
         }
 
-        // White-hot, then the row's heat color, then the layer's own color.
-        var heat = HeatPalette.Sample(HeatMath.Heat(row.Live, _tick?.Redline ?? HeatMath.DefaultRedline));
-        var color = Rgba.Lerp(HeatPalette.WhiteHot, heat, Math.Clamp(t / 0.4, 0, 1));
+        // High contrast keeps values in their solid ink.
+        if (Palette.HighContrast)
+        {
+            return (default, 0, 1);
+        }
+
+        // White-hot, then the row's heat color, then the layer's own color. On light the prototypes' white-hot reads only through
+        // its heat glow, which glyph layers do not have, so the flash starts at the heat color.
+        var heat = HeatMath.Heat(row.Live, _tick?.Redline ?? HeatMath.DefaultRedline);
+        var color = Dark ? Rgba.Lerp(HeatPalette.WhiteHot, HeatPalette.Sample(heat), Math.Clamp(t / 0.4, 0, 1)) : EffortCapsulePalette.Heat(heat, false);
         return (color, 1 - Easing.OutCubic(t), 1);
     }
 
@@ -658,10 +674,10 @@ public sealed class BoardScene
             return null;
         }
 
-        var centerY = metrics.ListTop + climber.Y + climber.Height / 2;
-        var passedY = passed is null ? double.NaN : metrics.ListTop + passed.Y + passed.Height / 2;
+        var centerY = metrics.ListTop + climber.Y + RowHeight(climber) / 2;
+        var passedY = passed is null ? double.NaN : metrics.ListTop + passed.Y + RowHeight(passed) / 2;
         var rankX = metrics.ListLeft + 14;
-        return new BoardRowFx(climber.Key, metrics.ListLeft, metrics.ListLeft + metrics.ListWidth, centerY, climber.Height, rankX, centerY,
+        return new BoardRowFx(climber.Key, metrics.ListLeft, metrics.ListLeft + metrics.ListWidth, centerY, RowHeight(climber), rankX, centerY,
             passedY, HeatPalette.SourceColor(climber.Group.Root.Source));
     }
 }

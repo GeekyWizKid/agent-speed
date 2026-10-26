@@ -38,6 +38,9 @@ internal sealed class BoardRig : IDisposable
 
     public BoardScene Scene => Frame.Scene;
 
+    /// <summary>When the next sim tick is due (seconds on the caller's clock; −∞ before the first).</summary>
+    public double NextTick => _nextTick;
+
     /// <summary>Ticks applied so far.</summary>
     public int Ticks { get; private set; }
 

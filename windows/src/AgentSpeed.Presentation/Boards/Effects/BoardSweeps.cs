@@ -9,11 +9,13 @@ namespace AgentSpeed.Presentation.Boards.Effects;
 public readonly record struct BoardSweepStop(double At, Rgba Color, bool Source = false);
 
 /// <summary>
-/// A style's sweep (the prototypes' <c>.sweep</c> / <c>.wipe</c>): a gradient image <paramref name="Size"/> rows wide slid across
-/// the row from CSS background position <paramref name="From"/> to <paramref name="To"/> with <c>cubic-bezier(.3, .7, .2, 1)</c>,
-/// added to the row (screen) or laid over it (timing's multiply on light).
+/// A style's sweep (the prototypes' <c>.sweep</c> / <c>.wipe</c>): a gradient image <paramref name="Size"/> rows wide at the CSS
+/// <paramref name="Angle"/> slid across the row from CSS background position <paramref name="From"/> to <paramref name="To"/> with
+/// <c>cubic-bezier(EaseX1, EaseY1, .2, 1)</c>, inside the row's rounded box (<paramref name="Corner"/>, inset <paramref name="Inset"/>
+/// at the top and bottom), added to the row (screen) or laid over it (timing's multiply on light).
 /// </summary>
-public sealed record BoardSweepLook(double Size, double From, double To, double Seconds, IReadOnlyList<BoardSweepStop> Stops, bool Additive = true);
+public sealed record BoardSweepLook(double Size, double From, double To, double Seconds, IReadOnlyList<BoardSweepStop> Stops, bool Additive = true,
+    double Angle = 90, double Corner = 0, double Inset = 0, double EaseX1 = 0.3, double EaseY1 = 0.7);
 
 /// <summary>A band of light crossing one row (canvas points).</summary>
 public struct BoardSweep
@@ -61,7 +63,7 @@ public sealed class BoardSweeps
             Left = (float)left,
             Right = (float)right,
             CenterY = (float)centerY,
-            HalfHeight = (float)Math.Max(1, height / 2 - 1),
+            HalfHeight = (float)Math.Max(1, height / 2 - look.Inset),
             Look = look,
             Source = source,
         };
@@ -109,32 +111,35 @@ public sealed class BoardSweeps
         {
             ref readonly var sweep = ref _items[i];
             var look = sweep.Look;
-            var t = Easing.CubicBezier(0.3, 0.7, 0.2, 1, Math.Clamp(sweep.Age / look.Seconds, 0, 1));
+            var t = Easing.CubicBezier(look.EaseX1, look.EaseY1, 0.2, 1, Math.Clamp(sweep.Age / look.Seconds, 0, 1));
             var width = (double)sweep.Right - sweep.Left;
-            // CSS background-position p puts the image's left edge at (1 − size) × p row widths.
-            var origin = sweep.Left + width * (1 - look.Size) * (look.From + (look.To - look.From) * t);
+            var half = width / 2;
+            var center = sweep.Left + half;
+            var image = width * look.Size;
+
+            // CSS background-position p puts the image's left edge at (1 − size) × p row widths; the gradient line of an image at
+            // angle θ is |w sin θ| + |h cos θ| long and centered on the image, its stops measured along the line.
+            var left = sweep.Left + width * (1 - look.Size) * (look.From + (look.To - look.From) * t);
+            var angle = (look.Angle - 90) * Math.PI / 180;
+            var cos = Math.Cos(angle);
+            var length = image * Math.Abs(cos) + 2 * sweep.HalfHeight * Math.Abs(Math.Sin(angle));
+            var offset = (left + image / 2 - center) * cos;
+            var reach = half * Math.Abs(cos) + sweep.HalfHeight * Math.Abs(Math.Sin(angle));
             var blend = look.Additive ? OrbBlend.Additive : OrbBlend.Over;
             var stops = look.Stops;
             for (var s = 1; s < stops.Count; s++)
             {
                 var a = stops[s - 1];
                 var b = stops[s];
-                var x0 = origin + width * look.Size * a.At;
-                var x1 = origin + width * look.Size * b.At;
-                var c0 = Resolve(a, sweep.Source);
-                var c1 = Resolve(b, sweep.Source);
-                if (x1 <= sweep.Left || x0 >= sweep.Right || x1 - x0 < 0.01)
+                var from = offset + (a.At - 0.5) * length;
+                var to = offset + (b.At - 0.5) * length;
+                if (to <= -reach || from >= reach || to - from < 0.01)
                 {
                     continue;
                 }
 
-                // Clipped to the row: the colors at the clipped ends.
-                var l = Math.Max(x0, sweep.Left);
-                var r = Math.Min(x1, sweep.Right);
-                var from = Rgba.Lerp(c0, c1, (l - x0) / (x1 - x0));
-                var to = Rgba.Lerp(c0, c1, (r - x0) / (x1 - x0));
-                var half = (r - l) / 2;
-                list.Add(OrbGpuInstance.RoundedRect(l + half, sweep.CenterY, half, sweep.HalfHeight, 0, 0, from).LinearGradient(to, half, 0), blend);
+                list.Add(OrbGpuInstance.RoundedRect(center, sweep.CenterY, half, sweep.HalfHeight, 0, look.Corner, Resolve(a, sweep.Source))
+                    .Band(Resolve(b, sweep.Source), look.Angle - 90, from, to), blend);
             }
         }
     }

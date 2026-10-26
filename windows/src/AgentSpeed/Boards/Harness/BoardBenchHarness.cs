@@ -58,6 +58,7 @@ internal static class BoardBenchHarness
         var styles = (Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_BENCH_STYLES") ?? "glass,timing,neon")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(BoardStyles.Parse).Distinct().ToArray();
         var loc = new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
+        ProcessCpu.RaiseToNormal();
         BoardGpuRenderer.Timer = new GpuTimer();
         var report = new System.Text.StringBuilder();
         report.AppendLine(CultureInfo.InvariantCulture,
@@ -113,6 +114,7 @@ internal static class BoardBenchHarness
         var clock = Stopwatch.StartNew();
         var measuring = false;
         var cyclesStart = 0UL;
+        Dictionary<int, (ulong Cycles, string Group)>? threadsStart = null;
         var wallStart = 0.0;
         var frames = 0;
         var buildTicks = 0L;
@@ -140,8 +142,6 @@ internal static class BoardBenchHarness
             if (!measuring && elapsed >= warm)
             {
                 measuring = true;
-                cyclesStart = ProcessCpu.Cycles();
-                wallStart = elapsed;
                 frames = 0;
                 buildTicks = 0;
                 feedTicks = 0;
@@ -159,6 +159,9 @@ internal static class BoardBenchHarness
                 Array.Clear(byClass);
                 rasterStart = rigs.Sum(r => r.Frame.Layers.Atlas.Rasterized);
                 BoardGpuRenderer.Timer?.Drain();
+                threadsStart = ProcessThreads.Snapshot();
+                cyclesStart = ProcessCpu.Cycles();
+                wallStart = clock.Elapsed.TotalSeconds;
             }
 
             if (measuring && elapsed - wallStart >= seconds)
@@ -234,13 +237,21 @@ internal static class BoardBenchHarness
                 device.Current.Context.Flush();
             }
 
-            // Wake for the next frame due or the next sim tick (every 0.5 s), whichever is first.
-            var wait = Math.Min(due == long.MaxValue ? 0.05 : due * period - clock.Elapsed.TotalSeconds, 0.05);
-            Thread.Sleep(Math.Max(1, (int)Math.Floor(wait * 1000)));
+            // Wake for the next frame due or the next sim tick (every 0.5 s), whichever is first, like the app's clock: an idle
+            // board costs its ticks only, not a polling harness.
+            var wait = (due == long.MaxValue ? double.MaxValue : due * period) - clock.Elapsed.TotalSeconds;
+            foreach (var rig in rigs)
+            {
+                wait = Math.Min(wait, rig.NextTick - (1000 + clock.Elapsed.TotalSeconds));
+            }
+
+            wait = Math.Min(wait, measuring ? wallStart + seconds - clock.Elapsed.TotalSeconds : warm - clock.Elapsed.TotalSeconds);
+            Thread.Sleep(Math.Clamp((int)Math.Floor(wait * 1000), 1, 500));
         }
 
         var wall = clock.Elapsed.TotalSeconds - wallStart;
         var cpu = (ProcessCpu.Cycles() - cyclesStart) / tsc / wall * 100;
+        var threads = threadsStart is null ? string.Empty : ProcessThreads.Top(threadsStart, ProcessThreads.Snapshot(), wall);
         var gpu = BoardGpuRenderer.Timer?.Drain() ?? (0.0, 0);
         var rasterized = rigs.Sum(r => r.Frame.Layers.Atlas.Rasterized) - rasterStart;
         var updateTicks = rigs.Sum(r => r.Frame.UpdateTicks) - updateStart;
@@ -276,7 +287,7 @@ internal static class BoardBenchHarness
         string Fps(FrameClass c) => (byClass[(int)c] / wall).ToString("0.0", CultureInfo.InvariantCulture);
         string Share(long ticks) => (ticks * 100.0 / Stopwatch.Frequency / wall).ToString("0.00", CultureInfo.InvariantCulture);
         return string.Create(CultureInfo.InvariantCulture,
-            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height}); cpu on this thread: feed {Share(feedTicks)}%, layers {Share(updateTicks)}% (describe {Share(describeTicks)}, paint {Share(paintTicks)}, flush {Share(flushTicks)}), frames {Share(buildTicks - updateTicks)}%, draws {Share(drawTicks)}%; painted:{byKind}");
+            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height}); cpu on this thread: feed {Share(feedTicks)}%, layers {Share(updateTicks)}% (describe {Share(describeTicks)}, paint {Share(paintTicks)}, flush {Share(flushTicks)}), frames {Share(buildTicks - updateTicks)}%, draws {Share(drawTicks)}%; painted:{byKind} threads: {threads}");
     }
 
     private static double Number(string name, double fallback) =>
