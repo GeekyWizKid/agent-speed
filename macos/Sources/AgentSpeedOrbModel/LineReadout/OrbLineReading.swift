@@ -1,0 +1,143 @@
+import AgentSpeedCore
+import Foundation
+
+/// What an orb's two-line readout is set to show (DESIGN 10): network speed, with the unit cell `Mb/s` wide for bits,
+/// or the live intelligence. Known while the readout is quiet, so its width is.
+public enum OrbLineFormat: Equatable, Hashable, Sendable {
+    case traffic(bits: Bool)
+    case intelligence
+}
+
+/// The values of the two lines (DESIGN 10, Floating orb readout and Intelligence readout), as text for fixed cells.
+public enum OrbLineContent: Equatable, Sendable {
+    /// Download over upload.
+    case traffic(rx: TrafficFormat.Parts, tx: TrafficFormat.Parts)
+    /// The shown index and thinking tok/s (METRICS 6.9).
+    case intelligence(index: Int, thinking: String)
+
+    fileprivate func isSameKind(as other: OrbLineContent) -> Bool {
+        switch (self, other) {
+        case (.traffic, .traffic), (.intelligence, .intelligence): true
+        default: false
+        }
+    }
+}
+
+/// An orb's readout while it is on: what it is set to show and, once it was loud, its values.
+public struct OrbLines: Equatable, Sendable {
+    public var format: OrbLineFormat
+    /// nil before the first loud moment.
+    public var reading: OrbLineReading?
+
+    public init(format: OrbLineFormat, reading: OrbLineReading?) {
+        self.format = format
+        self.reading = reading
+    }
+}
+
+/// The readout's values with the quiet rule's two moments. Times are monotonic seconds (the app clock).
+public struct OrbLineReading: Equatable, Sendable {
+    public var content: OrbLineContent
+    /// When the readout began fading in; fully shown `fadeIn` later.
+    public var shownAt: TimeInterval
+    /// When it begins fading out, `quietAfter` past the last loud moment; gone `fadeOut` later.
+    public var quietAt: TimeInterval
+
+    public init(content: OrbLineContent, shownAt: TimeInterval, quietAt: TimeInterval) {
+        self.content = content
+        self.shownAt = shownAt
+        self.quietAt = quietAt
+    }
+
+    public static let fadeIn: TimeInterval = 0.25
+    public static let fadeOut: TimeInterval = 0.6
+
+    /// Opacity at `time`; Reduce Motion makes both fades instant.
+    public func alpha(at time: TimeInterval, reduceMotion: Bool) -> Double {
+        let fadeIn = reduceMotion ? 0 : Self.fadeIn
+        let fadeOut = reduceMotion ? 0 : Self.fadeOut
+        let incoming = fadeIn > 0 ? ((time - shownAt) / fadeIn) : (time >= shownAt ? 1 : 0)
+        let outgoing = fadeOut > 0 ? 1 - ((time - quietAt) / fadeOut) : (time < quietAt ? 1 : 0)
+        return min(max(incoming, 0), 1, max(outgoing, 0))
+    }
+
+    /// A fade runs at `time` (frames at 30 fps).
+    public func isFading(at time: TimeInterval, reduceMotion: Bool) -> Bool {
+        guard !reduceMotion else { return false }
+        return (time >= shownAt && time < shownAt + Self.fadeIn) || (time >= quietAt && time < quietAt + Self.fadeOut)
+    }
+
+    /// Fully faded out at `time`: nothing is drawn and new quiet values change nothing.
+    public func isGone(at time: TimeInterval) -> Bool { time >= quietAt + Self.fadeOut }
+}
+
+/// The quiet rule shared by both readouts (DESIGN 10): visible while loud; 10 s after the last loud moment it fades
+/// out (0.6 s) and returns (0.25 s) with the next one. Quiet values of a gone readout change nothing, so a quiet orb
+/// renders no frames; content of another kind starts over.
+public struct OrbLineQuietRule: Sendable {
+    public static let quietAfter: TimeInterval = 10
+    /// Network speed is loud from `↓ + ↑` 1 KB/s.
+    public static let trafficThreshold = 1000.0
+
+    public private(set) var reading: OrbLineReading?
+
+    public init() {}
+
+    /// Applies one moment's values; returns whether the reading changed. `content` nil clears the readout.
+    @discardableResult
+    public mutating func apply(_ content: OrbLineContent?, loud: Bool, at time: TimeInterval) -> Bool {
+        guard let content else {
+            guard reading != nil else { return false }
+            reading = nil
+            return true
+        }
+        var next: OrbLineReading
+        if let current = reading, !current.isGone(at: time), current.content.isSameKind(as: content) {
+            next = current
+            next.content = content
+            if loud {
+                if time >= current.quietAt {
+                    // Fading out: come back from the current opacity.
+                    let alpha = current.alpha(at: time, reduceMotion: false)
+                    next.shownAt = time - alpha * OrbLineReading.fadeIn
+                }
+                next.quietAt = time + Self.quietAfter
+            }
+        } else {
+            guard loud else {
+                // A gone readout stays, so quiet values render nothing; one of another kind leaves.
+                guard let current = reading, !current.content.isSameKind(as: content) else { return false }
+                reading = nil
+                return true
+            }
+            next = OrbLineReading(content: content, shownAt: time, quietAt: time + Self.quietAfter)
+        }
+        guard next != reading else { return false }
+        reading = next
+        return true
+    }
+
+    /// One traffic sample; nil while the readout is unavailable.
+    @discardableResult
+    public mutating func apply(_ rate: TrafficRate?, bits: Bool, at time: TimeInterval) -> Bool {
+        let content = rate.map {
+            OrbLineContent.traffic(rx: TrafficFormat.rateParts($0.rx, bits: bits), tx: TrafficFormat.rateParts($0.tx, bits: bits))
+        }
+        return apply(content, loud: (rate?.sum ?? 0) >= Self.trafficThreshold, at: time)
+    }
+
+    /// One engine tick of the orb's sources (METRICS 6.9): loud while one of its agents generates or anything was
+    /// generated in the window. With no index yet nothing shows; between bursts (a tool call) the shown index holds
+    /// until the readout has faded.
+    @discardableResult
+    public mutating func apply(_ sums: IntelligenceSums, generating: Bool, at time: TimeInterval) -> Bool {
+        guard let index = sums.shownIndex ?? shownIndex(at: time) else { return false }
+        let content = OrbLineContent.intelligence(index: index, thinking: SpeedFormat.speed(sums.thinking))
+        return apply(content, loud: generating || sums.output > 0, at: time)
+    }
+
+    private func shownIndex(at time: TimeInterval) -> Int? {
+        guard let reading, !reading.isGone(at: time), case .intelligence(let index, _) = reading.content else { return nil }
+        return index
+    }
+}
