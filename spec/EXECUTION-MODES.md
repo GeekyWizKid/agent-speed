@@ -58,15 +58,18 @@ Mode changes affect their native scope and time, not earlier responses. Upserts 
   routing facts. A synthetic compatibility `service_tier:"standard"` is not served evidence.
 - Antigravity: Planning/Fast is a workflow dimension only when its actual native field is known. Turbo permissions,
   animation speed and effort are excluded. Unknown protobuf tier semantics remain unclassified.
-- Gemini CLI, DSH, Grok Build: expose the common unknown state until an explicit supported native field is present;
+- Gemini CLI, Grok Build: expose the common unknown state until an explicit supported native field is present;
   a provider API's capability alone is not evidence that its harness selected it.
+- DSH: `request/header` `data.header.config.reasoningEffort` is the effort the harness sent with that request (see
+  *Reasoning effort and speed*). Observed on DeepSeek Harness 0.2.1 (Windows, 2026-10-25): `max`; headers of older
+  sessions have no such field.
 
 ## Reasoning effort and speed
 
 What the agent rows, the floating windows and the history show per agent and per response (DESIGN 4, 4b, 2c) is two
 values derived from the facts above: the **reasoning effort** and the **speed**. Both are verified against real logs
-(Claude Code 2.1.219+, Claude Desktop, Codex desktop/CLI with `thread_settings_applied`, OpenCode 2.x); every other
-source has no effort until its native field is verified.
+(Claude Code 2.1.219+, Claude Desktop, Codex desktop/CLI with `thread_settings_applied`, OpenCode 2.x, DeepSeek
+Harness 0.2.1); every other source has no effort until its native field is verified.
 
 ### Effort facts
 
@@ -149,10 +152,14 @@ from its current facts, below.
   message without `thinkingLevel`, written by pi-ai before 0.99, takes the selected level); side usage (METRICS 4.13)
   carries no facts. `providerThinkingLevel` (the provider's native token) is not used. No speed facts. Current: the
   context.
+- **DeepSeek Harness** (per session file; inherited history, METRICS 4.3, is skipped): every `request/header` replaces
+  the context's effort fact with its `config.reasoningEffort` (adapter `effort`, evidence `recorded`, scope `request`)
+  or, when the field is absent, removes it. A response (`assistant/message`) takes a snapshot of the context. No speed
+  facts. Current: the context.
 
-`parser-expected.json` checks these for the Claude, Codex, OpenCode and Pi fixtures: per file (or OpenCode session)
-`effort` and `speed` (the current attributions) and `responseModes` (per response key), each attribution an object
-`{mode, evidence[, provider]}` or `null` when unknown. Files without these keys are not checked. `reference.py
+`parser-expected.json` checks these for the Claude, Codex, OpenCode, Pi and DeepSeek Harness fixtures: per file (or
+OpenCode session) `effort` and `speed` (the current attributions) and `responseModes` (per response key), each
+attribution an object `{mode, evidence[, provider]}` or `null` when unknown. Files without these keys are not checked. `reference.py
 --dump-today` adds `effort` and `speed` to every response row (`null` when unknown); `compare_dumps.py` compares them
 when both dumps carry them.
 

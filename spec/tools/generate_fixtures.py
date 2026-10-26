@@ -421,7 +421,8 @@ write_zstd(rel, [
     [dsh("step/start", 3, at(4, 1), {"turn": 1, "step": 1}),
      dsh("user/message", 4, at(4, 1, 5), {"content": [{"type": "text", "text": "Fix the build"}], "role": "user"}),
      dsh("request/header", 5, at(4, 1, 10), {"header": {"config": {"provider": "deepseek-account",
-                                                                    "model": "deepseek-flash"}}})],
+                                                                    "model": "deepseek-flash",
+                                                                    "reasoningEffort": "max"}}})],
     [dsh("session-log-deepseek/delivery-accepted", 6, at(4, 1, 400), {"throughSeq": 5})],
     [dsh_message(7, at(4, 5), "dsm-1", ["reasoning", "tool-call"], "deepseek-flash", dsh_usage(9000, 400, 0, 0))],
     [dsh("tool/call", 8, at(4, 5, 2), {"callId": "c1", "name": "bash"}),
@@ -440,7 +441,10 @@ expect(rel, source="deepseek", project="quasar", model="deepseek-flash", isSubag
            resp("dsm-1", at(4, 1), at(4, 5), 9000, 0, 0, 400, 0, "deepseek-flash", provider="deepseek-account"),
            resp("dsm-2", at(4, 6, 10), at(4, 8, 10), 9400, 9216, 64, 300, 0, "deepseek-flash",
                 provider="deepseek-account"),
-       ])
+       ],
+       effort=mode("max"), speed=None,
+       responseModes={"dsm-1": {"effort": mode("max"), "speed": None},
+                      "dsm-2": {"effort": mode("max"), "speed": None}})
 
 rel = "dsh/sessions/--Users-dev-projects-quasar--/session-dsh-sub/session.v4.jsonl.zstd"
 write_zstd(rel, [

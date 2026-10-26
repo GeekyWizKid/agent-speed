@@ -1383,6 +1383,88 @@ contributes nothing (the orb shows it as unavailable).
   still use `live_A`.
 - The history store (8) is unaffected: its `peak` stays the all-sources `peakToday`.
 
+### 6.9 Live intelligence
+
+An index of this app, shown on floating orbs next to tok/s (DESIGN 2b, *Floating orb readout*): how strong the models
+that are generating right now are, and how much of what they write is reasoning. It is derived from the logs only and
+is not a benchmark score. `spec/tools/intelligence.py` implements this section and checks
+`spec/fixtures/intelligence-cases.json`.
+
+**Grade** of a model at an effort: `grade = class + 6 × level`, 60 – 136.
+
+- `class`: the 9.2 resolution of `model` and `provider` against the current price table. A priced entry whose base
+  `prices.output` is at least 15 USD per million tokens → **100** (flagship); at least 3 → **80** (standard); below 3
+  → **60** (light). A free entry or provider → 60; unknown → 80. Tiers, periods, off-peak and fast prices are not used:
+  the class is the model's, not the request's.
+- `level`: the meter level of the effort (EXECUTION-MODES, 0 – 5), plus 1 for a top rung (`ultra`, `ultracode`). An
+  unknown effort, or a token without a level, counts as 2 (medium, the providers' common default).
+
+A response's grade uses its own model, provider and effort (its effort attribution, EXECUTION-MODES); an agent's grade
+uses its current model and current effort.
+
+**Window sums**, with the window, intervals and estimates of 6.3, over the responses and agents of a set (all enabled
+sources, or an orb's `A`, 6.8):
+
+| Contribution | Weight `w` (output tokens) | Reasoning `ρ` | Grade `g` |
+| --- | --- | --- | --- |
+| measured response | `output × f`, `f = overlap / (end − start')` as 6.3 | `min(reasoning, output) × f` | the response's |
+| unmeasured response (6.3) | `estimatedSpeed × secs` | `w × share_ref` | the response's |
+| in-flight agent (6.3) | `estimatedSpeed × secs` | `w × share_ref` | the agent's |
+
+`share_ref` is Σ `min(reasoning, output)` ÷ Σ `output` over the agent's reference set (the set 6.2 used for
+`estimatedSpeed`, as 9.5 uses it for `costRate`), 0 when that output is 0. A source that does not record reasoning
+apart from output (DeepSeek Harness, 4.3) adds its `w` to the grade but nothing to the reasoning share: its weight is
+left out of `w'`.
+
+- `liveThinking = Σ ρ / (W / 1000)` tok/s (formatted as 7).
+- `thinkingShare = Σ ρ / Σ w'`, where `w'` is the weight of sources that record reasoning; 0 when `Σ w' = 0`.
+- `intelligence = Σ (w × g) / Σ w + 20 × thinkingShare`, shown rounded half away from zero to an integer; **none** when
+  `Σ w = 0` (nothing generated in the window).
+
+Every sum is additive over sources, so an orb adds the per-source sums of its `A` (6.8). Claude Opus 5.5 at `xhigh`
+writing 44 % reasoning: 100 + 24 + 20 × 0.44 ≈ 133. The value never drives heat, tiers, titles or peaks.
+
+### 6.10 Work signals
+
+Per agent, from the tool calls in its own file, never from what a tool returned or what the agent wrote: whether it
+is going in circles, and whether its recent actions keep finding something new. Signals appear on the agent's row
+and tooltip (DESIGN 4), never in a score. `spec/tools/work_signals.py` implements this section and checks
+`spec/fixtures/work-signal-cases.json`.
+
+**Actions.** A parser turns every tool call into an action `(time, tool, digest)` and every tool result into an
+outcome `(time, failed)`, matched by call id:
+
+| Source | Call | `tool`, `digest` input | Result | `failed` |
+| --- | --- | --- | --- | --- |
+| Claude (both) | assistant `message.content[]` block `tool_use` (each `id` once per file: a message's lines repeat it) | `name`; `input` | user block `tool_result` with that `tool_use_id` | `is_error == true` |
+| Codex | `response_item` `function_call` / `custom_tool_call` | `name`; `arguments` / `input` | `…_output` with that `call_id` | the output's leading JSON object (in the first `input_text` item when `output` is an array) has an integer `exit_code` ≠ 0 |
+| omp, Pi | assistant `toolCall` block | `name`; `arguments` | `toolResult` with that `toolCallId` | `isError == true` |
+| others | — (no actions; no signals) | | | |
+
+`digest` = the first 16 lowercase hex digits of SHA-256 over the call's input as the file stores it: the UTF-8 text of
+a string input (Codex `arguments` and `input` are strings), the raw JSON text of an object or array exactly as it
+appears in the line (Claude `input`, omp and Pi `arguments`). It is computed while the line is parsed; the input
+itself is never kept. Only
+`tool`, `digest`, times and `failed` are stored, at most the last **64 actions** per agent. An outcome never read
+(no result yet, or a format that does not say) is `unknown`, which is not a failure. Copied history (3.5, 4.7) and
+seeding (6.4) add no actions: a file's actions start with its live lines.
+
+**Signals** of an agent at `nowMs`, over its actions within the last 10 minutes (`recent`):
+
+- **Looping**: the newest actions repeat the same block of 1, 2 or 3 consecutive `(tool, digest)` pairs at least 3
+  times in a row (the same call 3 times; `A B A B A B`; `A B C A B C A B C`), the newest action is less than 120 s
+  old, and at least one action of the repeated run failed. The count shown is the number of repeats (the largest over
+  the three block sizes). Shown as long as it holds.
+- **Repeating**: the same, with no failure in the repeated run (polling, waiting). Shown only in the tooltip.
+- **Novelty**: `distinct (tool, digest) in recent ÷ |recent|` when `|recent| ≥ 8`, else none. Shown in the tooltip
+  only, as a percentage.
+- **Recovered**: an action that failed was followed, within the next 5 actions and 10 minutes, by an action with the
+  same `tool` that did not fail. The counts of failed and recovered actions in `recent` are shown in the tooltip.
+
+A signal never changes phase, speed, totals, intelligence or anything reported (11): it describes behaviour, not
+quality, and identical actions can be legitimate (a test re-run after an edit has the same digest when the command is
+the same).
+
 ## 7. Number formatting (both platforms)
 
 | Value | Display |

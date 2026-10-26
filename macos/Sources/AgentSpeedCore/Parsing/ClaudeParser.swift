@@ -36,6 +36,7 @@ struct ClaudeParser: Sendable {
 
     mutating func consume(
         _ extraction: LineExtraction<ClaudeLine>,
+        tools: [ToolEvent] = [],
         deduper: inout Deduper,
         emit: (ResponseUpsert) -> Void
     ) {
@@ -46,11 +47,11 @@ struct ClaudeParser: Sendable {
             state.malformedLines += 1
             return
         case .line(let line):
-            consume(line, deduper: &deduper, emit: emit)
+            consume(line, tools: tools, deduper: &deduper, emit: emit)
         }
     }
 
-    private mutating func consume(_ line: ClaudeLine, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
+    private mutating func consume(_ line: ClaudeLine, tools: [ToolEvent], deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
         guard let timestamp = line.timestampMs else { return }
         state.noteLine(at: timestamp)
         if !sourceDecided, let source = line.entrypointSource {
@@ -76,6 +77,7 @@ struct ClaudeParser: Sendable {
             state.setPhase(.generating, at: timestamp, inFlightStartMs: timestamp)
 
         case .user:
+            state.actions.record(tools, at: timestamp)
             if line.isInterrupt || line.toolEndsTurn {
                 state.setPhase(.idle, at: timestamp)
                 pendingStartMs = nil
@@ -86,7 +88,7 @@ struct ClaudeParser: Sendable {
             }
 
         case .assistant:
-            consumeAssistant(line, at: timestamp, deduper: &deduper, emit: emit)
+            consumeAssistant(line, tools: tools, at: timestamp, deduper: &deduper, emit: emit)
 
         case .attachment, .other:
             break
@@ -107,6 +109,7 @@ struct ClaudeParser: Sendable {
 
     private mutating func consumeAssistant(
         _ line: ClaudeLine,
+        tools: [ToolEvent],
         at timestamp: Int64,
         deduper: inout Deduper,
         emit: (ResponseUpsert) -> Void
@@ -114,7 +117,9 @@ struct ClaudeParser: Sendable {
         guard line.model != Self.syntheticModel else { return }
         guard let key = line.messageId ?? line.requestId ?? line.uuid else { return }
         let claim = deduper.claim(key, for: fileID)
+        // Another file's message is copied history (METRICS 3.5): no response and no actions.
         guard claim != .otherFile else { return }
+        state.actions.record(tools, at: timestamp)
 
         let hasStopReason = line.stopReason != .none
         var lineModes = line.modes

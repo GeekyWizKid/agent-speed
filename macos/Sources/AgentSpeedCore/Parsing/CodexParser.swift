@@ -28,6 +28,7 @@ struct CodexParser: Sendable {
 
     mutating func consume(
         _ extraction: LineExtraction<CodexLine>,
+        tools: [ToolEvent] = [],
         deduper: inout Deduper,
         emit: (ResponseUpsert) -> Void
     ) {
@@ -38,11 +39,11 @@ struct CodexParser: Sendable {
             state.malformedLines += 1
             return
         case .line(let line):
-            consume(line, deduper: &deduper, emit: emit)
+            consume(line, tools: tools, deduper: &deduper, emit: emit)
         }
     }
 
-    private mutating func consume(_ line: CodexLine, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
+    private mutating func consume(_ line: CodexLine, tools: [ToolEvent], deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
         guard let timestamp = line.timestampMs else { return }
         if case .sessionMeta(let meta) = line.kind {
             // Only the first session_meta applies; sub-agent files copy their parent's right after their own.
@@ -59,6 +60,7 @@ struct CodexParser: Sendable {
             return
         }
         state.noteLine(at: timestamp)
+        state.actions.record(tools, at: timestamp)
         var requestModes = ExecutionModes.empty
         switch line.modeUpdate {
         case .none: break

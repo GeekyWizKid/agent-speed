@@ -35,7 +35,7 @@ final class OrbAccessibilityReporter {
     private func observe() {
         let gauge = runtime.feed.gauge
         _ = (gauge.readoutValue, gauge.title, runtime.feed.unavailableTitleKey, model.l10n.language)
-        _ = (runtime.feed.money, runtime.feed.unit, runtime.feed.traffic, runtime.feed.trafficEnabled)
+        _ = (runtime.feed.money, runtime.feed.unit, runtime.feed.lines)
         _ = model.orbs.document
         _ = model.titles.document
         let elapsed = Clock.now - publishedAt
@@ -101,9 +101,9 @@ final class OrbAccessibilityReporter {
                 : runtime.config.sources.knownSources.map { l10n($0.titleKey) }.joined(separator: l10n("list.separator"))
             help = l10n("a11y.orb.sources", names)
         }
-        if let traffic = trafficSentence(l10n) {
+        if let lines = lineSentence(l10n) {
             let separator = l10n.language == .ja ? "、" : l10n.language.usesLatinCase ? ", " : "，"
-            if single { value += separator + traffic } else { label += separator + traffic }
+            if single { value += separator + lines } else { label += separator + lines }
         }
         host.accessibilityHelpText = help
         let labelChanged = label != host.accessibilityLabelText
@@ -123,18 +123,20 @@ final class OrbAccessibilityReporter {
         publishedUnit = unit
     }
 
-    /// `a11y.orb.traffic` while the readout is visible (DESIGN 10, Accessibility): rates read as words, units as written.
-    private func trafficSentence(_ l10n: Localizer) -> String? {
-        let feed = runtime.feed
+    /// While the readout is visible (DESIGN 10, Accessibility): `a11y.orb.traffic` with rates read as words and units as
+    /// written, or `a11y.orb.intel`.
+    private func lineSentence(_ l10n: Localizer) -> String? {
         let config = runtime.config
-        guard feed.trafficEnabled, let reading = feed.traffic, !runtime.isUnavailable else { return nil }
+        guard let lines = runtime.feed.lines, let reading = lines.reading, !runtime.isUnavailable else { return nil }
         let now = Clock.now
         guard now >= reading.shownAt, !reading.isGone(at: now) || now < reading.quietAt,
-              OrbTrafficMetrics.fits(.of(config.style), diameter: CGFloat(config.size), bits: reading.bits) else { return nil }
-        func spoken(_ parts: TrafficFormat.Parts) -> String {
-            let unit = parts.unit.hasSuffix("/s") ? String(parts.unit.dropLast(2)) : parts.unit
-            return parts.number + " " + unit
+              OrbLineMetrics.fits(.of(config.style), diameter: CGFloat(config.size), format: lines.format,
+                                  language: l10n.language) else { return nil }
+        switch reading.content {
+        case .traffic(let rx, let tx):
+            return l10n("a11y.orb.traffic", TrafficText.spoken(rx), TrafficText.spoken(tx))
+        case .intelligence(let index, let thinking):
+            return l10n("a11y.orb.intel", String(index), thinking)
         }
-        return l10n("a11y.orb.traffic", spoken(reading.rx), spoken(reading.tx))
     }
 }

@@ -21,7 +21,7 @@ enum TrafficOrbPreviews {
     ]
 
     /// Values per style that land on a mid tier at the default redline.
-    private static func value(_ style: OrbStyleKind, redline: Double) -> Double {
+    static func value(_ style: OrbStyleKind, redline: Double) -> Double {
         switch style {
         case .led: 0.16 * redline
         case .needle: 0.42 * redline
@@ -63,7 +63,7 @@ enum TrafficOrbPreviews {
             let speed = value(style, redline: redline)
             var row: [CGImage?] = []
             row.append(still(model: model, style: style, size: 148, dark: dark, value: 0) { stage in
-                stage.feed.trafficEnabled = true
+                stage.feed.lines = OrbLines(format: .traffic(bits: false), reading: nil)
             })
             row.append(still(model: model, style: style, size: 148, dark: dark, value: speed) { show($0, rx: 8_600, tx: 1_100) })
             row.append(still(model: model, style: style, size: 148, dark: dark, value: speed) { stage in
@@ -84,11 +84,14 @@ enum TrafficOrbPreviews {
 
     /// Shows the readout in steady state (faded in long ago, quiet `quietIn` seconds from the stage's time).
     static func show(_ stage: OrbPreviewStage, rx: Double, tx: Double, bits: Bool = false, quietIn: TimeInterval = 60) {
-        stage.feed.trafficEnabled = true
-        stage.feed.traffic = OrbTrafficReading(
-            rx: TrafficFormat.rateParts(rx, bits: bits), tx: TrafficFormat.rateParts(tx, bits: bits), bits: bits,
-            shownAt: -.infinity, quietAt: stage.time + 2.4 + quietIn
-        )
+        show(stage, .traffic(rx: TrafficFormat.rateParts(rx, bits: bits), tx: TrafficFormat.rateParts(tx, bits: bits)),
+             format: .traffic(bits: bits), quietIn: quietIn)
+    }
+
+    /// Shows `content` in steady state: faded in long ago, quiet `quietIn` seconds after the still is taken.
+    static func show(_ stage: OrbPreviewStage, _ content: OrbLineContent, format: OrbLineFormat, quietIn: TimeInterval = 60) {
+        stage.feed.lines = OrbLines(format: format,
+                                    reading: OrbLineReading(content: content, shownAt: -.infinity, quietAt: stage.time + 2.4 + quietIn))
     }
 
     static func still(model: AppModel, style: OrbStyleKind, size: CGFloat, dark: Bool, value: Double, peak: Bool = false,

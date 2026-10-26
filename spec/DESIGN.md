@@ -560,8 +560,8 @@ OKLab L, stepped to ≥ 4.5:1 against the body); *hot* is `mix(heat(h), #FFF7D6,
     Off, Reduce Motion, `minimal` and S < 80 (the text simply updates).
   - Readout text is always drawn above every effect. Particles that pass behind it fade to 35 % inside the *readout
     zone* (an ellipse 0.30 S × 0.19 S around `c + (0, 0.07 S)`, Gaussian falloff) so it never competes with them.
-- **Traffic readout** (optional, per orb): download and upload speed in two small lines above the value (`needle`:
-  inside the hub, below it), section 10.
+- **Readout** (optional, per orb): two small lines above the value (`needle`: inside the hub, below it) with the
+  download and upload speed or the live intelligence, section 10.
 - **Agent dots**: section 2, layer 6, at the style's position; only the orb's own agents (2b). None in `minimal`.
 - **Response pulse** (`responseCompleted` of the orb's sources, 2b): the shockwave of section 2, layer 7, for every
   style except `minimal`, plus the style's accent below. Pulses toggle: Settings → Effects → Response pulses.
@@ -968,7 +968,7 @@ Persisted as one JSON value in the settings store (key `orbs`), written atomical
 | `visible` | Hides one orb without removing it. |
 | `redlineOutput`, `redlineTotal` | `null` = the General redline of that metric; otherwise this orb's redline (same ranges). Heat, tiers and titles of the orb use it. |
 | `unit` | `"tokens"` (tok/s, default) or `"cost"` (the money unit of section 9); unknown → `"tokens"`. Copied by Add, Duplicate and Split. Heat, tiers and titles always follow tokens. |
-| `traffic` | `"sources"` (default: the traffic of the orb's own sources), `"machine"` (the whole computer) or `"off"`; absent (orbs saved by older builds) → `"sources"`, unknown → `"off"`. Copied by Add, Duplicate and Split; Merge keeps the target's. Older builds ignore it. Section 10. |
+| `traffic` | What the orb's two-line readout shows (section 10, *Floating orb readout*): `"sources"` (default: the traffic of the orb's own sources), `"machine"` (the whole computer), `"intelligence"` (the live intelligence of the orb's own sources, METRICS 6.9) or `"off"`; absent (orbs saved by older builds) → `"sources"`, unknown → `"off"`. Copied by Add, Duplicate and Split; Merge keeps the target's. Older builds ignore it, and read `"intelligence"` as `"off"`. |
 | `showName` | `null` (default) follows the global `orbNames`; `true` / `false` shows or hides this orb's name plate (Name plate, below). Copied by Add, Duplicate and Split; Merge keeps the target's; absent or unknown → `null`. Older builds ignore it. |
 | `titleTheme` | `null` = the General title theme; otherwise a preset id or a custom set id (section 1, Title themes) naming this orb's titles, idle label and accessibility label. Deleting the custom set it names replaces it with that set's base preset (undo restores it); an unknown id counts as `null`. Added in this version without a format change: older builds ignore it. |
 | `layouts` | Positions per **display arrangement**: the key is the sorted list of connected display keys (macOS display UUID; Windows monitor device ID) joined with `+`. Each entry uses today's position record (edge-docked distance or fraction of the usable area, per axis) on the named display. At most 16 arrangements are kept (least recently used dropped). |
@@ -1190,7 +1190,8 @@ column as submenu chevrons, so checked and unchecked items never shift the text:
    is disabled (`orbs.sources.lastOne`). Checking `orbs.sources.all` replaces the set; checking a source on an
    all-sources orb makes the set that single source. It is followed by `orbs.unit` ▸ `orbs.unit.tokens` /
    `orbs.unit.cost` (section 9), `orbs.traffic` ▸ `orbs.traffic.sources` / `orbs.traffic.machine` /
-   `orbs.traffic.off` (section 10) and `orbs.showName`, checked when the orb's name plate shows (Name plate).
+   `orbs.traffic.intelligence` / `orbs.traffic.off` (section 10) and `orbs.showName`, checked when the orb's name
+   plate shows (Name plate).
 4. `menu.size` ▸ `menu.size.small` / `.medium` / `.large` (112 / 148 / 196; `minimal` sizes below 96 are set in
    Settings).
 5. `menu.effects` ▸ Off / Soft / Standard / Max (global).
@@ -1456,6 +1457,12 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
    with Reduce Motion); `idle` and `generating` show an en dash `–` in tertiary color. Glyph and dash sit in the same
    right-aligned trailing slot as the digits (same baseline, no width change), crossfade 0.2 s to and from numbers,
    and read as the phase name for accessibility (`phase.tools`, `phase.idle`).
+   **Looping mark** — while the agent is *looping* (METRICS 6.10) an amber `arrow.triangle.2.circlepath` (Segoe
+   Fluent Sync U+E895), 11 pt, sits before the project name (4 pt gap) and the row's tooltip starts with
+   `work.looping`. It fades in 0.25 s and out 0.6 s (Reduce Motion: no fade), never moves the row (the 6.7 order is
+   unchanged) and is not drawn on orbs or boards. The tooltip's last line is `work.summary` when the agent has at
+   least 8 recent actions, and `work.repeating` while it repeats without failures. Accessibility: the row label adds
+   `work.looping` while it holds.
    **Effort capsule** — the agent's current reasoning effort and speed (`spec/EXECUTION-MODES.md`, Reasoning effort
    and speed), drawn in a trailing column just before the live value (8 pt gap). The column is as wide as the widest
    capsule among the visible rows (width changes animate 0.2 s), so every meter starts on the same vertical line and
@@ -2402,9 +2409,10 @@ METRICS 10; the optional Windows helper is `spec/WINDOWS-SERVICE.md`.
 
 ### Floating orb readout
 
-Each orb has a `traffic` setting (2b data model): `"sources"` — the traffic of the orb's own sources, like everything
-else an orb shows (2b), with tools per `includeTools` — `"machine"` — the whole computer, for a desktop network meter
-— or `"off"`. **Default `"sources"`** for new orbs and for orbs migrated from earlier versions: the readout appears
+Each orb has a `traffic` setting (2b data model) that picks what its two-line readout shows: `"sources"` — the
+traffic of the orb's own sources, like everything else an orb shows (2b), with tools per `includeTools` —
+`"machine"` — the whole computer, for a desktop network meter — `"intelligence"` — the live intelligence of the orb's
+own sources (*Intelligence readout*, below) — or `"off"`. **Default `"sources"`** for new orbs and for orbs migrated from earlier versions: the readout appears
 only while those agents use the network, so an idle orb looks exactly as before. Prototyped (2026-10-22) for every
 style in both appearances at 112, 148 and 196 pt.
 
@@ -2460,12 +2468,42 @@ bottom edge (pretty but unreadable without hovering).
 - **Unavailable**: in `"sources"` mode without per-process data (Windows without the helper, a failed sampler) the
   readout is not drawn and the context-menu item shows `traffic.unavailable.short`; Settings explains. With
   `settings.traffic.enabled` off the readout is never drawn and the menu item is disabled.
-- **Controls**: context menu `orbs.traffic` ▸ `orbs.traffic.sources` / `orbs.traffic.machine` / `orbs.traffic.off`
-  (check on the current one), placed after `orbs.unit`; the same submenu in the quick menu's per-orb submenu; Settings
+- **Controls**: context menu `orbs.traffic` ▸ `orbs.traffic.sources` / `orbs.traffic.machine` /
+  `orbs.traffic.intelligence` / `orbs.traffic.off` (check on the current one), placed after `orbs.unit`; the same submenu in the quick menu's per-orb submenu; Settings
   → 懸浮窗 → orb editor: `orbs.traffic` popup under the unit control with the caption `orbs.traffic.hint`. Add,
   Duplicate and Split copy it; Merge keeps the target's.
 - **Accessibility**: while the readout is visible the orb's label adds `a11y.orb.traffic` (`下載每秒 12.4 MB，上傳每秒
   186 KB`), within the label's 1-second update limit.
+
+### Intelligence readout
+
+With `traffic` = `"intelligence"` the same two lines show the live intelligence of the orb's sources (METRICS 6.9)
+instead of network speed. It needs neither the traffic switch nor the Windows helper, so it is never unavailable.
+
+- **Form**: the network readout's table, unchanged in every style, size, placement, gap, centering, color and frame
+  rule. The line nearest the value (`↑` in `led`, `liquid`, `reactor`, `minimal`; `↓` in `needle`) is the
+  **intelligence** line, the other the **thinking** line:
+
+  | Line | Glyph cell | Number cell | Unit cell |
+  | --- | --- | --- | --- |
+  | intelligence | `intel.glyph` (智 / 智 / IQ / 知) | integer, `888` cell | — |
+  | thinking | `intel.thinking.glyph` (思 / 思 / TH / 思) | `liveThinking` formatted as METRICS 7, `8.88` cell | `tok/s` in the `MB/s` cell |
+
+  The glyph is text (weight 600, 0.82 t, the unit token's color), centred in the arrow's cell and widened to its own
+  advance; the number keeps the network readout's weight, cell alignment and color, so switching modes moves nothing.
+  When `intelligence` has no value (nothing generated in the window) both lines are quiet (below).
+- **Quiet rule**: visible while the orb has an agent in phase `generating` or `Σ w > 0` (METRICS 6.9); after 10 s
+  without either it fades out (0.6 s) and fades in (0.25 s) when work resumes — the network readout's timings.
+- **Updates**: on every engine tick (METRICS 6, 500 ms), with the value; characters are replaced in their cells, no
+  animation. A value change renders one frame of an otherwise static orb, at most two per second.
+- **Hover**: the title crossfade of the network readout. The orb's tooltip (Windows) adds `intel.tooltip`
+  (`智力 133 · 思考 44%`) and the caption `intel.disclaimer` (估算指數，不是測驗分數); the agent rows' tooltip (section 4)
+  adds `intel.grade` with the agent's grade and class (`等級 124 · 旗艦`, class names `intel.class.flagship` /
+  `.standard` / `.light`).
+- **Accessibility**: while the readout is visible the orb's label adds `a11y.orb.intel` (`智力 133，思考每秒 412 個 token`),
+  within the label's 1-second update limit.
+- **Settings**: the orb editor's `orbs.traffic` popup lists `orbs.traffic.intelligence`; its caption becomes
+  `orbs.traffic.hint.intel` while it is chosen.
 
 ### Menu bar and taskbar
 

@@ -3642,6 +3642,90 @@
     "en": "Shows download and upload speed on the orb while there is traffic.",
     "ja": "通信があるときだけ、オーブにダウンロードとアップロードの速度を表示します。"
   },
+  "orbs.traffic.intelligence": {
+    "zh-Hant": "即時智力",
+    "zh-Hans": "实时智力",
+    "en": "Live Intelligence",
+    "ja": "リアルタイム知能"
+  },
+  "orbs.traffic.hint.intel": {
+    "zh-Hant": "顯示這個懸浮窗的 agent 的即時智力指數與每秒思考 token 數；依模型級別、推理強度與思考比例估算。",
+    "zh-Hans": "显示这个悬浮窗的 agent 的实时智力指数与每秒思考 token 数；依模型级别、推理强度与思考比例估算。",
+    "en": "Shows the live intelligence index and thinking tokens per second of this orb's agents, estimated from model class, reasoning effort and thinking share.",
+    "ja": "このフローティングウィンドウの agent のリアルタイム知能指数と毎秒の思考トークン数を表示します。モデルの階級、推論の強さ、思考の割合から推定します。"
+  },
+  "intel.glyph": {
+    "zh-Hant": "智",
+    "zh-Hans": "智",
+    "en": "IQ",
+    "ja": "知"
+  },
+  "intel.thinking.glyph": {
+    "zh-Hant": "思",
+    "zh-Hans": "思",
+    "en": "TH",
+    "ja": "思"
+  },
+  "intel.tooltip": {
+    "zh-Hant": "智力 %@ · 思考 %@",
+    "zh-Hans": "智力 %@ · 思考 %@",
+    "en": "Intelligence %@ · thinking %@",
+    "ja": "知能 %@・思考 %@"
+  },
+  "intel.disclaimer": {
+    "zh-Hant": "估算指數，不是測驗分數",
+    "zh-Hans": "估算指数，不是测验分数",
+    "en": "An estimated index, not a benchmark score",
+    "ja": "推定の指数で、ベンチマークのスコアではありません"
+  },
+  "intel.grade": {
+    "zh-Hant": "等級 %@ · %@",
+    "zh-Hans": "等级 %@ · %@",
+    "en": "Grade %@ · %@",
+    "ja": "等級 %@・%@"
+  },
+  "intel.class.flagship": {
+    "zh-Hant": "旗艦",
+    "zh-Hans": "旗舰",
+    "en": "Flagship",
+    "ja": "フラッグシップ"
+  },
+  "intel.class.standard": {
+    "zh-Hant": "標準",
+    "zh-Hans": "标准",
+    "en": "Standard",
+    "ja": "スタンダード"
+  },
+  "intel.class.light": {
+    "zh-Hant": "輕量",
+    "zh-Hans": "轻量",
+    "en": "Light",
+    "ja": "ライト"
+  },
+  "a11y.orb.intel": {
+    "zh-Hant": "智力 %@，思考每秒 %@ 個 token",
+    "zh-Hans": "智力 %@，思考每秒 %@ 个 token",
+    "en": "intelligence %@, thinking %@ tokens per second",
+    "ja": "知能 %@、思考 毎秒 %@ トークン"
+  },
+  "work.looping": {
+    "zh-Hant": "原地打轉：同一組動作已重複 %d 次，且有失敗",
+    "zh-Hans": "原地打转：同一组动作已重复 %d 次，且有失败",
+    "en": "Going in circles: the same actions repeated %d times, some failing",
+    "ja": "堂々巡り：同じ操作が %d 回繰り返され、失敗を含みます"
+  },
+  "work.repeating": {
+    "zh-Hant": "重複同一組動作 %d 次（沒有失敗，可能在等待）",
+    "zh-Hans": "重复同一组动作 %d 次（没有失败，可能在等待）",
+    "en": "Repeating the same actions %d times (no failures, possibly waiting)",
+    "ja": "同じ操作を %d 回繰り返しています（失敗なし、待機中の可能性）"
+  },
+  "work.summary": {
+    "zh-Hant": "新動作 %@ · 失敗 %d · 已修正 %d",
+    "zh-Hans": "新动作 %@ · 失败 %d · 已修正 %d",
+    "en": "New actions %@ · failed %d · recovered %d",
+    "ja": "新しい操作 %@・失敗 %d・修正済み %d"
+  },
   "orbs.names": {
     "zh-Hant": "名稱標籤",
     "zh-Hans": "名称标签",

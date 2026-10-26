@@ -708,6 +708,10 @@ def dsh_event(state, obj, dedupe):
             state.model = config["model"]
         if isinstance(config, dict) and isinstance(config.get("provider"), str) and config["provider"]:
             state.provider = config["provider"]
+        effort = config.get("reasoningEffort") if isinstance(config, dict) else None
+        state.facts = [f for f in state.facts if f["kind"] != "effort"]
+        if isinstance(effort, str):
+            state.facts = modes.put(state.facts, modes.normalize("effort", effort, None, "recorded", "request"))
     elif kind == "step/start":
         state.pending, state.phase, state.in_flight = ts, "generating", ts
     elif kind == "turn/end":
@@ -728,6 +732,7 @@ def dsh_event(state, obj, dedupe):
             provider = source.get("provider") if isinstance(source.get("provider"), str) and source["provider"] \
                 else state.provider
             emit(state, key, state.pending, ts, tokens, model, provider=provider)
+            state.response_facts[key] = list(state.facts)
             state.model = model or state.model
         content = message.get("content") if isinstance(message.get("content"), list) else []
         tool = any(isinstance(b, dict) and b.get("type") == "tool-call" for b in content)

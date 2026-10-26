@@ -39,6 +39,9 @@ enum PreviewRenderer {
             TrafficOrbPreviews.render(model: model, into: directory)
             TrafficSurfacePreviews.render(model: model, into: directory)
         }
+        if wants("intel") {
+            IntelligencePreviews.render(model: model, into: directory)
+        }
         if wants("cards") {
             TitleCardPreviews.render(model: model, into: directory)
         }

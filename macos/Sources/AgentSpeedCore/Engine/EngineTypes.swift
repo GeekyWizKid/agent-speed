@@ -15,6 +15,8 @@ struct EngineAgent: Equatable, Sendable {
     var lastLineMs: Int64?
     /// Resolved parent agent (METRICS 6.7), which may be outside the list.
     var parentId: String?
+    /// Its recent tool calls (METRICS 6.10), oldest first.
+    var actions: [ToolAction] = []
 
     init(
         id: String,
@@ -56,6 +58,7 @@ struct EngineAgent: Equatable, Sendable {
             cwdPath: state.cwdPath,
             modes: state.modes
         )
+        actions = state.actions.actions
     }
 
     /// Project name from the transcript location when the transcript never named a working directory. Gemini CLI
@@ -88,6 +91,9 @@ struct EngineAgentStatus: Equatable, Sendable {
     var parentId: String?
     /// The agent's live cost rate (METRICS 9.5).
     var liveCost: LiveCost = .zero
+    /// Its current model and effort's grade (METRICS 6.9).
+    var grade: IntelligenceGrade = .unknown
+    var signals: WorkSignals = .none
 }
 
 /// Everything the engine computes for one instant.
@@ -101,6 +107,9 @@ struct EngineOutput: Sendable {
     /// The live cost rate (METRICS 9.5), in total and per source.
     var liveCost: LiveCost = .zero
     var sourceLiveCost: [SourceKind: LiveCost] = [:]
+    /// The live intelligence sums (METRICS 6.9), in total and per source.
+    var intelligence: IntelligenceSums = .zero
+    var sourceIntelligence: [SourceKind: IntelligenceSums] = [:]
     var agents: [EngineAgentStatus]
     var history: [HistoryPoint]
     var today: TokenTotals
