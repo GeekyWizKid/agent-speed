@@ -9,6 +9,8 @@ import QuartzCore
 final class BoardContentStack {
     /// How long a stretched item takes to reach a new share (the prototypes' `transition: width .55s`).
     static let stretchSeconds = 0.55
+    /// How long a tinted item takes to reach a new color.
+    static let tintSeconds = 0.5
 
     /// The row spring per style (DESIGN 2c: glass critically damped, settle ≈ 0.45 s; timing damping 0.72; neon 0.9).
     struct RowSpring: Equatable {
@@ -56,6 +58,7 @@ final class BoardContentStack {
         var frame: CGRect
         var stretch: Double?
         var stretchAnchor: CGFloat = 0
+        var tint: CGColor?
         var image: CGImage?
         var ambient: BoardContentAmbient?
     }
@@ -101,8 +104,17 @@ final class BoardContentStack {
             defer { below = entries[item.key]?.layer }
             seen.insert(item.key)
             let target = layerFrame(item.frame)
+            // An item that starts or stops being tinted gets a new layer.
+            if let entry = entries[item.key], (entry.tint == nil) != (item.tint == nil) {
+                entry.layer.removeFromSuperlayer()
+                entries[item.key] = nil
+            }
             if var entry = entries[item.key] {
-                Self.setPlate(item.plate, on: entry.layer)
+                if item.tint == nil { Self.setPlate(item.plate, on: entry.layer) }
+                if let tint = item.tint, entry.tint != tint {
+                    setTint(tint, on: entry.layer, animated: animated)
+                    entry.tint = tint
+                }
                 if entry.stretch != item.stretch || entry.stretchAnchor != item.stretchAnchor {
                     entry.stretch = item.stretch
                     entry.stretchAnchor = item.stretchAnchor
@@ -113,13 +125,14 @@ final class BoardContentStack {
                 if entry.revision != item.revision || entry.frame.size != item.frame.size {
                     let old = entry.image
                     entry.image = rasterize(item)
-                    entry.layer.contents = entry.image
+                    Self.show(entry.image, on: entry.layer, tinted: item.tint != nil)
                     entry.revision = item.revision
                     if animated { change(entry.layer, from: old, to: entry.image, item: item) }
                 }
                 if entry.frame != item.frame {
                     let from = entry.layer.presentation()?.position ?? entry.layer.position
                     entry.layer.bounds = CGRect(origin: .zero, size: target.size)
+                    entry.layer.mask?.frame = entry.layer.bounds
                     entry.layer.position = stretched(target.origin, anchor: entry.stretchAnchor)
                     if entry.stretch != nil {
                         entry.layer.anchorPoint = CGPoint(x: target.width > 0 ? min(1, max(0, entry.stretchAnchor / target.width)) : 0, y: 0)
@@ -152,12 +165,21 @@ final class BoardContentStack {
                 child.contentsScale = scale
                 child.contentsGravity = .resize
                 child.masksToBounds = item.clips
-                Self.setPlate(item.plate, on: child)
+                if let tint = item.tint {
+                    let mask = CALayer()
+                    mask.frame = child.bounds
+                    mask.contentsScale = scale
+                    mask.contentsGravity = .resize
+                    child.mask = mask
+                    child.backgroundColor = tint
+                } else {
+                    Self.setPlate(item.plate, on: child)
+                }
                 let image = rasterize(item)
-                child.contents = image
+                Self.show(image, on: child, tinted: item.tint != nil)
                 if let below { layer.insertSublayer(child, above: below) } else { layer.insertSublayer(child, at: 0) }
                 entries[item.key] = Entry(layer: child, revision: item.revision, frame: item.frame, stretch: item.stretch,
-                                          stretchAnchor: item.stretchAnchor, image: image, ambient: item.ambient)
+                                          stretchAnchor: item.stretchAnchor, tint: item.tint, image: image, ambient: item.ambient)
                 if item.stretch != nil {
                     setStretch(item.stretch, anchor: item.stretchAnchor, on: child, at: target.origin, width: target.width,
                                animated: false)
@@ -188,6 +210,23 @@ final class BoardContentStack {
     /// The cached images at their resting frames (board points, y down), back to front, for offscreen frames.
     var snapshot: [(image: CGImage, frame: CGRect)] {
         order.compactMap { key in entries[key].flatMap { entry in entry.image.map { ($0, entry.frame) } } }
+    }
+
+    /// A tinted item's image is its mask; any other item shows it as its contents.
+    private static func show(_ image: CGImage?, on layer: CALayer, tinted: Bool) {
+        if tinted { layer.mask?.contents = image } else { layer.contents = image }
+    }
+
+    private func setTint(_ tint: CGColor, on layer: CALayer, animated: Bool) {
+        if animated, !reduceMotion, let from = layer.presentation()?.backgroundColor ?? layer.backgroundColor {
+            let blend = CABasicAnimation(keyPath: "backgroundColor")
+            blend.fromValue = from
+            blend.toValue = tint
+            blend.duration = Self.tintSeconds
+            blend.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            layer.add(blend, forKey: "tint")
+        }
+        layer.backgroundColor = tint
     }
 
     private static func setPlate(_ plate: BoardContentItem.Plate?, on layer: CALayer) {
@@ -267,6 +306,23 @@ final class BoardContentStack {
 
 /// Offscreen bitmaps for the board's cached content.
 enum BoardRaster {
+    /// `draw` as its layer shows it: with a tint, the tint through the drawing's coverage (offscreen frames).
+    static func tinted(_ draw: @escaping (CGContext, CGSize) -> Void, with tint: CGColor?) -> (CGContext, CGSize) -> Void {
+        guard let tint else { return draw }
+        return { context, size in
+            context.saveGState()
+            context.beginTransparencyLayer(auxiliaryInfo: nil)
+            context.saveGState()
+            draw(context, size)
+            context.restoreGState()
+            context.setBlendMode(.sourceIn)
+            context.setFillColor(tint)
+            context.fill(CGRect(origin: .zero, size: size))
+            context.endTransparencyLayer()
+            context.restoreGState()
+        }
+    }
+
     /// A premultiplied image of `size` points at `scale` in `space` (sRGB by default), drawn by `draw` in a y-down
     /// context.
     static func image(size: CGSize, scale: CGFloat, space: CGColorSpace? = nil, draw: (CGContext, CGSize) -> Void) -> CGImage? {

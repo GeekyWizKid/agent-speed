@@ -200,6 +200,26 @@ struct BoardEffectsTests {
         #expect(glass.starCount == 0)
     }
 
+    @Test func warpAnimatedByThePlatformNeedsNoFrames() {
+        var neon = Self.effects(.neon)
+        neon.simulatesWarp = false
+        neon.setHeat(0.5, overdrive: 0, active: true)
+        #expect(neon.warpRequested)
+        Self.run(&neon, seconds: 2)
+        #expect(neon.starCount == 0 && !neon.warpOn)
+        neon.setHeat(0.15, overdrive: 0, active: true)
+        #expect(!neon.warpRequested)
+        neon.setHeat(0.5, overdrive: 0, active: true)
+        neon.setReduceMotion(true)
+        #expect(!neon.warpRequested)
+        neon.setReduceMotion(false)
+        neon.setIntensity(.off)
+        #expect(!neon.warpRequested)
+        var glass = Self.effects(.glass)
+        glass.setHeat(0.9, overdrive: 0, active: true)
+        #expect(!glass.warpRequested)
+    }
+
     @Test func cometsStopWhenNothingGenerates() {
         var fx = Self.effects()
         fx.setHeat(0.3, overdrive: 0, active: true)

@@ -69,9 +69,10 @@ final class BoardNeonContent: BoardContentBuilding {
         let color = palette.heat(heat).opacity(heat * 0.22 * 1.4)
         var light = BoardContentItem.part("deck.light", of: board,
                                           rect: CGRect(x: center.x - radius.width, y: 0, width: 2 * radius.width, height: radius.height),
-                                          revision: AnyHashable([AnyHashable(heat), AnyHashable(palette.dark)])) { context in
-            BoardDrawing.radial(center: center, radius: radius, color: color, in: context)
+                                          revision: AnyHashable("light")) { context in
+            BoardDrawing.radial(center: center, radius: radius, color: .white, in: context)
         }
+        light.tint = color.cgColor
         light.rasterScale = 0.5
         return [light, grid]
     }

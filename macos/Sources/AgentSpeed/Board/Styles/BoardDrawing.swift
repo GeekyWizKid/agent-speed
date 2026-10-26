@@ -37,12 +37,13 @@ enum BoardDrawing {
         context.restoreGState()
     }
 
-    /// A soft radial light (CSS `radial-gradient(closest-side, color, transparent)` under a blur).
+    /// A soft radial light (CSS `radial-gradient(closest-side, color, transparent)` under a blur): its alpha falls
+    /// linearly to the edge.
     static func radial(center: CGPoint, radius: CGSize, color: RGBColor, in context: CGContext) {
         guard radius.width > 0, radius.height > 0,
               let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB),
-                                        colors: [color.cgColor, color.opacity(color.alpha * 0.5).cgColor, color.opacity(0).cgColor] as CFArray,
-                                        locations: [0, 0.5, 1]) else { return }
+                                        colors: [color.cgColor, color.opacity(0).cgColor] as CFArray,
+                                        locations: [0, 1]) else { return }
         context.saveGState()
         context.translateBy(x: center.x, y: center.y)
         context.scaleBy(x: 1, y: radius.height / radius.width)

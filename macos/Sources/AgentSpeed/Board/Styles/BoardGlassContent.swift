@@ -64,10 +64,12 @@ final class BoardGlassContent: BoardContentBuilding {
             ]
             for (index, (center, color, drift)) in lobes.enumerated() {
                 let frame = CGRect(x: center.x - radius.width, y: center.y - radius.height, width: 2 * radius.width, height: 2 * radius.height)
+                // One soft white light, tinted to the heat by its layer: a new heat needs no redraw.
                 var lobe = BoardContentItem(key: "aurora\(index)", frame: frame, motion: .none,
-                                            revision: AnyHashable([heat, palette.dark ? 1 : 0])) { context, box in
-                    BoardDrawing.radial(center: CGPoint(x: box.width / 2, y: box.height / 2), radius: radius, color: color, in: context)
+                                            revision: AnyHashable([index])) { context, box in
+                    BoardDrawing.radial(center: CGPoint(x: box.width / 2, y: box.height / 2), radius: radius, color: .white, in: context)
                 }
+                lobe.tint = color.cgColor
                 lobe.ambient = active ? drift : nil
                 lobe.rasterScale = 0.5
                 items.append(lobe)

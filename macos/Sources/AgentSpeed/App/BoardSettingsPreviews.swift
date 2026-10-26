@@ -108,7 +108,7 @@ enum BoardSettingsPreviews {
                 context.setFillColor(plate.color)
                 context.fillPath()
             }
-            item.draw(context, item.frame.size)
+            BoardRaster.tinted(item.draw, with: item.tint)(context, item.frame.size)
             context.restoreGState()
         }
         NSGraphicsContext.restoreGraphicsState()

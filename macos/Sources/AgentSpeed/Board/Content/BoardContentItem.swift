@@ -43,6 +43,9 @@ struct BoardContentItem {
     var stretch: Double?
     /// Where a stretched image is pinned, points from the frame's left edge (a bar's start, after the glow's room).
     var stretchAnchor: CGFloat = 0
+    /// The drawing is the coverage of one color (drawn white): the layer fills `tint` through it, so a new color is a
+    /// layer property with a short transition instead of a redraw (heat-colored bars and lights).
+    var tint: CGColor?
 
     /// Where the image shows in board points once stretched.
     var shownFrame: CGRect {
