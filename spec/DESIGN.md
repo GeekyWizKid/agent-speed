@@ -1346,8 +1346,9 @@ no effect alive) — static, no frames; cruise/boost — 30 fps; overdrive/redli
 row move or digit roll alive — 60 fps until it ends; value flashes and dims run in the current class (30 fps at
 cruise). "60 fps" and "30 fps" are the divisors of the display's refresh rate of 2a (72 and 36 on 144 Hz). Hidden,
 occluded or faded boards render nothing. Budgets per board (M, Standard, release build, measured after start-up and
-JIT warm-up): idle ≤ 0.3 % CPU; cruise ≤ 3 % (macOS) / ≤ 4 % (Windows, whose presents cost about 0.45 ms of CPU each
-on the reference machine); redline with bursts ≤ 6 % (macOS) / ≤ 8 % (Windows); GPU ≤ 1.5 ms per frame at 2× / 200 %;
+JIT warm-up): idle ≤ 0.3 % CPU; cruise ≤ 3 % (macOS) / ≤ 5.5 % (Windows, whose presents cost about 0.45 ms of CPU
+each on the reference machine; the user chose to keep digit rolls at 60 fps during cruise, which costs about 1.5 % on
+Windows); redline with bursts ≤ 6 % (macOS) / ≤ 8 % (Windows); GPU ≤ 1.5 ms per frame at 2× / 200 %;
 memory the board owns (layer textures, swap chain or drawable surfaces, instance buffers) ≤ 24 MB.
 
 - **Two layers.** Content (text, badges, capsules, values) is laid out and rasterized only when data changes (≤ 2 per
