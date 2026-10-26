@@ -1,3 +1,5 @@
+using AgentSpeed.Core.Intelligence;
+
 namespace AgentSpeed.Core.Tests;
 
 /// <summary>Per-orb readings of a snapshot (METRICS 6.8, DESIGN 2b).</summary>
@@ -121,6 +123,27 @@ public sealed class OrbSubsetTests
         Assert.Empty(SpeedSnapshot.Empty.SubsetPeaks);
         Assert.Equal(DateTimeOffset.MinValue, SpeedSnapshot.Empty.DayStart);
         Assert.Equal(Rate.Zero, new SourceStatus(SourceKind.Omp, true, "", true, 0, new Rate(5, 9), TokenTotals.Zero, 0).LiveEstimated);
+    }
+
+    [Fact]
+    public void AnOrbAddsTheIntelligenceSumsOfItsOwnAvailableSources()
+    {
+        var claude = new IntelligenceSums(Output: 300, Graded: 300 * 124, Thinking: 100, ThinkingBasis: 300);
+        var codex = new IntelligenceSums(Output: 100, Graded: 100 * 92, Thinking: 50, ThinkingBasis: 100);
+        var snapshot = Snapshot with
+        {
+            Sources = Snapshot.Sources.Select(s => s.Kind switch
+            {
+                SourceKind.ClaudeCode => s with { Intelligence = claude },
+                SourceKind.Codex => s with { Intelligence = codex },
+                _ => s,
+            }).ToList(),
+        };
+
+        Assert.Equal(claude + codex, OrbSubset.Reading(snapshot, null).Intelligence);
+        Assert.Equal(claude, OrbSubset.Reading(snapshot, Partial).Intelligence);
+        Assert.Equal(131, OrbSubset.Reading(snapshot, Partial).Intelligence.Shown);
+        Assert.False(OrbSubset.Reading(snapshot, [SourceKind.Gemini]).Intelligence.IsActive);
     }
 
     private static SourceStatus Source(

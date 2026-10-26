@@ -5,6 +5,9 @@ internal sealed record AgentFrame(AgentInfo Info, AgentPhase Phase, Rate Live, d
 {
     /// <summary>The agent's live cost rate (METRICS 9.5).</summary>
     public LiveCost LiveCost { get; init; }
+
+    /// <summary>The grade of the agent's current model and effort (METRICS 6.9).</summary>
+    public Intelligence.ModelGrade Grade { get; init; }
 }
 
 /// <summary>Everything the engine computes for one instant (METRICS 6).</summary>
@@ -44,6 +47,9 @@ internal sealed record EngineFrame(
 
     /// <summary>Each source's models with unpriced responses today, most unpriced first, then by name.</summary>
     public IReadOnlyList<string>[] SourceUnpricedModels { get; init; } = [];
+
+    /// <summary>The live intelligence sums of each source (METRICS 6.9), indexed by <see cref="SourceKind"/>.</summary>
+    public Intelligence.IntelligenceSums[] SourceIntelligence { get; init; } = [];
 
     /// <summary>Live reporting's view of this instant (METRICS 11.2, 11.4).</summary>
     public Reporting.ReportLiveFacts Report { get; init; } = Reporting.ReportLiveFacts.Empty;

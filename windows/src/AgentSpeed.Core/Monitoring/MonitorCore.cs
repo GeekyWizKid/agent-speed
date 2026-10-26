@@ -558,11 +558,11 @@ internal sealed partial class MonitorCore : IDisposable
                 a.Live,
                 a.RecentSpeed,
                 UnixTime.FromMs(a.Info.LastLineMs ?? nowMs),
-                a.ParentId) { LiveCost = a.LiveCost, Modes = a.Info.Modes })
+                a.ParentId) { LiveCost = a.LiveCost, Modes = a.Info.Modes, Grade = a.Grade })
             .ToList();
 
         var sources = Enum.GetValues<SourceKind>()
-            .Select(kind => WithCost(
+            .Select(kind => WithEngineSums(
                 BuildSourceStatus(kind, todayStartMs, frame.SourceLive[(int)kind],
                     frame.SourceToday[(int)kind], agents.Count(a => a.Source == kind && a.Phase == AgentPhase.Generating),
                     frame.SourceLiveEstimated[(int)kind]),
@@ -596,8 +596,8 @@ internal sealed partial class MonitorCore : IDisposable
         return (snapshot, frame.Events);
     }
 
-    /// <summary>A disabled source carries no cost, like its tokens.</summary>
-    private static SourceStatus WithCost(SourceStatus status, EngineFrame frame)
+    /// <summary>A disabled source carries no cost or intelligence, like its tokens.</summary>
+    private static SourceStatus WithEngineSums(SourceStatus status, EngineFrame frame)
     {
         var index = (int)status.Kind;
         return !status.Enabled || frame.SourceLiveCost.Length <= index ? status : status with
@@ -605,6 +605,7 @@ internal sealed partial class MonitorCore : IDisposable
             LiveCost = frame.SourceLiveCost[index],
             TodayCost = frame.SourceTodayCost[index],
             UnpricedModels = frame.SourceUnpricedModels[index],
+            Intelligence = frame.SourceIntelligence[index],
             TodayModes = frame.TodayModes.Where(m => m.Source == status.Kind).ToArray(),
         };
     }
