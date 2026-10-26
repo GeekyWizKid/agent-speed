@@ -740,6 +740,11 @@ internal sealed class GpuOrbWindow : IOrbWindow, IOrbHostInput
         if (_discHover != hovering)
         {
             _discHover = hovering;
+            if (!hovering)
+            {
+                HideHint();
+            }
+
             ApplyHover();
         }
     }

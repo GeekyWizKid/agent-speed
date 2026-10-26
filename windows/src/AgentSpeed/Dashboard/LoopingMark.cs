@@ -57,22 +57,25 @@ internal sealed class LoopingMark : TextBlock
     private void Show(bool animate)
     {
         var shown = IsLooping;
+        var from = Opacity;
+        var to = shown ? 1.0 : 0.0;
+        BeginAnimation(OpacityProperty, null);
+        Opacity = to;
         if (shown)
         {
             Visibility = Visibility.Visible;
         }
 
-        BeginAnimation(OpacityProperty, null);
-        if (!animate || Appearance.ReduceMotion || !IsLoaded)
+        if (!animate || Appearance.ReduceMotion || !IsLoaded || Math.Abs(from - to) < 0.001)
         {
-            Opacity = shown ? 1 : 0;
             Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
             return;
         }
 
-        var fade = new DoubleAnimation(Opacity, shown ? 1 : 0, shown ? FadeIn : FadeOut)
+        var fade = new DoubleAnimation(from, to, shown ? FadeIn : FadeOut)
         {
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop,
         };
         if (!shown)
         {

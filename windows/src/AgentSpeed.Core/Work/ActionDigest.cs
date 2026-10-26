@@ -23,7 +23,10 @@ internal static class ActionDigest
 
     public static string Hex(ulong digest) => digest.ToString("x16", System.Globalization.CultureInfo.InvariantCulture);
 
-    /// <summary>Hashes the value the reader is on (a reader over <paramref name="line"/>) and moves past it.</summary>
+    /// <summary>
+    /// Hashes the value the reader is on (a reader over <paramref name="line"/>) and moves past it. A string whose escapes
+    /// do not decode (a lone surrogate) hashes as written rather than failing its line.
+    /// </summary>
     public static ulong ReadInput(ref Utf8JsonReader reader, ReadOnlySpan<byte> line)
     {
         switch (reader.TokenType)
@@ -33,6 +36,10 @@ internal static class ActionDigest
                 try
                 {
                     return Of(buffer.AsSpan(0, reader.CopyString(buffer)));
+                }
+                catch (InvalidOperationException)
+                {
+                    return Of(reader.ValueSpan);
                 }
                 finally
                 {

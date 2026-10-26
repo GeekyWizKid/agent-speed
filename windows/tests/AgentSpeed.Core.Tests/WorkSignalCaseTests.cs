@@ -83,6 +83,19 @@ public sealed class WorkSignalCaseTests
         Assert.Equal(expected, log.Actions.Select(a => (a.AtMs, (string?)a.Tool, (string?)ActionDigest.Hex(a.Digest), a.Failed)));
     }
 
+    [Fact]
+    public void ToolLinesKeepTheirResponsesAndAnUndecodableEscapeNeverFailsTheLine()
+    {
+        var call = CodexLines.Envelope(CodexLines.T0, "response_item",
+            """{"type":"custom_tool_call","call_id":"c1","name":"exec","input":"bad \ud800 escape"}""");
+        var output = CodexLines.Envelope(CodexLines.T0 + 10, "response_item",
+            """{"type":"custom_tool_call_output","call_id":"c1","output":"{\"exit_code\":1,\"note\":\"\ud800\"}"}""");
+        Assert.Equal(LineStatus.Valid, CodexLineReader.Read(Encoding.UTF8.GetBytes(call)).Status);
+        Assert.Equal("exec", CodexLineReader.Read(Encoding.UTF8.GetBytes(call)).Tools.Calls![0].Tool);
+        Assert.Equal(LineStatus.Valid, CodexLineReader.Read(Encoding.UTF8.GetBytes(output)).Status);
+        Assert.Null(CodexLineReader.Read(Encoding.UTF8.GetBytes(output)).Tools.Outcomes![0].Failed);
+    }
+
     /// <summary>The compact JSON text the fixture's lines stand for (as <c>json.dumps(..., ensure_ascii=False)</c> writes it).</summary>
     private static byte[] Compact(JsonElement element)
     {

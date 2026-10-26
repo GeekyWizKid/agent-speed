@@ -54,7 +54,16 @@ internal struct CodexTools
         else if (reader.ValueTextEquals("output"u8))
         {
             reader.Read();
-            _failed = ReadFailed(ref reader);
+            try
+            {
+                _failed = ReadFailed(ref reader);
+            }
+            catch (InvalidOperationException)
+            {
+                // An escape that does not decode: the output says nothing, the line stays valid.
+                _failed = null;
+                JsonScan.SkipValue(ref reader);
+            }
         }
         else
         {
