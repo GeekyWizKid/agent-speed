@@ -172,6 +172,26 @@ public class BoardSceneTests
     }
 
     [Fact]
+    public void RowsDrawTheirShapesThenTheirLayersInFewBatches()
+    {
+        var scene = Scene();
+        var list = new BoardDrawList();
+        scene.Apply(Tick([("a", 900), ("b", 600), ("c", 400), ("d", 200), ("e", 100)]), 0);
+        scene.Settle();
+        Frames(scene, list, 0, 0.2);
+
+        // Five generating rows with underlines and comets: shapes and layers do not alternate row by row, nor blends comet by comet.
+        var listBatches = 0;
+        foreach (var batch in list.Batches)
+        {
+            listBatches += batch.Clip == BoardClip.Inside ? 1 : 0;
+        }
+
+        Assert.True(list.BatchCount <= 14, string.Join("; ", list.Batches.ToArray().Select(b => $"{b.Pass} {b.Blend} {b.Clip} {b.Count}")));
+        Assert.True(listBatches <= 8, $"{listBatches} batches inside the square");
+    }
+
+    [Fact]
     public void TimingRowsCarryTheirIntervalAndOthersNone()
     {
         var timing = new BoardScene(BoardStyle.Timing, BoardSize.M, 3);

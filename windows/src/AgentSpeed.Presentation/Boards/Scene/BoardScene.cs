@@ -236,10 +236,17 @@ public sealed class BoardScene
         var comets = policy.Comets && !palette.HighContrast && animating;
         var pulses = policy.Comets && animating;
 
+        // Two passes, so a frame draws every row's shapes (hover tint, share underline) in one batch and every row's layers in
+        // the next instead of alternating per row; the underlines lie under every row's content, as the CSS bar's z-index -1.
         foreach (var row in _order)
         {
             row.Step(dt);
             var alpha = row.Alpha(now);
+            if (row.Entry.Kind == BoardEntryKind.Group && !row.Leaving)
+            {
+                Effects.FollowRow(row.Key, metrics.ListTop + row.Y + RowHeight(row.Entry) / 2);
+            }
+
             if (alpha <= 0.002)
             {
                 continue;
@@ -258,7 +265,19 @@ public sealed class BoardScene
             {
                 Underline(list, row, left, top, height, alpha, now, comets);
             }
+        }
 
+        foreach (var row in _order)
+        {
+            var alpha = row.Alpha(now);
+            if (alpha <= 0.002)
+            {
+                continue;
+            }
+
+            var top = m + metrics.ListTop + row.Y + row.EnterLift(now, reduce);
+            var left = m + metrics.ListLeft;
+            var height = RowHeight(row.Entry);
             if (layers.TryGet(row.Key, out var body))
             {
                 list.AddLayer(BoardLayerInstance.Create(body, left, top, alpha, clip: clip));
@@ -289,11 +308,6 @@ public sealed class BoardScene
             {
                 BoardValueGlyphs.Emit(list, layers, row.IntervalText, BoardValueSet.Interval, left + metrics.ListWidth - BoardValueGlyphs.IntervalRight,
                     top + (height - 1) / 2, 0, palette.Ink3, alpha, clip);
-            }
-
-            if (row.Entry.Kind == BoardEntryKind.Group && !row.Leaving)
-            {
-                Effects.FollowRow(row.Key, metrics.ListTop + row.Y + RowHeight(row.Entry) / 2);
             }
         }
 
