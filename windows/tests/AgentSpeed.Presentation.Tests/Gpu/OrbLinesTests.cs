@@ -104,7 +104,7 @@ public class OrbLinesTests
         Assert.True(rule.Apply(OrbLinesText.Intelligence(active, generating: true, En), 1));
         var shown = rule.Reading!.Value.Content;
         Assert.Equal(OrbLinesKind.Intelligence, shown.Kind);
-        Assert.Equal(new OrbLine(En["intel.glyph"], "133", string.Empty), shown.First);
+        Assert.Equal(new OrbLine(En["intel.glyph"], "133", string.Empty, Integer: true), shown.First);
         Assert.Equal(new OrbLine(En["intel.thinking.glyph"], "59", En["unit.tokS"]), shown.Second);
         Assert.Equal(En.Format("a11y.orb.intel", "133", "59"), shown.Spoken);
         Assert.StartsWith(En.Format("intel.tooltip", "133", "44%"), shown.Detail, StringComparison.Ordinal);
@@ -162,6 +162,9 @@ public class OrbLinesTests
         Assert.Equal(
             traffic.Lines.LineWidth(size, trafficContent) - traffic.Lines.GlyphCell(size, trafficContent),
             intelligence.Lines.LineWidth(size, intelligenceContent) - intelligence.Lines.GlyphCell(size, intelligenceContent), 6);
+
+        // The index sits in an 888 cell inside the 8.88 cell.
+        Assert.True(intelligence.Lines.IntegerCell(size) < intelligence.Lines.Cells(size, bits: false).Number);
 
         // The intelligence line is the one nearest the value: ↑'s place above it, ↓'s below it (needle).
         var (top, bottom) = intelligenceContent.Stack(placement.Below);

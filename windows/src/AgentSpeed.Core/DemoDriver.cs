@@ -203,7 +203,7 @@ public sealed class DemoDriver : IDisposable
             return new SourceStatus(kind, true, string.Empty, true, 12, new Rate(live, live * 24),
                 new TokenTotals(_today.Requests / n, _today.Input / n, _today.CachedInput / n, 0, _today.Output / n),
                 agents.Count(a => a.Source == kind && a.Phase == AgentPhase.Generating),
-                new Rate(live * EstimatedShare, live * 24 * EstimatedShare));
+                new Rate(live * EstimatedShare, live * 24 * EstimatedShare)) { Intelligence = DemoIntelligence(live) };
         }).ToList();
 
         return new SpeedSnapshot(
@@ -222,6 +222,13 @@ public sealed class DemoDriver : IDisposable
             _history.ToList(),
             _lastResponse,
             []);
+    }
+
+    /// <summary>A flagship model at high effort thinking 40 % of the time, for orbs that preview the intelligence readout.</summary>
+    private static Intelligence.IntelligenceSums DemoIntelligence(double liveOutput)
+    {
+        var window = liveOutput * Engine.SpeedEngine.WindowMs / 1000.0;
+        return Intelligence.IntelligenceSums.Zero.Add(SourceKind.ClaudeCode, window, window * 0.4, new Intelligence.ModelGrade(Intelligence.ModelClass.Flagship, 3));
     }
 
     private sealed record FakeAgent(

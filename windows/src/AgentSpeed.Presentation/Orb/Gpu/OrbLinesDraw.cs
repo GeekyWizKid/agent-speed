@@ -39,8 +39,9 @@ public readonly record struct OrbLinesColors(Rgba Number, Rgba Secondary, Rgba? 
 /// <summary>
 /// The orb's two-line readout on the GPU (DESIGN 10): each line a glyph, a number right-aligned in a cell as wide as
 /// <c>8.88</c> and a unit left-aligned in a cell as wide as <c>MB/s</c>, sharing their left edge and centered on the orb.
-/// Network speed draws vector arrows; the intelligence readout draws text glyphs (weight 600, 0.82 t) centered in the
-/// arrow's cell and widened to their own advance, with the same cells, so switching modes moves nothing. Characters are
+/// Network speed draws vector arrows; the intelligence readout draws text glyphs (weight 600 with CJK fallbacks, 0.82 t)
+/// centered in the arrow's cell and widened to their own advance, and its integer in an <c>888</c> cell, so switching
+/// modes moves nothing. Characters are
 /// replaced in their cells once per sample (no animation); the block fades by the quiet rule and steps aside for the
 /// new-peak pill. Allocates nothing per frame.
 /// </summary>
@@ -65,11 +66,12 @@ public sealed class OrbLinesDraw
     /// <summary>The <c>8.88</c> number cell and the <c>MB/s</c> (bits: <c>Mb/s</c>) unit cell at text size <paramref name="t"/>.</summary>
     public (double Number, double Unit) Cells(double t, bool bits)
     {
-        var digit = _glyphs.DigitCell(OrbFont.TrafficNumber, t);
-        var point = _glyphs.TryGet(OrbTextKey.Create(".", OrbFont.TrafficNumber, t), out var dot) ? dot.Advance : 0.3 * t;
         var unit = _glyphs.TryGet(OrbTextKey.Create(bits ? "Mb/s" : "MB/s", OrbFont.Unit, UnitSize(t)), out var cell) ? cell.Advance : 2.2 * t;
-        return (3 * digit + point, unit);
+        return (IntegerCell(t) + PointAdvance(t), unit);
     }
+
+    /// <summary>The <c>888</c> cell of an integer line.</summary>
+    public double IntegerCell(double t) => 3 * _glyphs.DigitCell(OrbFont.TrafficNumber, t);
 
     /// <summary>The glyph cell: the arrow's box, or a text glyph's own advance when that is wider.</summary>
     public double GlyphCell(double t, OrbLinesContent? content)
@@ -154,7 +156,7 @@ public sealed class OrbLinesDraw
         var t = cells.Size;
         var glyphKey = arrow
             ? OrbTextKey.Create(line.Glyph, OrbFont.Arrow, t, 0, paint.Sigma)
-            : OrbTextKey.Create(line.Glyph, OrbFont.TrafficNumber, UnitSize(t), 0, paint.Sigma);
+            : OrbTextKey.Create(line.Glyph, OrbFont.Title, UnitSize(t), 0, paint.Sigma);
         if (_glyphs.TryGet(glyphKey, out var glyph))
         {
             list.AddText(glyph, cells.Left + (cells.Glyph - glyph.Advance) / 2, baseline, paint.Secondary, paint.Shadow, paint.Clip);
@@ -167,7 +169,7 @@ public sealed class OrbLinesDraw
             advance += CellWidth(ch, t, digit, paint.Sigma);
         }
 
-        var x = cells.NumberRight - advance;
+        var x = (line.Integer ? cells.NumberRight - PointAdvance(t) : cells.NumberRight) - advance;
         foreach (var ch in line.Number)
         {
             var cell = CellWidth(ch, t, digit, paint.Sigma);
@@ -186,7 +188,10 @@ public sealed class OrbLinesDraw
     }
 
     private double TextGlyphAdvance(string text, double t) =>
-        _glyphs.TryGet(OrbTextKey.Create(text, OrbFont.TrafficNumber, UnitSize(t)), out var glyph) ? glyph.Advance : 0;
+        _glyphs.TryGet(OrbTextKey.Create(text, OrbFont.Title, UnitSize(t)), out var glyph) ? glyph.Advance : 0;
+
+    private double PointAdvance(double t) =>
+        _glyphs.TryGet(OrbTextKey.Create(".", OrbFont.TrafficNumber, t), out var dot) ? dot.Advance : 0.3 * t;
 
     private double CellWidth(char ch, double t, double digit, double sigma) =>
         char.IsAsciiDigit(ch) ? digit

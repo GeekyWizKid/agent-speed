@@ -41,7 +41,7 @@ public static class OrbLinesText
         var thinking = SpeedFormat.Speed(sums.LiveThinking);
         var content = new OrbLinesContent(
             OrbLinesKind.Intelligence,
-            new OrbLine(localizer["intel.glyph"], shown, string.Empty),
+            new OrbLine(localizer["intel.glyph"], shown, string.Empty, Integer: true),
             new OrbLine(localizer["intel.thinking.glyph"], thinking, localizer["unit.tokS"]),
             false,
             localizer.Format("a11y.orb.intel", shown, thinking),

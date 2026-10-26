@@ -11,7 +11,8 @@ public enum OrbLinesKind : byte
 }
 
 /// <summary>One line: a glyph (an arrow's character, or text), a number right-aligned in its cell, a unit left-aligned in its cell.</summary>
-public readonly record struct OrbLine(string Glyph, string Number, string Unit);
+/// <param name="Integer">The number cell is as wide as <c>888</c> instead of <c>8.88</c> (the intelligence index).</param>
+public readonly record struct OrbLine(string Glyph, string Number, string Unit, bool Integer = false);
 
 /// <summary>The readout's text at one sample, with the spoken form the orb's label adds while it is visible.</summary>
 /// <param name="First">Traffic: the ↓ line; intelligence: the intelligence line.</param>
