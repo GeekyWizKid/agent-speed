@@ -191,22 +191,24 @@ struct TranscriptParser: Sendable {
         grokBuild?.noteMalformedLine()
     }
 
-    mutating func consume(_ line: DecodedLine, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
+    /// `tools`: the line's tool calls and results, read only from live lines (METRICS 6.10).
+    mutating func consume(_ line: DecodedLine, tools: [ToolEvent] = [], deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
         switch line {
-        case .codex(let extraction): codex?.consume(extraction, deduper: &deduper, emit: emit)
-        case .claude(let extraction): claude?.consume(extraction, deduper: &deduper, emit: emit)
+        case .codex(let extraction): codex?.consume(extraction, tools: tools, deduper: &deduper, emit: emit)
+        case .claude(let extraction): claude?.consume(extraction, tools: tools, deduper: &deduper, emit: emit)
         case .dsh(let extraction): dsh?.consume(extraction, deduper: &deduper, emit: emit)
         case .gemini(let extraction): gemini?.consume(extraction, deduper: &deduper, emit: emit)
-        case .omp(let extraction): omp?.consume(extraction, deduper: &deduper, emit: emit)
+        case .omp(let extraction): omp?.consume(extraction, tools: tools, deduper: &deduper, emit: emit)
         case .workbuddy(let extraction): workbuddy?.consume(extraction, deduper: &deduper, emit: emit)
         case .kimi(let extraction): kimi?.consume(extraction, deduper: &deduper, emit: emit)
         case .grokBuild(let extraction): grokBuild?.consume(extraction, deduper: &deduper, emit: emit)
         }
     }
 
+    /// A live line: its responses and its tool calls. Seeding and history decode ahead and read no tools.
     mutating func consume(rawLine bytes: UnsafeRawBufferPointer, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
         guard let line = decode(bytes) else { return }
-        consume(line, deduper: &deduper, emit: emit)
+        consume(line, tools: ToolEventExtractor.events(family, bytes), deduper: &deduper, emit: emit)
     }
 
     mutating func consume(_ lines: DecodedLines, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {

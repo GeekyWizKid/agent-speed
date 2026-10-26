@@ -86,6 +86,8 @@ struct AgentState: Equatable, Sendable {
     var inFlightStartMs: Int64?
     var lastLineMs: Int64?
     var malformedLines = 0
+    /// The file's tool calls of live lines (METRICS 6.10).
+    var actions = ActionLog()
 
     init(source: SourceKind, isSubagent: Bool = false) {
         self.source = source

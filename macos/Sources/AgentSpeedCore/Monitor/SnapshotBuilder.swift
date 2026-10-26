@@ -76,7 +76,8 @@ enum SnapshotBuilder {
                 liveCost: row.liveCost,
                 cwdPath: row.agent.cwdPath,
                 modes: row.agent.modes,
-                grade: row.grade
+                grade: row.grade,
+                signals: row.signals
             )
         }
         let sources = SourceKind.allCases.map { kind in

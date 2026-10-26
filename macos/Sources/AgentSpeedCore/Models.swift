@@ -112,6 +112,8 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
     public var cwdPath: String?
     /// The grade of its current model and effort (METRICS 6.9).
     public var grade: IntelligenceGrade
+    /// What its recent tool calls say (METRICS 6.10).
+    public var signals: WorkSignals
 
     public init(
         id: String,
@@ -127,7 +129,8 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
         liveCost: LiveCost = .zero,
         cwdPath: String? = nil,
         modes: ExecutionModes = .empty,
-        grade: IntelligenceGrade = .unknown
+        grade: IntelligenceGrade = .unknown,
+        signals: WorkSignals = .none
     ) {
         self.id = id
         self.source = source
@@ -143,6 +146,7 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
         self.liveCost = liveCost
         self.cwdPath = cwdPath
         self.grade = grade
+        self.signals = signals
     }
 }
 
