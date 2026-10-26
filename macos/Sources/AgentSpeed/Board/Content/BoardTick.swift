@@ -27,7 +27,8 @@ struct BoardTick: Equatable {
     var events: [BoardRankEvent]
     /// A new `peakToday_A` was reached on this tick.
     var newPeak: Bool
-    /// Footer values, already formatted: today's output, today's cost (nil when unknown, section 9), `peakToday_A`.
+    /// Footer values, already formatted, without their labels (the styles set them in `boards.today` and
+    /// `boards.peak`): today's output, today's cost (nil when unknown, section 9), `peakToday_A`.
     var todayText: String
     var costText: String?
     var peakText: String

@@ -108,9 +108,9 @@ final class BoardRuntime {
             rows: frame.rows,
             events: events,
             newPeak: frame.newPeak && celebrate,
-            todayText: l10n("boards.today", SpeedFormat.tokens(frame.todayOutput)),
+            todayText: SpeedFormat.tokens(frame.todayOutput),
             costText: costText(model: model, snapshot: snapshot, previewing: previewing),
-            peakText: l10n("boards.peak", SpeedFormat.speed(frame.peak))
+            peakText: SpeedFormat.speed(frame.peak)
         )
     }
 
