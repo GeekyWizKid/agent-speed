@@ -10,11 +10,11 @@ namespace AgentSpeed.App;
 /// <summary>
 /// <c>--report-e2e URL</c>: drives the real live reporting controller — the dashboard invitation (declined, then accepted),
 /// consent, the DPAPI-protected device key, registration, reports while busy and idle, rename, key rotation, rate limiting,
-/// pause, the API key, the network switch, the WebSocket transport (when the server offers it), turning off and Forget — against a local reference server
-/// (<c>spec/tools/report_server.py</c>). The live monitor is not started; a synthetic engine feed publishes a snapshot every
-/// 0.5 s. It refuses to run without an isolated settings file and key folder (<c>AGENT_SPEED_SETTINGS_FILE</c>,
-/// <c>AGENT_SPEED_REPORT_DIR</c>) and the preset pointed at the same server (<c>AGENT_SPEED_REPORT_PRESET_URL</c>). Writes one
-/// line per check to <c>report-e2e.log</c> next to the settings file and quits.
+/// pause, the API key, the network switch, the WebSocket transport (when the server offers it), turning off and Forget —
+/// against a local reference server (<c>spec/tools/report_server.py</c>). The live monitor is not started; a synthetic engine
+/// feed publishes a snapshot every 0.5 s. It refuses to run without an isolated settings file and key folder
+/// (<c>AGENT_SPEED_SETTINGS_FILE</c>, <c>AGENT_SPEED_REPORT_DIR</c>) and the preset pointed at the same server
+/// (<c>AGENT_SPEED_REPORT_PRESET_URL</c>). Writes one line per check to <c>report-e2e.log</c> next to the settings file and quits.
 /// </summary>
 internal static class ReportHarness
 {
@@ -188,7 +188,8 @@ internal static class ReportHarness
 
         Check("websocket: HTTP until the user chooses", report.Transport == ReportTransportKind.Http && report.StreamSession is null);
         report.SetTransport(ReportTransportKind.WebSocket);
-        Check("websocket: the choice is stored for this service", report.Preferences.TransportOf(report.SelectedService) == ReportTransportKind.WebSocket);
+        Check("websocket: the choice is stored for this service",
+            report.Preferences.TransportOf(report.SelectedService) == ReportTransportKind.WebSocket);
         await Until("websocket: an acknowledged report turns the status green", 15,
             () => report.Status.Kind == ReportStatusKind.Streaming && report.StreamSession?.Counters.Accepted > 0);
         var accepted = report.StreamSession?.Counters.Accepted ?? 0;

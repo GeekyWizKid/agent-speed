@@ -216,7 +216,8 @@
                                              AutomationProperties.LabeledBy="{Binding ElementName=TransportLabel}"
                                              AutomationProperties.HelpText="{Binding TransportCaption}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Style="{StaticResource SymbolIcon}" Text="&#xE945;" FontSize="11" Margin="0,1,5,0" VerticalAlignment="Center" />
+                                        <TextBlock Style="{StaticResource SymbolIcon}" Text="&#xE945;" FontSize="11" Margin="0,1,5,0" VerticalAlignment="Center"
+                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
                                         <TextBlock Text="{loc:Loc report.transport.websocket}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </RadioButton>
@@ -400,16 +401,20 @@
                     <TextBlock Text="{Binding StatusDetail}" Style="{StaticResource Footnote}" Margin="0,2,0,0"
                                Visibility="{Binding StatusDetail, Converter={StaticResource HasText}}" />
                     <!-- WebSocket: latency and delivery counts; every counter in the tooltip (also on keyboard focus) -->
-                    <StackPanel x:Name="StreamStats" Orientation="Horizontal" Margin="0,3,0,0" HorizontalAlignment="Left" Background="Transparent"
-                                Focusable="True" FocusVisualStyle="{StaticResource RoundedFocusVisual}"
-                                ToolTip="{Binding StreamCountersText}" ToolTipService.InitialShowDelay="250" ToolTipService.ShowDuration="20000"
-                                AutomationProperties.Name="{Binding StreamStatsText}" AutomationProperties.HelpText="{Binding StreamCountersText}"
-                                Visibility="{Binding StreamStatsText, Converter={StaticResource HasText}}">
+                    <Grid x:Name="StreamStats" Margin="0,3,0,0" HorizontalAlignment="Left" Background="Transparent"
+                          Focusable="True" FocusVisualStyle="{StaticResource RoundedFocusVisual}"
+                          ToolTip="{Binding StreamCountersText}" ToolTipService.InitialShowDelay="250" ToolTipService.ShowDuration="20000"
+                          AutomationProperties.Name="{Binding StreamStatsText}" AutomationProperties.HelpText="{Binding StreamCountersText}"
+                          Visibility="{Binding StreamStatsText, Converter={StaticResource HasText}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
                         <TextBlock Text="{Binding StreamStatsText}" Style="{StaticResource Footnote}" Typography.NumeralAlignment="Tabular"
-                                   TextWrapping="Wrap" VerticalAlignment="Center" />
-                        <TextBlock Style="{StaticResource SymbolIcon}" Text="&#xE946;" FontSize="11" Margin="6,1,0,0" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                    </StackPanel>
+                                   TextWrapping="Wrap" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource SymbolIcon}" Text="&#xE946;" FontSize="11" Margin="6,3,0,0"
+                                   VerticalAlignment="Top" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </Grid>
                     <TextBlock Text="{Binding RankText}" Style="{StaticResource Footnote}" Margin="0,2,0,0"
                                Visibility="{Binding RankText, Converter={StaticResource HasText}}" />
                 </StackPanel>
