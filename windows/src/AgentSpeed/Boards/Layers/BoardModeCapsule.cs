@@ -133,11 +133,33 @@ internal sealed class BoardModeCapsule : IBoardModeCapsule
         var palette = look.Palette;
         var bottom = mid + 5;
         var radius = look.Corner < 6 ? 0.5f : (float)EffortCapsule.BarCornerRadius;
+        var w = (float)EffortCapsule.BarWidth;
+        float Left(int i) => x + i * (float)(EffortCapsule.BarWidth + EffortCapsule.BarSpacing);
+        float Height(int i) => (float)EffortCapsule.BarHeights[i];
+
+        // The lit bars' glows (the CSS box-shadow of each bar) as one blur of all of them: one Direct2D effect, not five.
+        var (glow, blur) = look.HighContrast ? (default, 0f) : tone switch
+        {
+            EffortTone.TopRung => (EffortCapsulePalette.Heat(1, look.Dark).WithAlpha(look.Glows ? 1 : 0.55), look.TopGlow),
+            EffortTone.Max when look.Glows && look.Dark => (EffortCapsulePalette.Heat(EffortCapsulePalette.MaxHeat, look.Dark), 5f),
+            EffortTone.Neutral when look.Glows && look.Dark => (new Rgba(170 / 255.0, 200 / 255.0, 1, 0.8), 4f),
+            _ => (default, 0f),
+        };
+        if (blur > 0 && level > 0)
+        {
+            BoardPaint.Glow(context, glow, blur, c =>
+            {
+                for (var i = 0; i < Math.Min(level, EffortCapsule.BarHeights.Count); i++)
+                {
+                    BoardPaint.FillRound(c, Left(i), bottom - Height(i), w, Height(i), radius, Rgba.White);
+                }
+            });
+        }
+
         for (var i = 0; i < EffortCapsule.BarHeights.Count; i++)
         {
-            var h = (float)EffortCapsule.BarHeights[i];
-            var left = x + i * (float)(EffortCapsule.BarWidth + EffortCapsule.BarSpacing);
-            var w = (float)EffortCapsule.BarWidth;
+            var h = Height(i);
+            var left = Left(i);
             if (i >= level)
             {
                 BoardPaint.FillRound(context, left, bottom - h, w, h, radius, palette.Unlit);
@@ -155,38 +177,17 @@ internal sealed class BoardModeCapsule : IBoardModeCapsule
                 case EffortTone.TopRung:
                 {
                     var (top, low) = EffortCapsulePalette.TopRungBar(h, look.Dark);
-                    var glow = EffortCapsulePalette.Heat(1, look.Dark).WithAlpha(look.Glows ? 1 : 0.55);
-                    BoardPaint.Glow(context, glow, look.TopGlow, c => BoardPaint.FillRound(c, left, bottom - h, w, h, radius, Rgba.White));
                     using var brush = BoardPaint.Gradient(context, left, bottom - h, w, h, [(0, top), (1, low)], vertical: true);
                     context.FillRoundedRectangle(new RoundedRectangle(new RawRectF(left, bottom - h, left + w, bottom), radius, radius), brush);
                     break;
                 }
 
                 case EffortTone.Max:
-                {
-                    var color = EffortCapsulePalette.Heat(EffortCapsulePalette.MaxHeat, look.Dark);
-                    if (look.Glows && look.Dark)
-                    {
-                        BoardPaint.Glow(context, color, 5, c => BoardPaint.FillRound(c, left, bottom - h, w, h, radius, Rgba.White));
-                    }
-
-                    BoardPaint.FillRound(context, left, bottom - h, w, h, radius, color);
+                    BoardPaint.FillRound(context, left, bottom - h, w, h, radius, EffortCapsulePalette.Heat(EffortCapsulePalette.MaxHeat, look.Dark));
                     break;
-                }
-
                 default:
-                    if (look.Glows && look.Dark)
-                    {
-                        // Neon's lit bars: #cfe0ff with a 4 px glow of rgba(170,200,255,.8).
-                        BoardPaint.Glow(context, new Rgba(170 / 255.0, 200 / 255.0, 1, 0.8), 4,
-                            c => BoardPaint.FillRound(c, left, bottom - h, w, h, radius, Rgba.White));
-                        BoardPaint.FillRound(context, left, bottom - h, w, h, radius, Rgba.FromHex("#CFE0FF"));
-                    }
-                    else
-                    {
-                        BoardPaint.FillRound(context, left, bottom - h, w, h, radius, palette.Ink2);
-                    }
-
+                    // Neon's lit bars on dark: #cfe0ff (their glow is above).
+                    BoardPaint.FillRound(context, left, bottom - h, w, h, radius, look.Glows && look.Dark ? Rgba.FromHex("#CFE0FF") : palette.Ink2);
                     break;
             }
         }
@@ -251,22 +252,25 @@ internal sealed class BoardModeCapsule : IBoardModeCapsule
         var look = Look;
         var color = look.HighContrast ? look.Palette.Ink : look.Palette.AmberInk;
         var top = mid - 5;
+        float Left(int i) => x + i * (BoltWidth - 3);
+        double Alpha(int i) => count > 1 && i < count - 1 ? EffortCapsule.RearBoltOpacity : 1;
+        if (!look.HighContrast && look.BoltGlow > 0)
+        {
+            // Glass: drop-shadow 2 px of amber at 45 %; neon: 3 px of amber; the rear bolt's at its opacity. One effect for both.
+            BoardPaint.Glow(context, Rgba.FromHex("#F5A524").WithAlpha(look.Glows ? 1 : 0.45), look.BoltGlow, c =>
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    using var white = BoardPaint.Brush(c, Rgba.White.WithAlpha(Alpha(i)));
+                    BoardPaint.Bolt(c, Left(i), top, BoltScale, white);
+                }
+            });
+        }
+
         for (var i = 0; i < count; i++)
         {
-            var left = x + i * (BoltWidth - 3);
-            var alpha = count > 1 && i < count - 1 ? EffortCapsule.RearBoltOpacity : 1;
-            if (!look.HighContrast && look.BoltGlow > 0)
-            {
-                // Glass: drop-shadow 2 px of amber at 45 %; neon: 3 px of amber.
-                BoardPaint.Glow(context, Rgba.FromHex("#F5A524").WithAlpha((look.Glows ? 1 : 0.45) * alpha), look.BoltGlow, c =>
-                {
-                    using var white = BoardPaint.Brush(c, Rgba.White);
-                    BoardPaint.Bolt(c, left, top, BoltScale, white);
-                });
-            }
-
-            using var brush = BoardPaint.Brush(context, color.MultiplyAlpha(alpha));
-            BoardPaint.Bolt(context, left, top, BoltScale, brush);
+            using var brush = BoardPaint.Brush(context, color.MultiplyAlpha(Alpha(i)));
+            BoardPaint.Bolt(context, Left(i), top, BoltScale, brush);
         }
     }
 }

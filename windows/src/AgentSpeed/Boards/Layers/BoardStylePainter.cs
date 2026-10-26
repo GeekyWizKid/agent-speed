@@ -49,6 +49,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     private BoardTick? _columnTick;
     private float _column;
     private string? _fastest;
+    private ((BoardStyle, BoardSize, bool, bool, string) Key, string Text)? _theme;
 
     protected BoardStylePainter(BoardStyle style, Localizer localizer, BoardText text)
     {
@@ -605,8 +606,18 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             _column, agent is not null && string.Equals(agent.Id, _fastest, StringComparison.Ordinal), interval);
     }
 
-    private string Theme(BoardScene scene) => string.Join('|', scene.Style, scene.Size, scene.Dark ? "d" : "l",
-        scene.Palette.HighContrast ? "hc" : string.Empty, Loc.LanguageCode);
+    // The part of every signature that a restyle, resize, appearance or language changes (made once per change, not per layer).
+    private string Theme(BoardScene scene)
+    {
+        var key = (scene.Style, scene.Size, scene.Dark, scene.Palette.HighContrast, Loc.LanguageCode);
+        if (_theme is not { } theme || theme.Key != key)
+        {
+            _theme = theme = (key, string.Join('|', scene.Style, scene.Size, scene.Dark ? "d" : "l", scene.Palette.HighContrast ? "hc" : string.Empty,
+                Loc.LanguageCode));
+        }
+
+        return theme.Text;
+    }
 
     private float Column(BoardScene scene, BoardTick tick)
     {
