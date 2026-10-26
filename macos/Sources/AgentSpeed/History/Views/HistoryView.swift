@@ -8,7 +8,10 @@ struct HistoryView: View {
     let model: HistoryViewModel
 
     @State private var contentWidth: CGFloat = 872
+    @State private var pinsTableHeader = false
     @FocusState private var tableFocused: Bool
+
+    private nonisolated static let scrollSpace = "AgentSpeed.History.Scroll"
 
     var body: some View {
         let content = model.content
@@ -46,7 +49,10 @@ struct HistoryView: View {
         let (widths, gap) = columnLayout(content.columns)
         return ScrollViewReader { proxy in
             ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                // Keep hover/help responder updates out of LazyVStack's pinned-section placement cache. On macOS
+                // 26.2 that cache can keep invalidating itself when a daily cost tooltip appears. Rows have a fixed
+                // height; an eager stack and an out-of-flow header preserve the same scrolling and sorting behaviour.
+                VStack(alignment: .leading, spacing: 0) {
                     HistoryHeader(content: content, l10n: model.l10n)
                         .padding(.bottom, HistoryLayout.sectionSpacing)
                     SummaryCardsView(
@@ -83,34 +89,28 @@ struct HistoryView: View {
                         .font(HistoryFont.sectionTitle)
                         .accessibilityAddTraits(.isHeader)
                         .padding(.bottom, Spacing.xxs)
-                    Section {
-                        ForEach(Array(content.rows.enumerated()), id: \.element.day) { index, row in
-                            DailyTableRow(
-                                row: row,
-                                index: index,
-                                columns: content.columns,
-                                widths: widths,
-                                gap: gap,
-                                today: content.today,
-                                money: content.money,
-                                l10n: model.l10n,
-                                interaction: model.interaction,
-                                tableFocused: tableFocused,
-                                onSelect: { select($0, in: content) },
-                                onCopy: { copy(clicked: $0, in: content) }
-                            )
-                            .id(row.day)
+                    tableHeader(content, widths: widths, gap: gap)
+                        .onGeometryChange(for: Bool.self) { geometry in
+                            geometry.frame(in: .named(Self.scrollSpace)).minY < 0
+                        } action: { pinned in
+                            if pinsTableHeader != pinned { pinsTableHeader = pinned }
                         }
-                    } header: {
-                        DailyTableHeader(
+                    ForEach(Array(content.rows.enumerated()), id: \.element.day) { index, row in
+                        DailyTableRow(
+                            row: row,
+                            index: index,
                             columns: content.columns,
                             widths: widths,
                             gap: gap,
-                            sort: content.sort,
-                            l10n: model.l10n
-                        ) { column in
-                            model.toggleSort(column)
-                        }
+                            today: content.today,
+                            money: content.money,
+                            l10n: model.l10n,
+                            interaction: model.interaction,
+                            tableFocused: tableFocused,
+                            onSelect: { select($0, in: content) },
+                            onCopy: { copy(clicked: $0, in: content) }
+                        )
+                        .id(row.day)
                     }
                 }
                 .padding(.horizontal, HistoryLayout.outerPadding)
@@ -118,6 +118,13 @@ struct HistoryView: View {
                 .padding(.bottom, HistoryLayout.outerPadding)
                 .onGeometryChange(for: CGFloat.self) { $0.size.width - HistoryLayout.outerPadding * 2 } action: { width in
                     if abs(width - contentWidth) > 0.5 { contentWidth = width }
+                }
+            }
+            .coordinateSpace(name: Self.scrollSpace)
+            .overlay(alignment: .top) {
+                if pinsTableHeader {
+                    tableHeader(content, widths: widths, gap: gap)
+                        .padding(.horizontal, HistoryLayout.outerPadding)
                 }
             }
             .focusable()
@@ -139,6 +146,12 @@ struct HistoryView: View {
                     proxy.scrollTo(day, anchor: .center)
                 }
             }
+        }
+    }
+
+    private func tableHeader(_ content: HistoryContent, widths: [CGFloat], gap: CGFloat) -> DailyTableHeader {
+        DailyTableHeader(columns: content.columns, widths: widths, gap: gap, sort: content.sort, l10n: model.l10n) {
+            model.toggleSort($0)
         }
     }
 

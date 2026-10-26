@@ -110,7 +110,7 @@ struct DailyTableRow: View {
         .background { FlashHighlight(day: row.day, interaction: interaction) }
         .contentShape(Rectangle())
         .onHover { inside in
-            if inside { interaction.hover(row.day, from: .table) } else { interaction.unhover(row.day, from: .table) }
+            interaction.trackTableHover(row.day, inside: inside)
         }
         .onTapGesture { onSelect(row.day) }
         .contextMenu {
