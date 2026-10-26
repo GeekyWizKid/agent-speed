@@ -33,10 +33,40 @@ public sealed class HarnessSourceSettingsTests
         Assert.NotEqual(AppSettings.Default.ToMonitorConfiguration(), config);
     }
 
+    [Fact]
+    public void ThePiFolderAndToggleRoundTripAndReachTheMonitor()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "pi-sessions");
+        var settings = AppSettings.Default.WithSourceEnabled(SourceKind.Pi, false) with { PiRoot = $"  {folder}  " };
+        var back = SettingsSerializer.Deserialize(SettingsSerializer.Serialize(settings.Validated()));
+
+        Assert.Equal((false, folder), (back.PiEnabled, back.PiRoot));
+        var config = back.ToMonitorConfiguration();
+        Assert.Equal(folder, config.PiRoot);
+        Assert.DoesNotContain(SourceKind.Pi, config.EnabledSources);
+        Assert.NotEqual(AppSettings.Default.ToMonitorConfiguration(), (AppSettings.Default with { PiRoot = folder }).ToMonitorConfiguration());
+        Assert.Null((AppSettings.Default with { PiRoot = Path.Combine("relative", "sessions") }).Validated().PiRoot);
+    }
+
+    [Fact]
+    public void OlderSettingsFilesKeepPiOnWithItsAutomaticRoots()
+    {
+        var s = SettingsSerializer.Deserialize("""
+            { "version": 1, "sources": { "codex": true, "omp": false, "grokBuild": true, "grokBuildRoot": null } }
+            """);
+
+        Assert.True(s.PiEnabled);
+        Assert.Null(s.PiRoot);
+        var config = s.ToMonitorConfiguration();
+        Assert.Contains(SourceKind.Pi, config.EnabledSources);
+        Assert.Null(config.PiRoot);
+    }
+
     [Theory]
     [InlineData(SourceKind.ZCode, "zcode")]
     [InlineData(SourceKind.Kimi, "kimi")]
     [InlineData(SourceKind.GrokBuild, "grokBuild")]
+    [InlineData(SourceKind.Pi, "pi")]
     public void EverySurfaceUsesTheSameStableSourceIdentifier(SourceKind kind, string id)
     {
         Assert.Equal(id, ReportBody.SourceId(kind));
