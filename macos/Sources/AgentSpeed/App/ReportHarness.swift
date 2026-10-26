@@ -173,10 +173,11 @@ enum ReportHarness {
 
         report.updatePreferences { $0.invite = nil }
         check("offered again once the answer is reset", report.invitationOffered && counting.count == 0)
+        let fitted = report.nextUsername(rules: report.usernameRules)
         report.acceptInvitation()
         check("accepted: the done line shows and the indicator waits", report.inviteJustAccepted && !report.indicatorShown)
         await check("accepted: registered as the fitted computer name", within: 10) {
-            report.isOn && report.identity?.username == "Zoes MacBook Pro"
+            report.isOn && report.identity?.username == fitted
         }
         check("accepted: answered, the default sections kept", report.preferences.invite == .accepted
               && report.preferences.sections == ReportPreferences.defaultSections)
