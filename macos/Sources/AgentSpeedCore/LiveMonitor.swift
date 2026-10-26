@@ -67,6 +67,10 @@ public final class LiveMonitor {
     public nonisolated static var defaultKimiRoot: URL { TranscriptLocations.defaultKimiRoot }
     public nonisolated static var defaultGrokBuildRoot: URL { TranscriptLocations.defaultGrokBuildRoot }
 
+    /// Pi's automatic roots: `<agent dir>/sessions`, then Pi's own custom session folder when one is set (a configured
+    /// root replaces all of them).
+    public nonisolated static var defaultPiRoots: [URL] { TranscriptLocations.defaultPiRoots }
+
     public nonisolated static var defaultDshRoot: URL {
         TranscriptLocations.defaultDshRoot
     }

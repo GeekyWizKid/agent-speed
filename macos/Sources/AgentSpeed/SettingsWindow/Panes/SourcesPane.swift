@@ -67,6 +67,7 @@ extension SourceKind {
         case .zcode: .zcode
         case .kimi: .kimi
         case .grokBuild: .grokBuild
+        case .pi: .pi
         }
     }
 }

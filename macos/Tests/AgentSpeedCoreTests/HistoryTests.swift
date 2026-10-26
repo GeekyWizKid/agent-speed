@@ -6,11 +6,12 @@ import Testing
 struct HistoryTests {
     static let utc = TimeZone(identifier: "UTC")!
 
-    /// The fixtures folder as every source's data; `omp` plays `~/.omp` and `antigravity` plays `~/.gemini`, so their
-    /// automatic roots (every profile, the three stores) are used; `workbuddy` plays `~` of both WorkBuddy editions.
+    /// The fixtures folder as every source's data; `omp` plays `~/.omp`, `antigravity` plays `~/.gemini` and `pi`
+    /// plays `~/.pi`, so their automatic roots (every profile, the three stores, Pi's custom session folder) are used;
+    /// `workbuddy` plays `~` of both WorkBuddy editions.
     static func configuration(fixtures root: URL) -> MonitorConfiguration {
         var configuration = MonitorConfiguration(
-            enabledSources: Set(SourceKind.allCases.prefix(10)),
+            enabledSources: Set(SourceKind.allCases.prefix(10)).union([.pi]),
             codexRoot: root.appendingPathComponent("codex/sessions", isDirectory: true),
             claudeRoot: root.appendingPathComponent("claude/projects", isDirectory: true),
             dshRoot: root.appendingPathComponent("dsh/sessions", isDirectory: true),
@@ -25,6 +26,7 @@ struct HistoryTests {
                 root.appendingPathComponent("antigravity", isDirectory: true).appendingPathComponent($0, isDirectory: true)
             },
         ]
+        configuration.piHome = ParserFixtureTests.piHome(fixtures: root)
         return configuration
     }
 

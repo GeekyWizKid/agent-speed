@@ -28,6 +28,7 @@ enum AgentParents {
     static func resolve(_ members: [Member]) -> [String: String] {
         var ids = Set<String>()
         var ompIds = Set<String>()
+        var piIds = Set<String>()
         var workbuddyIds: [TranscriptFamily: Set<String>] = [:]
         // Codex threads and DeepSeek sessions, each by family: the earliest created file names a thread.
         var threads: [TranscriptFamily: [String: (createdMs: Int64, id: String)]] = [:]
@@ -37,6 +38,7 @@ enum AgentParents {
         for member in members {
             ids.insert(member.id)
             if member.family == .omp { ompIds.insert(member.id) }
+            if member.family == .pi { piIds.insert(member.id) }
             if member.family.isWorkBuddy { workbuddyIds[member.family, default: []].insert(member.id) }
             guard member.family == .codex || member.family == .dsh,
                   let thread = member.thread, let threadId = thread.id else { continue }
@@ -60,6 +62,9 @@ enum AgentParents {
             case .omp:
                 // `thread.parentId` is the path `<dir>.jsonl` of a sub-agent's starter (METRICS 6.7).
                 parent = member.thread?.parentId.flatMap { ompIds.contains($0) ? $0 : nil }
+            case .pi:
+                // As omp: the session file `<dir>.jsonl` next to a sub-agent's folder, when it is tracked (METRICS 4.13).
+                parent = member.thread?.parentId.flatMap { piIds.contains($0) ? $0 : nil }
             case .antigravity:
                 parent = antigravityParent(of: member, in: conversations)
             case .kimi:

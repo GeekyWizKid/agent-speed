@@ -124,6 +124,9 @@ struct AgentProcessRules: Sendable {
         if name == "zcode" || name == "zcode-cli" || script.contains("/@zcode/cli/") { return .zcode }
         if name == "kimi" || name == "kimi-code" || script.contains("/@moonshot-ai/kimi-code/") { return .kimi }
         if name == "grok" || name == "grok-build" { return .grokBuild }
+        if name == "pi" || script.contains("/@earendil-works/pi-coding-agent/") || script.contains("/@mariozechner/pi-coding-agent/") {
+            return .pi
+        }
         // Only the embedded CodeBuddy Code CLI is the agent; the app, its helpers and its daemon are not.
         if let edition = workbuddyEdition(executable: executable, bundleIdentifier: bundleIdentifier),
            (arguments() ?? []).dropFirst().contains(where: { platform.normalize($0).contains(Self.workbuddyCLI) }) {

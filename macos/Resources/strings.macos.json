@@ -503,5 +503,11 @@
     "zh-Hans": "选择 Grok Build 文件夹",
     "en": "Choose Grok Build Folder",
     "ja": "Grok Build フォルダを選択"
+  },
+  "mac.settings.sources.choosePi": {
+    "zh-Hant": "選擇 Pi 的 sessions 資料夾",
+    "zh-Hans": "选择 Pi 的 sessions 文件夹",
+    "en": "Choose the Pi sessions folder",
+    "ja": "Pi の sessions フォルダを選択"
   }
 }

@@ -80,6 +80,8 @@ final class AppSettings {
     var zcodeRoot: URL? { didSet { store(zcodeRoot?.path, .zcodeRoot) } }
     var kimiRoot: URL? { didSet { store(kimiRoot?.path, .kimiRoot) } }
     var grokBuildRoot: URL? { didSet { store(grokBuildRoot?.path, .grokBuildRoot) } }
+    /// One Pi folder, replacing `<agent dir>/sessions` and Pi's own custom session folder.
+    var piRoot: URL? { didSet { store(piRoot?.path, .piRoot) } }
 
     /// UPDATES section 3: check GitHub at launch and every 6 h.
     var autoCheckUpdates: Bool { didSet { store(autoCheckUpdates, .autoCheckUpdates) } }
@@ -160,6 +162,7 @@ final class AppSettings {
         zcodeRoot = Self.url(defaults.string(forKey: Key.zcodeRoot.rawValue))
         kimiRoot = Self.url(defaults.string(forKey: Key.kimiRoot.rawValue))
         grokBuildRoot = Self.url(defaults.string(forKey: Key.grokBuildRoot.rawValue))
+        piRoot = Self.url(defaults.string(forKey: Key.piRoot.rawValue))
         autoCheckUpdates = defaults.object(forKey: Key.autoCheckUpdates.rawValue) as? Bool ?? true
         networkEnabled = defaults.object(forKey: Key.networkEnabled.rawValue) as? Bool ?? true
         syncPrices = defaults.object(forKey: Key.syncPrices.rawValue) as? Bool ?? true
@@ -191,7 +194,8 @@ final class AppSettings {
             workbuddyAiRoot: workbuddyAiRoot,
             zcodeRoot: zcodeRoot,
             kimiRoot: kimiRoot,
-            grokBuildRoot: grokBuildRoot
+            grokBuildRoot: grokBuildRoot,
+            piRoot: piRoot
         )
     }
 
@@ -256,7 +260,7 @@ final class AppSettings {
         case effects, celebratePeaks, responsePulses
         case enabledSources, knownSources
         case codexRoot, claudeRoot, dshRoot, opencodeRoot, geminiRoot, ompRoot, antigravityRoot, workbuddyRoot, workbuddyAiRoot
-        case zcodeRoot, kimiRoot, grokBuildRoot
+        case zcodeRoot, kimiRoot, grokBuildRoot, piRoot
         case autoCheckUpdates
         case networkEnabled, syncPrices, currency, liveUnit, subscriptionSources, includeSubscriptions
         case heroLastTitle

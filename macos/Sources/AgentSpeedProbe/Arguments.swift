@@ -32,7 +32,7 @@ struct ProbeArguments {
                                 | --traffic SECONDS [--traffic-interval 0|1|5] [--no-live] [--history-store PATH])
                                [--prices PATH] [--codex PATH] [--claude PATH] [--dsh PATH] [--opencode PATH]
                                [--gemini PATH] [--omp PATH] [--antigravity PATH] [--workbuddy PATH] [--workbuddy-ai PATH]
-                               [--zcode PATH] [--kimi PATH] [--grok-build PATH]
+                               [--zcode PATH] [--kimi PATH] [--grok-build PATH] [--pi PATH]
                AgentSpeedProbe --sync-prices DIR | --sync-rates DIR CURRENCY
         """
 
@@ -114,6 +114,10 @@ struct ProbeArguments {
             case "--grok-build":
                 guard let path = iterator.next() else { return nil }
                 configuration.grokBuildRoot = URL(fileURLWithPath: path, isDirectory: true)
+            case "--pi":
+                // One Pi sessions folder; it replaces every automatic root, as `reference.py --pi`.
+                guard let path = iterator.next() else { return nil }
+                configuration.piRoot = URL(fileURLWithPath: path, isDirectory: true)
             case "--opencode":
                 // The database file (as in reference.py) or the folder that contains it.
                 guard let path = iterator.next() else { return nil }

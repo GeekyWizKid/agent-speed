@@ -77,6 +77,7 @@ final class TranscriptSession {
 
     let enabledSources: Set<SourceKind>
     let limits: ReadingLimits
+    private let configuration: MonitorConfiguration
     private(set) var roots: [Root]
     private var files: [String: TrackedFile] = [:]
     /// Incremental directory walks, by root path.
@@ -114,15 +115,14 @@ final class TranscriptSession {
         clock: @escaping @Sendable () -> Int64 = { Clock.milliseconds(Date()) }
     ) {
         enabledSources = configuration.enabledSources
+        self.configuration = configuration
         self.limits = limits
         self.clock = clock
         engine = SpeedEngine(pricing: pricing)
-        roots = TranscriptFamily.allCases.flatMap { family in
-            configuration.resolvedRoots(for: family).map { path in
-                Root(family: family, path: path, canonicalPath: path, enabled: configuration.reads(family), available: false,
-                     readable: MonitorConfiguration.isReadable(root: path, family: family),
-                     detectionPath: family.isWorkBuddy ? TranscriptLocations.workbuddyDataFolder(ofRoot: path) : nil)
-            }
+        roots = configuration.allRoots().map { family, path, readable in
+            Root(family: family, path: path, canonicalPath: path, enabled: configuration.reads(family), available: false,
+                 readable: readable,
+                 detectionPath: family.isWorkBuddy ? TranscriptLocations.workbuddyDataFolder(ofRoot: path) : nil)
         }
         opencodeRoot = configuration.resolvedOpencodeRoot
         opencode = configuration.readsOpencode ? OpencodeSource(root: opencodeRoot, fileID: Self.opencodeFileID) : nil
@@ -177,7 +177,27 @@ final class TranscriptSession {
         return changed
     }
 
-    /// The family's first detected root, else its first root (Gemini CLI, omp and Antigravity can have several).
+    /// Re-reads Pi's settings, whose custom session folder may have changed (METRICS 4.13): Pi roots that went away are
+    /// dropped (rediscovery then untracks their files), new ones are added, and omp roots inside them stop being read.
+    /// Returns true when the roots changed.
+    private func refreshPiRoots() -> Bool {
+        let pi = configuration.resolvedRoots(for: .pi)
+        guard pi != roots.filter({ $0.family == .pi }).map(\.path) else { return false }
+        let kept = roots.filter { $0.family == .pi && pi.contains($0.path) }
+        roots.removeAll { $0.family == .pi }
+        for path in pi {
+            roots.append(kept.first { $0.path == path }
+                ?? Root(family: .pi, path: path, canonicalPath: path, enabled: configuration.reads(.pi), available: false))
+        }
+        for index in roots.indices where roots[index].family == .omp {
+            roots[index].readable = MonitorConfiguration.isReadable(root: roots[index].path, family: .omp, piRoots: pi)
+        }
+        let paths = Set(roots.map(\.path))
+        indexes = indexes.filter { paths.contains($0.key) }
+        return true
+    }
+
+    /// The family's first detected root, else its first root (Gemini CLI, omp, Antigravity and Pi can have several).
     func root(for family: TranscriptFamily) -> Root {
         roots.first { $0.family == family && $0.detected } ?? roots.first { $0.family == family }!
     }
@@ -402,7 +422,8 @@ final class TranscriptSession {
     /// re-checked in case the watcher missed a change.
     @discardableResult
     func rediscover(todayStartMs: Int64) -> Bool {
-        var changed = refreshAvailability()
+        var changed = refreshPiRoots()
+        changed = refreshAvailability() || changed
         var seen: Set<String> = []
         var fresh: [(DiscoveredFile, Root)] = []
         let activeSince = todayStartMs - Self.startupLookbackMs
@@ -611,13 +632,16 @@ final class TranscriptSession {
         return sources
     }
 
-    /// Agents of each source with at least one line today; WorkBuddy counts main sessions only (DESIGN 5).
+    /// Agents of each source with at least one line today; WorkBuddy, Kimi Code CLI, Grok Build and Pi count main
+    /// sessions only (DESIGN 5).
     func sessionCounts(todayStartMs: Int64) -> [SourceKind: Int] {
         var counts: [SourceKind: Int] = [:]
         for file in files.values {
             let state = file.parser.state
             guard let last = state.lastLineMs, last >= todayStartMs, enabledSources.contains(state.source) else { continue }
-            if (file.family.isWorkBuddy || file.family == .kimi || file.family == .grokBuild), state.isSubagent { continue }
+            if (file.family.isWorkBuddy || file.family == .kimi || file.family == .grokBuild || file.family == .pi), state.isSubagent {
+                continue
+            }
             counts[state.source, default: 0] += 1
         }
         if let opencode, enabledSources.contains(.opencode) {

@@ -3,8 +3,9 @@ import AppKit
 
 /// A data folder the user can relocate. Claude Code and Claude Desktop share the Claude root; OpenCode's folder is the
 /// one that contains `opencode.db`; Gemini CLI reads one `tmp` folder, or by default two (an override replaces both);
-/// omp reads its default `sessions` root and one per named profile, Antigravity three stores (an override replaces all);
-/// each WorkBuddy edition reads the `projects` folder of its data folder, which the row names.
+/// omp reads its default `sessions` root and one per named profile, Antigravity three stores, Pi its sessions root and
+/// its own custom session folder (an override replaces all); each WorkBuddy edition reads the `projects` folder of its
+/// data folder, which the row names.
 enum TranscriptFolder: CaseIterable {
     case codex
     case claude
@@ -18,6 +19,7 @@ enum TranscriptFolder: CaseIterable {
     case zcode
     case kimi
     case grokBuild
+    case pi
 
     /// Every default location, in reading order.
     var defaultURLs: [URL] {
@@ -34,6 +36,7 @@ enum TranscriptFolder: CaseIterable {
         case .kimi: [LiveMonitor.defaultKimiRoot]
         case .grokBuild: [LiveMonitor.defaultGrokBuildRoot]
         case .workbuddyAi: [LiveMonitor.defaultWorkBuddyAiDataFolder]
+        case .pi: LiveMonitor.defaultPiRoots
         }
     }
 
@@ -53,6 +56,7 @@ enum TranscriptFolder: CaseIterable {
         case .kimi: "mac.settings.sources.chooseKimi"
         case .grokBuild: "mac.settings.sources.chooseGrokBuild"
         case .workbuddyAi: "mac.settings.sources.chooseWorkbuddyAi"
+        case .pi: "mac.settings.sources.choosePi"
         }
     }
 
@@ -71,6 +75,7 @@ enum TranscriptFolder: CaseIterable {
         case .kimi: "settings.sources.kimiHint"
         case .grokBuild: "settings.sources.grokBuildHint"
         case .workbuddyAi: "settings.sources.workbuddyAiHint"
+        case .pi: "settings.sources.piHint"
         }
     }
 
@@ -89,6 +94,7 @@ enum TranscriptFolder: CaseIterable {
         case .kimi: settings.kimiRoot
         case .grokBuild: settings.grokBuildRoot
         case .workbuddyAi: settings.workbuddyAiRoot
+        case .pi: settings.piRoot
         }
     }
 
@@ -103,14 +109,17 @@ enum TranscriptFolder: CaseIterable {
         customURL(in: settings).map { [$0] } ?? defaultURLs
     }
 
-    /// The folders the settings row names (DESIGN section 5): the custom one, else the defaults. omp names only its
-    /// default root although profiles are read too; Antigravity names the stores found, or all three when none is.
+    /// The folders the settings row names (DESIGN section 5): the custom one, else the defaults. omp and Pi name only
+    /// their default root although profiles and Pi's custom session folder are read too; Antigravity names the stores
+    /// found, or all three when none is.
     @MainActor
     func shownURLs(in settings: AppSettings) -> [URL] {
         if let custom = customURL(in: settings) { return [custom] }
         switch self {
         case .omp:
             return [LiveMonitor.defaultOmpRoot]
+        case .pi:
+            return [defaultURL]
         case .antigravity:
             let found = defaultURLs.filter(isReadable)
             return found.isEmpty ? defaultURLs : found
@@ -125,7 +134,7 @@ enum TranscriptFolder: CaseIterable {
     }
 
     /// Stores a custom folder; nil clears the override. Choosing the (first) default location clears it too, except
-    /// for omp and Antigravity, where one chosen folder is narrower than the automatic set. A WorkBuddy data folder and
+    /// for omp, Antigravity and Pi, where one chosen folder is narrower than the automatic set. A WorkBuddy data folder and
     /// its `projects` folder are the same location.
     @MainActor
     func setURL(_ url: URL?, in settings: AppSettings) {
@@ -143,16 +152,17 @@ enum TranscriptFolder: CaseIterable {
         case .kimi: settings.kimiRoot = value
         case .grokBuild: settings.grokBuildRoot = value
         case .workbuddyAi: settings.workbuddyAiRoot = value
+        case .pi: settings.piRoot = value
         }
     }
 
-    private var replacesAutomaticSet: Bool { self == .omp || self == .antigravity }
+    private var replacesAutomaticSet: Bool { self == .omp || self == .antigravity || self == .pi }
 
     private func isDefaultLocation(_ url: URL) -> Bool {
         switch self {
         case .workbuddy, .workbuddyAi:
             Self.isSameFolder(LiveMonitor.workbuddyProjectsFolder(url), LiveMonitor.workbuddyProjectsFolder(defaultURL))
-        case .codex, .claude, .dsh, .opencode, .gemini, .omp, .antigravity, .zcode, .kimi, .grokBuild:
+        case .codex, .claude, .dsh, .opencode, .gemini, .omp, .antigravity, .zcode, .kimi, .grokBuild, .pi:
             Self.isSameFolder(url, defaultURL)
         }
     }

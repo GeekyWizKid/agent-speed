@@ -18,6 +18,7 @@ enum TranscriptFamily: String, CaseIterable, Sendable {
     case workbuddyAi
     case kimi
     case grokBuild
+    case pi
 
     /// Nil for sources that are not read from transcript files: OpenCode is a database (`OpencodeSource`).
     init?(_ source: SourceKind) {
@@ -32,6 +33,7 @@ enum TranscriptFamily: String, CaseIterable, Sendable {
         case .workbuddyAi: self = .workbuddyAi
         case .kimi: self = .kimi
         case .grokBuild: self = .grokBuild
+        case .pi: self = .pi
         case .opencode, .zcode: return nil
         }
     }
@@ -49,11 +51,12 @@ enum TranscriptFamily: String, CaseIterable, Sendable {
         case .workbuddyAi: [.workbuddyAi]
         case .kimi: [.kimi]
         case .grokBuild: [.grokBuild]
+        case .pi: [.pi]
         }
     }
 
-    /// File names (and for Gemini CLI, omp, Antigravity and WorkBuddy, folder layout) of this family's transcripts
-    /// (METRICS 2, 4.6 – 4.9).
+    /// File names (and for Gemini CLI, omp, Antigravity, WorkBuddy and Pi, folder layout) of this family's transcripts
+    /// (METRICS 2, 4.6 – 4.13).
     var names: TranscriptNames {
         switch self {
         case .codex: .codexSession
@@ -65,6 +68,7 @@ enum TranscriptFamily: String, CaseIterable, Sendable {
         case .workbuddy, .workbuddyAi: .workbuddySession
         case .kimi: .kimiSession
         case .grokBuild: .grokBuildSession
+        case .pi: .piSession
         }
     }
 
@@ -101,6 +105,7 @@ enum DecodedLine: Sendable {
     case workbuddy(LineExtraction<WorkBuddyLine>)
     case kimi(LineExtraction<KimiLine>)
     case grokBuild(LineExtraction<GrokBuildLine>)
+    case pi(LineExtraction<PiLine>)
 }
 
 /// Lines decoded ahead of time (off the state-machine thread) so seeding can extract in parallel. An Antigravity read
@@ -115,6 +120,7 @@ enum DecodedLines: Sendable {
     case workbuddy([LineExtraction<WorkBuddyLine>])
     case kimi([LineExtraction<KimiLine>])
     case grokBuild([LineExtraction<GrokBuildLine>])
+    case pi([LineExtraction<PiLine>])
 }
 
 /// A family-agnostic per-file parser. Exactly one of the machines is set.
@@ -129,6 +135,7 @@ struct TranscriptParser: Sendable {
     private var workbuddy: WorkBuddyParser?
     private var kimi: KimiParser?
     private var grokBuild: GrokBuildParser?
+    private var pi: PiParser?
 
     /// `root` is the root folder the file was discovered under (omp and WorkBuddy derive `isSubagent` from it,
     /// METRICS 4.7, 4.9).
@@ -145,11 +152,12 @@ struct TranscriptParser: Sendable {
             workbuddy = WorkBuddyParser(source: family.sources[0], agentId: agentId, fileID: fileID, root: root)
         case .kimi: kimi = KimiParser(agentId: agentId, fileID: fileID)
         case .grokBuild: grokBuild = GrokBuildParser(agentId: agentId, fileID: fileID)
+        case .pi: pi = PiParser(agentId: agentId, fileID: fileID)
         }
     }
 
     var state: AgentState {
-        codex?.state ?? claude?.state ?? dsh?.state ?? gemini?.state ?? omp?.state ?? workbuddy?.state ?? kimi?.state ?? grokBuild?.state ?? antigravity!.state
+        codex?.state ?? claude?.state ?? dsh?.state ?? gemini?.state ?? omp?.state ?? workbuddy?.state ?? kimi?.state ?? grokBuild?.state ?? pi?.state ?? antigravity!.state
     }
 
     /// An Antigravity database without the expected tables (`unsupportedFormat`).
@@ -169,6 +177,7 @@ struct TranscriptParser: Sendable {
         case .antigravity: nil
         case .kimi: .kimi(KimiLineExtractor.extract(bytes))
         case .grokBuild: .grokBuild(GrokBuildLine.extract(bytes))
+        case .pi: .pi(PiLineExtractor.extract(bytes))
         }
     }
 
@@ -189,6 +198,7 @@ struct TranscriptParser: Sendable {
         workbuddy?.noteMalformedLine()
         kimi?.noteMalformedLine()
         grokBuild?.noteMalformedLine()
+        pi?.noteMalformedLine()
     }
 
     mutating func consume(_ line: DecodedLine, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
@@ -201,6 +211,7 @@ struct TranscriptParser: Sendable {
         case .workbuddy(let extraction): workbuddy?.consume(extraction, deduper: &deduper, emit: emit)
         case .kimi(let extraction): kimi?.consume(extraction, deduper: &deduper, emit: emit)
         case .grokBuild(let extraction): grokBuild?.consume(extraction, deduper: &deduper, emit: emit)
+        case .pi(let extraction): pi?.consume(extraction, deduper: &deduper, emit: emit)
         }
     }
 
@@ -229,6 +240,8 @@ struct TranscriptParser: Sendable {
             for extraction in extractions { kimi?.consume(extraction, deduper: &deduper, emit: emit) }
         case .grokBuild(let extractions):
             for extraction in extractions { grokBuild?.consume(extraction, deduper: &deduper, emit: emit) }
+        case .pi(let extractions):
+            for extraction in extractions { pi?.consume(extraction, deduper: &deduper, emit: emit) }
         }
     }
 }
@@ -265,6 +278,9 @@ enum TranscriptDecoder {
         case .grokBuild:
             let (lines, read) = extract(GrokBuildLine.extract, reader: &reader)
             return (.grokBuild(lines), read)
+        case .pi:
+            let (lines, read) = extract(PiLineExtractor.extract, reader: &reader)
+            return (.pi(lines), read)
         }
     }
 
