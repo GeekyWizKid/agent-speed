@@ -311,5 +311,11 @@
     "zh-Hans": "面板",
     "en": "Dashboard",
     "ja": "ダッシュボード"
+  },
+  "win.report.ws.milliseconds": {
+    "zh-Hant": "%@ ms",
+    "zh-Hans": "%@ ms",
+    "en": "%@ ms",
+    "ja": "%@ ms"
   }
 }

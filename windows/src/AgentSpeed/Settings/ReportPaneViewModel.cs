@@ -5,6 +5,7 @@ using AgentSpeed.Controls;
 using AgentSpeed.Core.Reporting;
 using AgentSpeed.Presentation.Formatting;
 using AgentSpeed.Presentation.Localization;
+using AgentSpeed.Presentation.Reporting;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Reporting;
 using AgentSpeed.Services;
@@ -104,6 +105,7 @@ internal sealed class ReportPaneViewModel : ObservableObject, IDisposable
             new ReportSectionRow(ReportSection.Traffic, "report.section.traffic", SetSection),
         ];
         RetryCommand = new RelayCommand(() => _report.Retry(), () => NetworkEnabled);
+        StreamRetryCommand = new RelayCommand(() => _report.RetryStream(), () => NetworkEnabled);
         ReviewCommand = new RelayCommand(() =>
         {
             if (_report.Status.Kind == ReportStatusKind.Review)
@@ -269,6 +271,39 @@ internal sealed class ReportPaneViewModel : ObservableObject, IDisposable
 
     public bool NeedsReview => _report.NeedsReview;
 
+    // 2b. Transport
+
+    public bool ShowsTransport => _report.SelectedService is not null;
+
+    public bool TransportHttp
+    {
+        get => _report.Transport == ReportTransportKind.Http;
+        set => SetTransport(ReportTransportKind.Http, value);
+    }
+
+    public bool TransportWebSocket
+    {
+        get => _report.Transport == ReportTransportKind.WebSocket;
+        set => SetTransport(ReportTransportKind.WebSocket, value);
+    }
+
+    private ReportTransportNotes TransportNotes => ReportTransportNotes.For(_report.Transport, _report.Discovery);
+
+    public string? TransportCaption => TransportNotes.CaptionKey is { } key ? _loc[key] : null;
+
+    /// <summary>The amber <c>report.status.wsUnsupported</c>: nothing is sent, the choice stays.</summary>
+    public string? TransportUnsupportedText => TransportNotes.Unsupported ? _loc["report.status.wsUnsupported"] : null;
+
+    public string? TransportThrottledText => TransportNotes.ThrottledMs is { } interval ? _loc.Format("report.transport.throttled", interval) : null;
+
+    private void SetTransport(ReportTransportKind transport, bool chosen)
+    {
+        if (chosen && transport != _report.Transport)
+        {
+            _report.SetTransport(transport);
+        }
+    }
+
     // 3. Username
 
     public string UsernameText
@@ -366,6 +401,19 @@ internal sealed class ReportPaneViewModel : ObservableObject, IDisposable
 
     public string? RankText => _report.Rank is { } rank && _report.IsOn ? _loc.Format("report.status.rank", rank) : null;
 
+    /// <summary><c>report.ws.stats</c> while WebSocket is chosen and the session delivered or lost anything.</summary>
+    public string? StreamStatsText => _report.UsesWebSocket && _report.StreamSession is { } session
+        ? ReportStreamStats.Line(_loc, session.Counters, session.Latency)
+        : null;
+
+    /// <summary>Every counter (<c>report.ws.counters</c>), the stats line's tooltip.</summary>
+    public string? StreamCountersText => StreamStatsText is not null && _report.StreamSession is { } session
+        ? ReportStreamStats.Tooltip(_loc, session.Counters)
+        : null;
+
+    /// <summary><i>Try Again</i> after <c>report.status.wsMismatch</c> or <c>report.status.wsReplaced</c>.</summary>
+    public bool ShowsStreamRetry => _report.Status is { Kind: ReportStatusKind.Stream, Stream: var kind } && ReportStreamStatus.OffersRetry(kind);
+
     public bool ShowsPause => _report.IsOn && !_report.IsPaused;
 
     public bool ShowsResume => _report.Preferences.Enabled && _report.IsPaused;
@@ -403,6 +451,8 @@ internal sealed class ReportPaneViewModel : ObservableObject, IDisposable
     public bool HasOthers => Others.Count > 0;
 
     public ICommand RetryCommand { get; }
+
+    public ICommand StreamRetryCommand { get; }
 
     public ICommand ReviewCommand { get; }
 
@@ -461,6 +511,8 @@ internal sealed class ReportPaneViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(StatusDot));
         OnPropertyChanged(nameof(StatusNeedsUser));
+        OnPropertyChanged(nameof(StreamStatsText));
+        OnPropertyChanged(nameof(StreamCountersText));
     }
 
     public void Opened()

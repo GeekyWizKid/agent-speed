@@ -12,6 +12,13 @@ public enum ReportPreset
     Custom,
 }
 
+/// <summary>How a service's reports travel (DESIGN 11, Transport): HTTP by default, WebSocket only by the user's choice.</summary>
+public enum ReportTransportKind
+{
+    Http,
+    WebSocket,
+}
+
 /// <summary>
 /// One service this device registered with (DESIGN 11, Storage): what the user confirmed, the device id, the registered
 /// name and the key's age. Keys themselves live in the key store, never here.
@@ -55,6 +62,9 @@ public sealed record ReportIdentity
 public sealed record ReportPreferences
 {
     public const int MaxIdentities = 8;
+
+    /// <summary>At most this many services remember the WebSocket choice; the oldest choice goes first.</summary>
+    public const int MaxWebSocketServices = 16;
     public const string CodexRadarName = "Codex Radar";
     public const string CodexRadarUrl = "https://deng.codexradar.com";
 
@@ -84,6 +94,22 @@ public sealed record ReportPreferences
 
     /// <summary>The name for the next registration when the user typed one; null means the computer name (DESIGN 11, Username).</summary>
     public string? Username { get; init; }
+
+    /// <summary>
+    /// The origins of the services whose reports go over WebSocket, the latest choice last. Every other service uses HTTP — the
+    /// default, also for identities stored by earlier builds; nothing but the user's choice ever adds an origin.
+    /// </summary>
+    public ImmutableArray<string> WebSocketServices { get; init; } = [];
+
+    public ReportTransportKind TransportOf(ReportServiceUrl? service) =>
+        service is not null && WebSocketServices.Contains(service.Origin, StringComparer.Ordinal) ? ReportTransportKind.WebSocket : ReportTransportKind.Http;
+
+    public ReportPreferences WithTransport(string origin, ReportTransportKind transport)
+    {
+        var others = WebSocketServices.Where(o => !string.Equals(o, origin, StringComparison.Ordinal));
+        var list = transport == ReportTransportKind.WebSocket ? others.Append(origin) : others;
+        return this with { WebSocketServices = [.. list.TakeLast(MaxWebSocketServices)] };
+    }
 
     public bool HasRegisteredIdentity => Identities.Any(i => i.IsRegistered);
 
@@ -141,7 +167,10 @@ public sealed record ReportPreferences
             .GroupBy(i => i.Id, StringComparer.Ordinal).Select(g => g.First()).Take(MaxIdentities).ToArray();
         var name = Username is { Length: > 0 and <= 128 } ? Username : null;
         var url = CustomUrl.Length <= ReportServiceUrl.MaxLength ? CustomUrl : string.Empty;
-        if (valid.Length == Identities.Length && name == Username && url == CustomUrl && Enum.IsDefined(Preset))
+        var webSocket = WebSocketServices.Where(o => o is { Length: > 0 } && o.Length <= ReportServiceUrl.MaxLength).Reverse()
+            .Distinct(StringComparer.Ordinal).Take(MaxWebSocketServices).Reverse().ToArray();
+        if (valid.Length == Identities.Length && name == Username && url == CustomUrl && Enum.IsDefined(Preset)
+            && webSocket.SequenceEqual(WebSocketServices, StringComparer.Ordinal))
         {
             return this;
         }
@@ -152,15 +181,16 @@ public sealed record ReportPreferences
             Username = name,
             CustomUrl = url,
             Preset = Enum.IsDefined(Preset) ? Preset : ReportPreset.CodexRadar,
+            WebSocketServices = [.. webSocket],
         };
     }
 
     public bool Equals(ReportPreferences? other) =>
         other is not null && Enabled == other.Enabled && Preset == other.Preset && CustomUrl == other.CustomUrl
         && Sections.SequenceEqual(other.Sections) && PausedUntil == other.PausedUntil && Identities.SequenceEqual(other.Identities)
-        && Invite == other.Invite && Username == other.Username;
+        && Invite == other.Invite && Username == other.Username && WebSocketServices.SequenceEqual(other.WebSocketServices, StringComparer.Ordinal);
 
-    public override int GetHashCode() => HashCode.Combine(Enabled, Preset, CustomUrl, Identities.Length, Invite, Username);
+    public override int GetHashCode() => HashCode.Combine(Enabled, Preset, CustomUrl, Identities.Length, Invite, Username, WebSocketServices.Length);
 }
 
 /// <summary>The <c>report</c> object of the settings file. Tolerant: an invalid member falls back to its default.</summary>
@@ -208,6 +238,13 @@ public static class ReportSettingsJson
             w.WriteNull("username");
         }
 
+        w.WriteStartArray("webSocketServices");
+        foreach (var origin in p.WebSocketServices)
+        {
+            w.WriteStringValue(origin);
+        }
+
+        w.WriteEndArray();
         w.WriteStartArray("identities");
         foreach (var identity in p.Identities)
         {
@@ -302,6 +339,9 @@ public static class ReportSettingsJson
                 _ => null,
             },
             Username = Text(r, "username"),
+            WebSocketServices = r.TryGetProperty("webSocketServices", out var origins) && origins.ValueKind == JsonValueKind.Array
+                ? [.. origins.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!)]
+                : [],
         }.Validated();
     }
 

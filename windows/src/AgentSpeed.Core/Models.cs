@@ -193,6 +193,12 @@ public sealed record SpeedSnapshot(
     public Reporting.ReportLiveFacts Report { get; init; } = Reporting.ReportLiveFacts.Empty;
     public IReadOnlyList<ExecutionModeUsage> TodayModes { get; init; } = [];
 
+    /// <summary>
+    /// When the earliest read that changed the engine since the previous snapshot began (<see cref="Environment.TickCount64"/>
+    /// milliseconds); null when no read changed anything (METRICS 11.9, Observations).
+    /// </summary>
+    public long? ObservedAtMs { get; init; }
+
     public static SpeedSnapshot Empty { get; } = new(
         DateTimeOffset.MinValue,
         MonitorState.Starting(0),
