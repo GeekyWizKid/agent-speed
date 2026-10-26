@@ -2,6 +2,7 @@ using System.Windows.Threading;
 using AgentSpeed.Core;
 using AgentSpeed.Core.Pricing;
 using AgentSpeed.Core.Reporting;
+using AgentSpeed.Presentation.Reporting;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Services;
 using AgentSpeed.Traffic;
@@ -126,7 +127,7 @@ internal sealed partial class ReportController : IDisposable
     private ReportRun? _run;
 
     public ReportController(Dispatcher ui, SettingsService settings, SpeedHub hub, TrafficService traffic, PriceBook priceBook, string version,
-        IReportTransport? transport = null, ReportKeyStore? keyStore = null)
+        IReportTransport? transport = null, ReportKeyStore? keyStore = null, IReportStreamTransport? streamTransport = null)
     {
         _ui = ui;
         _settings = settings;
@@ -148,6 +149,7 @@ internal sealed partial class ReportController : IDisposable
 
         _counting = new CountingTransport(transport);
         _api = new ReportApi(_counting, Client.UserAgent);
+        _streamTransport = streamTransport ?? new WebSocketReportTransport();
         _networkWasEnabled = settings.Current.NetworkEnabled;
     }
 
@@ -361,6 +363,12 @@ internal sealed partial class ReportController : IDisposable
                 return new ReportStatus(ReportStatusKind.Problem) { Problem = problem };
             }
 
+            var stream = StreamStatus;
+            if (stream is { } stopped && ReportStreamStatus.NeedsUser(stopped))
+            {
+                return new ReportStatus(ReportStatusKind.Stream) { Stream = stopped };
+            }
+
             if (NeedsReview)
             {
                 return new ReportStatus(ReportStatusKind.Changed);
@@ -405,6 +413,11 @@ internal sealed partial class ReportController : IDisposable
                     : new ReportStatus(ReportStatusKind.Connecting);
             }
 
+            if (stream is ReportStreamStatusKind.Unsupported)
+            {
+                return new ReportStatus(ReportStatusKind.Stream) { Stream = stream };
+            }
+
             if (RateLimitedUntil is { } limited && limited > DateTimeOffset.UtcNow)
             {
                 return new ReportStatus(ReportStatusKind.RateLimited) { At = limited };
@@ -415,6 +428,11 @@ internal sealed partial class ReportController : IDisposable
                 return new ReportStatus(ReportStatusKind.Retrying) { Failure = reason };
             }
 
+            if (stream is ReportStreamStatusKind.Reconnecting)
+            {
+                return new ReportStatus(ReportStatusKind.Stream) { Stream = stream, At = LastDeliveryAt };
+            }
+
             if (IsDiscoveryStale)
             {
                 return new ReportStatus(ReportStatusKind.Connecting);
@@ -423,7 +441,7 @@ internal sealed partial class ReportController : IDisposable
             return Mode switch
             {
                 ReportMode.Active => LastDeliveryAt is { } last
-                    ? new ReportStatus(ReportStatusKind.Reporting) { At = last }
+                    ? new ReportStatus(UsesWebSocket ? ReportStatusKind.Streaming : ReportStatusKind.Reporting) { At = last }
                     : new ReportStatus(ReportStatusKind.Never),
                 ReportMode.Idle => new ReportStatus(LastDeliveryAt is null ? ReportStatusKind.Never : ReportStatusKind.Idle),
                 _ => new ReportStatus(LastDeliveryAt is null ? ReportStatusKind.Never : ReportStatusKind.Quiet),
@@ -456,6 +474,12 @@ internal sealed partial class ReportController : IDisposable
     /// <summary>At quit: one <c>leaving</c> report when it can be sent within a second (REPORTING 7.1), then <paramref name="reply"/>.</summary>
     public void PrepareToQuit(Action reply)
     {
+        if (_stream is not null)
+        {
+            PrepareStreamToQuit(reply);
+            return;
+        }
+
         if (_run is not { } run || run.Scheduler.Mode == ReportMode.Quiet || !IsReady() || !NetworkEnabled)
         {
             reply();
@@ -481,6 +505,8 @@ internal sealed partial class ReportController : IDisposable
         }
 
         _timers.Clear();
+        CancelWake();
+        _stream?.Socket?.Abort();
         _ownedTransport?.Dispose();
         _active = false;
     }
@@ -489,6 +515,7 @@ internal sealed partial class ReportController : IDisposable
     {
         var reply = _quitReply;
         _quitReply = null;
+        _quitFlushing = false;
         reply?.Invoke();
     }
 

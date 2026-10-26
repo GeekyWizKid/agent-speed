@@ -159,6 +159,21 @@ public sealed class ReportWindow
     public bool HasTokenIncrement(ReportSample sample) =>
         sample.Facts.Counters.HasTokensSince(sample.Facts.Epoch == _lastEpoch ? _lastCounters : ReportCounters.Zero);
 
+    /// <summary>
+    /// The ledger received an increment since the previous tick — tokens, cost or an unpriced request, and agent traffic when
+    /// <paramref name="traffic"/> (the report carries it) — the changed rule of METRICS 11.9. The engine copies its counters
+    /// only after a change, so an unchanged tick costs a reference comparison.
+    /// </summary>
+    public bool HasIncrement(ReportSample sample, bool traffic)
+    {
+        ArgumentNullException.ThrowIfNull(sample);
+        var counters = sample.Facts.Counters;
+        var tokens = sample.Facts.Epoch != _lastEpoch
+            ? counters.ByModel.Count > 0
+            : !ReferenceEquals(counters, _lastCounters) && counters.Since(_lastCounters).ByModel.Count > 0;
+        return tokens || (traffic && !ReferenceEquals(sample.Traffic.Totals, _lastTraffic) && sample.Traffic.AgentBytes(_lastTraffic).Count > 0);
+    }
+
     /// <summary>Empties the window. <paramref name="keepingTick"/> keeps this tick's increments (the gap rule, METRICS 11.1).</summary>
     public void Discard(ReportSample sample, bool keepingTick)
     {

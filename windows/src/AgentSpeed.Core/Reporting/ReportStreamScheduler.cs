@@ -94,6 +94,12 @@ public sealed class ReportStreamScheduler
 
     public int AwaitingCount => _awaiting.Count;
 
+    /// <summary>Where the open window started (the preview's <c>windowMs</c>), or null before the first tick.</summary>
+    public long? WindowStart => _windowStart;
+
+    /// <summary>The open window's earliest observation (the preview's <c>realtime</c>), or null.</summary>
+    public long? WindowObserved => _observed;
+
     public ReportStreamCounters Counters { get; } = new();
 
     public ReportStreamLatency Latency { get; } = new();

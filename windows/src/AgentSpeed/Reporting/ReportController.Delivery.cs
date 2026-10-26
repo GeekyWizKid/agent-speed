@@ -26,9 +26,14 @@ internal sealed partial class ReportController
 
         _lastSnapshot = snapshot;
         // Off and unwatched: nothing to compute until reporting or a preview needs this tick.
-        if (_run is null && !Preferences.Enabled && _previewWindow is null)
+        if (_run is null && _stream is null && !Preferences.Enabled && _previewWindow is null)
         {
             return;
+        }
+
+        if (snapshot.ObservedAtMs is { } observed)
+        {
+            _observation = _observation is { } earliest ? Math.Min(earliest, observed) : observed;
         }
 
         Tick();
@@ -77,6 +82,15 @@ internal sealed partial class ReportController
         var sample = LastSample;
         var now = MonotonicMs;
         _previewWindow?.Observe(sample);
+        if (UsesWebSocket)
+        {
+            EndHttpRun();
+            StreamTick(sample, now, wake: false);
+            return;
+        }
+
+        EndStream();
+        _observation = null;
         StartRunIfNeeded(sample);
         if (_run is not { } run)
         {
@@ -151,8 +165,20 @@ internal sealed partial class ReportController
         _renamedForMismatch = false;
     }
 
+    /// <summary>Ends the run of either transport (a new run, another service, a reset, forgetting).</summary>
     private void EndRun()
     {
+        EndStream();
+        EndHttpRun();
+    }
+
+    private void EndHttpRun()
+    {
+        if (_run is null)
+        {
+            return;
+        }
+
         _run = null;
         if (Mode != ReportMode.Quiet)
         {

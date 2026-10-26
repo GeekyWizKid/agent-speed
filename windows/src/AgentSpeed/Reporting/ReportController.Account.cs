@@ -85,7 +85,7 @@ internal sealed partial class ReportController
     private void SwitchService(Func<ReportPreferences, ReportPreferences> change)
     {
         var wasEnabled = Preferences.Enabled;
-        if (_run is not null)
+        if (_run is not null || _stream is not null)
         {
             Post(ReportEvent.Stop);
         }
@@ -261,6 +261,7 @@ internal sealed partial class ReportController
                 }
 
                 _run?.Scheduler.Update(fetched.Discovery.Limits);
+                StreamDiscovery(fetched.Discovery);
                 if (!fetched.Discovery.SupportsThisClient && Identity?.IsRegistered == true)
                 {
                     Problem = ReportProblem.Upgrade;
@@ -276,10 +277,12 @@ internal sealed partial class ReportController
                 }
 
                 UpdateIdentity(service.Origin, i => i with { DiscoveryFetchedAt = DateTimeOffset.UtcNow });
+                StreamDiscovery(Identity?.Discovery);
                 ScheduleRefresh(RefreshInterval);
                 break;
             case ReportDiscoveryOutcome.NotSupported or ReportDiscoveryOutcome.Invalid:
                 ServiceState = new ReportServiceState(outcome is ReportDiscoveryOutcome.Invalid ? ReportServiceStateKind.Invalid : ReportServiceStateKind.NotSupported);
+                StreamDiscovery(null);
                 if (IsSettingUp)
                 {
                     ScheduleRefresh(RefreshInterval);
@@ -299,6 +302,7 @@ internal sealed partial class ReportController
                 break;
             case ReportDiscoveryOutcome.Failed failed:
                 ServiceState = new ReportServiceState(ReportServiceStateKind.Failed, Failure: failed.Failure);
+                StreamDiscovery(null);
                 ScheduleRefresh(TimeSpan.FromHours(1));
                 break;
         }

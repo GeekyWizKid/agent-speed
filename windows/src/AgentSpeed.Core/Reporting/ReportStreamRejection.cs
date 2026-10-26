@@ -11,11 +11,15 @@ public sealed record ReportStreamRejection(int Status, string? Code, int? RetryA
 {
     public const int MaxBodyBytes = 16_384;
 
+    /// <summary>The v1 error body's <c>serverTime</c> (Unix seconds), for <c>timestamp_out_of_window</c> (METRICS 11.6).</summary>
+    public long? ServerTime { get; init; }
+
     public static ReportStreamRejection Classify(int status, ReadOnlySpan<byte> body, string? retryAfter)
     {
         var header = RetryAfterHeader(retryAfter);
         string? code = null;
         int? wait = null;
+        long? serverTime = null;
         if (!body.IsEmpty)
         {
             using var document = ReportStrictJson.ParseObject(body, 65_536);
@@ -26,6 +30,7 @@ public sealed record ReportStreamRejection(int Status, string? Code, int? RetryA
                 wait = ReportStrictJson.Member(error, "retryAfterSeconds") is { } given && ReportStrictJson.Integer(given) is >= 1 and var seconds
                     ? (int)Math.Min(seconds, int.MaxValue)
                     : null;
+                serverTime = ReportStrictJson.Member(error, "serverTime") is { } time && ReportStrictJson.Integer(time) is >= 0 and var at ? at : null;
             }
         }
 
@@ -41,7 +46,7 @@ public sealed record ReportStreamRejection(int Status, string? Code, int? RetryA
             >= 400 and < 500 => "bad_request",
             _ => null,
         };
-        return new ReportStreamRejection(status, code, wait ?? header);
+        return new ReportStreamRejection(status, code, wait ?? header) { ServerTime = serverTime };
     }
 
     /// <summary>A <c>Retry-After</c> header in delay seconds; an HTTP date counts as absent.</summary>
