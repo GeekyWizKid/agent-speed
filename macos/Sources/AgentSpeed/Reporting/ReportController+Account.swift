@@ -169,15 +169,18 @@ extension ReportController {
                 }
             }
             run?.scheduler.update(limits: document.limits)
+            streamDiscovery(document)
             if !document.supportsThisClient, identity?.isRegistered == true { problem = .upgrade }
             scheduleRefresh(after: Self.refreshInterval)
             confirmInvitedIfCovered(document, service: service)
         case .notModified:
             if let document = identity?.discovery { serviceState = .ready(document) }
             updateIdentity(service.origin) { $0.discoveryFetchedAt = Date() }
+            streamDiscovery(identity?.discovery)
             scheduleRefresh(after: Self.refreshInterval)
         case .notSupported, .invalid:
             serviceState = outcome == .invalid ? .invalid : .notSupported
+            streamRefreshFailed()
             if isSettingUp { scheduleRefresh(after: Self.refreshInterval) }
         case .gone:
             serviceState = .gone
@@ -189,6 +192,7 @@ extension ReportController {
             }
         case .failed(let failure):
             serviceState = .failed(failure)
+            streamRefreshFailed()
             scheduleRefresh(after: 3600)
         }
     }

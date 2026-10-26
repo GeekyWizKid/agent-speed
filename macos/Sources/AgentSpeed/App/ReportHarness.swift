@@ -7,7 +7,8 @@ import AppKit
 /// network off, turning off and Forget — against a local reference server (`spec/tools/report_server.py`). Run it with
 /// `AGENT_SPEED_APP_DATA` pointing at a temporary folder and `AGENT_SPEED_REPORT_PRESET_URL` set to the same URL, so
 /// the preset never reaches the real service; settings live in the `AgentSpeedReportE2E` suite. Prints one line per
-/// check and quits.
+/// check and quits. With `AGENT_SPEED_REPORT_E2E_WEBSOCKET=1` (and the server started with `--websocket`) it drives the
+/// WebSocket transport instead, see `ReportStreamHarness`.
 @MainActor
 enum ReportHarness {
     private static var feed: Timer?
@@ -42,6 +43,7 @@ enum ReportHarness {
                                      measuredMs: 900, costMicroUsd: 1800), to: ReportModelKey(modelId: "claude-opus-5-5", source: .claudeCode))
         }
         var snapshot = PreviewData.snapshot(speed: busy ? 240 : 0, redline: 2000)
+        if busy { snapshot.observedAtMs = ReportClock.monotonicMs - 4 }
         if !busy {
             snapshot.live = .zero
             snapshot.liveCost = .zero
@@ -88,6 +90,13 @@ enum ReportHarness {
 
         if ProcessInfo.processInfo.environment["AGENT_SPEED_PROFILE_E2E"] == "1" {
             check("profile extension lifecycle", await ReportProfileHarness.run(first: model, url: url))
+            return
+        }
+
+        if ProcessInfo.processInfo.environment["AGENT_SPEED_REPORT_E2E_WEBSOCKET"] == "1" {
+            await ReportStreamHarness.run(model, busy: { busy = $0 }, check: { check($0, $1) },
+                                          wait: { name, seconds, condition in await check(name, within: seconds, condition) })
+            feed?.invalidate()
             return
         }
 

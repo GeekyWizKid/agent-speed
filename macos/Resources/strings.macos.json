@@ -503,5 +503,11 @@
     "zh-Hans": "选择 Grok Build 文件夹",
     "en": "Choose Grok Build Folder",
     "ja": "Grok Build フォルダを選択"
+  },
+  "mac.report.ws.milliseconds": {
+    "zh-Hant": "%@ ms",
+    "zh-Hans": "%@ ms",
+    "en": "%@ ms",
+    "ja": "%@ ms"
   }
 }

@@ -67,6 +67,10 @@ final class ReportController {
     var mode: ReportScheduler.Mode = .quiet
     var renameState: RenameState = .idle
     var forgetState: ForgetState = .idle
+    /// The WebSocket session's status inputs (DESIGN 11, Status); nil while no session runs.
+    var streamState: ReportStreamState?
+    /// The WebSocket counters and latency for the stats line, refreshed at most once a second.
+    var streamStats: ReportStreamStats?
 
     @ObservationIgnored let settings: AppSettings
     @ObservationIgnored let store: SpeedStore
@@ -78,6 +82,13 @@ final class ReportController {
     @ObservationIgnored let userAgent: String
     @ObservationIgnored let defaults: UserDefaults
     @ObservationIgnored var run: ReportRun?
+    /// The WebSocket transport session; only while WebSocket is chosen (HTTP's `run` is nil then).
+    @ObservationIgnored var stream: ReportStreamRun?
+    @ObservationIgnored let streamTransport: any ReportStreamTransport
+    /// The earliest observation of the snapshots since the last stream tick (METRICS 11.9, Observations).
+    @ObservationIgnored var pendingObservation: Int64?
+    @ObservationIgnored var statsPublishedAt: Date?
+    @ObservationIgnored var statsPending = false
     @ObservationIgnored var pendingEvents: [ReportScheduler.Event] = []
     @ObservationIgnored var signer: (any ReportSigner)?
     @ObservationIgnored var pendingSigner: (any ReportSigner)?
@@ -120,7 +131,9 @@ final class ReportController {
 
     init(
         settings: AppSettings, store: SpeedStore, traffic: TrafficStore, priceBook: PriceBook, appData: URL,
-        transport: any ReportTransport = URLSessionReportTransport(), version: String = UpdateConfiguration.bundleVersion
+        transport: any ReportTransport = URLSessionReportTransport(),
+        streamTransport: any ReportStreamTransport = URLSessionReportStream(),
+        version: String = UpdateConfiguration.bundleVersion
     ) {
         self.settings = settings
         self.store = store
@@ -131,6 +144,7 @@ final class ReportController {
         client = ReportClientInfo.current(version: version)
         userAgent = "AgentSpeed/\(client.version) (macOS)"
         api = ReportAPI(transport: transport, userAgent: userAgent)
+        self.streamTransport = streamTransport
         preferences = ReportPreferences.load(from: settings.storage)
         networkWasEnabled = settings.networkEnabled
         profile.owner = self
@@ -147,6 +161,16 @@ final class ReportController {
     }
 
     var identity: ReportIdentity? { preferences.identity(for: selectedService) }
+
+    /// The selected service's transport (DESIGN 11, Transport): the user's choice, HTTP by default.
+    var transport: ReportTransportKind { preferences.transport(for: selectedService) }
+
+    /// The WebSocket transport's own status line, when one applies (DESIGN 11, Status).
+    var streamIssue: ReportStreamIssue? {
+        guard transport == .websocket, isOn else { return nil }
+        if let streamState { return ReportStreamIssue(streamState, lastDelivery: lastDeliveryAt) }
+        return discovery.map { $0.websocket == nil } == true ? .unsupported : nil
+    }
 
     /// Identities of the services that are not selected (DESIGN 11, Other services).
     var otherIdentities: [ReportIdentity] {
@@ -258,11 +282,16 @@ final class ReportController {
             if serviceState == .gone { return .problem(.gone) }
             return .connecting
         }
+        let streamIssue = self.streamIssue
+        if let streamIssue, streamIssue.isStop { return .stream(streamIssue) }
         if let until = rateLimitedUntil, until > Date() { return .rateLimited(until: until) }
-        if let retryReason { return .retrying(reason: retryReason) }
+        if let streamIssue { return .stream(streamIssue) }
+        if let retryReason, transport == .http { return .retrying(reason: retryReason) }
         if isDiscoveryStale { return .connecting }
         switch mode {
-        case .active: return lastDeliveryAt.map { .reporting(last: $0) } ?? .never
+        case .active:
+            guard let last = lastDeliveryAt else { return .never }
+            return transport == .websocket ? .streaming(last: last) : .reporting(last: last)
         case .idle: return lastDeliveryAt == nil ? .never : .idle
         case .quiet: return lastDeliveryAt == nil ? .never : .quiet
         }
@@ -303,6 +332,7 @@ final class ReportController {
 
     func shutdown() {
         profile.reset()
+        endStream()
         if let liveToken { store.removeLiveListener(liveToken) }
         liveToken = nil
         loops.forEach { $0.cancel() }
@@ -316,6 +346,10 @@ final class ReportController {
 
     /// At quit: one `leaving` report when it can be sent within a second (REPORTING 7.1), then `reply`.
     func prepareToQuit(_ reply: @escaping () -> Void) {
+        if stream != nil {
+            prepareStreamToQuit(reply)
+            return
+        }
         guard let run, run.scheduler.mode != .quiet, isReady(), settings.networkEnabled else {
             reply()
             return

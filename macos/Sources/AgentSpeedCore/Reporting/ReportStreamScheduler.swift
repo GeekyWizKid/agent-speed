@@ -59,7 +59,8 @@ public struct ReportStreamScheduler: Sendable {
     private var awaiting: [Awaited] = []
     private var lastActive: Int64?
     private var previousTick: Int64?
-    private var windowStart: Int64?
+    /// The start of the open window (the preview's `windowMs`).
+    public private(set) var windowStart: Int64?
     private var observed: Int64?
     private var dirty = false
     private var lastBuild: Int64?
@@ -88,6 +89,9 @@ public struct ReportStreamScheduler: Sendable {
     }
 
     public var awaitingCount: Int { awaiting.count }
+
+    /// The open window's earliest observation (the preview's `realtime`).
+    public var windowObserved: Int64? { observed }
 
     /// True while waiting for the refreshed settings after a `ready` with other limits.
     public var awaitsSettings: Bool { waitingSettings }
