@@ -2293,11 +2293,61 @@ def check_fixtures():
                                                                               st["buckets"].get(int(k))))
     failures += ["prices: " + e for e in pricing.check_cases()]
     failures += ["harnesses: " + e for e in harnesses.check_fixtures(root)]
+    attribution = json.load(open(os.path.join(root, "model-attribution-cases.json"), encoding="utf-8"))
+    failures += ["model attribution: " + e for e in check_model_attribution(attribution)]
     if failures:
         print("\n".join(failures))
         sys.exit(1)
     print("reference implementation matches all fixtures (%d files, %d Antigravity databases, %d engine cases, "
-          "price cases)" % (len(expected["order"]), len((ag or {}).get("order", [])), len(cases)))
+          "price cases, %d model attribution cases)" % (len(expected["order"]), len((ag or {}).get("order", [])),
+                                                         len(cases), len(attribution["cases"])))
+
+
+def report_model_id(index, model, provider=None):
+    """`models[].id` of METRICS 11.3: a table entry's id, `local` for a free provider, else `unknown`."""
+    res = index.resolve(model, provider)
+    if res.entry is not None:
+        return res.entry["id"]
+    return "local" if res.kind == "free" and res.reason == "free provider" else "unknown"
+
+
+def check_model_attribution(doc, table=pricing.TABLE):
+    """model-attribution-cases.json: every response and every ledger increment (METRICS 11.4) keeps its own model."""
+    index = pricing.Index(pricing.load(table))
+    failures = []
+    for case in doc["cases"]:
+        dedupe, ledger, reported = Deduper(), {}, {}
+        for spec in case["files"]:
+            state = FileState("/fixture/" + spec["path"], "claudeCode")
+            for text in spec["lines"]:
+                before = {k: dict(r) for k, r in state.responses.items()}
+                claude_line(state, loads(text), dedupe)
+                for key, r in state.responses.items():
+                    if before.get(key) == r:
+                        continue
+                    mid = report_model_id(index, r["model"], r["provider"])
+                    slot = ledger.setdefault((mid, state.source), [0, 0])
+                    old = reported.get(key)
+                    slot[0] += 0 if old is not None else 1
+                    slot[1] += max(0, r["output"] - (old or 0))
+                    reported[key] = max(old or 0, r["output"])
+            exp = case["expect"][spec["path"]]
+            got = dict(source=state.source, isSubagent=state.is_subagent, model=state.model,
+                       reportModelId=report_model_id(index, state.model),
+                       responses=[dict(key=r["key"], model=r["model"], output=r["output"],
+                                       reportModelId=report_model_id(index, r["model"], r["provider"]))
+                                  for r in state.responses.values()])
+            if got != exp:
+                failures.append("%s / %s: expected %r got %r" % (case["name"], spec["path"], exp, got))
+        got_ledger = sorted([m, s, v[0], v[1]] for (m, s), v in ledger.items())
+        want_ledger = sorted([e["modelId"], e["source"], e["requests"], e["output"]] for e in case["ledger"])
+        if got_ledger != want_ledger:
+            failures.append("%s: ledger expected %r got %r" % (case["name"], want_ledger, got_ledger))
+    for model, want in doc["reportIds"]:
+        got = report_model_id(index, model)
+        if got != want:
+            failures.append("report id %r: expected %s got %s" % (model, want, got))
+    return failures
 
 
 def check_traces(root, expected, traces):
