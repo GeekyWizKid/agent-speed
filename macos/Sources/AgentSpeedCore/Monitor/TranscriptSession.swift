@@ -177,24 +177,10 @@ final class TranscriptSession {
         return changed
     }
 
-    /// Re-reads Pi's settings, whose custom session folder may have changed (METRICS 4.13): Pi roots that went away are
-    /// dropped (rediscovery then untracks their files), new ones are added, and omp roots inside them stop being read.
-    /// Returns true when the roots changed.
-    private func refreshPiRoots() -> Bool {
-        let pi = configuration.resolvedRoots(for: .pi)
-        guard pi != roots.filter({ $0.family == .pi }).map(\.path) else { return false }
-        let kept = roots.filter { $0.family == .pi && pi.contains($0.path) }
-        roots.removeAll { $0.family == .pi }
-        for path in pi {
-            roots.append(kept.first { $0.path == path }
-                ?? Root(family: .pi, path: path, canonicalPath: path, enabled: configuration.reads(.pi), available: false))
-        }
-        for index in roots.indices where roots[index].family == .omp {
-            roots[index].readable = MonitorConfiguration.isReadable(root: roots[index].path, family: .omp, piRoots: pi)
-        }
-        let paths = Set(roots.map(\.path))
-        indexes = indexes.filter { paths.contains($0.key) }
-        return true
+    /// Pi's automatic roots follow Pi's settings, whose custom session folder may change while the app runs (METRICS
+    /// 4.13): true when they no longer match the roots this session reads. The settings file is read, never written.
+    var piRootsChanged: Bool {
+        configuration.resolvedRoots(for: .pi) != roots.filter { $0.family == .pi }.map(\.path)
     }
 
     /// The family's first detected root, else its first root (Gemini CLI, omp, Antigravity and Pi can have several).
@@ -422,8 +408,7 @@ final class TranscriptSession {
     /// re-checked in case the watcher missed a change.
     @discardableResult
     func rediscover(todayStartMs: Int64) -> Bool {
-        var changed = refreshPiRoots()
-        changed = refreshAvailability() || changed
+        var changed = refreshAvailability()
         var seen: Set<String> = []
         var fresh: [(DiscoveredFile, Root)] = []
         let activeSince = todayStartMs - Self.startupLookbackMs
