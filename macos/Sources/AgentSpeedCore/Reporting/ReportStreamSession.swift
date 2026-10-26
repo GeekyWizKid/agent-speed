@@ -105,6 +105,9 @@ public final class ReportStreamSession {
             perform(scheduler.ack(at: t, seq: ack.seq, status: ack.status == "duplicate" ? .duplicate : .accepted,
                                   matches: matches, rank: ack.rank), at: t)
         case .message(.error(let failure)):
+            let fatal = failure.fatal ? " fatal" : ""
+            ReportLog.network.info(
+                "websocket error \(failure.httpStatus, privacy: .public) \(failure.code, privacy: .public)\(fatal, privacy: .public)")
             serverTime = failure.serverTime
             defer { serverTime = nil }
             perform(scheduler.error(at: t, seq: failure.runId == runId ? failure.seq : nil, code: failure.code,
@@ -113,11 +116,13 @@ public final class ReportStreamSession {
         case .message(.other):
             break
         case .rejected(let status, let retryAfter):
+            ReportLog.network.info("websocket upgrade refused \(status, privacy: .public)")
             ended()
             let rejection = ReportStreamRejection.classify(status: status, body: nil, retryAfter: retryAfter)
             perform(scheduler.rejected(at: t, status: status, code: rejection.code,
                                        retryAfterSeconds: rejection.retryAfterSeconds), at: t)
         case .closed(let code):
+            ReportLog.network.info("websocket closed \(code, privacy: .public)")
             ended()
             perform(scheduler.closed(at: t, code: code), at: t)
         }
@@ -163,7 +168,9 @@ public final class ReportStreamSession {
                     digests.removeAll()
                 }
                 delegate?.streamSession(self, react: reaction, serverTime: serverTime)
-            case .saturated, .stop, .backoff, .wait, .wake:
+            case .stop(let reason):
+                ReportLog.network.info("websocket stopped: \(reason.rawValue, privacy: .public)")
+            case .saturated, .backoff, .wait, .wake:
                 break
             }
         }

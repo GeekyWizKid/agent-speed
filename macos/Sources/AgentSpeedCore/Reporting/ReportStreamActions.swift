@@ -102,7 +102,17 @@ extension ReportStreamScheduler {
         public internal(set) var unknown = 0
         public internal(set) var unmatched = 0
 
-        public init() {}
+        public init(built: Int = 0, accepted: Int = 0, duplicate: Int = 0, rejected: Int = 0, stale: Int = 0,
+                    saturated: Int = 0, unknown: Int = 0, unmatched: Int = 0) {
+            self.built = built
+            self.accepted = accepted
+            self.duplicate = duplicate
+            self.rejected = rejected
+            self.stale = stale
+            self.saturated = saturated
+            self.unknown = unknown
+            self.unmatched = unmatched
+        }
 
         public var delivered: Int { accepted + duplicate }
 

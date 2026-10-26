@@ -11,13 +11,24 @@ extension ReportController {
         case setupFailed
         /// Accepted, but the document needs the consent sheet (REPORTING 3.3).
         case review
+        /// WebSocket chosen (DESIGN 11, item 2b): streaming with the stats line; a service that throttles it; one
+        /// without the capability; reconnecting after a failure; replaced by another connection (Try Again).
+        case streaming, streamThrottled, streamUnsupported, streamReconnecting, streamReplaced
     }
+
+    static let streamStates: Set<PreviewState> = [
+        .streaming, .streamThrottled, .streamUnsupported, .streamReconnecting, .streamReplaced,
+    ]
 
     /// The spec's example service (spec/fixtures/report-examples/discovery.json), which takes an optional API key and
     /// every section.
     static let previewService = try! ReportServiceURL.parse("https://example.com").get()
 
-    static var previewDiscovery: ReportDiscovery {
+    static var previewDiscovery: ReportDiscovery { discovery(websocket: nil) }
+
+    /// The example service; `websocket` adds the WebSocket capability with these settings (METRICS 11.9).
+    static func discovery(websocket: String?) -> ReportDiscovery {
+        let stream = websocket.map { #","extensions":{"reportWebSocket":1},"websocket":\#($0)"# } ?? ""
         let document = """
         {"protocol":"agent-speed-report","versions":[1],
          "service":{"name":"Example Leaderboard","description":"Live token speed of AI coding agents, updated every few seconds.",
@@ -26,7 +37,7 @@ extension ReportController {
          "api":"https://api.example.com/agent-speed","apiKey":{"mode":"optional","url":"https://example.com/account/keys"},
          "username":{"minLength":2,"maxLength":24,"charset":"unicode","spaces":true},
          "limits":{"intervalSeconds":5,"heartbeatSeconds":60,"maxAgeSeconds":30,"maxBodyBytes":16384,"maxModels":16},
-         "sections":["sources","models","cost","traffic"]}
+         "sections":["sources","models","cost","traffic"]\(stream)}
         """
         return try! ReportDiscovery.parse(Data(document.utf8), service: previewService).get()
     }
@@ -39,7 +50,14 @@ extension ReportController {
         preferences.preset = onPreset.contains(state) ? .codexRadar : .custom
         preferences.customURL = Self.previewService.string
         preferences.username = username
-        let discovery = Self.previewDiscovery
+        let streaming = Self.streamStates.contains(state)
+        let discovery = switch state {
+        case .streamUnsupported: Self.previewDiscovery
+        case .streamThrottled: Self.discovery(websocket: #"{"path":"/v1/reports/ws","subprotocol":"agent-speed-report.v1","minIntervalMs":200}"#)
+        case _ where streaming: Self.discovery(websocket: #"{"path":"/v1/reports/ws","subprotocol":"agent-speed-report.v1"}"#)
+        default: Self.previewDiscovery
+        }
+        if streaming { preferences.webSocketServices = [Self.previewService.origin] }
         let deviceId = "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b"
         if settingUp.contains(state) {
             preferences.enabled = true
@@ -67,9 +85,20 @@ extension ReportController {
         inviteJustAccepted = state == .inviteDone
         registrationFailure = nil
         renameState = .idle
-        lastDeliveryAt = state == .reporting ? now.addingTimeInterval(-3) : nil
-        rank = state == .reporting ? 12 : nil
-        mode = state == .reporting ? .active : .idle
+        let delivering: Set<PreviewState> = [.reporting, .streaming, .streamThrottled, .streamReconnecting, .streamReplaced]
+        lastDeliveryAt = delivering.contains(state) ? now.addingTimeInterval(state == .streamReconnecting ? -42 : -1) : nil
+        rank = state == .reporting || state == .streaming ? 12 : nil
+        mode = delivering.contains(state) || state == .streamUnsupported ? .active : .idle
+        rateLimitedUntil = nil
+        retryReason = nil
+        streamState = switch state {
+        case .streaming, .streamThrottled: ReportStreamState(open: true)
+        case .streamUnsupported: ReportStreamState(open: false, available: false)
+        case .streamReconnecting: ReportStreamState(open: false, failing: true)
+        case .streamReplaced: ReportStreamState(open: false, stop: .replaced)
+        default: nil
+        }
+        streamStats = streaming && state != .streamUnsupported ? Self.previewStats(state) : nil
         cachedSample = Self.previewSample
         lastSnapshot = nil
         consent = state == .consent ? ConsentDraft(
@@ -78,6 +107,14 @@ extension ReportController {
             sections: ReportPreferences.defaultSections, isReview: false) : nil
         previewWindow = ReportWindow(ReportSample())
         previewStartedAt = ReportClock.monotonicMs - 4200
+    }
+
+    /// A session that delivered most of its windows within the real-time level.
+    static func previewStats(_ state: PreviewState) -> ReportStreamStats {
+        let slow = state == .streamThrottled
+        return ReportStreamStats(
+            counters: .init(built: 1287, accepted: 1279, duplicate: 2, rejected: 0, stale: 1, saturated: 0, unknown: 3),
+            p50: slow ? 236 : 38, p95: slow ? 412 : 87)
     }
 
     /// Three agents of two sources and two models, as in the spec's active example.
