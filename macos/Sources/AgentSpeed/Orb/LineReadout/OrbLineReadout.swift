@@ -53,6 +53,8 @@ final class OrbLineReadout {
     private struct Line {
         var lead: Lead
         var number: String
+        /// Right-aligned in the `888` cell instead of the `8.88` one (the index).
+        var isInteger = false
         var unit: String?
     }
 
@@ -112,7 +114,7 @@ final class OrbLineReadout {
         let left = frame.center.x - width / 2
         let baselines = placement.baselines(center: frame.center.y + frame.readoutShift, diameter: frame.s)
         let gap = OrbLinePlacement.gap * t
-        let numberRight = left + cells.lead + gap + cells.number
+        let numberLeft = left + cells.lead + gap
         let (nearest, other) = Self.lines(reading.content, placement: placement, language: language)
         let scale = scene.backingScale
         func draw(_ texture: OrbTextTexture, x: CGFloat, baseline: CGFloat, color: RGBColor) {
@@ -131,13 +133,13 @@ final class OrbLineReadout {
                 }
             }
             let digits = line.number.compactMap { textCache.texture($0, style: numberStyle(t), language: .en, scale: scale) }
-            var x = numberRight - digits.reduce(0) { $0 + $1.advance }
+            var x = numberLeft + (line.isInteger ? cells.integer : cells.number) - digits.reduce(0) { $0 + $1.advance }
             for digit in digits {
                 draw(digit, x: x, baseline: baseline, color: palette.number)
                 x += digit.advance
             }
             if let unit = line.unit, let texture = textCache.texture(unit, style: unitStyle(t), language: .en, scale: scale) {
-                draw(texture, x: numberRight + gap, baseline: baseline, color: palette.secondary)
+                draw(texture, x: numberLeft + cells.number + gap, baseline: baseline, color: palette.secondary)
             }
         }
     }
@@ -153,7 +155,7 @@ final class OrbLineReadout {
             return placement.below ? (down, up) : (up, down)
         case .intelligence(let index, let thinking):
             let glyphs = OrbLineGlyphs(language)
-            return (Line(lead: .glyph(glyphs.intelligence), number: String(index), unit: nil),
+            return (Line(lead: .glyph(glyphs.intelligence), number: String(index), isInteger: true),
                     Line(lead: .glyph(glyphs.thinking), number: thinking, unit: OrbLineMetrics.thinkingUnit))
         }
     }

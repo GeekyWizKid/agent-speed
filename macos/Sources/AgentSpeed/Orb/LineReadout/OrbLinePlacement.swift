@@ -89,13 +89,15 @@ struct OrbLineGlyphs: Hashable {
 
 /// Widths of the readout's fixed cells, measured with the platform font once per size (DESIGN 10: the readout shows only
 /// where a line fits, computed per size, never truncated or shrunk below 7 pt). Both readouts share the table: a lead
-/// cell (the arrow, or the intelligence glyphs widened to their advance), the `8.88` number cell and the unit cell
-/// (`MB/s`, `Mb/s` for bits; `tok/s` for thinking).
+/// cell (the arrow, or the intelligence glyphs widened to their advance), the `8.88` number cell (the index: an `888`
+/// cell at its left) and the unit cell (`MB/s`, `Mb/s` for bits; `tok/s` for thinking).
 @MainActor
 enum OrbLineMetrics {
     struct Cells: Equatable {
         var lead: CGFloat
         var number: CGFloat
+        /// The `888` cell of an integer line, inside the number cell.
+        var integer: CGFloat
         var unit: CGFloat
 
         /// lead, gap, number, gap, unit.
@@ -126,13 +128,14 @@ enum OrbLineMetrics {
         }
         let arrow = OrbLinePlacement.arrowWidth * t
         let number = width("8.88", numberFont(t))
+        let integer = width("888", numberFont(t))
         let glyphs = OrbLineGlyphs(language)
         let cells = switch format {
         case .traffic(let bits):
-            Cells(lead: arrow, number: number, unit: width(bits ? "Mb/s" : "MB/s", unitFont(t)))
+            Cells(lead: arrow, number: number, integer: integer, unit: width(bits ? "Mb/s" : "MB/s", unitFont(t)))
         case .intelligence:
             Cells(lead: max(arrow, width(glyphs.intelligence, glyphFont(t)), width(glyphs.thinking, glyphFont(t))),
-                  number: number, unit: max(width("MB/s", unitFont(t)), width(thinkingUnit, unitFont(t))))
+                  number: number, integer: integer, unit: max(width("MB/s", unitFont(t)), width(thinkingUnit, unitFont(t))))
         }
         if cache.count > 128 { cache.removeAll(keepingCapacity: true) }
         cache[key] = cells

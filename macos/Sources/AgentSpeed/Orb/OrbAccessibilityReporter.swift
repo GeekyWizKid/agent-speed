@@ -134,11 +134,7 @@ final class OrbAccessibilityReporter {
                                   language: l10n.language) else { return nil }
         switch reading.content {
         case .traffic(let rx, let tx):
-            func spoken(_ parts: TrafficFormat.Parts) -> String {
-                let unit = parts.unit.hasSuffix("/s") ? String(parts.unit.dropLast(2)) : parts.unit
-                return parts.number + " " + unit
-            }
-            return l10n("a11y.orb.traffic", spoken(rx), spoken(tx))
+            return l10n("a11y.orb.traffic", TrafficText.spoken(rx), TrafficText.spoken(tx))
         case .intelligence(let index, let thinking):
             return l10n("a11y.orb.intel", String(index), thinking)
         }

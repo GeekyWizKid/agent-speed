@@ -21,7 +21,7 @@ enum TrafficOrbPreviews {
     ]
 
     /// Values per style that land on a mid tier at the default redline.
-    private static func value(_ style: OrbStyleKind, redline: Double) -> Double {
+    static func value(_ style: OrbStyleKind, redline: Double) -> Double {
         switch style {
         case .led: 0.16 * redline
         case .needle: 0.42 * redline

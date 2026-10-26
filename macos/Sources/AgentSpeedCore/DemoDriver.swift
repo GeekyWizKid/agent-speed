@@ -19,6 +19,10 @@ public final class DemoDriver {
     private var today = TokenTotals.zero
     private var lastResponse: ResponseSummary?
     private static let estimatedShare = 0.15
+    /// A flagship model at high effort, a third of its output reasoning, so an orb set to the intelligence readout
+    /// shows it while previewing (METRICS 6.9).
+    private static let grade = IntelligenceGrade(modelClass: .flagship, level: 3)
+    private static let thinkingShare = 0.35
 
     private struct FakeAgent {
         let id: String
@@ -186,7 +190,8 @@ public final class DemoDriver {
                     output: today.output / sourceCount
                 ),
                 activeAgents: agentStatuses.filter { $0.source == kind && $0.phase == .generating }.count,
-                liveEstimated: Rate(output: live * Self.estimatedShare, total: live * Self.estimatedShare * 24)
+                liveEstimated: Rate(output: live * Self.estimatedShare, total: live * Self.estimatedShare * 24),
+                intelligence: Self.intelligence(output: live, from: kind)
             )
         }
         return SpeedSnapshot(
@@ -205,8 +210,15 @@ public final class DemoDriver {
             history: history,
             lastResponse: lastResponse,
             warnings: [],
-            dayStart: Calendar.current.startOfDay(for: now)
+            dayStart: Calendar.current.startOfDay(for: now),
+            intelligence: sources.reduce(into: IntelligenceSums()) { $0.add($1.intelligence) }
         )
+    }
+
+    private static func intelligence(output: Double, from source: SourceKind) -> IntelligenceSums {
+        var sums = IntelligenceSums()
+        sums.add(output: output, reasoning: output * thinkingShare, grade: grade, from: source)
+        return sums
     }
 
     private func activeWeight(_ count: Int) -> Double {
