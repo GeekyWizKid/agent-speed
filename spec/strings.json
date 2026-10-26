@@ -4356,6 +4356,120 @@
     "en": "Currently #%d",
     "ja": "現在 %d 位"
   },
+  "report.transport": {
+    "zh-Hant": "上報方式",
+    "zh-Hans": "上报方式",
+    "en": "Transport",
+    "ja": "送信方式"
+  },
+  "report.transport.http": {
+    "zh-Hant": "HTTP",
+    "zh-Hans": "HTTP",
+    "en": "HTTP",
+    "ja": "HTTP"
+  },
+  "report.transport.websocket": {
+    "zh-Hant": "WebSocket 即時",
+    "zh-Hans": "WebSocket 实时",
+    "en": "WebSocket Live",
+    "ja": "WebSocket ライブ"
+  },
+  "report.transport.hint": {
+    "zh-Hant": "HTTP 每幾秒送一次；WebSocket 即時在資料一有變化就送出，需要服務支援。",
+    "zh-Hans": "HTTP 每几秒发送一次；WebSocket 实时在数据一有变化就发送，需要服务支持。",
+    "en": "HTTP sends every few seconds; WebSocket Live sends as soon as the data changes and needs the service's support.",
+    "ja": "HTTP は数秒ごとに送信します。WebSocket ライブはデータが変わるとすぐに送信し、サービスの対応が必要です。"
+  },
+  "report.transport.source": {
+    "zh-Hant": "資料來自監看本機紀錄檔，從寫入到讀取最慢約 1 秒，並非逐 token 的即時量測。",
+    "zh-Hans": "数据来自监看本机记录文件，从写入到读取最慢约 1 秒，并非逐 token 的实时测量。",
+    "en": "The data comes from watching local logs, read at most about 1 s after they are written — not a per-token measurement.",
+    "ja": "データはローカルのログの監視から得ており、書き込みから読み取りまで最大約 1 秒かかります。トークン単位の計測ではありません。"
+  },
+  "report.transport.throttled": {
+    "zh-Hant": "這個服務限制每 %d 毫秒最多一份報文，達不到即時等級",
+    "zh-Hans": "该服务限制每 %d 毫秒最多一份报文，达不到实时等级",
+    "en": "This service accepts at most one report every %d ms — slower than live",
+    "ja": "このサービスは %d ミリ秒ごとに 1 件までしか受け付けないため、ライブの水準に届きません"
+  },
+  "report.status.streaming": {
+    "zh-Hant": "WebSocket 即時上報中 · 上次 %@",
+    "zh-Hans": "WebSocket 实时上报中 · 上次 %@",
+    "en": "Reporting live over WebSocket · last %@",
+    "ja": "WebSocket でライブ送信中・前回 %@"
+  },
+  "report.status.wsReconnecting": {
+    "zh-Hant": "WebSocket 重新連線中 · 上次成功 %@",
+    "zh-Hans": "WebSocket 重新连接中 · 上次成功 %@",
+    "en": "Reconnecting the WebSocket · last success %@",
+    "ja": "WebSocket に再接続しています・前回の成功 %@"
+  },
+  "report.status.wsReconnectingNever": {
+    "zh-Hant": "WebSocket 重新連線中",
+    "zh-Hans": "WebSocket 重新连接中",
+    "en": "Reconnecting the WebSocket",
+    "ja": "WebSocket に再接続しています"
+  },
+  "report.status.wsUnsupported": {
+    "zh-Hant": "此服務尚未支援 WebSocket",
+    "zh-Hans": "此服务尚未支持 WebSocket",
+    "en": "This service doesn't support WebSocket yet",
+    "ja": "このサービスはまだ WebSocket に対応していません"
+  },
+  "report.status.wsMismatch": {
+    "zh-Hant": "服務連線設定不一致",
+    "zh-Hans": "服务连接设置不一致",
+    "en": "The service's connection settings don't match",
+    "ja": "サービスの接続設定が一致しません"
+  },
+  "report.status.wsReplaced": {
+    "zh-Hant": "這部裝置已在另一處連線，這裡已停止上報",
+    "zh-Hans": "这台设备已在另一处连接，这里已停止上报",
+    "en": "This device connected from somewhere else — reporting stopped here",
+    "ja": "このデバイスは別の場所で接続されたため、ここでの送信を停止しました"
+  },
+  "report.status.wsIncompatible": {
+    "zh-Hant": "服務的 WebSocket 與這個版本不相容，已停止上報",
+    "zh-Hans": "服务的 WebSocket 与这个版本不兼容，已停止上报",
+    "en": "The service's WebSocket isn't compatible with this version — reporting stopped",
+    "ja": "サービスの WebSocket がこのバージョンと互換性がないため、送信を停止しました"
+  },
+  "report.status.wsNonce": {
+    "zh-Hant": "服務一再拒收重複的請求編號，已停止上報",
+    "zh-Hans": "服务一再拒收重复的请求编号，已停止上报",
+    "en": "The service keeps reporting repeated request numbers — reporting stopped",
+    "ja": "サービスが重複したリクエスト番号を繰り返し拒否したため、送信を停止しました"
+  },
+  "report.status.wsClientState": {
+    "zh-Hant": "上報狀態異常，已停止；重新開啟上報即可恢復",
+    "zh-Hans": "上报状态异常，已停止；重新开启上报即可恢复",
+    "en": "Reporting got into an unexpected state and stopped — turn it off and on to resume",
+    "ja": "送信が想定外の状態になり停止しました。オフにしてからオンにすると再開します"
+  },
+  "report.ws.stats": {
+    "zh-Hant": "延遲 p50 %@ · p95 %@ · 送達 %@ · 未送達 %@",
+    "zh-Hans": "延迟 p50 %@ · p95 %@ · 送达 %@ · 未送达 %@",
+    "en": "Latency p50 %@ · p95 %@ · delivered %@ · not delivered %@",
+    "ja": "遅延 p50 %@・p95 %@・到達 %@・未達 %@"
+  },
+  "report.ws.noLatency": {
+    "zh-Hant": "–",
+    "zh-Hans": "–",
+    "en": "–",
+    "ja": "–"
+  },
+  "report.ws.counters": {
+    "zh-Hant": "已建構 %@ · 已接受 %@ · 重複 %@ · 被拒 %@ · 過時丟棄 %@ · 滿載丟棄 %@ · 結果未知 %@",
+    "zh-Hans": "已构建 %@ · 已接受 %@ · 重复 %@ · 被拒 %@ · 过时丢弃 %@ · 满载丢弃 %@ · 结果未知 %@",
+    "en": "Built %@ · accepted %@ · duplicate %@ · rejected %@ · dropped as stale %@ · dropped while full %@ · outcome unknown %@",
+    "ja": "作成 %@・受理 %@・重複 %@・拒否 %@・古いため破棄 %@・満杯で破棄 %@・結果不明 %@"
+  },
+  "report.preview.onChange": {
+    "zh-Hant": "資料有變化時立即送出",
+    "zh-Hans": "数据有变化时立即发送",
+    "en": "Sent as soon as the data changes",
+    "ja": "データが変わるとすぐに送信します"
+  },
   "report.pause": {
     "zh-Hant": "暫停上報",
     "zh-Hans": "暂停上报",

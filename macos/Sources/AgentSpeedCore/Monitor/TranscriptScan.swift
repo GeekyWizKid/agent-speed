@@ -46,4 +46,9 @@ enum Clock {
     static func milliseconds(_ date: Date) -> Int64 {
         Int64((date.timeIntervalSince1970 * 1000).rounded(.down))
     }
+
+    /// Milliseconds that keep counting while the Mac sleeps (live reporting's clock, METRICS 11.9).
+    static func monotonicMs() -> Int64 {
+        Int64(clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1_000_000)
+    }
 }

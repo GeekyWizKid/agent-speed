@@ -14,7 +14,8 @@ extension ReportController {
         guard monitorRunning else { return }
         lastSnapshot = snapshot
         // Off and unwatched: nothing to compute until reporting or a preview needs this tick.
-        guard run != nil || preferences.enabled || previewWindow != nil else { return }
+        guard run != nil || stream != nil || preferences.enabled || previewWindow != nil else { return }
+        if let observed = snapshot.observedAtMs { pendingObservation = min(pendingObservation ?? observed, observed) }
         tick()
     }
 
@@ -47,6 +48,10 @@ extension ReportController {
         let sample = lastSample
         let now = ReportClock.monotonicMs
         previewWindow?.observe(sample)
+        if transport == .websocket || stream != nil {
+            streamTick(sample, now: now, wake: false)
+            return
+        }
         startRunIfNeeded(sample)
         guard var run else {
             pendingEvents.removeAll()
@@ -87,7 +92,7 @@ extension ReportController {
     // MARK: - Runs
 
     func startRunIfNeeded(_ sample: ReportSample) {
-        guard run == nil, preferences.enabled, monitorRunning, signer != nil, let identity, identity.isRegistered,
+        guard run == nil, transport == .http, preferences.enabled, monitorRunning, signer != nil, let identity, identity.isRegistered,
               let document = identity.discovery else { return }
         run = ReportRun(
             origin: identity.id,
@@ -97,8 +102,10 @@ extension ReportController {
         renamedForMismatch = false
     }
 
+    /// Ends the run of either transport (a new service, identity or transport, or reporting gone).
     func endRun() {
         run = nil
+        endStream()
         if mode != .quiet { mode = .quiet }
     }
 

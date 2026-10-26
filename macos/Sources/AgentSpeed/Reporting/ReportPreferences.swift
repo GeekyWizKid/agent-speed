@@ -34,6 +34,13 @@ enum ReportPreset: String, Codable, CaseIterable, Identifiable, Sendable {
     #endif
 }
 
+/// How a service's reports travel (DESIGN 11, Transport): HTTP by default, WebSocket only by the user's choice.
+enum ReportTransportKind: String, Codable, CaseIterable, Identifiable, Sendable {
+    case http, websocket
+
+    var id: String { rawValue }
+}
+
 /// One service this device registered with (DESIGN 11, Storage): what the user confirmed, the device id, the
 /// registered name and the key's age. Keys themselves live in `ReportKeyStore`, never here.
 struct ReportIdentity: Codable, Equatable, Identifiable, Sendable {
@@ -74,6 +81,11 @@ struct ReportPreferences: Codable, Equatable, Sendable {
     var invite: ReportInvite.Answer?
     /// The name for the next registration when the user typed one; nil means the computer name (DESIGN 11, Username).
     var username: String?
+    /// The origins whose reports go over WebSocket, the latest choice last. Every other service uses HTTP — also those
+    /// stored by earlier builds; nothing but the user's choice adds an origin.
+    var webSocketServices: [String] = []
+
+    static let maxWebSocketServices = 16
 
     init() {}
 
@@ -89,6 +101,19 @@ struct ReportPreferences: Codable, Equatable, Sendable {
         identities = (try? container.decode([ReportIdentity].self, forKey: .identities)) ?? []
         invite = try? container.decode(ReportInvite.Answer.self, forKey: .invite)
         username = try? container.decode(String.self, forKey: .username)
+        webSocketServices = Array(((try? container.decode([String].self, forKey: .webSocketServices)) ?? [])
+            .filter { !$0.isEmpty && $0.count <= ReportServiceURL.maxLength }.suffix(Self.maxWebSocketServices))
+    }
+
+    func transport(for service: ReportServiceURL?) -> ReportTransportKind {
+        guard let service, webSocketServices.contains(service.origin) else { return .http }
+        return .websocket
+    }
+
+    mutating func setTransport(_ transport: ReportTransportKind, for origin: String) {
+        webSocketServices.removeAll { $0 == origin }
+        if transport == .websocket { webSocketServices.append(origin) }
+        webSocketServices = Array(webSocketServices.suffix(Self.maxWebSocketServices))
     }
 
     /// An identity is registered with some service (the invitation is not offered then).

@@ -9,7 +9,8 @@ Standard library only. It implements:
 - usernames: validation, fitting a computer name, comparison keys (REPORTING 4.3);
 - report validation with spec/report-schema.json plus the rules a schema cannot express (REPORTING 6);
 - every server rule of REPORTING 4, 7 and 8 as an in-memory service (used by report_server.py);
-- the client report scheduler of METRICS 11.5 as a simulator;
+- the client report scheduler of METRICS 11.5 as a simulator (the WebSocket transport of METRICS 11.9 is in
+  report_websocket.py);
 - what a client accepts from a discovery document (REPORTING 2.2, 3.2);
 - spec/fixtures/report-vectors.json: checked by default, regenerated with --write.
 
@@ -637,6 +638,9 @@ def report_errors(report, schema: dict, *, strict: bool = True, sections: tuple 
                 errors.append(f"models.{m['id']}: deltaMicroUsd must be present exactly with the cost section")
     if report["activity"] == "idle" and (live["agents"]["generating"] or live["agents"]["tools"]):
         errors.append("activity: idle while agents are working")
+    if "realtime" in report and (report["realtime"]["observedAt"] is None) != (
+            report["realtime"]["observationAgeMs"] is None):
+        errors.append("realtime: observedAt and observationAgeMs must both be null or both be set")
     return errors
 
 
@@ -743,9 +747,12 @@ def parse_discovery(document, fetched_from: str) -> dict:
     if sections is not None and not all(isinstance(name, str) for name in sections):
         raise DiscoveryError("sections")
     result["sections"] = [name for name in SECTIONS if sections is None or name in sections]
-    enabled = {name: 1 for name in EXTENSIONS if supported(document.get("extensions"), name)}
+    from report_websocket import EXTENSION, stream_settings
+
+    enabled = {name: 1 for name in (*EXTENSIONS, EXTENSION) if supported(document.get("extensions"), name)}
     if enabled:
         result["extensions"] = enabled
+    result["websocket"] = stream_settings(document)
     return result
 
 
@@ -817,7 +824,8 @@ class ReferenceService:
     def __init__(self, *, authority: str, api_path: str = "", name: str = "Agent Speed reference server",
                  api_key_mode: str = "none", api_keys: tuple = (), rules: dict | None = None,
                  limits: dict | None = None, sections: tuple = SECTIONS, log=None,
-                 extensions: dict | None = None):
+                 extensions: dict | None = None, websocket: dict | None = None):
+        """websocket: stream settings of METRICS 11.9 to offer the WebSocket transport (missing ones get defaults)."""
         self.authority, self.api_path = authority.lower(), api_path.rstrip("/")
         self.name, self.api_key_mode, self.api_keys = name, api_key_mode, set(api_keys)
         self.rules = username_rules(rules)
@@ -832,6 +840,10 @@ class ReferenceService:
         self.device_bucket = TokenBucket(3, 0.25)
         self.log = log or (lambda line: None)
         self.extensions = {name: 1 for name in EXTENSIONS if supported(extensions, name)}
+        self.websocket = None
+        if websocket is not None:
+            from report_websocket import DEFAULT_STREAM
+            self.websocket = {**DEFAULT_STREAM, **websocket}
         self.extension_state = None
         if self.extensions:
             from report_profile_reference import ProfileExtensions
@@ -849,6 +861,10 @@ class ReferenceService:
                 "limits": dict(self.limits), "sections": list(self.sections)}
         if self.extensions:
             result["extensions"] = dict(self.extensions)
+        if self.websocket:
+            from report_websocket import EXTENSION, SUBPROTOCOL, WS_PATH
+            result["extensions"] = {**result.get("extensions", {}), EXTENSION: 1}
+            result["websocket"] = {"path": WS_PATH, "subprotocol": SUBPROTOCOL, **self.websocket}
         return result
 
     # -- helpers
@@ -877,12 +893,14 @@ class ReferenceService:
     # -- entry point
 
     def handle(self, method: str, path: str, headers: dict, body: bytes, *, client_ip: str = "127.0.0.1",
-               now: float | None = None):
-        """Returns (status, response headers, JSON body or None). Header names may have any case."""
+               now: float | None = None, channel: str = "http"):
+        """Returns (status, response headers, JSON body or None). Header names may have any case. A WebSocket
+        upgrade that passes every check returns 101 with the device id; channel "websocket" is a report carried by
+        an open connection, whose rate the connection limits itself."""
         now = time.time() if now is None else now
         headers = {k.lower(): v.strip() for k, v in headers.items()}
         self._prune(now)
-        if self.ip_bucket.take(client_ip, now):
+        if channel == "http" and self.ip_bucket.take(client_ip, now):
             return self._error(429, "rate_limited", retryAfterSeconds=5)
         route_path = path.split("?", 1)[0]
         if method == "GET" and route_path == "/.well-known/agent-speed-report":
@@ -904,6 +922,8 @@ class ReferenceService:
             allowed = ("POST",)
         elif route == "/v1/reports":
             allowed = ("POST",)
+        elif route == "/v1/reports/ws" and self.websocket and channel == "http":
+            allowed = ("GET",)
         elif match and match.group(2):
             allowed = ("PUT",)
         elif match:
@@ -968,8 +988,10 @@ class ReferenceService:
             return self._register(device_id, pub, document, api_key, now)
         if extension_methods:
             return self.extension_state.handle(device_id, method, route, headers, body, document, now)
+        if route == "/v1/reports/ws":
+            return 101, {}, {"deviceId": device_id}
         if route == "/v1/reports":
-            return self._report(device_id, headers, body, document, now)
+            return self._report(device_id, headers, body, document, now, channel)
         if match.group(2):
             return self._rotate(device_id, method, path, headers, body, document)
         if method == "PATCH":
@@ -1078,7 +1100,7 @@ class ReferenceService:
         self.log(f"forget {device['username']!r} device {device_id[:8]}: device, username and reports deleted")
         return 200, {}, {"status": "deleted"}
 
-    def _report(self, device_id, headers, body, document, now):
+    def _report(self, device_id, headers, body, document, now, channel="http"):
         if document is None:
             return self._error(400, "bad_request", "empty body")
         if "schema" not in document:
@@ -1092,6 +1114,9 @@ class ReferenceService:
         if extension_errors:
             field, reason = extension_errors[0]
             return self._error(422, "payload_invalid", reason, field=field)
+        realtime = document.get("realtime")
+        if realtime is not None and (realtime["observedAt"] is None) != (realtime["observationAgeMs"] is None):
+            return self._error(422, "payload_invalid", "observedAt and observationAgeMs disagree", field="/realtime")
         device = self.devices[device_id]
         if document["deviceId"] != device_id:
             return self._error(400, "device_mismatch")
@@ -1106,7 +1131,7 @@ class ReferenceService:
             if self.seqs[key][0] == digest:
                 return 200, {}, {"status": "duplicate"}
             return self._error(409, "seq_conflict")
-        wait = self.device_bucket.take(device_id, now)
+        wait = self.device_bucket.take(device_id, now) if channel == "http" else 0
         if wait:
             return self._error(429, "rate_limited", retryAfterSeconds=max(1, int(wait + 0.999)))
         self.seqs[key] = (digest, now + SEQ_TTL_SECONDS)  # recorded together with the acceptance
@@ -1342,6 +1367,8 @@ def _registration(device_id: str, username: str, pub, platform: str = "macOS", t
 
 
 def build_vectors() -> dict:
+    from report_websocket import build_websocket_vectors
+
     keys = _keys()
     d1, d2, d3 = (int(keys[name]["d"], 16) for name in ("device", "other", "rotated"))
     p1, p2, p3 = public_key(d1), public_key(d2), public_key(d3)
@@ -1458,6 +1485,7 @@ def build_vectors() -> dict:
         "usernames": USERNAME_CASES,
         "scheduler": SCHEDULER_CASES,
         "discovery": DISCOVERY_CASES,
+        "websocket": build_websocket_vectors(keys),
     }
 
 
@@ -1968,6 +1996,9 @@ def check_vectors(vectors: dict, verbose: bool) -> list[str]:
             got = {"invalid": str(error)}
         if got != case["expect"]:
             failures.append(f"discovery: {case['name']}: got {json.dumps(got)}")
+    from report_websocket import check_websocket_vectors
+
+    failures += check_websocket_vectors(vectors["websocket"], vectors["keys"])
     return failures
 
 
@@ -2174,10 +2205,11 @@ def main() -> int:
         failures.append("report-vectors.json is not what --write produces (run with --write after a spec change)")
     for failure in failures:
         print(f"FAIL {failure}", file=sys.stderr)
-    counts = (len(vectors["verify"]), len(vectors["server"]), len(vectors["scheduler"]), len(vectors["discovery"]))
+    counts = (len(vectors["verify"]), len(vectors["server"]), len(vectors["scheduler"]), len(vectors["discovery"]),
+              len(vectors["websocket"]["scheduler"]), len(vectors["websocket"]["messages"]))
     print(f"{'FAILED' if failures else 'ok'}: {len(failures)} failures; {counts[0]} signature cases, "
-          f"{counts[1]} server cases, {counts[2]} scheduler cases, {counts[3]} discovery cases; "
-          f"{cross_check(vectors)}")
+          f"{counts[1]} server cases, {counts[2]} scheduler cases, {counts[3]} discovery cases, "
+          f"{counts[4]} WebSocket scheduler and {counts[5]} message cases; {cross_check(vectors)}")
     return 1 if failures else 0
 
 

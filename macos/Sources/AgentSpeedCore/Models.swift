@@ -277,6 +277,9 @@ public struct SpeedSnapshot: Equatable, Sendable {
     public var todayCost: CostTally
     /// Live reporting's agent counts and cumulative ledger (METRICS 11.2, 11.4).
     public var report: ReportLiveFacts
+    /// Monotonic ms (`CLOCK_MONOTONIC`) at which the earliest read that changed the engine since the previous snapshot
+    /// began; nil when no read changed anything (METRICS 11.9, Observations).
+    public var observedAtMs: Int64?
 
     public init(
         timestamp: Date,
@@ -298,7 +301,8 @@ public struct SpeedSnapshot: Equatable, Sendable {
         dayStart: Date = .distantPast,
         liveCost: LiveCost = .zero,
         todayCost: CostTally = .zero,
-        report: ReportLiveFacts = .empty
+        report: ReportLiveFacts = .empty,
+        observedAtMs: Int64? = nil
     ) {
         self.timestamp = timestamp
         self.state = state
@@ -320,6 +324,7 @@ public struct SpeedSnapshot: Equatable, Sendable {
         self.liveCost = liveCost
         self.todayCost = todayCost
         self.report = report
+        self.observedAtMs = observedAtMs
     }
 
     public static let empty = SpeedSnapshot(
