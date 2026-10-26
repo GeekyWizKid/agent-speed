@@ -183,6 +183,7 @@ internal sealed class OmpParser : TranscriptParser<OmpLine>
                 ApplyAssistant(in line, ts, sink);
                 break;
             case OmpRole.ToolResult:
+                RecordTools(in line.Tools, ts);
                 if (line.ToolCallId is { } callId)
                 {
                     _pendingToolCalls.Remove(callId);
@@ -203,14 +204,15 @@ internal sealed class OmpParser : TranscriptParser<OmpLine>
 
     private void ApplyAssistant(in OmpLine line, long ts, IResponseSink sink)
     {
-        var call = line.Call;
-        if (!call.Guarded)
+        var key = Key(line.Id!, line.StartedMs ?? ts);
+        if (Deduper.TryGetOwner(key, out var owner) && !string.Equals(owner, AgentId, StringComparison.Ordinal))
         {
             return;
         }
 
-        var key = Key(line.Id!, line.StartedMs ?? ts);
-        if (Deduper.TryGetOwner(key, out var owner) && !string.Equals(owner, AgentId, StringComparison.Ordinal))
+        RecordTools(in line.Tools, ts);
+        var call = line.Call;
+        if (!call.Guarded)
         {
             return;
         }

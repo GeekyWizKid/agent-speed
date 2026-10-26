@@ -1,3 +1,5 @@
+using AgentSpeed.Core.Work;
+
 namespace AgentSpeed.Core.Parsing;
 
 /// <summary>Receives complete lines (without the trailing newline) from a tailer.</summary>
@@ -23,6 +25,7 @@ internal interface ILineBatch : ILineSink
 internal abstract class TranscriptParser
 {
     private AgentPhase _phase = AgentPhase.Idle;
+    private WorkLog? _work;
 
     protected TranscriptParser(string agentId, IDeduper deduper, SourceKind initialSource)
     {
@@ -62,6 +65,9 @@ internal abstract class TranscriptParser
 
     public long MalformedLines { get; private set; }
 
+    /// <summary>The file's latest tool calls as actions, oldest first (METRICS 6.10); empty for sources without tool calls.</summary>
+    public IReadOnlyList<WorkAction> WorkActions => _work?.Actions ?? [];
+
     /// <summary>Changes whenever agent-visible state changes.</summary>
     public int Version { get; private set; }
 
@@ -92,10 +98,30 @@ internal abstract class TranscriptParser
         PhaseSinceMs = null;
         InFlightStartMs = null;
         LastLineMs = null;
+        _work?.Clear();
         Version++;
     }
 
+    /// <summary>Seeding adds no actions (METRICS 6.10): a file's actions start with its live lines.</summary>
+    public void ForgetWork()
+    {
+        if (_work is { Actions.Count: > 0 } work)
+        {
+            work.Clear();
+            Version++;
+        }
+    }
+
     protected void CountMalformed() => MalformedLines++;
+
+    /// <summary>Logs a line's tool calls and results; callers skip copied history and lines another file owns.</summary>
+    protected void RecordTools(in LineTools tools, long atMs)
+    {
+        if ((tools.Calls is not null || tools.Outcomes is not null) && (_work ??= new WorkLog()).Apply(tools, atMs))
+        {
+            Version++;
+        }
+    }
 
     protected void MarkChanged() => Version++;
 

@@ -239,17 +239,17 @@ internal sealed class GpuOrbSurface : IOrbSurface, IOrbFrameClient, IDisposable
         _clock.Kick(this);
     }
 
-    public void SetTraffic(Core.Traffic.TrafficRate? rate, bool bits, bool enabled)
+    public void SetLines(Presentation.Orb.Lines.OrbLinesSample? sample, bool enabled)
     {
-        if (_orb.SetTraffic(Now(), rate, bits, enabled))
+        if (_orb.SetLines(Now(), sample, enabled))
         {
             _clock.Kick(this);
         }
     }
 
-    public bool TrafficVisible => _orb.TrafficVisible(Now());
+    public bool LinesVisible => _orb.LinesVisible(Now());
 
-    public Presentation.Orb.Traffic.OrbTrafficReading? TrafficReading => _orb.TrafficReading;
+    public Presentation.Orb.Lines.OrbLinesReading? LinesReading => _orb.LinesReading;
 
     public void Pulse(double speed, long outputTokens)
     {
@@ -284,8 +284,8 @@ internal sealed class GpuOrbSurface : IOrbSurface, IOrbFrameClient, IDisposable
             // The needle's unit on the dial face (DESIGN 10): its click target follows it.
             layout = layout with
             {
-                UnitSize = Presentation.Orb.Traffic.OrbTrafficPlacement.NeedleDialUnitSize,
-                UnitGap = Presentation.Orb.Traffic.OrbTrafficPlacement.NeedleDialUnitBaseline - layout.ValueBaseline,
+                UnitSize = Presentation.Orb.Lines.OrbLinesPlacement.NeedleDialUnitSize,
+                UnitGap = Presentation.Orb.Lines.OrbLinesPlacement.NeedleDialUnitBaseline - layout.ValueBaseline,
             };
             width = _orb.DialUnitWidth;
         }

@@ -82,6 +82,7 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
         }
 
         Touch(ts);
+        RecordTools(in line.Tools, ts);
         switch (line.Kind)
         {
             case CodexLineKind.TurnContext:

@@ -1,6 +1,8 @@
 using AgentSpeed.Core.History;
+using AgentSpeed.Core.Intelligence;
 using AgentSpeed.Core.Parsing;
 using AgentSpeed.Core.Pricing;
+using AgentSpeed.Core.Work;
 using AgentSpeed.Core.Reporting;
 
 namespace AgentSpeed.Core.Engine;
@@ -139,6 +141,7 @@ internal sealed class SpeedEngine
         var windowStart = nowMs - WindowMs;
         var measured = new Accumulator(SourceCount);
         var costs = new CostAccumulator(SourceCount);
+        var intelligence = new IntelligenceSums[SourceCount];
         var valid = new List<Stored>(_responses.Count);
         var unmeasured = new List<Stored>();
         var latestEnd = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -165,13 +168,17 @@ internal sealed class SpeedEngine
             var overlap = SpeedMath.Overlap(windowStart, nowMs, stored.Interval.StartMs, stored.Interval.EndMs);
             if (overlap > 0)
             {
+                var response = stored.Response;
                 var fraction = (double)overlap / stored.Interval.DurationMs;
-                var output = stored.Response.Tokens.Output * fraction;
-                measured.Add(stored.Response.Source, stored.Response.AgentId, output, stored.Response.Tokens.Total * fraction);
-                if (stored.Response.CostMicroUsd is { } cost)
+                var output = response.Tokens.Output * fraction;
+                measured.Add(response.Source, response.AgentId, output, response.Tokens.Total * fraction);
+                if (response.CostMicroUsd is { } cost)
                 {
-                    costs.Add(stored.Response.Source, stored.Response.AgentId, new LiveCost(cost * fraction, output));
+                    costs.Add(response.Source, response.AgentId, new LiveCost(cost * fraction, output));
                 }
+
+                ref var sums = ref intelligence[(int)response.Source];
+                sums = sums.Add(response.Source, output, ReasoningOf(response.Tokens) * fraction, Grade(response));
             }
         }
 
@@ -183,7 +190,7 @@ internal sealed class SpeedEngine
         var estimated = new Accumulator(SourceCount);
         var estimates = new List<(long StartMs, long EndMs, SpeedPair Speed)>();
 
-        void AddEstimate(SourceKind source, string agentId, SpeedPair reference, long overlap)
+        void AddEstimate(SourceKind source, string agentId, SpeedPair reference, long overlap, ModelGrade grade)
         {
             var output = reference.Output * overlap / 1000.0;
             estimated.Add(source, agentId, output, reference.Total * overlap / 1000.0);
@@ -191,6 +198,9 @@ internal sealed class SpeedEngine
             {
                 costs.Add(source, agentId, new LiveCost(rate * overlap / 1000.0, output));
             }
+
+            ref var sums = ref intelligence[(int)source];
+            sums = sums.Add(source, output, output * reference.ThinkingShare, grade);
         }
 
         // Unfinalized usage: the time is real, the token count is not, so it is estimated (METRICS 6.3).
@@ -208,7 +218,7 @@ internal sealed class SpeedEngine
 
             estimates.Add((stored.Interval.StartMs, stored.Interval.EndMs, reference));
             var overlap = SpeedMath.Overlap(windowStart, nowMs, stored.Interval.StartMs, stored.Interval.EndMs);
-            AddEstimate(response.Source, response.AgentId, reference, overlap);
+            AddEstimate(response.Source, response.AgentId, reference, overlap, Grade(response));
         }
 
         foreach (var agent in _agents.Values)
@@ -229,7 +239,7 @@ internal sealed class SpeedEngine
             var estimateStart = latestEnd.TryGetValue(agent.Id, out var ownEnd) ? Math.Max(start, ownEnd) : start;
             estimates.Add((estimateStart, nowMs, estimate));
             var overlap = SpeedMath.Overlap(windowStart, nowMs, estimateStart, nowMs);
-            AddEstimate(agent.Source, agent.Id, estimate, overlap);
+            AddEstimate(agent.Source, agent.Id, estimate, overlap, Grade(agent));
         }
 
         var seconds = WindowMs / 1000.0;
@@ -295,13 +305,26 @@ internal sealed class SpeedEngine
             TodayModes = _today.Modes,
             SourceTodayCost = sourceTodayCost,
             SourceUnpricedModels = sourceUnpriced,
+            SourceIntelligence = intelligence,
             Report = ReportFacts(nowMs),
         };
     }
 
-    /// <summary>The table that names models for live reporting: the current one (METRICS 11.3).</summary>
-    private string ReportModelId(string? model, string? provider) =>
-        (_pricing?.Current ?? PriceBook.Bundled).ReportModelId(model, provider);
+    /// <summary>The table that names models for live reporting and grades them: the current one (METRICS 6.9, 11.3).</summary>
+    private PriceTable CurrentTable => _pricing?.Current ?? PriceBook.Bundled;
+
+    private string ReportModelId(string? model, string? provider) => CurrentTable.ReportModelId(model, provider);
+
+    /// <summary>A response's grade: its own model, provider and effort attribution (METRICS 6.9).</summary>
+    private ModelGrade Grade(ParsedResponse response) =>
+        ModelGrade.Of(CurrentTable, response.Model, response.Provider, EffortAndSpeed.Effort(response.Modes)?.Mode);
+
+    /// <summary>An agent's grade: its current model, the provider of its latest response and its current effort.</summary>
+    private ModelGrade Grade(in AgentInfo agent) =>
+        ModelGrade.Of(CurrentTable, agent.Model, _agentProviders.GetValueOrDefault(agent.Id), EffortAndSpeed.Effort(agent.Modes)?.Mode);
+
+    /// <summary>The reasoning part of a response's output (METRICS 6.9): never more than the output.</summary>
+    private static long ReasoningOf(in TokenCounts tokens) => Math.Min(tokens.Reasoning, tokens.Output);
 
     /// <summary>Agents of the 6.7 base set per source, generating agents per model, and the report ledger (METRICS 11.2).</summary>
     private ReportLiveFacts ReportFacts(long nowMs)
@@ -544,6 +567,8 @@ internal sealed class SpeedEngine
             return new AgentFrame(agent, phase, live, recentSpeed)
             {
                 LiveCost = costs.Agent.TryGetValue(agent.Id, out var cost) ? PerSecond(cost, seconds) : LiveCost.Zero,
+                Grade = Grade(agent),
+                Work = WorkSignals.Of(agent.Work, nowMs),
             };
         });
 
@@ -682,11 +707,12 @@ internal sealed class SpeedEngine
     }
 
     /// <param name="CostRate">micro-USD per second of the same reference responses (METRICS 9.5); null when none has a known cost.</param>
-    private readonly record struct SpeedPair(double Output, double Total, double? CostRate = null);
+    /// <param name="ThinkingShare">The reasoning share of the same reference responses' output (METRICS 6.9 <c>share_ref</c>).</param>
+    private readonly record struct SpeedPair(double Output, double Total, double? CostRate = null, double ThinkingShare = 0);
 
-    /// <summary>Sums over a reference set (METRICS 6.2) and the cost of its priced members (9.5).</summary>
+    /// <summary>Sums over a reference set (METRICS 6.2), the cost of its priced members (9.5) and its reasoning (6.9).</summary>
     private readonly record struct ReferenceSums(
-        int Count, double Output, double Total, double Seconds, long CostMicroUsd, double CostSeconds, bool HasCost)
+        int Count, double Output, double Total, double Seconds, long CostMicroUsd, double CostSeconds, bool HasCost, double Reasoning)
     {
         public ReferenceSums Add(Stored stored)
         {
@@ -699,11 +725,16 @@ internal sealed class SpeedEngine
                 Seconds + seconds,
                 CostMicroUsd + (cost ?? 0),
                 CostSeconds + (cost is null ? 0 : seconds),
-                HasCost || cost is not null);
+                HasCost || cost is not null,
+                Reasoning + ReasoningOf(stored.Response.Tokens));
         }
 
         public SpeedPair? Estimate() => Seconds > 0
-            ? new SpeedPair(Output / Seconds, Total / Seconds, HasCost && CostSeconds > 0 ? CostMicroUsd / CostSeconds : null)
+            ? new SpeedPair(
+                Output / Seconds,
+                Total / Seconds,
+                HasCost && CostSeconds > 0 ? CostMicroUsd / CostSeconds : null,
+                Output > 0 ? Reasoning / Output : 0)
             : null;
     }
 

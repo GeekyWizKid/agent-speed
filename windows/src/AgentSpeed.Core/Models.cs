@@ -85,6 +85,12 @@ public sealed record AgentStatus(
 
     /// <summary>The agent's live cost rate (METRICS 9.5).</summary>
     public LiveCost LiveCost { get; init; }
+
+    /// <summary>The grade of the agent's current model and effort (METRICS 6.9).</summary>
+    public Intelligence.ModelGrade Grade { get; init; } = Intelligence.ModelGrade.Unknown;
+
+    /// <summary>What the agent's recent tool calls say (METRICS 6.10).</summary>
+    public Work.WorkSignals Work { get; init; } = Core.Work.WorkSignals.None;
 }
 
 /// <param name="Available">The root folder exists and is readable.</param>
@@ -108,6 +114,9 @@ public sealed record SourceStatus(
 
     /// <summary>Models of today's responses without a known price, most unpriced requests first.</summary>
     public IReadOnlyList<string> UnpricedModels { get; init; } = [];
+
+    /// <summary>The live intelligence sums (METRICS 6.9).</summary>
+    public Intelligence.IntelligenceSums Intelligence { get; init; }
 
     public ExecutionModes ConfiguredModes { get; init; } = ExecutionModes.Empty;
     public IReadOnlyList<ExecutionModeUsage> TodayModes { get; init; } = [];

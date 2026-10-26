@@ -120,6 +120,31 @@ public sealed class EffortParserTests
         Assert.True(new CodexParser("/fixture/rollout-c.jsonl", new Deduper()).Modes.IsEmpty);
     }
 
+    [Fact]
+    public void DshRequestHeadersReplaceOrClearTheEffortAndResponsesKeepTheirs()
+    {
+        var parser = new DshParser("/fixture/session.v4.jsonl.zstd", new Deduper());
+        var sink = new RecordingSink();
+        Feed.Lines(parser, sink,
+            DshLines.Session(T0),
+            DshHeader(1, T0 + 10, ""","reasoningEffort":"max" """),
+            DshLines.StepStart(2, T0 + 20),
+            DshLines.Message(3, T0 + 1000, "m-1", DshLines.Usage(10, 20)));
+        Assert.Equal(("max", "recorded"), Pair(Assert.Single(sink.Latest).Modes, ExecutionModeKind.Effort));
+        Assert.Equal(("max", "recorded"), Pair(parser.Modes, ExecutionModeKind.Effort));
+
+        Feed.Lines(parser, sink, DshHeader(4, T0 + 2000, ""","reasoningEffort":"HIGH" """));
+        Assert.Equal(("high", "recorded"), Pair(parser.Modes, ExecutionModeKind.Effort));
+
+        Feed.Lines(parser, sink, DshHeader(5, T0 + 3000, string.Empty), DshLines.Message(6, T0 + 4000, "m-2", DshLines.Usage(10, 20)));
+        Assert.True(parser.Modes.IsEmpty);
+        Assert.True(sink.Latest[1].Modes.IsEmpty);
+        Assert.Equal(("max", "recorded"), Pair(sink.Latest[0].Modes, ExecutionModeKind.Effort));
+    }
+
+    private static string DshHeader(long seq, long ms, string extra) =>
+        DshLines.Event("request/header", seq, ms, $$"""{"header":{"config":{"provider":"deepseek-account","model":"deepseek-flash"{{extra}}} } }""");
+
     private static string Attachment(long ms, string type) =>
         $$"""{"type":"attachment","timestamp":"{{Ts.Iso(ms)}}","attachment":{"type":"{{type}}"} }""";
 

@@ -68,6 +68,11 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
         }
 
         ApplyUltracode(in line);
+        if (line.Kind == ClaudeLineKind.User)
+        {
+            RecordTools(in line.Tools, ts);
+        }
+
         switch (line.Kind)
         {
             case ClaudeLineKind.ApiRequest:
@@ -137,6 +142,7 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
         }
 
         Remember(response);
+        RecordTools(in line.Tools, ts);
         SetModel(response.Model);
         _latestModes = response.Modes;
         _lineEffort = recorded ?? _lineEffort;

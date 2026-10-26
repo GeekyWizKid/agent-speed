@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AgentSpeed.Core.Work;
 
 namespace AgentSpeed.Core.Parsing;
 
@@ -107,6 +108,9 @@ internal struct CodexLine
     public TokenCounts Usage;
     public CodexUsage Total;
     public CodexUsage Last;
+
+    /// <summary>A <c>response_item</c>'s tool call or its output (METRICS 6.10).</summary>
+    public LineTools Tools;
 }
 
 /// <summary>Pure, thread-safe extraction of <see cref="CodexLine"/> from one JSONL line.</summary>
@@ -126,7 +130,8 @@ internal static class CodexLineReader
             line.IndexOf("\"agent_message\""u8) >= 0,
             line.IndexOf("\"token_usage_record\""u8) >= 0,
             line.IndexOf("\"token_count\""u8) >= 0,
-            line.IndexOf("\"thread_settings_applied\""u8) >= 0);
+            line.IndexOf("\"thread_settings_applied\""u8) >= 0,
+            CodexTools.MayHaveTools(line));
         try
         {
             var reader = new Utf8JsonReader(line, JsonScan.Options);
@@ -153,7 +158,7 @@ internal static class CodexLineReader
                     reader.Read();
                     if (reader.TokenType == JsonTokenType.StartObject)
                     {
-                        ReadPayload(ref reader, ref result, hints);
+                        ReadPayload(ref reader, ref result, hints, line);
                     }
                     else
                     {
@@ -177,6 +182,11 @@ internal static class CodexLineReader
             return Malformed();
         }
 
+        if (result.Kind != CodexLineKind.ResponseItem)
+        {
+            result.Tools = default;
+        }
+
         return result;
     }
 
@@ -191,14 +201,16 @@ internal static class CodexLineReader
         : reader.ValueTextEquals("turn_context"u8) ? CodexLineKind.TurnContext
         : CodexLineKind.Other;
 
-    private static void ReadPayload(ref Utf8JsonReader reader, ref CodexLine result, Hints hints)
+    private static void ReadPayload(ref Utf8JsonReader reader, ref CodexLine result, Hints hints, ReadOnlySpan<byte> line)
     {
+        var tools = default(CodexTools);
         while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
         {
             if (reader.ValueTextEquals("type"u8))
             {
                 reader.Read();
                 result.PayloadKind = ClassifyPayload(ref reader);
+                tools.ReadType(ref reader);
                 JsonScan.SkipValue(ref reader);
             }
             else if (reader.ValueTextEquals("role"u8))
@@ -307,12 +319,14 @@ internal static class CodexLineReader
                 reader.Read();
                 ReadInfo(ref reader, ref result);
             }
-            else
+            else if (!(hints.Tools && tools.TryRead(ref reader, line)))
             {
                 reader.Read();
                 JsonScan.SkipValue(ref reader);
             }
         }
+
+        result.Tools = tools.ToLineTools();
     }
 
     private static void ReadInfo(ref Utf8JsonReader reader, ref CodexLine result)
@@ -609,5 +623,5 @@ internal static class CodexLineReader
         }
     }
 
-    private readonly record struct Hints(bool Meta, bool AgentMessage, bool UsageRecord, bool TokenCount, bool ThreadSettings);
+    private readonly record struct Hints(bool Meta, bool AgentMessage, bool UsageRecord, bool TokenCount, bool ThreadSettings, bool Tools);
 }
