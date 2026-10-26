@@ -129,6 +129,7 @@ final class BoardWindowController {
 
     private func applyLook() {
         host.apply(style: config.style, side: side, dark: dark)
+        driver.dark = dark
         driver.setBoard(side: Double(side), corner: CGFloat(config.style.cornerRadius))
         host.content.spring = .of(config.style)
     }

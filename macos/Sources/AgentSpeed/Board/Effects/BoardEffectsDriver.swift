@@ -23,6 +23,11 @@ final class BoardEffectsDriver {
     var highContrast = false {
         didSet { if highContrast != oldValue { refresh() } }
     }
+    /// The board's appearance: the prototype adds the warp's light (`lighter`), which vanishes on a light deck, so a
+    /// light board shows none.
+    var dark = true {
+        didSet { if dark != oldValue { updateWarp() } }
+    }
     /// Frames rendered by the overlay (benchmarks).
     var framesDrawn: Int { overlay.framesDrawn }
 
@@ -75,6 +80,6 @@ final class BoardEffectsDriver {
 
     /// The warp follows the tick's heat; it holds still while the board cannot be seen.
     private func updateWarp() {
-        warp.update(effects.warpRequested ? BoardWarpLayer.Look(effects) : nil, running: canRender)
+        warp.update(effects.warpRequested && dark ? BoardWarpLayer.Look(effects) : nil, running: canRender)
     }
 }

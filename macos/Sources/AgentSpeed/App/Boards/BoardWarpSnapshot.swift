@@ -6,8 +6,8 @@ import QuartzCore
 /// effects' heat asks for, rendered by `CARenderer` one second after it starts (every streak in flight).
 @MainActor
 enum BoardWarpSnapshot {
-    static func image(_ fx: BoardEffects, side: Double, corner: CGFloat, scale: CGFloat = 2) -> CGImage? {
-        guard fx.warpRequested, let device = OrbGPU.shared?.device, let queue = device.makeCommandQueue() else { return nil }
+    static func image(_ fx: BoardEffects, side: Double, corner: CGFloat, dark: Bool, scale: CGFloat = 2) -> CGImage? {
+        guard fx.warpRequested, dark, let device = OrbGPU.shared?.device, let queue = device.makeCommandQueue() else { return nil }
         let pixels = Int((side * scale).rounded())
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: pixels, height: pixels,
                                                                   mipmapped: false)

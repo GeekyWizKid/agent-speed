@@ -13,7 +13,7 @@ import AppKit
 /// `AGENT_SPEED_BOARD_STYLES`, `AGENT_SPEED_BOARD_SIZE` (S, M, L; comma separated, default M), `AGENT_SPEED_BOARD_STATES`
 /// (comma separated), `AGENT_SPEED_BOARD_LEVEL` (off, soft, standard, max), `AGENT_SPEED_BOARD_THEMES` (dark, light;
 /// default dark, or light with `AGENT_SPEED_BOARD_LIGHT=1`), `AGENT_SPEED_BOARD_CONTRAST=1` (Increase Contrast),
-/// `AGENT_SPEED_BOARD_LANG`.
+/// `AGENT_SPEED_BOARD_LANG`, `AGENT_SPEED_BOARD_CHECKS=1` (the content stack's checks instead, see `BoardStackChecks`).
 @MainActor
 enum BoardFrameHarness {
     struct State {
@@ -47,6 +47,7 @@ enum BoardFrameHarness {
     static func run(into directory: URL) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let environment = ProcessInfo.processInfo.environment
+        if environment["AGENT_SPEED_BOARD_CHECKS"] == "1" { return BoardStackChecks.run(into: directory) }
         func list<T>(_ key: String, _ make: (String) -> T?) -> [T]? {
             environment[key].map { $0.split(separator: ",").compactMap { make(String($0)) } }
         }
@@ -168,7 +169,7 @@ enum BoardFrameHarness {
         canvas.context.fillPath()
 
         var scene = OrbScene(capacity: 2048)
-        if let warp = BoardWarpSnapshot.image(fx, side: side, corner: corner) {
+        if let warp = BoardWarpSnapshot.image(fx, side: side, corner: corner, dark: dark) {
             canvas.context.saveGState()
             canvas.context.addPath(path)
             canvas.context.clip()
