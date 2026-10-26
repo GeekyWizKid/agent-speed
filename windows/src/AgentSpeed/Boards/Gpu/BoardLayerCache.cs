@@ -96,6 +96,11 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
         {
             full |= !Layer(row.Key, new BoardLayerRequest(BoardLayerKind.RowBody, scene, row));
             full |= !Layer(row.ValueKey, new BoardLayerRequest(BoardLayerKind.RowValue, scene, row));
+            if (BoardPulses.BadgeKey(row.Entry) is { } badge)
+            {
+                full |= !Layer(badge, new BoardLayerRequest(BoardLayerKind.Badge, scene, row));
+            }
+
             if (full)
             {
                 break;
@@ -174,7 +179,7 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
 
         var painter = Painter;
         start = System.Diagnostics.Stopwatch.GetTimestamp();
-        var drawn = _atlas.TryDraw(key, spec.Width, spec.Height, spec.Signature, context => painter.Paint(context, request, spec));
+        var drawn = _atlas.TryDraw(key, spec.Width, spec.Height, spec.Signature, context => painter.Paint(context, request, spec), spec.MeterX);
         var spent = System.Diagnostics.Stopwatch.GetTimestamp() - start;
         _paintTicks += spent;
         _paintByKind[(int)request.Kind] += spent;

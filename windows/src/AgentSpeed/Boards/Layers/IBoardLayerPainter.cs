@@ -31,14 +31,20 @@ internal enum BoardLayerKind
     /// (<see cref="BoardLayerRequest.Set"/>), padded by <c>BoardValueGlyphs.Pad</c>.
     /// </summary>
     ValueGlyph,
+
+    /// <summary>A generating badge of a source (<see cref="BoardLayerRequest.Row"/> tells which), pulsed by the scene (<c>BoardPulses</c>).</summary>
+    Badge,
 }
 
 /// <summary>Which layer a painter describes or draws: the row, glyph or callout it is for, and the scene's current tick.</summary>
 internal readonly record struct BoardLayerRequest(BoardLayerKind Kind, BoardScene Scene, BoardRowMotion? Row, char Glyph = '\0',
     BoardCallout? Callout = null, BoardValueSet Set = BoardValueSet.Group);
 
-/// <summary>A layer's size in points and its content identity: an unchanged identity is never rasterized again.</summary>
-internal readonly record struct BoardLayerSpec(double Width, double Height, string Signature);
+/// <summary>
+/// A layer's size in points and its content identity: an unchanged identity is never rasterized again. <paramref name="MeterX"/>
+/// marks a row's top-rung meter for the scene's shimmer (part of what the signature identifies).
+/// </summary>
+internal readonly record struct BoardLayerSpec(double Width, double Height, string Signature, double MeterX = double.NaN);
 
 /// <summary>
 /// Draws a board's layers with Direct2D and DirectWrite, only when their content changes: the styles' painters

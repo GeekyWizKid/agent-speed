@@ -1,0 +1,228 @@
+using AgentSpeed.Core;
+using AgentSpeed.Presentation.Boards.Gpu;
+using AgentSpeed.Presentation.Motion;
+
+namespace AgentSpeed.Presentation.Boards.Scene;
+
+/// <summary>
+/// The prototypes' endless row animations, composed on the GPU from cached layers so no row is rasterized again
+/// (DESIGN 2c Two layers): a generating badge's pulse (glass's three bouncing dots <c>.badge.gen i</c>, neon's breathing dot
+/// <c>.badge.gen::before</c>, timing's fading stripe <c>.gen .stripe</c>) and the top-rung meter's shimmer
+/// (<c>.cap.top .meter::after</c>, glass and neon). They move only while the board animates anyway; otherwise, and under
+/// Reduce Motion, they rest like the prototypes' <c>.rm</c> rules.
+/// </summary>
+public static class BoardPulses
+{
+    private static readonly string[] Keys = BuildKeys();
+
+    /// <summary>The cached layer of a row's generating badge (shared by rows of one source and kind), null when it shows none.</summary>
+    public static string? BadgeKey(BoardEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        var (phase, source) = entry.Kind switch
+        {
+            BoardEntryKind.Group => (entry.Group.BadgePhase, entry.Group.Root.Source),
+            BoardEntryKind.Sub when entry.Agent is { } agent => (agent.Phase, agent.Source),
+            _ => (AgentPhase.Idle, default(SourceKind)),
+        };
+        if (phase != AgentPhase.Generating)
+        {
+            return null;
+        }
+
+        var index = 2 * (int)source + (entry.Kind == BoardEntryKind.Sub ? 1 : 0);
+        return (uint)index < (uint)Keys.Length ? Keys[index] : null;
+    }
+
+    /// <summary>The badge layer's size in points: what it draws, centered, with room for its glow.</summary>
+    public static (double Width, double Height) BadgeSize(BoardStyle style, bool sub) => style switch
+    {
+        BoardStyle.Neon => (44, 44),
+        BoardStyle.Timing => sub ? (20, 28) : (22, 36),
+        _ => (5, 5),
+    };
+
+    /// <summary>Where the badge's center sits in its row (points from the row's top-left); glass's first of three dots.</summary>
+    public static (double X, double Y) BadgeCenter(BoardStyle style, bool sub, double rowHeight) => style switch
+    {
+        BoardStyle.Neon => (35, rowHeight / 2),
+        BoardStyle.Timing => sub ? (37, rowHeight / 2) : (36.5, (rowHeight - 1) / 2),
+        _ => (30.5, rowHeight / 2 + 0.5),
+    };
+
+    /// <summary>Glass's dots stand this far apart.</summary>
+    public const double DotSpacing = 4.5;
+
+    /// <summary>
+    /// Draws a row's generating badge from its layer at the row's (<paramref name="left"/>, <paramref name="top"/>):
+    /// <paramref name="phase"/> (seconds) desynchronizes rows; <paramref name="moving"/> false holds the resting frame.
+    /// </summary>
+    public static void EmitBadge(BoardDrawList list, in BoardLayerSlot slot, BoardStyle style, bool sub, double left, double top, double height,
+        double alpha, double now, double phase, bool moving, RectBounds clip)
+    {
+        ArgumentNullException.ThrowIfNull(list);
+        var (cx, cy) = BadgeCenter(style, sub, height);
+        cx += left;
+        cy += top;
+        switch (style)
+        {
+            case BoardStyle.Neon:
+            {
+                // pulse 1 s: scale .65 and opacity .7 at 50 %.
+                var u = moving ? Swell(now + phase, 1) : 0;
+                Place(list, slot, cx, cy, 1 - 0.35 * u, alpha * (1 - 0.3 * u), clip);
+                break;
+            }
+
+            case BoardStyle.Timing:
+            {
+                // stripe 1.1 s: opacity .45 at 50 %.
+                var u = moving ? Swell(now + phase, 1.1) : 0;
+                Place(list, slot, cx, cy, 1, alpha * (1 - 0.55 * u), clip);
+                break;
+            }
+
+            default:
+            {
+                // dot 1.1 s, each 0.15 s after the one before: opacity .35 → 1 and up 1.5 pt at 40 %, back by 100 %; at rest .9.
+                for (var i = 0; i < 3; i++)
+                {
+                    var lift = 0.0;
+                    var opacity = 0.9;
+                    if (moving)
+                    {
+                        var u = Bounce(now + phase - 0.15 * i, 1.1);
+                        lift = 1.5 * u;
+                        opacity = 0.35 + 0.65 * u;
+                    }
+
+                    Place(list, slot, cx + i * DotSpacing, cy - lift, 1, alpha * opacity, clip);
+                }
+
+                break;
+            }
+        }
+    }
+
+    /// <summary>The shimmer's cycle in seconds and its band's peak (glass .75 over 2.6 s, neon .85 over 2.2 s; timing has none).</summary>
+    public static (double Seconds, double Peak) Shimmer(BoardStyle style) => style switch
+    {
+        BoardStyle.Neon => (2.2, 0.85),
+        BoardStyle.Glass => (2.6, 0.75),
+        _ => (0, 0),
+    };
+
+    /// <summary>
+    /// The top-rung meter's shimmer over the row body <paramref name="body"/> drawn at (<paramref name="left"/>, <paramref name="top"/>):
+    /// a 105° white band in the meter's box (inset −2 pt −3 pt, 300 % wide) crossing it in the first 35 % of the cycle.
+    /// </summary>
+    public static void EmitShimmer(BoardDrawList list, in BoardLayerSlot body, BoardStyle style, double left, double top, double height, double alpha,
+        double now, double phase, RectBounds clip)
+    {
+        ArgumentNullException.ThrowIfNull(list);
+        var (seconds, peak) = Shimmer(style);
+        if (seconds <= 0 || !double.IsFinite(body.MeterX))
+        {
+            return;
+        }
+
+        var s = Fraction((now + phase) / seconds);
+        if (s >= 0.35)
+        {
+            return;
+        }
+
+        var width = EffortMeterWidth + 6;
+        var boxLeft = left + body.MeterX - 3;
+        var mid = top + height / 2;
+
+        // Only the meter's box of the body is sampled, cut on whole device pixels of the body so its texels stay registered.
+        var scale = list.Scale > 0 ? list.Scale : 1;
+        double Snap(double offset, double max) => Math.Clamp(Math.Round(offset * scale) / scale, 0, max);
+        var x0 = Snap(boxLeft - left, body.Width);
+        var x1 = Snap(boxLeft + width - left, body.Width);
+        var y0 = Snap(mid - 7 - top, body.Height);
+        var y1 = Snap(mid + 7 - top, body.Height);
+        if (x1 - x0 < 1 || y1 - y0 < 1)
+        {
+            return;
+        }
+
+        var u = (body.U1 - body.U0) / body.Width;
+        var v = (body.V1 - body.V0) / body.Height;
+        var part = new BoardLayerSlot(body.U0 + (float)(x0 * u), body.V0 + (float)(y0 * v), body.U0 + (float)(x1 * u), body.V0 + (float)(y1 * v),
+            x1 - x0, y1 - y0);
+
+        // background-position 140 % → −60 %: the image's left edge at −2w × p; its band at the middle of a 3w image.
+        var p = 1.4 - 2.0 * Ease(s / 0.35);
+        var center = boxLeft - 2 * width * p + 1.5 * width;
+        var line = 3 * width * Math.Sin(105 * Math.PI / 180) + 14 * Math.Abs(Math.Cos(105 * Math.PI / 180));
+        var meter = new RectBounds((float)(left + x0), (float)(top + y0), (float)(left + x1), (float)(top + y1));
+        var box = clip.Right > clip.Left
+            ? new RectBounds(Math.Max(meter.Left, clip.Left), Math.Max(meter.Top, clip.Top), Math.Min(meter.Right, clip.Right), Math.Min(meter.Bottom, clip.Bottom))
+            : meter;
+        if (box.Right <= box.Left || box.Bottom <= box.Top)
+        {
+            return;
+        }
+
+        var instance = BoardLayerInstance.Create(part, left + x0, top + y0, alpha, clip: box);
+        instance.Shimmer(center, 0.15 * line, peak);
+        list.AddLayer(instance);
+    }
+
+    /// <summary>A row's own phase, so rows do not pulse in step.</summary>
+    public static double PhaseOf(string key) => (string.IsNullOrEmpty(key) ? 0 : key.GetHashCode() & 0xFFFF) / 65536.0 * 2.2;
+
+    private const double EffortMeterWidth = 2.5 * 5 + 1.5 * 4;
+
+    // A layer centered on (cx, cy), scaled about its center.
+    private static void Place(BoardDrawList list, in BoardLayerSlot slot, double cx, double cy, double scale, double alpha, RectBounds clip)
+    {
+        if (alpha <= 0.002)
+        {
+            return;
+        }
+
+        var instance = BoardLayerInstance.Create(slot, cx - slot.Width * scale / 2, cy - slot.Height * scale / 2, alpha, clip: clip);
+        instance.Rect.Z *= (float)scale;
+        instance.Rect.W *= (float)scale;
+        list.AddLayer(instance);
+    }
+
+    // CSS keyframes {50% {…}} with ease-in-out: 0 → 1 at half the cycle → 0.
+    private static double Swell(double t, double seconds)
+    {
+        var s = Fraction(t / seconds);
+        return s < 0.5 ? Ease(s / 0.5) : 1 - Ease((s - 0.5) / 0.5);
+    }
+
+    // CSS keyframes {0%, 100% {…} 40% {…}} with ease-in-out: 0 → 1 at 40 % → 0.
+    private static double Bounce(double t, double seconds)
+    {
+        var s = Fraction(t / seconds);
+        return s < 0.4 ? Ease(s / 0.4) : 1 - Ease((s - 0.4) / 0.6);
+    }
+
+    private static double Ease(double t) => Easing.CubicBezier(0.42, 0, 0.58, 1, Math.Clamp(t, 0, 1));
+
+    private static double Fraction(double x) => x - Math.Floor(x);
+
+    private static string[] BuildKeys()
+    {
+        var sources = Enum.GetValues<SourceKind>();
+        var count = 0;
+        foreach (var source in sources)
+        {
+            count = Math.Max(count, (int)source + 1);
+        }
+
+        var keys = new string[2 * count];
+        for (var i = 0; i < keys.Length; i++)
+        {
+            keys[i] = "#badge" + (i % 2 == 1 ? "s" : "g") + (i / 2).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return keys;
+    }
+}

@@ -1,6 +1,6 @@
 // Cached board layers (DESIGN 2c, Two layers): rows, the hero and the footer, rasterized by Direct2D only when their data
-// changes, composited at animated places, faded, tinted (a value's warm flash), swept by a new peak's gold sheen and clipped to
-// the ranking list's frame.
+// changes, composited at animated places, faded, tinted (a value's warm flash), swept by a new peak's gold sheen or a top-rung
+// meter's shimmer and clipped to the ranking list's frame.
 
 Texture2D layers : register(t2);
 
@@ -9,7 +9,7 @@ struct LayerIn
     float4 rect : INSTANCE0;   // x, y (top-left), width, height in points
     float4 uv : INSTANCE1;     // atlas u0, v0, u1, v1
     float4 tint : INSTANCE2;   // rgb (straight), how much of it replaces the layer's color
-    float4 params : INSTANCE3; // opacity, sheen center x (points), sheen half width (none when 0), sheen strength
+    float4 params : INSTANCE3; // opacity, sheen center x (points), sheen half width (none when 0), sheen strength (< 0: shimmer)
     float4 clip : INSTANCE4;   // min x, min y, max x, max y; none when max x <= min x
     uint vid : SV_VertexID;
 };
@@ -52,6 +52,24 @@ float4 PsLayer(LayerOut input) : SV_Target
     }
 
     float4 texel = layers.SampleLevel(linear_clamp, input.uv, 0);
+    if (input.params.w < 0.0)
+    {
+        // A top-rung meter's shimmer: only the light a 105° white band adds over the layer (overlay with white), summed onto
+        // what is drawn, so the meter's lit bars flare and the capsule's faint fill barely changes.
+        float2 across = float2(0.9659, 0.2588);
+        float2 through = float2(input.params.y, (input.clip.y + input.clip.w) * 0.5);
+        float band = -input.params.w * saturate(1.0 - abs(dot(input.canvas - through, across)) / max(input.params.z, 0.0001));
+        float3 base = texel.rgb / max(texel.a, 0.0001);
+        float3 lit = lerp(float3(1.0, 1.0, 1.0), base * 2.0, step(base, 0.5));
+        float weight = band * texel.a * input.params.x * keep * orb_clip_coverage(input.canvas);
+        if (weight <= 0.0005)
+        {
+            discard;
+        }
+
+        return orb_output((lit - base) * weight, 0.0);
+    }
+
     float3 rgb = lerp(texel.rgb, input.tint.rgb * texel.a, input.tint.a);
     if (input.params.z > 0.0)
     {

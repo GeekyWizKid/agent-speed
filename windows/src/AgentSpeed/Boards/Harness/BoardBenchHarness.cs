@@ -33,6 +33,8 @@ internal static class BoardBenchHarness
 
     private static readonly Scenario[] Scenarios =
     [
+        // No board at all: the process's floor (the runtime's and the graphics driver's own threads) on this machine.
+        new("baseline", 0, BoardSimScenario.Calm, _ => 0, true, EffectsIntensity.Standard),
         new("idle", 1, BoardSimScenario.Calm, _ => 0, true, EffectsIntensity.Standard),
         new("cruise", 1, BoardSimScenario.Team, _ => 700, false, EffectsIntensity.Standard),
         new("redline", 1, BoardSimScenario.Team, _ => 3200, false, EffectsIntensity.Standard),
@@ -269,10 +271,16 @@ internal static class BoardBenchHarness
             }
         }
 
+        if (rigs.Length == 0)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"cpu {cpu:0.00}% of one core; threads: {threads}");
+        }
+
         var atlas = rigs[0].Frame.Layers.Atlas;
         var swap = targets[0].Pixels * targets[0].Pixels * 4.0 * 2;
         var memory = (atlas.Width * (double)atlas.Height * 4 + swap) / (1024 * 1024);
         var instances = rigs[0].Frame.List.Count;
+        var batches = rigs[0].Frame.List.BatchCount;
         foreach (var target in targets)
         {
             target.Dispose();
@@ -287,7 +295,7 @@ internal static class BoardBenchHarness
         string Fps(FrameClass c) => (byClass[(int)c] / wall).ToString("0.0", CultureInfo.InvariantCulture);
         string Share(long ticks) => (ticks * 100.0 / Stopwatch.Frequency / wall).ToString("0.00", CultureInfo.InvariantCulture);
         return string.Create(CultureInfo.InvariantCulture,
-            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height}); cpu on this thread: feed {Share(feedTicks)}%, layers {Share(updateTicks)}% (describe {Share(describeTicks)}, paint {Share(paintTicks)}, flush {Share(flushTicks)}), frames {Share(buildTicks - updateTicks)}%, draws {Share(drawTicks)}%; painted:{byKind} threads: {threads}");
+            $"cpu {cpu:0.00}% of one core, {frames / wall:0.0} frames/s (60: {Fps(FrameClass.Fps60)}, 30: {Fps(FrameClass.Fps30)}; {skipped / wall:0.0}/s unchanged), build {perFrame:0.000} ms/frame, {rasterized / wall:0.0} layers rasterized/s, {events} events, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {instances} instances in {batches} batches, gpu memory {memory:0.0} MB per board (layer texture {atlas.Width}×{atlas.Height}); cpu on this thread: feed {Share(feedTicks)}%, layers {Share(updateTicks)}% (describe {Share(describeTicks)}, paint {Share(paintTicks)}, flush {Share(flushTicks)}), frames {Share(buildTicks - updateTicks)}%, draws {Share(drawTicks)}%; painted:{byKind} threads: {threads}");
     }
 
     private static double Number(string name, double fallback) =>

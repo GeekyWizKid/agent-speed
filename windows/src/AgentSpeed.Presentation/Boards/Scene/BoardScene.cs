@@ -226,7 +226,9 @@ public sealed class BoardScene
         list.Clip = BoardClip.Inside;
         Prune(now);
         _callouts.Prune(now);
-        var comets = policy.Comets && !palette.HighContrast && Effects.Demand != FrameClass.None;
+        var animating = Effects.Demand != FrameClass.None;
+        var comets = policy.Comets && !palette.HighContrast && animating;
+        var pulses = policy.Comets && animating;
 
         foreach (var row in _order)
         {
@@ -254,6 +256,16 @@ public sealed class BoardScene
             if (layers.TryGet(row.Key, out var body))
             {
                 list.AddLayer(BoardLayerInstance.Create(body, left, top, alpha, clip: clip));
+                if (pulses)
+                {
+                    BoardPulses.EmitShimmer(list, body, Style, left, top, height, alpha, now, BoardPulses.PhaseOf(row.Key), clip);
+                }
+            }
+
+            if (BoardPulses.BadgeKey(row.Entry) is { } badgeKey && layers.TryGet(badgeKey, out var badge))
+            {
+                BoardPulses.EmitBadge(list, badge, Style, row.Entry.Kind == BoardEntryKind.Sub, left, top, height, alpha, now,
+                    BoardPulses.PhaseOf(row.Key), pulses, clip);
             }
 
             if (layers.TryGet(row.ValueKey, out var value))

@@ -85,15 +85,28 @@ internal sealed class TimingBoardPainter : BoardStylePainter
         return hash.ToHashCode();
     }
 
+    // A generating row's team stripe (the scene fades it in and out, .gen .stripe).
+    protected override void PaintBadge(ID2D1DeviceContext context, BoardPalette palette, Rgba source, bool sub, float width, float height)
+    {
+        var (w, h, opacity) = sub ? (2f, 10f, 0.7) : (3f, 18f, 1.0);
+        Stripe(context, source, (width - w) / 2, height / 2, w, h, opacity, !palette.HighContrast);
+    }
+
+    protected override float CapsuleRight(in BoardRowContent row, float width) => width - (row.Compact ? 14 : 52);
+
     protected override void PaintGroup(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)
     {
         var palette = row.Palette;
         var mid = (height - 1) / 2;
         BoardPaint.FillRound(context, 0, height - 1, width, 1, 0, palette.Line);
         PositionBlock(context, row.Entry.Rank.ToString(CultureInfo.InvariantCulture), row.Lead, palette, 4, mid);
-        Stripe(context, SourceColor(row.Source), 35, mid, 3, 18, 1, !palette.HighContrast);
+        if (row.Phase != Core.AgentPhase.Generating)
+        {
+            Stripe(context, SourceColor(row.Source), 35, mid, 3, 18, 1, !palette.HighContrast);
+        }
+
         var compact = row.Compact;
-        var right = DrawCapsule(context, row, width - (compact ? 14 : 52), mid, CapsuleHeight);
+        var right = DrawCapsule(context, row, CapsuleRight(row, width), mid, CapsuleHeight);
         DrawName(context, row.Name, Name, palette.Ink, row.Detail, Detail, palette.Ink3, 45, right - 7, mid);
         if (compact || string.IsNullOrEmpty(row.Interval))
         {
@@ -109,9 +122,13 @@ internal sealed class TimingBoardPainter : BoardStylePainter
     {
         var palette = row.Palette;
         var mid = height / 2;
-        Stripe(context, SourceColor(row.Source), 36, mid, 2, 10, 0.7, !palette.HighContrast);
+        if (row.Phase != Core.AgentPhase.Generating)
+        {
+            Stripe(context, SourceColor(row.Source), 36, mid, 2, 10, 0.7, !palette.HighContrast);
+        }
+
         BoardPaint.FillRound(context, 45, mid, 6, 1, 0, palette.Ink3.MultiplyAlpha(0.6));
-        var right = DrawCapsule(context, row, width - (row.Compact ? 14 : 52), mid, CapsuleHeight);
+        var right = DrawCapsule(context, row, CapsuleRight(row, width), mid, CapsuleHeight);
         DrawName(context, row.Name, SubName, palette.Ink2, string.Empty, Detail, palette.Ink3, 55, right - 7, mid);
     }
 

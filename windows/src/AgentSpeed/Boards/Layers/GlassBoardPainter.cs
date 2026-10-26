@@ -49,6 +49,12 @@ internal sealed class GlassBoardPainter : BoardStylePainter
 
     protected override string GlyphKey(BoardScene scene) => HeatKey(GlyphHeat(scene.Tick?.Heat ?? 0)).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
+    protected override bool Shimmers => true;
+
+    // One of the three 3 pt dots (the scene places and bounces them).
+    protected override void PaintBadge(ID2D1DeviceContext context, BoardPalette palette, Rgba source, bool sub, float width, float height) =>
+        Dot(context, width / 2, height / 2, 1.5f, source);
+
     protected override void PaintGroup(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)
     {
         var palette = row.Palette;

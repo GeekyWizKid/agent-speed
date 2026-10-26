@@ -130,7 +130,7 @@ internal sealed class BoardLayerAtlas : IBoardLayers, IDisposable
     /// layer current flushes nothing; <see cref="EndDraw"/> ends it); false when the texture is
     /// full (the caller clears it and draws every live layer again, or grows it).
     /// </summary>
-    public bool TryDraw(string key, double width, double height, string signature, Action<ID2D1DeviceContext> paint)
+    public bool TryDraw(string key, double width, double height, string signature, Action<ID2D1DeviceContext> paint, double meterX = double.NaN)
     {
         if (_context is null)
         {
@@ -171,7 +171,7 @@ internal sealed class BoardLayerAtlas : IBoardLayers, IDisposable
         }
 
         var slot = new BoardLayerSlot(content.X / (float)Width, content.Y / (float)Height, content.Right / (float)Width, content.Bottom / (float)Height,
-            w / Scale, h / Scale);
+            w / Scale, h / Scale, meterX);
         _entries[key] = new Entry(box, slot, signature, w, h);
         Rasterized++;
         return true;

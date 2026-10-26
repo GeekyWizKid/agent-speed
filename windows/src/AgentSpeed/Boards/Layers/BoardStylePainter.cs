@@ -108,7 +108,14 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
                 var more = row.Entry.Kind is BoardEntryKind.MoreSubs or BoardEntryKind.MoreGroups ? MoreText(row.Entry, row.Live) : string.Empty;
                 return new BoardLayerSpec(width, scene.RowHeight(row.Entry), string.Join('|', theme, "b", row.Entry.Kind, row.Entry.Rank,
                     content.Name, content.Detail, content.Phase, content.Source, content.Capsule.Effort, content.Capsule.Speed,
-                    content.Column.ToString("0.#", CultureInfo.InvariantCulture), content.Interval, more, BodyKey(content)));
+                    content.Column.ToString("0.#", CultureInfo.InvariantCulture), content.Interval, more, BodyKey(content)), MeterX(content, (float)width));
+            }
+
+            case BoardLayerKind.Badge when request.Row is { } row && BoardPulses.BadgeKey(row.Entry) is not null:
+            {
+                var sub = row.Entry.Kind == BoardEntryKind.Sub;
+                var (width, height) = BoardPulses.BadgeSize(Style, sub);
+                return new BoardLayerSpec(width, height, string.Join('|', theme, "bg", BadgeSource(row.Entry), sub));
             }
 
             case BoardLayerKind.RowValue when request.Row is { Entry.Kind: BoardEntryKind.Group or BoardEntryKind.Sub } row:
@@ -208,6 +215,9 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             case BoardLayerKind.Callout when request.Callout is { } callout:
                 PaintCallout(context, scene, callout, width, height);
                 break;
+            case BoardLayerKind.Badge when request.Row is { } row:
+                PaintBadge(context, scene.Palette, SourceColor(BadgeSource(row.Entry)), row.Entry.Kind == BoardEntryKind.Sub, width, height);
+                break;
             case BoardLayerKind.ValueGlyph:
             {
                 // White: the scene tints each row's glyphs to the row's color.
@@ -222,6 +232,15 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     public virtual void Dispose()
     {
     }
+
+    /// <summary>A generating badge centered in its layer (the scene pulses it, <see cref="BoardPulses"/>); row bodies leave it out.</summary>
+    protected abstract void PaintBadge(ID2D1DeviceContext context, BoardPalette palette, Rgba source, bool sub, float width, float height);
+
+    /// <summary>Whether the style shimmers a top-rung meter (the prototypes' <c>.cap.top .meter::after</c>).</summary>
+    protected virtual bool Shimmers => false;
+
+    /// <summary>The right end of the capsule column in a row body <paramref name="width"/> wide.</summary>
+    protected virtual float CapsuleRight(in BoardRowContent row, float width) => width - 8;
 
     protected abstract void PaintGroup(ID2D1DeviceContext context, in BoardRowContent row, float width, float height);
 
@@ -287,6 +306,21 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
 
     protected string MoreText(BoardEntry entry, double live) =>
         Loc.Format(entry.Kind == BoardEntryKind.MoreSubs ? "boards.moreSubs" : "boards.moreGroups", entry.Rest, SpeedFormat.Speed(live));
+
+    private static SourceKind BadgeSource(BoardEntry entry) =>
+        entry.Kind == BoardEntryKind.Sub && entry.Agent is { } agent ? agent.Source : entry.Group.Root.Source;
+
+    // Where a row's top-rung meter starts in its body, for the scene's shimmer; NaN when it has none.
+    private double MeterX(in BoardRowContent row, float width)
+    {
+        if (!Shimmers || row.Palette.HighContrast || row.Column <= 0 || !row.Capsule.IsTopRung || row.Capsule.Level is null ||
+            row.Entry.Kind is not (BoardEntryKind.Group or BoardEntryKind.Sub))
+        {
+            return double.NaN;
+        }
+
+        return CapsuleRight(row, width) - row.Column + CapsuleLook(row.Scene, row.Entry.Kind == BoardEntryKind.Sub).Padding;
+    }
 
     /// <summary>Draws the capsule right-aligned in the shared column ending at <paramref name="right"/>; returns the column's left.</summary>
     protected float DrawCapsule(ID2D1DeviceContext context, in BoardRowContent row, float right, float mid, float height)
@@ -412,29 +446,13 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
         return 3 * size - 2 * overlap;
     }
 
-    /// <summary>The phase badge in its 10 pt box at (<paramref name="x"/>, centered on <paramref name="mid"/>).</summary>
+    /// <summary>The tools or idle badge in its 10 pt box at (<paramref name="x"/>, centered on <paramref name="mid"/>); generating is a layer.</summary>
     protected static void Badge(ID2D1DeviceContext context, AgentPhase phase, Rgba source, Rgba idle, float x, float mid, bool neon, bool glows)
     {
         switch (phase)
         {
-            case AgentPhase.Generating when neon:
-            {
-                if (glows)
-                {
-                    BoardPaint.Glow(context, source, 12, c => Dot(c, x + 5, mid, 3, Rgba.White));
-                }
-
-                Dot(context, x + 5, mid, 3, source);
-                break;
-            }
-
             case AgentPhase.Generating:
-                // Three 3 pt dots (the shimmer's resting frame).
-                for (var i = 0; i < 3; i++)
-                {
-                    Dot(context, x - 1 + 1.5f + i * 4.5f, mid + 0.5f, 1.5f, source.MultiplyAlpha(0.9));
-                }
-
+                // A layer of its own, pulsed by the scene (BoardPulses).
                 break;
             case AgentPhase.Tools:
             {

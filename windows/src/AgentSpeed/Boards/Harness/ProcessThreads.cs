@@ -7,8 +7,9 @@ namespace AgentSpeed.Boards.Harness;
 
 /// <summary>
 /// The harnesses' per-thread CPU breakdown: cycles of every thread of the process between two snapshots, grouped by the
-/// thread's name (.NET names its workers) or else the module its start address lies in (the graphics driver's threads, the
-/// thread pool), so a bench tells the board's own work from the driver's and the runtime's.
+/// thread's name (.NET names its workers), the caller's thread, or else the module its start address lies in (the graphics
+/// driver's threads; the single-file app's own module holds the runtime's unnamed threads), so a bench tells the board's own
+/// work from the driver's and the runtime's.
 /// </summary>
 internal static class ProcessThreads
 {
@@ -36,6 +37,7 @@ internal static class ProcessThreads
         {
         }
 
+        var main = NativeMethods.GetCurrentThreadId();
         foreach (ProcessThread thread in process.Threads)
         {
             var handle = NativeMethods.OpenThread(ThreadQueryInformation, false, (uint)thread.Id);
@@ -48,7 +50,7 @@ internal static class ProcessThreads
             {
                 if (NativeMethods.QueryThreadCycleTime(handle, out var cycles))
                 {
-                    result[thread.Id] = (cycles, Group(handle, modules));
+                    result[thread.Id] = (cycles, thread.Id == main ? "harness thread" : Group(handle, modules));
                 }
             }
             finally
@@ -137,6 +139,9 @@ internal static class ProcessThreads
 
         [DllImport("kernel32.dll")]
         public static extern int GetThreadDescription(IntPtr thread, out IntPtr description);
+
+        [DllImport("kernel32.dll")]
+        public static extern int GetCurrentThreadId();
 
         [DllImport("kernel32.dll")]
         public static extern IntPtr LocalFree(IntPtr memory);

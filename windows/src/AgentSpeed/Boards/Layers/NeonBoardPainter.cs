@@ -66,6 +66,19 @@ internal sealed class NeonBoardPainter : BoardStylePainter
     protected override int HeroHeatKey(BoardTick tick) =>
         (int)Math.Round(Math.Clamp(tick.Heat, 0, 1) * BoardHeroLayout.Segments) * 64 + HeatKey(GlyphHeat(tick.Heat));
 
+    protected override bool Shimmers => true;
+
+    // The 6 pt dot with its glow (box-shadow 0 0 6px, 0 0 12px of the source); the scene breathes it.
+    protected override void PaintBadge(ID2D1DeviceContext context, BoardPalette palette, Rgba source, bool sub, float width, float height)
+    {
+        if (!palette.HighContrast)
+        {
+            BoardPaint.Glow(context, source, 12, c => Dot(c, width / 2, height / 2, 3, Rgba.White));
+        }
+
+        Dot(context, width / 2, height / 2, 3, source);
+    }
+
     protected override void PaintGroup(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)
     {
         var palette = row.Palette;
