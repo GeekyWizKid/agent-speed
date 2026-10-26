@@ -1,7 +1,8 @@
 import AgentSpeedCore
 import SwiftUI
 
-/// One agent: phase badge, project, source and model, effort capsule, live speed. The phase in words is in the tooltip and for VoiceOver.
+/// One agent: phase badge, looping mark, project, source and model, effort capsule, live speed. The phase in words, the
+/// model's grade and the work signals are in the tooltip and for VoiceOver.
 struct AgentRow: View {
     let model: AppModel
     let agent: AgentStatus
@@ -36,6 +37,8 @@ struct AgentRow: View {
             reduceMotion: model.accessibility.reduceMotion
         )
         let projectLabel = agent.isSubagent ? "\(project), \(l10n("agents.subagent"))" : project
+        let looping = AgentSignalText.looping(agent.signals, l10n)
+        let reduceMotion = model.accessibility.reduceMotion
 
         HStack(spacing: Spacing.s) {
             PhaseBadge(
@@ -46,10 +49,14 @@ struct AgentRow: View {
             .anchorPreference(key: BadgeAnchors.self, value: .bounds) { [agent.id: $0] }
 
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(project)
-                    .font(DashboardFont.rowTitle)
-                    .lineLimit(1)
-                    .layoutPriority(1)
+                HStack(alignment: .firstTextBaseline, spacing: LoopingMark.gap) {
+                    if looping != nil { LoopingMark().transition(.opacity) }
+                    Text(project)
+                        .font(DashboardFont.rowTitle)
+                        .lineLimit(1)
+                }
+                .layoutPriority(1)
+                .animation(LoopingMark.animation(appearing: looping != nil, reduceMotion: reduceMotion), value: looping != nil)
                 HStack(spacing: 0) {
                     Text(detail)
                         .lineLimit(1)
@@ -82,12 +89,13 @@ struct AgentRow: View {
         .frame(height: DashboardLayout.rowHeight)
         .padding(.leading, CGFloat(depth) * DashboardLayout.subagentIndent)
         .contentShape(Rectangle())
-        .help(([traffic.map { "\(project) · \(status)\n" + l10n("traffic.agent.tooltip", TrafficText(model: model).pair($0)) }
-            ?? "\(project) · \(status)"] + modeLines).joined(separator: "\n"))
+        .help(([looping, traffic.map { "\(project) · \(status)\n" + l10n("traffic.agent.tooltip", TrafficText(model: model).pair($0)) }
+            ?? "\(project) · \(status)"] + modeLines + [AgentSignalText.grade(agent.grade, l10n)]
+            + AgentSignalText.closing(agent.signals, l10n)).compactMap { $0 }.joined(separator: "\n"))
         .accessibilityElement(children: .ignore)
         // The label ends with the capsule's effort and speed lines (DESIGN 4, Agents).
         .accessibilityLabel(
-            [projectLabel, detail, received, live.accessibilityText,
+            [projectLabel, looping, detail, received, live.accessibilityText,
              modeLines.isEmpty ? nil : capsule.accessibilityText(l10n)]
                 .compactMap { $0?.isEmpty == false ? $0 : nil }
                 .joined(separator: ", ")

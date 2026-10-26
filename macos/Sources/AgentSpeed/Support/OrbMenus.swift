@@ -150,14 +150,14 @@ enum OrbMenus {
         return item
     }
 
-    /// `orbs.traffic` ▸ this orb's agents / the whole computer / off, check on the current one (DESIGN 10). Disabled
-    /// while traffic is not measured; without per-process data the `sources` choice, and the item while the orb uses
-    /// it, show `traffic.unavailable.short`.
+    /// `orbs.traffic` ▸ this orb's agents / the whole computer / live intelligence / off, check on the current one
+    /// (DESIGN 10). The network choices are disabled while traffic is not measured; without per-process data the
+    /// `sources` choice, and the item while the orb uses it, show `traffic.unavailable.short`. Intelligence needs
+    /// neither, so it is always available.
     static func trafficItem(model: AppModel, orb: OrbConfig) -> NSMenuItem {
         let l10n = model.l10n
         let unavailable = processTrafficUnavailable(model) ? l10n("traffic.unavailable.short") : nil
         let item = NSMenuItem(title: l10n("orbs.traffic"), action: nil, keyEquivalent: "")
-        item.isEnabled = model.settings.trafficEnabled
         if let unavailable, orb.traffic == .sources {
             item.attributedTitle = statusTitle(l10n("orbs.traffic"), status: unavailable)
         }
@@ -167,6 +167,7 @@ enum OrbMenus {
             let entry = ActionMenuItem(l10n(traffic.titleKey), state: orb.traffic == traffic ? .on : .off) { [weak model] in
                 model?.orbs.setTraffic(traffic, of: orb.id)
             }
+            entry.isEnabled = !traffic.isNetwork || model.settings.trafficEnabled
             if let unavailable, traffic == .sources {
                 entry.attributedTitle = statusTitle(l10n(traffic.titleKey), status: unavailable)
             }

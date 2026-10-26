@@ -26,7 +26,7 @@ struct EffortCapsulePalette {
     var secondary: Color { DashboardPalette.secondary(dark: dark, increasedContrast: increasedContrast) }
 
     var bolt: Color {
-        increasedContrast ? .accentColor : RGBColor(hex: dark ? 0xF5A524 : 0xB86E00).color
+        increasedContrast ? .accentColor : DashboardPalette.amber(dark: dark).color
     }
 
     /// Fill of a lit bar whose top sits at `top` (0–1) of the meter height; the top rung's gradient spans the meter.
