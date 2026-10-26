@@ -524,7 +524,7 @@ public sealed class BoardScene
         // CSS comet: a white radial dash (glass 18 × 4 pt, neon 22 × 6) from its own width before the bar to the bar's end,
         // over 3.2 s − 2.4 s × heat, fading in and out.
         var seconds = 3.2 - 2.4 * heat;
-        var phase = ((now + (row.Key.GetHashCode() & 0xFFFF) / 65536.0 * seconds) % seconds) / seconds;
+        var phase = ((now + BoardPulses.Seed(row.Key) * seconds) % seconds) / seconds;
         var half = neon ? 11 : 9;
         var head = x0 - 2 * half + (track * share - (neon ? 8 : 6) + 2 * half) * Easing.InOutSine(phase);
         var fade = phase < 0.15 ? phase / 0.15 : phase > 0.85 ? (1 - phase) / 0.15 : 1;

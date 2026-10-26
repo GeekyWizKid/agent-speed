@@ -10,7 +10,9 @@ using AgentSpeed.Orb.Gpu;
 using AgentSpeed.Presentation.Boards;
 using AgentSpeed.Presentation.Boards.Demo;
 using AgentSpeed.Presentation.Boards.Effects;
+using AgentSpeed.Presentation.Boards.Scene;
 using AgentSpeed.Presentation.Localization;
+using AgentSpeed.Presentation.Orb;
 using AgentSpeed.Presentation.Settings;
 
 namespace AgentSpeed.Boards.Harness;
@@ -18,8 +20,8 @@ namespace AgentSpeed.Boards.Harness;
 /// <summary>
 /// Developer harness <c>AGENT_SPEED_BOARD_FRAMES=DIR</c>: renders each board style with the Direct3D renderer on a
 /// simulated 60 fps clock fed by the demo, into PNG sheets <c>board-STYLE.png</c> and <c>board-STYLE-light.png</c> (rows S, M,
-/// L; columns calm, cruise, redline, overtake, new leader, Reduce Motion, effects off, high contrast, and the prototypes'
-/// reference shot: 40 steps of the team story at rest) and <c>board-frames.txt</c> (instances, layers, texture, CPU and GPU
+/// L; columns calm, cruise, redline, overtake, new leader, Reduce Motion, effects off, high contrast, the prototypes'
+/// reference shot: 40 steps of the team story at rest, and a top-rung meter's shimmer midway) and <c>board-frames.txt</c> (instances, layers, texture, CPU and GPU
 /// time per frame), then exits. Deterministic (fixed seeds and steps); no window, so it runs next to the installed app.
 /// <c>AGENT_SPEED_BOARD_FRAMES_STYLES</c> limits the styles, <c>AGENT_SPEED_BOARD_FRAMES_THEMES</c> the appearances (dark,
 /// light), <c>AGENT_SPEED_BOARD_FRAMES_SCALE</c> sets the pixel scale (default 2).
@@ -34,6 +36,9 @@ internal static class BoardFrameHarness
         AtTime,
         AfterOvertake,
         AfterNewLeader,
+
+        /// <summary>A top-rung meter's shimmer halfway across (the GPU pulse on a cached row).</summary>
+        Shimmer,
     }
 
     private sealed record Column(string Name, BoardSimScenario Scenario, double? Target, double Seconds, Moment Moment, BoardEffectsPolicy Policy);
@@ -51,6 +56,7 @@ internal static class BoardFrameHarness
 
         // The prototypes' ?steps=40&scenario=team: 40 ticks, then rest before the 41st.
         new("reference", BoardSimScenario.Team, null, 19.95, Moment.AtTime, new BoardEffectsPolicy(ReduceMotion: true)),
+        new("shimmer", BoardSimScenario.Team, 700, 4, Moment.Shimmer, new BoardEffectsPolicy(EffectsIntensity.Standard)),
     ];
 
     public static int Run(string directory)
@@ -145,6 +151,11 @@ internal static class BoardFrameHarness
 
             buildTicks += Stopwatch.GetTimestamp() - start;
             frames++;
+            if (captureAt is null && column.Moment == Moment.Shimmer && now >= end && ShimmerMidway(rig, now))
+            {
+                captureAt = now;
+            }
+
             if (captureAt is { } at && now >= at)
             {
                 break;
@@ -175,6 +186,31 @@ internal static class BoardFrameHarness
         var line = string.Create(CultureInfo.InvariantCulture,
             $"t {now - Start:0.00} s, {list.Count} instances, {list.LayerCount} layers, {list.BatchCount} batches, demand {rig.Scene.Demand(now)}, layer texture {atlas.Width}×{atlas.Height} ({atlas.Count} layers, {atlas.Rasterized} rasterized over {rig.Ticks} ticks), build {build:0.000} ms/frame, gpu {gpu.Milliseconds:0.000} ms/frame ({gpu.Frames} timed), {pixels}×{pixels} px");
         return (bytes is null ? null : OffscreenTarget.ToBitmap(bytes, pixels, pixels), line);
+    }
+
+    // A row with a top-rung meter whose shimmer is about halfway across it (the scene's animating frames only).
+    private static bool ShimmerMidway(BoardRig rig, double now)
+    {
+        var (seconds, _) = BoardPulses.Shimmer(rig.Style);
+        if (seconds <= 0 || rig.Scene.Demand(now) == FrameClass.None)
+        {
+            return false;
+        }
+
+        foreach (var row in rig.Scene.Rows)
+        {
+            if (rig.Frame.Layers.TryGet(row.Key, out var body) && double.IsFinite(body.MeterX))
+            {
+                var s = (now + BoardPulses.PhaseOf(row.Key)) / seconds;
+                s -= Math.Floor(s);
+                if (s is > 0.16 and < 0.19)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>The cells on a desktop-like backdrop (the prototypes' stage colors), each cell as wide as the widest.</summary>

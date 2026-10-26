@@ -171,8 +171,20 @@ public static class BoardPulses
         list.AddLayer(instance);
     }
 
-    /// <summary>A row's own phase, so rows do not pulse in step.</summary>
-    public static double PhaseOf(string key) => (string.IsNullOrEmpty(key) ? 0 : key.GetHashCode() & 0xFFFF) / 65536.0 * 2.2;
+    /// <summary>A row's own phase in seconds, so rows do not pulse in step.</summary>
+    public static double PhaseOf(string key) => Seed(key) * 2.6;
+
+    /// <summary>A stable fraction 0–1 of a row's key (FNV-1a; <c>string.GetHashCode</c> changes from run to run).</summary>
+    public static double Seed(string? key)
+    {
+        var hash = 2166136261u;
+        foreach (var c in key ?? string.Empty)
+        {
+            hash = (hash ^ c) * 16777619u;
+        }
+
+        return (hash & 0xFFFF) / 65536.0;
+    }
 
     private const double EffortMeterWidth = 2.5 * 5 + 1.5 * 4;
 
