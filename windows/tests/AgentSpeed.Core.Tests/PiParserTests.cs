@@ -81,6 +81,27 @@ public sealed class PiParserTests : IDisposable
     }
 
     [Fact]
+    public void ToolCallsAndTheirResultsBecomeWorkActions()
+    {
+        var (parser, _) = Run(
+            Header(_t0),
+            Assistant("a1", _t0 + 3000, _t0 + 1005, 1500, "toolUse", call: "c1"),
+            ToolResult("t1", _t0 + 3100, "c1", "\"content\":[]"),
+            Assistant("a2", _t0 + 6000, _t0 + 3205, 1500, "toolUse", call: "c2"),
+            Entry("message", "t2", _t0 + 6100, "\"message\":{\"role\":\"toolResult\",\"toolCallId\":\"c2\",\"isError\":true}"));
+
+        Assert.Equal(new (string, bool?)[] { ("read", false), ("read", true) },
+            parser.WorkActions.Select(a => (a.Tool, a.Failed)).ToArray());
+    }
+
+    [Fact]
+    public void CopiedHistoryAddsNoWorkActions()
+    {
+        var (parser, _) = Run(Header(_t0), Assistant("a0", _t0 - 60_000, _t0 - 62_000, 1500, "toolUse", call: "c0"));
+        Assert.Empty(parser.WorkActions);
+    }
+
+    [Fact]
     public void ToolResultsNeverEndARunAndCacheWrite1hIsASubsetOfCacheWrite()
     {
         var (parser, sink) = Run(

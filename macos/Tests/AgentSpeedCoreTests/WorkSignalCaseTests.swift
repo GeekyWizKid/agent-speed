@@ -56,6 +56,7 @@ struct WorkSignalCaseTests {
             let family: TranscriptFamily = switch spec.string("format") {
             case "claude": .claude
             case "codex": .codex
+            case "pi": .pi
             default: .omp
             }
             var log = ActionLog()

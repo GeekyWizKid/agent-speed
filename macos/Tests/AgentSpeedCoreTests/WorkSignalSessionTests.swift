@@ -43,6 +43,20 @@ struct WorkSignalSessionTests {
         _ = directory
     }
 
+    /// Pi lines (METRICS 4.13) through the shared omp-format reader: a tool call, then its failed result.
+    static let piLines = [
+        #"{"type":"session","version":3,"id":"s1","timestamp":"2026-10-20T12:00:00.000Z","cwd":"/w/halo"}"#,
+        #"{"type":"message","id":"a1","timestamp":"2026-10-20T12:00:03.000Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"c1","name":"read","arguments":{"path":"src/queue.ts"}}],"api":"anthropic-messages","provider":"anthropic","model":"claude-opus-5-5","usage":{"input":1,"output":5,"cacheRead":0,"cacheWrite":0},"stopReason":"toolUse","timestamp":1792497601005}}"#,
+        #"{"type":"message","id":"t1","timestamp":"2026-10-20T12:00:03.500Z","message":{"role":"toolResult","toolCallId":"c1","toolName":"read","isError":true,"content":[],"timestamp":1792497603500}}"#,
+    ]
+
+    @Test func piToolCallsAndResultsBecomeActions() {
+        var deduper = Deduper()
+        let (parser, _) = ParserBehaviorTests.run(.pi, Self.piLines, path: "/w/pi/s1.jsonl", deduper: &deduper)
+        #expect(parser.state.actions.actions.map(\.call.tool) == ["read"])
+        #expect(parser.state.actions.actions.map(\.failed) == [true])
+    }
+
     @Test func copiedHistoryAddsNoActions() {
         var deduper = Deduper()
         let lines = Self.failingRun(0, at: 1_000_000)

@@ -103,6 +103,9 @@ internal struct PiLine
     /// <summary>The assistant message's or the <c>thinking_level_change</c> entry's <c>thinkingLevel</c> string.</summary>
     public string? ThinkingLevel;
 
+    /// <summary>The line's tool calls or tool result (METRICS 6.10), read with the omp format's shared reader.</summary>
+    public Work.LineTools Tools;
+
     /// <summary><c>error</c>, <c>aborted</c>, <c>pending</c> and <c>deferred</c>: totals only, phase idle.</summary>
     public readonly bool Failed => Stop is PiStop.Aborted or PiStop.Error or PiStop.Pending or PiStop.Deferred;
 }

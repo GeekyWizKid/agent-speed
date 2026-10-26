@@ -182,6 +182,8 @@ internal sealed class PiParser : TranscriptParser<PiLine>
                 ApplyAssistant(in line, ts, sink);
                 break;
             case PiRole.ToolResult:
+                RecordTools(in line.Tools, ts);
+
                 // A tool's own model calls (METRICS 4.13); tool results never end a run in Pi (no yield).
                 ApplySide(line.Id!, ts, in line.Call, null, null, sink);
                 if (line.ToolCallId is { } callId)
@@ -200,14 +202,15 @@ internal sealed class PiParser : TranscriptParser<PiLine>
 
     private void ApplyAssistant(in PiLine line, long ts, IResponseSink sink)
     {
-        var call = line.Call;
-        if (!call.IsGuardedMessage)
+        var key = Key(line.Id!, line.StartedMs ?? ts);
+        if (Deduper.TryGetOwner(key, out var owner) && !string.Equals(owner, AgentId, StringComparison.Ordinal))
         {
             return;
         }
 
-        var key = Key(line.Id!, line.StartedMs ?? ts);
-        if (Deduper.TryGetOwner(key, out var owner) && !string.Equals(owner, AgentId, StringComparison.Ordinal))
+        RecordTools(in line.Tools, ts);
+        var call = line.Call;
+        if (!call.IsGuardedMessage)
         {
             return;
         }

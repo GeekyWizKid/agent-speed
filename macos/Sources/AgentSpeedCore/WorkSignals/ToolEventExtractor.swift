@@ -7,7 +7,7 @@ enum ToolEventExtractor {
         switch family {
         case .claude: scan(bytes, claudeLine)
         case .codex: scan(bytes, codexLine)
-        case .omp: scan(bytes, piFamilyLine)  // Pi shares this format.
+        case .omp, .pi: scan(bytes, piFamilyLine)
         default: []
         }
     }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AgentSpeed.Core.Parsing;
+using AgentSpeed.Core.Work;
 
 namespace AgentSpeed.Core.Pi;
 
@@ -36,7 +37,7 @@ internal static class PiLineReader
 
             while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
             {
-                ReadTopLevelProperty(ref reader, ref result, ref top);
+                ReadTopLevelProperty(ref reader, ref result, ref top, line);
             }
 
             if (reader.TokenType != JsonTokenType.EndObject || reader.Read())
@@ -76,9 +77,15 @@ internal static class PiLineReader
                 result.StartedMs = message.StartedMs;
                 result.DurationMs = message.DurationMs;
                 result.Stop = message.Stop;
-                result.ToolCallIds = message.ToolCallIds;
+                result.ToolCallIds = PiFamilyTools.Ids(message.ToolCalls);
                 result.ToolCallId = message.ToolCallId;
                 result.ThinkingLevel = message.ThinkingLevel;
+                result.Tools = message.Role switch
+                {
+                    PiRole.Assistant => new LineTools(message.ToolCalls),
+                    PiRole.ToolResult => PiFamilyTools.Result(message.ToolCallId, message.IsErrorTrue),
+                    _ => default,
+                };
                 break;
             case PiEntryKind.Usage or PiEntryKind.Summary:
                 result.Call = top.Call.ToCall();
@@ -89,7 +96,7 @@ internal static class PiLineReader
         }
     }
 
-    private static void ReadTopLevelProperty(ref Utf8JsonReader reader, ref PiLine result, ref TopLevel top)
+    private static void ReadTopLevelProperty(ref Utf8JsonReader reader, ref PiLine result, ref TopLevel top, ReadOnlySpan<byte> line)
     {
         if (reader.ValueTextEquals("type"u8))
         {
@@ -124,7 +131,7 @@ internal static class PiLineReader
         {
             reader.Read();
             top.HasMessage = reader.TokenType == JsonTokenType.StartObject;
-            top.Message = top.HasMessage ? ReadMessage(ref reader) : default;
+            top.Message = top.HasMessage ? ReadMessage(ref reader, line) : default;
             JsonScan.SkipValue(ref reader);
         }
         else if (reader.ValueTextEquals("thinkingLevel"u8))
@@ -140,7 +147,7 @@ internal static class PiLineReader
     }
 
     // The reader is on the message object; it ends on its EndObject.
-    private static Message ReadMessage(ref Utf8JsonReader reader)
+    private static Message ReadMessage(ref Utf8JsonReader reader, ReadOnlySpan<byte> line)
     {
         var message = new Message { Stop = PiStop.Aborted };
         var call = default(CallFields);
@@ -184,13 +191,19 @@ internal static class PiLineReader
             else if (reader.ValueTextEquals("content"u8))
             {
                 reader.Read();
-                message.ToolCallIds = reader.TokenType == JsonTokenType.StartArray ? ReadToolCallIds(ref reader) : null;
+                message.ToolCalls = reader.TokenType == JsonTokenType.StartArray ? PiFamilyTools.ReadCalls(ref reader, line) : null;
                 JsonScan.SkipValue(ref reader);
             }
             else if (reader.ValueTextEquals("toolCallId"u8))
             {
                 reader.Read();
                 message.ToolCallId = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+                JsonScan.SkipValue(ref reader);
+            }
+            else if (reader.ValueTextEquals("isError"u8))
+            {
+                reader.Read();
+                message.IsErrorTrue = reader.TokenType == JsonTokenType.True;
                 JsonScan.SkipValue(ref reader);
             }
             else if (reader.ValueTextEquals("thinkingLevel"u8))
@@ -292,49 +305,6 @@ internal static class PiLineReader
         return usage;
     }
 
-    // The reader is on the content array; it ends on its EndArray.
-    private static string[]? ReadToolCallIds(ref Utf8JsonReader reader)
-    {
-        List<string>? ids = null;
-        while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
-        {
-            if (reader.TokenType != JsonTokenType.StartObject)
-            {
-                JsonScan.SkipValue(ref reader);
-                continue;
-            }
-
-            var isToolCall = false;
-            string? id = null;
-            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
-            {
-                if (reader.ValueTextEquals("type"u8))
-                {
-                    reader.Read();
-                    isToolCall = reader.TokenType == JsonTokenType.String && reader.ValueTextEquals("toolCall"u8);
-                }
-                else if (reader.ValueTextEquals("id"u8))
-                {
-                    reader.Read();
-                    id = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
-                }
-                else
-                {
-                    reader.Read();
-                }
-
-                JsonScan.SkipValue(ref reader);
-            }
-
-            if (isToolCall && id is not null && (ids ??= []).IndexOf(id) < 0)
-            {
-                ids.Add(id);
-            }
-        }
-
-        return ids?.ToArray();
-    }
-
     private static double? ReadFinite(ref Utf8JsonReader reader)
     {
         if (reader.TokenType != JsonTokenType.Number)
@@ -404,8 +374,9 @@ internal static class PiLineReader
         public long? StartedMs;
         public long? DurationMs;
         public PiStop Stop;
-        public string[]? ToolCallIds;
+        public ToolCall[]? ToolCalls;
         public string? ToolCallId;
+        public bool IsErrorTrue;
         public string? ThinkingLevel;
     }
 

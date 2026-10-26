@@ -212,7 +212,7 @@ struct TranscriptParser: Sendable {
         case .workbuddy(let extraction): workbuddy?.consume(extraction, deduper: &deduper, emit: emit)
         case .kimi(let extraction): kimi?.consume(extraction, deduper: &deduper, emit: emit)
         case .grokBuild(let extraction): grokBuild?.consume(extraction, deduper: &deduper, emit: emit)
-        case .pi(let extraction): pi?.consume(extraction, deduper: &deduper, emit: emit)
+        case .pi(let extraction): pi?.consume(extraction, tools: tools, deduper: &deduper, emit: emit)
         }
     }
 

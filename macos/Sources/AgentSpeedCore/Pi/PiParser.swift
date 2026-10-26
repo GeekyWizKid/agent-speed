@@ -29,18 +29,23 @@ struct PiParser: Sendable {
         state.malformedLines += 1
     }
 
-    mutating func consume(_ extraction: LineExtraction<PiLine>, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
+    mutating func consume(
+        _ extraction: LineExtraction<PiLine>,
+        tools: [ToolEvent] = [],
+        deduper: inout Deduper,
+        emit: (ResponseUpsert) -> Void
+    ) {
         switch extraction {
         case .blank:
             return
         case .malformed:
             state.malformedLines += 1
         case .line(let line):
-            consume(line, deduper: &deduper, emit: emit)
+            consume(line, tools: tools, deduper: &deduper, emit: emit)
         }
     }
 
-    private mutating func consume(_ line: PiLine, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
+    private mutating func consume(_ line: PiLine, tools: [ToolEvent], deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
         switch line {
         case .ignored:
             return
@@ -57,6 +62,7 @@ struct PiParser: Sendable {
             guard headerSeen else { return }
             if let headerMs, timestamp < headerMs - OmpParser.copiedHistoryMs { return }
             state.noteLine(at: timestamp)
+            state.actions.record(tools, at: timestamp)
             consume(record, id: id, at: timestamp, deduper: &deduper, emit: emit)
         }
     }

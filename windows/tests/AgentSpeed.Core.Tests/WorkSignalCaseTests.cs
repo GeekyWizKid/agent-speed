@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using AgentSpeed.Core.Omp;
 using AgentSpeed.Core.Parsing;
+using AgentSpeed.Core.Pi;
 using AgentSpeed.Core.Work;
 
 namespace AgentSpeed.Core.Tests;
@@ -66,7 +67,8 @@ public sealed class WorkSignalCaseTests
         {
             "claude" => line => ClaudeLineReader.Read(line).Tools,
             "codex" => line => CodexLineReader.Read(line).Tools,
-            "omp" or "pi" => line => OmpLineReader.Read(line).Tools,
+            "omp" => line => OmpLineReader.Read(line).Tools,
+            "pi" => line => PiLineReader.Read(line).Tools,
             var format => throw new ArgumentOutOfRangeException(nameof(name), format, null),
         };
         var log = new WorkLog();
