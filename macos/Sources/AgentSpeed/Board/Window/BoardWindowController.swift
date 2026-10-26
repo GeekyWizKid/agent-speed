@@ -149,7 +149,7 @@ final class BoardWindowController {
             return
         }
         contentStale = false
-        host.content.apply(contentProvider(), animated: animated && !reduceMotion)
+        host.content.apply(contentProvider(), animated: animated)
     }
 
     private func updateRendering() {

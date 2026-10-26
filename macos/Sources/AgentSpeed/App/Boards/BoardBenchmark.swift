@@ -128,7 +128,7 @@ final class BoardBenchmark {
         simulation.paused = true
         let feed = BoardSimFeed(simulation: simulation, style: style, size: size, dark: true, l10n: BoardSimFeed.harnessLocalizer(),
                                 redline: Self.redline)
-        board.contentProvider = { feed.layout.items }
+        board.contentProvider = { feed.takeItems() }
         board.show()
         self.board = board
         self.feed = feed

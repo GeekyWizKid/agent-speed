@@ -38,6 +38,9 @@ struct BoardListRows {
                                                            leader: event.kind == .newLeader, radius: neon ? 9 : 10)))
         }
         var items = [body]
+        if model.share > 0 {
+            items.append(underline(model, sub: sub, key: key, frame: frame, look: look))
+        }
 
         if let rank = model.rank {
             var item = BoardContentItem(key: key + "#rank", frame: CGRect(x: frame.minX + 6, y: frame.midY - 8, width: 16, height: 16),
@@ -70,6 +73,18 @@ struct BoardListRows {
         return items
     }
 
+    /// The share underline as an item of its own along the row's bottom (a new share redraws only the line), clipped
+    /// to the row as when it was part of the body.
+    private func underline(_ model: BoardRowModel, sub: Bool, key: String, frame: CGRect, look: AnyHashable) -> BoardContentItem {
+        let rows = self, box = frame.size
+        let reach = (neon ? 8 : 6) * 1.5 + 2
+        let rect = CGRect(x: (sub ? 46 : 40) - reach, y: box.height - 3 - reach, width: box.width, height: reach + 3)
+        return .part(key + "#line", of: frame, rect: rect, motion: .row,
+                     revision: AnyHashable([AnyHashable(model.share), AnyHashable(model.heat), AnyHashable(sub), look])) { context in
+            rows.drawUnderline(model, sub: sub, in: context, size: box)
+        }
+    }
+
     // MARK: Drawing
 
     private func draw(_ model: BoardRowModel, column: CGFloat, in context: CGContext, size box: CGSize) {
@@ -77,7 +92,6 @@ struct BoardListRows {
         let sub = model.kind == .sub
         let midY = box.height / 2
         if model.isLeader { drawLeaderPlate(in: context, size: box) }
-        drawUnderline(model, sub: sub, in: context, size: box)
 
         if let source = model.source {
             BoardDrawing.badge(model.phase, color: palette.source(source), idle: palette.ink3, look: neon ? .glowDot : .dots,

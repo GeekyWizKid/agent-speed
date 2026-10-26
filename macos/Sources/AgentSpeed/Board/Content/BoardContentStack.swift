@@ -90,7 +90,10 @@ final class BoardContentStack {
         CATransaction.setDisableActions(true)
         var seen = Set<String>()
         var moved = false
+        // New layers go right above the previous item's, so the stack keeps the items' order (back to front).
+        var below: CALayer?
         for item in items {
+            defer { below = entries[item.key]?.layer }
             seen.insert(item.key)
             let target = layerFrame(item.frame)
             if var entry = entries[item.key] {
@@ -140,7 +143,7 @@ final class BoardContentStack {
                 Self.setPlate(item.plate, on: child)
                 let image = rasterize(item)
                 child.contents = image
-                layer.addSublayer(child)
+                if let below { layer.insertSublayer(child, above: below) } else { layer.insertSublayer(child, at: 0) }
                 entries[item.key] = Entry(layer: child, revision: item.revision, frame: item.frame, image: image,
                                           ambient: item.ambient)
                 setAmbient(item.ambient, on: child)

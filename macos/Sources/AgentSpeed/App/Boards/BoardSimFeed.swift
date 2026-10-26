@@ -54,6 +54,12 @@ final class BoardSimFeed {
         return layout
     }
 
+    /// The current tick's items for a board; one-shot accents come with the first call only.
+    func takeItems() -> [BoardContentItem] {
+        _ = layout
+        return cached?.takeItems() ?? []
+    }
+
     /// Plays the current tick on the effects: heat, then (with `events`) the events at the rows' new places.
     func play(on fx: inout BoardEffects, events: Bool = true) {
         let live = snapshot.live

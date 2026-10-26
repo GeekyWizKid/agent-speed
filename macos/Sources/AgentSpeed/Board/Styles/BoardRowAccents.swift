@@ -29,11 +29,15 @@ struct BoardRowAccents {
 }
 
 extension BoardRowModel {
-    /// The row's body without its value and rank (they are items of their own), so their changes leave it cached.
+    /// The row's body without its value, rank, share and interval (they are items of their own), so their changes leave
+    /// it cached.
     var body: BoardRowModel {
         var body = self
         body.value = ""
         body.idle = false
+        body.share = 0
+        body.heat = 0
+        body.interval = ""
         if let rank { body.kind = .group(rank: rank == 1 ? 1 : 0) }
         return body
     }

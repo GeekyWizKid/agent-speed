@@ -52,10 +52,10 @@ enum BoardHeroHistory {
         context.fillPath()
     }
 
-    /// Neon: 24 segments across `rect`, lit to the heat in the heat ramp, today's peak marked white-hot.
-    static func led(heat: Double, peakHeat: Double, in rect: CGRect, palette: BoardPalette, context: CGContext) {
+    /// Neon: 24 segments across `rect`, lit to the heat in the heat ramp, today's peak marked white-hot. `glows` draws
+    /// the lit segments with their glow (a soft layer under the crisp segments), else every segment without one.
+    static func led(lit: Int, peak: Int?, glows: Bool, in rect: CGRect, palette: BoardPalette, context: CGContext) {
         let segments = 24
-        let (lit, peak) = BoardHistoryShape.led(heat: heat, peakHeat: peakHeat, segments: segments)
         let gap: CGFloat = 2
         let width = (rect.width - gap * CGFloat(segments - 1)) / CGFloat(segments)
         for index in 0..<segments {
@@ -71,7 +71,12 @@ enum BoardHeroHistory {
             } else {
                 color = palette.unlit
             }
-            BoardDrawing.glowing(palette.glows && glow > 0 ? color : nil, blur: glow, in: context) {
+            guard glows else {
+                BoardDrawing.fill(segment, radius: 1.5, color: color, in: context)
+                continue
+            }
+            guard glow > 0 else { continue }
+            BoardDrawing.glowing(color, blur: glow, in: context) {
                 BoardDrawing.fill(segment, radius: 1.5, color: color, in: context)
             }
         }

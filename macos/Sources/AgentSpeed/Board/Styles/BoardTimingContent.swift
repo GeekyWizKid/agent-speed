@@ -30,7 +30,7 @@ final class BoardTimingContent: BoardContentBuilding {
         let models = BoardRowModels.make(tick, l10n: l10n)
         let lives = BoardRowModels.lives(tick)
         let column = BoardRowModels.capsuleColumn(models, compact: rows.compact, capsules: rows.capsules)
-        var items = [slab(tick)]
+        var items = slab(tick)
         let leader = models.first { $0.rank == 1 }?.name
         let (hero, number) = self.hero(tick, leader: leader)
         items += hero
@@ -46,26 +46,31 @@ final class BoardTimingContent: BoardContentBuilding {
         return BoardContentLayout(items: items, groupRows: anchors, number: number)
     }
 
-    /// The slab's 135° hatch and the heat rail along the top edge.
-    private func slab(_ tick: BoardTick) -> BoardContentItem {
+    /// The slab's 135° hatch, and the heat rail along the top edge as an item of its own (a new heat redraws only the
+    /// rail).
+    private func slab(_ tick: BoardTick) -> [BoardContentItem] {
         let heat = (tick.heat * 100).rounded() / 100
         let palette = self.palette, side = self.side
-        let revision = AnyHashable([AnyHashable("slab"), AnyHashable(heat), AnyHashable(palette.dark), AnyHashable(palette.highContrast)])
-        return BoardContentItem(key: "ambience", frame: CGRect(x: 0, y: 0, width: side, height: side), motion: .none,
-                                revision: revision) { context, _ in
-            if !palette.highContrast {
-                let hatch = (palette.dark ? RGBColor.white : RGBColor.black).opacity(0.025)
-                context.setStrokeColor(hatch.cgColor)
-                context.setLineWidth(2)
-                let step = 7 * 2.squareRoot()
-                var c = -step
-                while c < 2 * side + step {
-                    context.move(to: CGPoint(x: c + 1, y: -1))
-                    context.addLine(to: CGPoint(x: -1, y: c + 1))
-                    c += step
-                }
-                context.strokePath()
+        let hatch = BoardContentItem(key: "ambience", frame: CGRect(x: 0, y: 0, width: side, height: side), motion: .none,
+                                     revision: AnyHashable([AnyHashable("slab"), AnyHashable(palette.dark),
+                                                            AnyHashable(palette.highContrast)])) { context, _ in
+            guard !palette.highContrast else { return }
+            let hatch = (palette.dark ? RGBColor.white : RGBColor.black).opacity(0.025)
+            context.setStrokeColor(hatch.cgColor)
+            context.setLineWidth(2)
+            let step = 7 * 2.squareRoot()
+            var c = -step
+            while c < 2 * side + step {
+                context.move(to: CGPoint(x: c + 1, y: -1))
+                context.addLine(to: CGPoint(x: -1, y: c + 1))
+                c += step
             }
+            context.strokePath()
+        }
+        let reach: CGFloat = palette.glows ? 16 : 0
+        let rail = BoardContentItem(key: "rail", frame: CGRect(x: 0, y: 0, width: side, height: 3 + reach), motion: .none,
+                                    revision: AnyHashable([AnyHashable(heat), AnyHashable(palette.dark),
+                                                           AnyHashable(palette.highContrast)])) { context, _ in
             BoardDrawing.fill(CGRect(x: 0, y: 0, width: side, height: 3), color: palette.line, in: context)
             let width = side * heat
             guard width > 0.5 else { return }
@@ -76,6 +81,7 @@ final class BoardTimingContent: BoardContentBuilding {
                 BoardDrawing.gradient(rail, stops: stops, from: CGPoint(x: 0, y: 0), to: CGPoint(x: width, y: 0), in: context)
             }
         }
+        return [hatch, rail]
     }
 
     private func hero(_ tick: BoardTick, leader: String?) -> ([BoardContentItem], CGRect) {
@@ -99,26 +105,32 @@ final class BoardTimingContent: BoardContentBuilding {
         // The meta line runs past the hero's height into the rows' top, as on the page.
         let frame = CGRect(x: pad, y: pad + 2, width: side - 2 * pad, height: max(heroHeight, top + column).rounded(.up))
         let number = BoardHeroNumber(tick.valueText, value: tick.value, look: look, origin: CGPoint(x: frame.minX, y: frame.minY + numTop))
-        let history = tick.history.suffix(30).map { ($0 * 10).rounded() / 10 }
+        let history = Array(tick.history.suffix(30).map { ($0 * 10).rounded() / 10 })
         let generating = tick.generating > 0
-        let revision = AnyHashable([AnyHashable(tick.valueText), AnyHashable(tick.title), AnyHashable(tick.generating),
-                                    AnyHashable(tick.tools), AnyHashable(Array(history)), AnyHashable(heat), AnyHashable(palette.dark),
-                                    AnyHashable(palette.highContrast), AnyHashable(l10n.language.rawValue)])
-        var hero = BoardContentItem(key: "hero", frame: frame, motion: .none, revision: revision) { context, box in
+        let theme = AnyHashable([AnyHashable(palette.dark), AnyHashable(palette.highContrast), AnyHashable(l10n.language.rawValue)])
+        let unitX = number.label.width + 6
+        // The live line and unit, the meta line and the bars are cached apart (a new history redraws only the bars).
+        var hero = BoardContentItem(key: "hero", frame: frame, motion: .none, revision: AnyHashable([AnyHashable(unitX), theme])) { context, _ in
             live.draw(in: context, x: 13, baseline: live.baseline(lineBoxTop: top + 6.5))
-            unit.draw(in: context, x: number.label.width + 6, baseline: numTop + number.baseline)
-
-            let pillTop = numTop + big * 1.08 + 7
-            let pill = CGRect(x: 0, y: pillTop, width: title.width + 14, height: 17)
-            BoardDrawing.fill(pill, radius: 5, color: HeatPalette.color(max(0.1, heat)), in: context)
+            unit.draw(in: context, x: unitX, baseline: numTop + number.baseline)
+        }
+        let pillTop = numTop + big * 1.08 + 7
+        let pill = CGRect(x: 0, y: pillTop, width: title.width + 14, height: 17)
+        let pillColor = HeatPalette.color(max(0.1, heat))
+        let meta = BoardContentItem.part("hero.meta", of: frame, rect: CGRect(x: 0, y: pillTop - 2, width: frame.width, height: 21),
+                                         revision: AnyHashable([AnyHashable(tick.title), AnyHashable(tick.generating),
+                                                                AnyHashable(tick.tools), AnyHashable(heat), theme])) { context in
+            BoardDrawing.fill(pill, radius: 5, color: pillColor, in: context)
             title.draw(in: context, x: 7, baseline: title.baseline(centeredOn: pill.midY))
-            let barsWidth = CGFloat(barCount) * 5 - 2
             // The meta line sits below the bars, so the counts may run under them (the page lets them overflow).
-            counts.truncated(to: max(0, box.width - pill.width - 7))
+            counts.truncated(to: max(0, frame.width - pill.width - 7))
                 .draw(in: context, x: pill.maxX + 7, baseline: counts.baseline(centeredOn: pill.midY))
-
-            let bars = CGRect(x: box.width - barsWidth, y: top + (max(heroHeight, column) - 38) / 2, width: barsWidth, height: 38)
-            BoardHeroHistory.bars(Array(history), count: barCount, in: bars, color: palette.heat(max(0.1, heat)), context: context)
+        }
+        let barsWidth = CGFloat(barCount) * 5 - 2
+        let barsRect = CGRect(x: frame.width - barsWidth, y: top + (max(heroHeight, column) - 38) / 2, width: barsWidth, height: 38)
+        let bars = BoardContentItem.part("hero.bars", of: frame, rect: barsRect.insetBy(dx: -1, dy: -1),
+                                         revision: AnyHashable([AnyHashable(history), AnyHashable(heat), theme])) { context in
+            BoardHeroHistory.bars(history, count: barCount, in: barsRect, color: palette.heat(max(0.1, heat)), context: context)
         }
         if memory.fresh, let leader, tick.events.contains(where: { $0.kind == .newLeader }) {
             hero.accents.append(.decal(banner(leader, width: side, top: heroHeight - 16)))
@@ -133,7 +145,7 @@ final class BoardTimingContent: BoardContentBuilding {
         // The tower has no room above its number: the chip pops on the live line, after `boards.live`.
         let chip = CGPoint(x: 13 + live.width + 8, y: top + 11.5 - 7.75 - numTop)
         let decals = tick.newPeak ? [number.sheen(), BoardHeroNumber.peakChip(style: .timing, l10n: l10n, glows: palette.glows, origin: chip)] : []
-        return ([hero, dot] + number.items(memory: memory, decals: decals), number.rect)
+        return ([hero, meta, bars, dot] + number.items(memory: memory, decals: decals), number.rect)
     }
 
     /// `boards.newLeader` sliding across the bottom of the hero for 1.9 s (`.banner`); in the hero's points.

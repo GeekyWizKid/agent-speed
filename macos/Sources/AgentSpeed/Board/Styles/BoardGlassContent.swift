@@ -95,29 +95,48 @@ final class BoardGlassContent: BoardContentBuilding {
         let counts = BoardLabel("· " + l10n("agents.context", tick.generating, tick.tools), BoardFont(size: 12), color: palette.ink2)
         let sparkWidth: CGFloat = size == .small ? 76 : 104
         let history = tick.history.map { ($0 * 10).rounded() / 10 }
-        let revision = AnyHashable([AnyHashable(tick.valueText), AnyHashable(tick.title), AnyHashable(tick.generating),
-                                    AnyHashable(tick.tools), AnyHashable(history), AnyHashable(heat), AnyHashable(palette.dark),
-                                    AnyHashable(palette.highContrast), AnyHashable(l10n.language.rawValue)])
-        let hero = BoardContentItem(key: "hero", frame: frame, motion: .none, revision: revision) { context, box in
-            let baseline = numTop + number.baseline
-            if palette.glows, heat > 0 {
-                let glow = palette.heat(heat).opacity(0.55)
-                number.drawGlow(in: context, x: 0, top: numTop, color: glow, blurs: [heat * 14])
-                unit.drawGlowOnly(in: context, x: number.label.width + 6, baseline: baseline, glow: glow, blur: heat * 14)
+        let theme = AnyHashable([AnyHashable(palette.dark), AnyHashable(palette.highContrast), AnyHashable(l10n.language.rawValue)])
+        let baseline = numTop + number.baseline
+        let unitX = number.label.width + 6
+        // Each piece is cached apart: the glow follows the digits, the unit their width, the meta line the title and
+        // counts, the sparkline the history.
+        var items: [BoardContentItem] = []
+        if palette.glows, heat > 0 {
+            let glow = palette.heat(heat).opacity(0.55), blur = heat * 14
+            let rect = number.label.box(x: 0, baseline: baseline, margin: blur * 1.5)
+                .union(unit.box(x: unitX, baseline: baseline, margin: blur * 1.5))
+            var item = BoardContentItem.part("hero.glow", of: frame, rect: rect,
+                                             revision: AnyHashable([AnyHashable(tick.valueText), AnyHashable(heat), theme])) { context in
+                number.drawGlow(in: context, x: 0, top: numTop, color: glow, blurs: [blur])
+                unit.drawGlowOnly(in: context, x: unitX, baseline: baseline, glow: glow, blur: blur)
             }
-            unit.draw(in: context, x: number.label.width + 6, baseline: baseline)
-            let metaMid = numTop + big * 1.08 + 7 + metaLine / 2
+            item.rasterScale = BoardContentItem.softScale
+            items.append(item)
+        }
+        items.append(.part("hero.unit", of: frame, rect: unit.box(x: unitX, baseline: baseline),
+                           revision: AnyHashable([AnyHashable(unitX), theme])) { context in
+            unit.draw(in: context, x: unitX, baseline: baseline)
+        })
+        let metaMid = numTop + big * 1.08 + 7 + metaLine / 2
+        let room = frame.width - sparkWidth - 8
+        let metaRect = CGRect(x: 0, y: metaMid - metaLine / 2 - 3, width: room, height: metaLine + 6)
+        let titleColor = palette.heatText(max(0.06, tick.heat))
+        items.append(.part("hero.meta", of: frame, rect: metaRect,
+                           revision: AnyHashable([AnyHashable(tick.title), AnyHashable(tick.generating), AnyHashable(tick.tools),
+                                                  AnyHashable([titleColor.red, titleColor.green, titleColor.blue]), theme])) { context in
             let metaBaseline = title.baseline(centeredOn: metaMid)
-            let room = box.width - sparkWidth - 8
             let shownTitle = title.truncated(to: room)
             shownTitle.draw(in: context, x: 0, baseline: metaBaseline)
             counts.truncated(to: max(0, room - shownTitle.width - 6)).draw(in: context, x: shownTitle.width + 6, baseline: metaBaseline)
-            // The page's inline SVG sits atop a line box 3 pt taller than itself.
-            let spark = CGRect(x: box.width - sparkWidth, y: (box.height - 43) / 2, width: sparkWidth, height: 40)
+        })
+        // The page's inline SVG sits atop a line box 3 pt taller than itself.
+        let spark = CGRect(x: frame.width - sparkWidth, y: (heroHeight - 43) / 2, width: sparkWidth, height: 40)
+        items.append(.part("hero.spark", of: frame, rect: spark.insetBy(dx: -4, dy: -4),
+                           revision: AnyHashable([AnyHashable(history), AnyHashable(heat), theme])) { context in
             BoardHeroHistory.sparkline(history, in: spark, color: palette.heat(max(0.06, heat)), context: context)
-        }
+        })
         let decals = tick.newPeak ? [number.sheen(), BoardHeroNumber.peakChip(style: .glass, l10n: l10n, glows: palette.glows)] : []
-        return ([hero] + number.items(memory: memory, decals: decals), number.rect)
+        return (items + number.items(memory: memory, decals: decals), number.rect)
     }
 
     private func footer(_ tick: BoardTick) -> BoardContentItem {

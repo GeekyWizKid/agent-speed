@@ -41,6 +41,14 @@ struct BoardContentLayout {
     var groupRows: [String: (row: CGRect, rank: CGPoint)]
     /// The hero number, for punches, embers and new peaks.
     var number: CGRect
+
+    /// The items to show; their one-shot accents come with the first call only, so a layout applied again (a board
+    /// shown again, a hover) replays nothing.
+    mutating func takeItems() -> [BoardContentItem] {
+        let taken = items
+        for index in items.indices where !items[index].accents.isEmpty { items[index].accents = [] }
+        return taken
+    }
 }
 
 /// Draws a style's hero, rows and footer (DESIGN 2c Styles; prototypes in spec/prototypes/board).

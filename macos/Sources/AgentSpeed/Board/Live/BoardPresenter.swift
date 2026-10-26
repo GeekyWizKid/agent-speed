@@ -80,6 +80,8 @@ final class BoardPresenter {
     func setEffects(_ intensity: BoardEffectsIntensity, celebrations: Bool, reduceMotion: Bool, highContrast: Bool) {
         if window.reduceMotion != reduceMotion { window.reduceMotion = reduceMotion }
         window.driver.highContrast = highContrast
+        window.host.content.ambience = intensity != .off
+        window.host.content.celebrations = celebrations
         window.driver.update { fx in
             if fx.intensity != intensity { fx.setIntensity(intensity) }
             if fx.celebrations != celebrations { fx.celebrations = celebrations }
@@ -94,7 +96,7 @@ final class BoardPresenter {
             layout = builder.layout(tick)
             layoutStale = false
         }
-        guard var items = layout?.items else { return [] }
+        guard var items = layout?.takeItems() else { return [] }
         if let hovered, let index = items.firstIndex(where: { $0.key == hovered }) {
             items[index].plate = Self.lifted(items[index].plate, dark: look.dark)
         }
