@@ -13,6 +13,7 @@ struct ParserFixtureTests {
         if relative.hasPrefix("codex/") { return .codex }
         if relative.hasPrefix("gemini/") { return .gemini }
         if relative.hasPrefix("omp/") { return .omp }
+        if relative.hasPrefix("pi/") { return .pi }
         if relative.hasPrefix("workbuddy/.workbuddy-ai/") { return .workbuddyAi }
         if relative.hasPrefix("workbuddy/.workbuddy/") { return .workbuddy }
         return relative.hasPrefix("dsh/") ? .dsh : .claude
@@ -21,6 +22,11 @@ struct ParserFixtureTests {
     /// The fixture folder `omp` plays `~/.omp`: its automatic roots are the default root and every profile.
     static var ompRoots: [String] {
         TranscriptLocations.ompRoots(environment: ["PI_CONFIG_DIR": "omp"], home: Fixtures.root).map(\.path)
+    }
+
+    /// The fixture folder `pi` plays `~/.pi` with the fixtures folder as home; its settings name `~/pi/custom-sessions`.
+    static func piHome(fixtures root: URL = Fixtures.root) -> PiHome {
+        PiHome(environment: ["PI_CODING_AGENT_DIR": root.appendingPathComponent("pi/agent").path], home: root)
     }
 
     /// The root an omp or WorkBuddy fixture was found under; nil for other families.

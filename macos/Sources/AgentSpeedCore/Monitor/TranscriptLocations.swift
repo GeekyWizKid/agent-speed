@@ -142,6 +142,9 @@ enum TranscriptLocations {
         return base.appendingPathComponent("sessions", isDirectory: true)
     }
 
+    /// Pi's automatic roots (METRICS 2, 4.13) for this process's environment and home folder.
+    static var defaultPiRoots: [URL] { PiHome.current.roots }
+
     static func sessionsFolder(_ folder: URL) -> URL {
         folder.lastPathComponent == "sessions" ? folder : folder.appendingPathComponent("sessions", isDirectory: true)
     }
@@ -159,6 +162,7 @@ enum TranscriptLocations {
         case .workbuddyAi: [workbuddyProjects(defaultWorkBuddyAiDataFolder)]
         case .kimi: [defaultKimiRoot]
         case .grokBuild: [defaultGrokBuildRoot]
+        case .pi: defaultPiRoots
         }
     }
 
@@ -194,6 +198,7 @@ extension MonitorConfiguration {
         case .workbuddyAi: workbuddyAiRoot.map(TranscriptLocations.workbuddyProjects)
         case .kimi: kimiRoot.map(TranscriptLocations.sessionsFolder)
         case .grokBuild: grokBuildRoot.map(TranscriptLocations.sessionsFolder)
+        case .pi: piRoot
         }
     }
 
@@ -207,7 +212,8 @@ extension MonitorConfiguration {
             default: urls
             }
         }
-        let urls = configuredRoot(for: family).map { [$0] } ?? automatic ?? TranscriptLocations.defaultRoots(for: family)
+        let fallback = family == .pi ? piHome?.roots : nil
+        let urls = configuredRoot(for: family).map { [$0] } ?? automatic ?? fallback ?? TranscriptLocations.defaultRoots(for: family)
         var roots: [String] = []
         for url in urls {
             let root = TranscriptDiscovery.normalizedRoot(url.path)
@@ -224,6 +230,21 @@ extension MonitorConfiguration {
     /// Whether a resolved root may be read at all: an Antigravity `*-backup` store never is (METRICS 4.8).
     static func isReadable(root: String, family: TranscriptFamily) -> Bool {
         family != .antigravity || TranscriptLocations.isReadableAntigravityRoot(root)
+    }
+
+    /// Every resolved root of every family, and whether it is read: never an Antigravity `*-backup` store, and never an
+    /// omp root that is a Pi root or lies inside one, which holds Pi's files (METRICS 4.7), also while Pi is off.
+    func allRoots() -> [(family: TranscriptFamily, path: String, readable: Bool)] {
+        let pi = resolvedRoots(for: .pi)
+        return TranscriptFamily.allCases.flatMap { family in
+            (family == .pi ? pi : resolvedRoots(for: family)).map { root in
+                (family, root, Self.isReadable(root: root, family: family, piRoots: pi))
+            }
+        }
+    }
+
+    static func isReadable(root: String, family: TranscriptFamily, piRoots: [String]) -> Bool {
+        isReadable(root: root, family: family) && (family != .omp || !PiHome.contains(piRoots, root))
     }
 
     func reads(_ family: TranscriptFamily) -> Bool {

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Computes the daily history (METRICS 8): every transcript of the enabled sources (plus Codex `archived_sessions`,
-/// every omp root and every Antigravity conversation database) and every OpenCode session, parsed completely with
+/// every omp and Pi root and every Antigravity conversation database) and every OpenCode session, parsed completely with
 /// the live rules, in startup order, incrementally against a `HistoryDatabase`.
 ///
 /// Not thread-safe: one owner (a serial queue) drives it.
@@ -206,15 +206,13 @@ final class HistoryAnalyzer {
         plan.opencode = (opencode, sessions, identity)
     }
 
-    /// Transcript roots of the enabled sources (both Gemini CLI roots, every omp root, every readable Antigravity
-    /// store); Codex also contributes its `archived_sessions` sibling.
+    /// Transcript roots of the enabled sources (both Gemini CLI roots, every omp root that is not Pi's, every readable
+    /// Antigravity store, every Pi root); Codex also contributes its `archived_sessions` sibling.
     static func roots(_ configuration: MonitorConfiguration) -> [(TranscriptFamily, String)] {
         var roots: [(TranscriptFamily, String)] = []
-        for family in TranscriptFamily.allCases where configuration.reads(family) {
-            for root in configuration.resolvedRoots(for: family) where MonitorConfiguration.isReadable(root: root, family: family) {
-                roots.append((family, root))
-            }
-            if family == .codex { roots.append((family, configuration.resolvedCodexArchiveRoot)) }
+        for root in configuration.allRoots() where configuration.reads(root.family) {
+            if root.readable { roots.append((root.family, root.path)) }
+            if root.family == .codex { roots.append((root.family, configuration.resolvedCodexArchiveRoot)) }
         }
         return roots
     }

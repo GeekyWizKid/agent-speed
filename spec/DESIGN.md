@@ -291,8 +291,16 @@ White-hot core for highlights: `#FFF7D6`. With overdrive `o > 0`, highlights ble
 | Antigravity | `#EC4899` pink |
 | WorkBuddy | `#11A68B` jade |
 | WorkBuddy AI | `#007AB4` ocean |
+| ZCode | `#466BFF` cobalt |
+| Kimi Code CLI | `#E16F8A` rose |
+| Grok Build | `#8290A6` steel |
+| Pi | `#A855F7` violet |
 
 Pink is `#EC4899`, not the lighter `#F472B6` (too close to coral and lilac); lime is `#84CC16`, not the lighter `#A3E635`, which nearly vanishes on light backgrounds.
+
+Pi takes violet `#A855F7`: Pi's own mark is monochrome, and violet is at least 0.13 (OKLab) from every other source
+color (closest: DeepSeek blue 0.139, ZCode cobalt 0.146, lilac 0.18), while the colors near omp's lime, its fork, are
+taken by Codex, WorkBuddy and omp itself.
 
 The two WorkBuddy editions share one app icon, teal-green (`#0EC8A8` → `#05C890`), which is nearly Codex mint (OKLab
 distance about 0.04; the closest existing pair, coral and amber, is 0.11 apart). So both take a darker member of that teal family,
@@ -1575,6 +1583,10 @@ rows, section 10); the file name is `agent-speed-history-<code>-<first date>-<la
 | `antigravity` | `antigravity` |
 | `workbuddy` | `workbuddy` |
 | `workbuddyAi` | `workbuddy-ai` |
+| `zcode` | `zcode` |
+| `kimi` | `kimi` |
+| `grokBuild` | `grokBuild` |
+| `pi` | `pi` |
 
 Empty state (the range has neither token usage nor agent traffic, section 10): centered muted gauge glyph,
 `history.empty` and `history.empty.hint`. First launch after upgrading:
@@ -1989,6 +2001,10 @@ with Mica). Sections:
   - omp: one row. The path is the default sessions root (METRICS 2); the status counts the sessions of the default
     root and every named-profile root together. Change… picks one `sessions` folder and replaces all automatic roots;
     Reset returns to them. Caption `settings.sources.ompHint`.
+  - Pi: one row after Grok Build: the path is the default sessions root (METRICS 2), the status counts the main
+    session files of every automatic root (`source.sessions`; sub-agent files are not sessions), Change… picks one
+    folder and replaces the automatic roots (`mac.settings.sources.choosePi` on macOS), Reset returns to them.
+    Caption `settings.sources.piHint`. An omp folder that is Pi's (METRICS 4.7) is counted under Pi only.
   - Antigravity: one row. The path lists the stores found (`~/.gemini/antigravity-cli`, `antigravity`,
     `antigravity-ide`); the status counts conversation databases (`source.sessions`). Change… picks one store folder
     (or its `conversations` folder) and replaces all three; Reset returns to them. A chosen `*-backup` store is never

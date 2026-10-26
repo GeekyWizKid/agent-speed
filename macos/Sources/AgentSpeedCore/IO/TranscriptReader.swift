@@ -10,10 +10,10 @@ struct TranscriptReader: Sendable {
     private var compressed: CompressedStreamReader?
     private var document: DocumentReader?
     private var database: AntigravityReader?
-    /// omp: the first read delivers the file's session header before the lines at its start offset (METRICS 4.7).
+    /// omp and Pi: the first read delivers the file's session header before the lines at its start offset (METRICS 4.7).
     private var headerPending: Bool
 
-    /// `readsHeaderFirst`: an omp file that starts being read past its beginning.
+    /// `readsHeaderFirst`: an omp or Pi file that starts being read past its beginning.
     init(
         path: String,
         start: FileTailer.Start = .beginning,

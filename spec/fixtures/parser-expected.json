@@ -1,5 +1,5 @@
 {
-  "_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this folder. `mtimes` (Unix ms) give the modification times that produce both orders; apply them to a copy of this folder before computing daily history. `traces` (Gemini, omp) give the phase after feeding a file up to and including physical line `afterLine` (after the files before it in `order`). omp: the folder `omp` plays ~/.omp, so its automatic roots are omp/agent/sessions and omp/profiles/*/agent/sessions; `omp.discover` lists what discovery finds there. Antigravity: the folder `antigravity` plays ~/.gemini (stores antigravity-cli, antigravity, antigravity-ide); each database is one agent whose id is its path; `{\"unsupported\": true}` marks a database that contributes no agent; reading must not create any file (no -wal or -shm). WorkBuddy: the folder `workbuddy` plays the home folder (data folders .workbuddy and .workbuddy-ai); `workbuddy.discover` lists what discovery finds in both projects folders; its `traces` work like the omp ones.",
+  "_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this folder. `mtimes` (Unix ms) give the modification times that produce both orders; apply them to a copy of this folder before computing daily history. `traces` (Gemini, omp) give the phase after feeding a file up to and including physical line `afterLine` (after the files before it in `order`). omp: the folder `omp` plays ~/.omp, so its automatic roots are omp/agent/sessions and omp/profiles/*/agent/sessions; `omp.discover` lists what discovery finds there. Antigravity: the folder `antigravity` plays ~/.gemini (stores antigravity-cli, antigravity, antigravity-ide); each database is one agent whose id is its path; `{\"unsupported\": true}` marks a database that contributes no agent; reading must not create any file (no -wal or -shm). WorkBuddy: the folder `workbuddy` plays the home folder (data folders .workbuddy and .workbuddy-ai); `workbuddy.discover` lists what discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both roots; its `traces` work like the omp ones.",
   "order": [
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl",
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-20-subagent.jsonl",
@@ -35,7 +35,13 @@
     "workbuddy/.workbuddy-ai/projects/C-Users-dev-projects-orbit/7321aebd-eedd-4d8c-a034-7b74b0ca1dd1.jsonl",
     "workbuddy/.workbuddy-ai/projects/C-Users-dev-projects-orbit/bec52a4b-a049-4377-a53e-fa03a3357f35.jsonl",
     "workbuddy/.workbuddy-ai/projects/C-Users-dev-projects-orbit/2c8fcaaa-da17-4eb8-ae37-c3acb6e1f7e9.jsonl",
-    "workbuddy/.workbuddy-ai/projects/C-Users-dev-projects-orbit/8debac5b-f3d2-49ef-aeac-395674228a83.jsonl"
+    "workbuddy/.workbuddy-ai/projects/C-Users-dev-projects-orbit/8debac5b-f3d2-49ef-aeac-395674228a83.jsonl",
+    "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+    "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f/reviewer.jsonl",
+    "pi/agent/sessions/--Users-dev-projects-ember--/2026-10-20T12-10-00-000Z_01a15937-edc0-7111-bc33-00146526afd1.jsonl",
+    "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-20-00-000Z_01a15941-1580-7402-be06-0015035e2982.jsonl",
+    "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333.jsonl",
+    "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333/helper.jsonl"
   ],
   "files": {
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl": {
@@ -1868,6 +1874,348 @@
           "final": true
         }
       ]
+    },
+    "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl": {
+      "source": "pi",
+      "project": "halo",
+      "model": "claude-opus-5-5",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "generating",
+      "inFlightStartMs": 1792497790000,
+      "lastLineMs": 1792497790000,
+      "malformedLines": 0,
+      "responses": [
+        {
+          "key": "pi:a1f00004:1792497605006",
+          "startMs": 1792497605006,
+          "endMs": 1792497611206,
+          "input": 18003,
+          "cachedInput": 0,
+          "cacheWriteInput": 18000,
+          "cacheWrite1hInput": 18000,
+          "output": 420,
+          "reasoning": 150,
+          "model": "claude-opus-5-5",
+          "provider": "anthropic",
+          "fast": false,
+          "final": true
+        },
+        {
+          "key": "pi:a1f00006:1792497612400",
+          "startMs": null,
+          "endMs": 1792497612400,
+          "input": 900,
+          "cachedInput": 0,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 40,
+          "reasoning": 0,
+          "model": null,
+          "provider": null,
+          "fast": false,
+          "final": true
+        },
+        {
+          "key": "pi:a1f00007:1792497612405",
+          "startMs": 1792497612405,
+          "endMs": 1792497616505,
+          "input": 18605,
+          "cachedInput": 18000,
+          "cacheWriteInput": 600,
+          "cacheWrite1hInput": 0,
+          "output": 260,
+          "reasoning": 0,
+          "model": "claude-opus-5-5",
+          "provider": "anthropic",
+          "fast": false,
+          "final": true
+        },
+        {
+          "key": "pi:a1f00008:1792497620000",
+          "startMs": null,
+          "endMs": 1792497620000,
+          "input": 18600,
+          "cachedInput": 18600,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 1,
+          "reasoning": 0,
+          "model": "claude-opus-5-5",
+          "provider": "anthropic",
+          "fast": false,
+          "final": true
+        },
+        {
+          "key": "pi:a1f0000a:1792497660000",
+          "startMs": null,
+          "endMs": 1792497660000,
+          "input": 12000,
+          "cachedInput": 0,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 800,
+          "reasoning": 0,
+          "model": null,
+          "provider": null,
+          "fast": false,
+          "final": true
+        },
+        {
+          "key": "pi:a1f0000d:1792497720006",
+          "startMs": null,
+          "endMs": 1792497720506,
+          "input": 18610,
+          "cachedInput": 18600,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 0,
+          "reasoning": 0,
+          "model": "claude-opus-5-5",
+          "provider": "anthropic",
+          "fast": false,
+          "final": true
+        }
+      ],
+      "effort": {
+        "mode": "xhigh",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "pi:a1f00004:1792497605006": {
+          "effort": {
+            "mode": "high",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "pi:a1f00006:1792497612400": {
+          "effort": null,
+          "speed": null
+        },
+        "pi:a1f00007:1792497612405": {
+          "effort": {
+            "mode": "high",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "pi:a1f00008:1792497620000": {
+          "effort": null,
+          "speed": null
+        },
+        "pi:a1f0000a:1792497660000": {
+          "effort": null,
+          "speed": null
+        },
+        "pi:a1f0000d:1792497720006": {
+          "effort": {
+            "mode": "xhigh",
+            "evidence": "recorded"
+          },
+          "speed": null
+        }
+      }
+    },
+    "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f/reviewer.jsonl": {
+      "source": "pi",
+      "project": "halo",
+      "model": "claude-sonnet-5-5",
+      "isSubagent": true,
+      "parentFile": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792497729300,
+      "malformedLines": 0,
+      "responses": [
+        {
+          "key": "pi:b2e10002:1792497720206",
+          "startMs": 1792497720206,
+          "endMs": 1792497729296,
+          "input": 2400,
+          "cachedInput": 0,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 310,
+          "reasoning": 0,
+          "model": "claude-sonnet-5-5",
+          "provider": "anthropic",
+          "fast": false,
+          "final": true
+        }
+      ],
+      "effort": null,
+      "speed": null,
+      "responseModes": {
+        "pi:b2e10002:1792497720206": {
+          "effort": null,
+          "speed": null
+        }
+      }
+    },
+    "pi/agent/sessions/--Users-dev-projects-ember--/2026-10-20T12-10-00-000Z_01a15937-edc0-7111-bc33-00146526afd1.jsonl": {
+      "source": "pi",
+      "project": "ember",
+      "model": "gpt-5.5",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792498220000,
+      "malformedLines": 1,
+      "responses": [
+        {
+          "key": "pi:c3d20003:1792498202005",
+          "startMs": 1792498202005,
+          "endMs": 1792498208400,
+          "input": 5200,
+          "cachedInput": 0,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 900,
+          "reasoning": 300,
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "fast": false,
+          "final": true
+        },
+        {
+          "key": "pi:c3d20005:1792498208436",
+          "startMs": 1792498208436,
+          "endMs": 1792498211560,
+          "input": 5400,
+          "cachedInput": 5100,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 410,
+          "reasoning": 0,
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "fast": false,
+          "final": true
+        }
+      ],
+      "effort": {
+        "mode": "low",
+        "evidence": "selected"
+      },
+      "speed": null,
+      "responseModes": {
+        "pi:c3d20003:1792498202005": {
+          "effort": {
+            "mode": "low",
+            "evidence": "selected"
+          },
+          "speed": null
+        },
+        "pi:c3d20005:1792498208436": {
+          "effort": {
+            "mode": "low",
+            "evidence": "selected"
+          },
+          "speed": null
+        }
+      }
+    },
+    "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-20-00-000Z_01a15941-1580-7402-be06-0015035e2982.jsonl": {
+      "source": "pi",
+      "project": "halo",
+      "model": "claude-opus-5-5",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792498809000,
+      "malformedLines": 0,
+      "responses": [
+        {
+          "key": "pi:d4c30002:1792498805006",
+          "startMs": 1792498805006,
+          "endMs": 1792498808996,
+          "input": 18604,
+          "cachedInput": 18600,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 330,
+          "reasoning": 0,
+          "model": "claude-opus-5-5",
+          "provider": "anthropic",
+          "fast": false,
+          "final": true
+        }
+      ],
+      "effort": {
+        "mode": "medium",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "pi:d4c30002:1792498805006": {
+          "effort": {
+            "mode": "medium",
+            "evidence": "recorded"
+          },
+          "speed": null
+        }
+      }
+    },
+    "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333.jsonl": {
+      "source": "pi",
+      "project": "flat",
+      "model": "gpt-5.5",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792499404100,
+      "malformedLines": 0,
+      "responses": [
+        {
+          "key": "pi:e5b40002:1792499402006",
+          "startMs": 1792499402006,
+          "endMs": 1792499404096,
+          "input": 1200,
+          "cachedInput": 0,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 140,
+          "reasoning": 0,
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "fast": false,
+          "final": true
+        }
+      ],
+      "effort": {
+        "mode": "minimal",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "pi:e5b40002:1792499402006": {
+          "effort": {
+            "mode": "minimal",
+            "evidence": "recorded"
+          },
+          "speed": null
+        }
+      }
+    },
+    "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333/helper.jsonl": {
+      "source": "pi",
+      "project": "flat",
+      "model": null,
+      "isSubagent": true,
+      "parentFile": "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333.jsonl",
+      "phase": "generating",
+      "inFlightStartMs": 1792499403100,
+      "lastLineMs": 1792499403100,
+      "malformedLines": 0,
+      "responses": [],
+      "effort": null,
+      "speed": null,
+      "responseModes": {}
     }
   },
   "mtimes": {
@@ -1916,7 +2264,13 @@
     "workbuddy/.workbuddy-ai/projects/C-Users-dev-projects-orbit/7321aebd-eedd-4d8c-a034-7b74b0ca1dd1.jsonl": 1792580583000,
     "workbuddy/.workbuddy-ai/projects/C-Users-dev-projects-orbit/bec52a4b-a049-4377-a53e-fa03a3357f35.jsonl": 1792580701000,
     "workbuddy/.workbuddy-ai/projects/C-Users-dev-projects-orbit/2c8fcaaa-da17-4eb8-ae37-c3acb6e1f7e9.jsonl": 1792581631000,
-    "workbuddy/.workbuddy-ai/projects/C-Users-dev-projects-orbit/8debac5b-f3d2-49ef-aeac-395674228a83.jsonl": 1792582381000
+    "workbuddy/.workbuddy-ai/projects/C-Users-dev-projects-orbit/8debac5b-f3d2-49ef-aeac-395674228a83.jsonl": 1792582381000,
+    "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl": 1792584001000,
+    "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f/reviewer.jsonl": 1792584002000,
+    "pi/agent/sessions/--Users-dev-projects-ember--/2026-10-20T12-10-00-000Z_01a15937-edc0-7111-bc33-00146526afd1.jsonl": 1792584003000,
+    "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-20-00-000Z_01a15941-1580-7402-be06-0015035e2982.jsonl": 1792584004000,
+    "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333.jsonl": 1792584005000,
+    "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333/helper.jsonl": 1792584006000
   },
   "opencode": {
     "database": "opencode/opencode.db",
@@ -3695,6 +4049,132 @@
         "afterLine": 19,
         "phase": "generating",
         "inFlightStartMs": 1792582380000
+      }
+    ]
+  },
+  "pi": {
+    "discover": [
+      "pi/agent/sessions/--Users-dev-projects-ember--/2026-10-20T12-10-00-000Z_01a15937-edc0-7111-bc33-00146526afd1.jsonl",
+      "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+      "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f/reviewer.jsonl",
+      "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-20-00-000Z_01a15941-1580-7402-be06-0015035e2982.jsonl",
+      "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333.jsonl",
+      "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333/helper.jsonl"
+    ],
+    "traces": [
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+        "afterLine": 2,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+        "afterLine": 4,
+        "phase": "generating",
+        "inFlightStartMs": 1792497605000
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+        "afterLine": 5,
+        "phase": "tools",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+        "afterLine": 6,
+        "phase": "tools",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+        "afterLine": 7,
+        "phase": "generating",
+        "inFlightStartMs": 1792497612400
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+        "afterLine": 8,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+        "afterLine": 13,
+        "phase": "generating",
+        "inFlightStartMs": 1792497720000
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+        "afterLine": 14,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+        "afterLine": 15,
+        "phase": "generating",
+        "inFlightStartMs": 1792497780000
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+        "afterLine": 16,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-00-00-000Z_01a1592e-c600-7b2f-b88d-001328b7bc6f.jsonl",
+        "afterLine": 17,
+        "phase": "generating",
+        "inFlightStartMs": 1792497790000
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-ember--/2026-10-20T12-10-00-000Z_01a15937-edc0-7111-bc33-00146526afd1.jsonl",
+        "afterLine": 3,
+        "phase": "generating",
+        "inFlightStartMs": 1792498202000
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-ember--/2026-10-20T12-10-00-000Z_01a15937-edc0-7111-bc33-00146526afd1.jsonl",
+        "afterLine": 4,
+        "phase": "tools",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-ember--/2026-10-20T12-10-00-000Z_01a15937-edc0-7111-bc33-00146526afd1.jsonl",
+        "afterLine": 5,
+        "phase": "generating",
+        "inFlightStartMs": 1792498208430
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-ember--/2026-10-20T12-10-00-000Z_01a15937-edc0-7111-bc33-00146526afd1.jsonl",
+        "afterLine": 6,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-ember--/2026-10-20T12-10-00-000Z_01a15937-edc0-7111-bc33-00146526afd1.jsonl",
+        "afterLine": 7,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-20-00-000Z_01a15941-1580-7402-be06-0015035e2982.jsonl",
+        "afterLine": 8,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-20-00-000Z_01a15941-1580-7402-be06-0015035e2982.jsonl",
+        "afterLine": 9,
+        "phase": "generating",
+        "inFlightStartMs": 1792498805000
+      },
+      {
+        "file": "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333.jsonl",
+        "afterLine": 2,
+        "phase": "generating",
+        "inFlightStartMs": 1792499402000
       }
     ]
   }

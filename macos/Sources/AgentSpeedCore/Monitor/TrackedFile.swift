@@ -34,7 +34,7 @@ final class TrackedFile {
         self.root = root
         self.fileID = fileID
         lastStat = stat
-        reader = TranscriptReader(path: path, start: start, maxLineBytes: maxLineBytes, readsHeaderFirst: family == .omp)
+        reader = TranscriptReader(path: path, start: start, maxLineBytes: maxLineBytes, readsHeaderFirst: family == .omp || family == .pi)
         parser = TranscriptParser(family: family, agentId: path, fileID: fileID, root: root)
     }
 

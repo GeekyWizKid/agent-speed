@@ -96,6 +96,7 @@ final class MonitorCore: @unchecked Sendable {
 
     private func retryBootstrap() {
         guard let session, !isLive else { return }
+        if session.piRootsChanged { return restart() }
         session.refreshAvailability()
         guard session.hasAvailableRoot else { return }
         cancelTimers()
@@ -137,6 +138,13 @@ final class MonitorCore: @unchecked Sendable {
             makeTimer(every: Self.rediscoveryInterval, leeway: .seconds(1)) { [weak self] in self?.rediscover() },
         ]
         publish()
+    }
+
+    private func restart() {
+        teardown()
+        dirtyPaths.removeAll()
+        needsRescan = false
+        bootstrap()
     }
 
     private func teardown() {
@@ -213,6 +221,8 @@ final class MonitorCore: @unchecked Sendable {
 
     private func rediscover() {
         guard let session, isLive else { return }
+        // A new or removed Pi folder is read like at startup: older files from their end, with one dedupe set.
+        if session.piRootsChanged { return restart() }
         let began = Clock.monotonicMs()
         let changed = session.rediscover(todayStartMs: Self.todayStartMs(for: Date()))
         updateWatcher()

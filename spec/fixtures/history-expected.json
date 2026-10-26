@@ -312,6 +312,57 @@
       }
     },
     {
+      "date": "2026-10-20",
+      "source": "pi",
+      "requests": 11,
+      "input": 119522,
+      "cachedInput": 78900,
+      "cacheWriteInput": 18600,
+      "output": 3611,
+      "reasoning": 450,
+      "measuredOutput": 2770,
+      "measuredMs": 34989,
+      "unfinalized": 0,
+      "costMicroUsd": 281398,
+      "unpricedRequests": 2,
+      "priceVersion": 1,
+      "agents": 5,
+      "models": {
+        "": {
+          "requests": 2,
+          "output": 840,
+          "measuredOutput": 0,
+          "measuredMs": 0,
+          "costMicroUsd": 0,
+          "unpricedRequests": 2
+        },
+        "claude-opus-5-5": {
+          "requests": 5,
+          "output": 1011,
+          "measuredOutput": 1010,
+          "measuredMs": 14290,
+          "costMicroUsd": 246035,
+          "unpricedRequests": 0
+        },
+        "claude-sonnet-5-5": {
+          "requests": 1,
+          "output": 310,
+          "measuredOutput": 310,
+          "measuredMs": 9090,
+          "costMicroUsd": 11850,
+          "unpricedRequests": 0
+        },
+        "gpt-5.5": {
+          "requests": 3,
+          "output": 1450,
+          "measuredOutput": 1450,
+          "measuredMs": 11609,
+          "costMicroUsd": 23513,
+          "unpricedRequests": 0
+        }
+      }
+    },
+    {
       "date": "2026-10-21",
       "source": "antigravity",
       "requests": 16,

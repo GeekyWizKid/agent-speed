@@ -172,6 +172,8 @@ enum HistoryLogicChecks {
         check("csv source ids of omp and Antigravity", HistoryCSV.sourceID(.omp) == "omp" && HistoryCSV.sourceID(.antigravity) == "antigravity")
         check("csv source ids of both WorkBuddy editions",
               HistoryCSV.sourceID(.workbuddy) == "workbuddy" && HistoryCSV.sourceID(.workbuddyAi) == "workbuddy-ai")
+        check("csv source id of Pi", HistoryCSV.sourceID(.pi) == "pi")
+        check("settings saved before Pi load with Pi on and its default folder", piSettingsUpgrade())
         let risky = DaySummary(
             day: today, requests: 0, input: 0, cachedInput: 0, cacheWriteInput: 0, output: 0, reasoning: 0,
             measuredOutput: 0, measuredMs: 0, unfinalized: 0, agents: 0, peak: nil,
@@ -376,6 +378,22 @@ enum HistoryLogicChecks {
         for (name, passed) in results where !passed {
             FileHandle.standardError.write(Data("history check failed: \(name)\n".utf8))
         }
+    }
+
+    /// Settings saved by a version before Pi: Pi starts enabled, at its default folders, and an omp choice stays omp's.
+    private static func piSettingsUpgrade() -> Bool {
+        let suite = "AgentSpeedPiUpgradeCheck"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        guard let defaults = UserDefaults(suiteName: suite) else { return false }
+        let before = SourceKind.allCases.filter { $0 != .pi }.map(\.rawValue)
+        defaults.set(before.filter { $0 != "gemini" }, forKey: "enabledSources")
+        defaults.set(before, forKey: "knownSources")
+        defaults.set("/Users/dev/.omp/agent/sessions", forKey: "ompRoot")
+        let settings = AppSettings(defaults: defaults)
+        return settings.isEnabled(.pi) && !settings.isEnabled(.gemini) && settings.piRoot == nil
+            && settings.monitorConfiguration.piRoot == nil && settings.ompRoot?.path == "/Users/dev/.omp/agent/sessions"
+            && TranscriptFolder.pi.urls(in: settings) == LiveMonitor.defaultPiRoots
     }
 }
 

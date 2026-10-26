@@ -18,6 +18,8 @@ public enum SourceKind: String, CaseIterable, Codable, Sendable, Identifiable {
     case zcode
     case kimi
     case grokBuild
+    /// Pi (Pi Coding Agent), the upstream of omp.
+    case pi
 
     public var id: String { rawValue }
 }
@@ -376,9 +378,13 @@ public struct MonitorConfiguration: Equatable, Sendable {
     public var zcodeRoot: URL?
     public var kimiRoot: URL?
     public var grokBuildRoot: URL?
+    /// One Pi sessions folder; nil reads `<agent dir>/sessions` and Pi's custom session folder (METRICS 2, 4.13).
+    public var piRoot: URL?
     /// Tests: replaces the automatic roots of a family that are otherwise derived from the environment and the home
     /// folder (omp `sessions` roots, Antigravity store folders, WorkBuddy data folders).
     var automaticRoots: [TranscriptFamily: [URL]] = [:]
+    /// Tests: the environment and home folder Pi's automatic roots are derived from, instead of the process's own.
+    var piHome: PiHome?
 
     public init(
         enabledSources: Set<SourceKind> = Set(SourceKind.allCases),
@@ -393,7 +399,8 @@ public struct MonitorConfiguration: Equatable, Sendable {
         workbuddyAiRoot: URL? = nil,
         zcodeRoot: URL? = nil,
         kimiRoot: URL? = nil,
-        grokBuildRoot: URL? = nil
+        grokBuildRoot: URL? = nil,
+        piRoot: URL? = nil
     ) {
         self.enabledSources = enabledSources
         self.codexRoot = codexRoot
@@ -408,5 +415,6 @@ public struct MonitorConfiguration: Equatable, Sendable {
         self.zcodeRoot = zcodeRoot
         self.kimiRoot = kimiRoot
         self.grokBuildRoot = grokBuildRoot
+        self.piRoot = piRoot
     }
 }
