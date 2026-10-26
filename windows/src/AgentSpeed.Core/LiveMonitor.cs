@@ -124,6 +124,15 @@ public sealed class LiveMonitor : IDisposable
     /// <summary>The default omp root followed by one root per named profile.</summary>
     internal static IReadOnlyList<string> DefaultOmpRoots => OmpPaths.AutomaticRoots();
 
+    /// <summary>
+    /// Pi's default sessions folder (<c>%PI_CODING_AGENT_DIR%\sessions</c>, else <c>~/.pi/agent/sessions</c>); unless a
+    /// folder is chosen, the custom session folder of Pi's own settings is read as well (METRICS 2, 4.13).
+    /// </summary>
+    public static string DefaultPiRoot => Pi.PiPaths.DefaultRoot();
+
+    /// <summary>Pi's default root followed by its custom session folders.</summary>
+    internal static IReadOnlyList<string> DefaultPiRoots => Pi.PiPaths.AutomaticRoots();
+
     /// <summary>The three Antigravity stores below <c>~/.gemini</c>: CLI, desktop app, IDE (METRICS 2, 4.8).</summary>
     public static IReadOnlyList<string> DefaultAntigravityStores => AntigravityPaths.DefaultStores(Path.Combine(UserHome, ".gemini"));
 

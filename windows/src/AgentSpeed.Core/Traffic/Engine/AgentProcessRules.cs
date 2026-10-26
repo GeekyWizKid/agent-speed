@@ -214,6 +214,12 @@ internal sealed class AgentProcessRules
             return SourceKind.Antigravity;
         }
 
+        if (name == "pi" || script.Contains("/@earendil-works/pi-coding-agent/", StringComparison.Ordinal)
+            || script.Contains("/@mariozechner/pi-coding-agent/", StringComparison.Ordinal))
+        {
+            return SourceKind.Pi;
+        }
+
         // WorkBuddy's embedded CLI, never its app, helper or daemon processes (the same executable without the CLI entry).
         if (WorkBuddyEdition(name, bundle ?? (() => null)) is { } edition && arguments() is { Count: > 1 } args
             && args.Skip(1).Any(a => _platform.Normalize(a).Contains(WorkBuddyCli, StringComparison.Ordinal)))

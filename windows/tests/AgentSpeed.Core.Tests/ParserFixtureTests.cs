@@ -4,6 +4,7 @@ using AgentSpeed.Core.IO;
 using AgentSpeed.Core.Monitoring;
 using AgentSpeed.Core.Omp;
 using AgentSpeed.Core.Parsing;
+using AgentSpeed.Core.Pi;
 using AgentSpeed.Core.WorkBuddy;
 
 namespace AgentSpeed.Core.Tests;
@@ -128,6 +129,7 @@ public sealed class ParserFixtureTests
         SourceKind.Antigravity => "antigravity",
         SourceKind.WorkBuddy => "workbuddy",
         SourceKind.WorkBuddyAi => "workbuddyAi",
+        SourceKind.Pi => "pi",
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 
@@ -220,6 +222,11 @@ public sealed class ParserFixtureTests
         if (relative.StartsWith("omp/", StringComparison.Ordinal))
         {
             return FeedLines(new OmpParser(path, deduper, OmpFixture.RootOf(path)), content, sink, maxLines);
+        }
+
+        if (relative.StartsWith("pi/", StringComparison.Ordinal))
+        {
+            return FeedLines(PiParser.ForPath(path, deduper), content, sink, maxLines);
         }
 
         if (relative.StartsWith("workbuddy/", StringComparison.Ordinal))

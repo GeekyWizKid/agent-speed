@@ -5,6 +5,7 @@ using AgentSpeed.Core.IO;
 using AgentSpeed.Core.Omp;
 using AgentSpeed.Core.OpenCode;
 using AgentSpeed.Core.Parsing;
+using AgentSpeed.Core.Pi;
 using AgentSpeed.Core.Pricing;
 using AgentSpeed.Core.WorkBuddy;
 
@@ -49,6 +50,7 @@ internal sealed partial class MonitorCore : IDisposable
     private readonly OpenCodeSource? _openCode;
     private readonly AntigravityConnections _connections = new();
     private readonly bool _ompAutomatic;
+    private readonly bool _piAutomatic;
     private bool _openCodeSeeded;
     private bool _linksChanged;
     private long _removedMalformedLines;
@@ -96,6 +98,7 @@ internal sealed partial class MonitorCore : IDisposable
         InitializeZCode(locations);
         OpenCodeRootPath = locations.OpenCodeRoot;
         _ompAutomatic = locations.OmpAutomatic;
+        _piAutomatic = locations.PiAutomatic;
         RefreshAvailability();
     }
 
@@ -128,6 +131,9 @@ internal sealed partial class MonitorCore : IDisposable
 
     /// <summary>The live clock for live reporting's counting rule (METRICS 11.4); tests replace it.</summary>
     internal Func<long> Clock { get; set; } = static () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    /// <summary>Pi's automatic roots as rediscovery reads them again (METRICS 4.13); tests replace it.</summary>
+    internal Func<IReadOnlyList<string>> AutomaticPiRoots { get; set; } = static () => LiveMonitor.DefaultPiRoots;
 
     /// <summary>Transcript roots (file families).</summary>
     public IReadOnlyList<SourceRoot> Roots => _roots;
@@ -414,6 +420,7 @@ internal sealed partial class MonitorCore : IDisposable
             changed |= RefreshZCode();
         }
 
+        AddNewPiRoots();
         AddNewOmpRoots();
         foreach (var root in _roots.ToList())
         {
@@ -474,7 +481,7 @@ internal sealed partial class MonitorCore : IDisposable
             return _zcode?.ActiveSessionCount(todayStartMs) ?? 0;
         }
 
-        var mainOnly = WorkBuddyPaths.IsWorkBuddy(kind) || kind is SourceKind.Kimi or SourceKind.GrokBuild;
+        var mainOnly = WorkBuddyPaths.IsWorkBuddy(kind) || kind is SourceKind.Kimi or SourceKind.GrokBuild or SourceKind.Pi;
         var count = 0;
         foreach (var tracked in _files.Values)
         {
@@ -1138,11 +1145,51 @@ internal sealed partial class MonitorCore : IDisposable
         }
 
         var known = new HashSet<string>(_roots.Where(r => r.Family == RootFamily.Omp).Select(r => r.Path), PathComparer);
-        foreach (var path in SourceLocations.NormalizeAll(LiveMonitor.DefaultOmpRoots))
+        var pi = _roots.Where(r => r.Family == RootFamily.Pi).Select(r => r.Path).ToList();
+        foreach (var path in PiPaths.WithoutPi(SourceLocations.NormalizeAll(LiveMonitor.DefaultOmpRoots), pi))
         {
             if (known.Add(path))
             {
                 _roots.Add(new SourceRoot(RootFamily.Omp, path, enabled: true));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Automatic Pi roots follow Pi's settings (METRICS 4.13): a custom session folder set while running is read from then
+    /// on, and an omp root that became Pi's stops being read as omp (METRICS 4.7).
+    /// </summary>
+    private void AddNewPiRoots()
+    {
+        if (!_piAutomatic || !Families.IsEnabled(RootFamily.Pi, _enabled))
+        {
+            return;
+        }
+
+        var known = new HashSet<string>(_roots.Where(r => r.Family == RootFamily.Pi).Select(r => r.Path), PathComparer);
+        var added = false;
+        foreach (var path in SourceLocations.NormalizeAll(AutomaticPiRoots()))
+        {
+            if (known.Add(path))
+            {
+                _roots.Add(new SourceRoot(RootFamily.Pi, path, enabled: true));
+                added = true;
+            }
+        }
+
+        if (!added)
+        {
+            return;
+        }
+
+        var omp = _roots.Where(r => r.Family == RootFamily.Omp).ToList();
+        var kept = PiPaths.WithoutPi(omp.Select(r => r.Path), known).ToHashSet(PathComparer);
+        foreach (var root in omp.Where(r => !kept.Contains(r.Path)))
+        {
+            _roots.Remove(root);
+            foreach (var tracked in _files.Values.Where(f => f.Root == root).ToList())
+            {
+                Remove(tracked);
             }
         }
     }
