@@ -1240,9 +1240,9 @@ section 2, or in the user's own Codex home), and an ACP agent's under its own so
 
 #### Records
 
-Every rule of 4.7 and 4.13 applies to the entries — header and copied history (`headerMs − 2000`), record
-classification, state and phase table, assistant steps 1–5, tokens, metadata (`project` = basename of the header
-`cwd`; `model` = the latest response's `message.model`), deduplication and copied history — with these differences:
+Every rule of 4.7 and 4.13 applies to the entries — the header, record classification, state and phase table,
+assistant steps 1–5, tokens, metadata (`project` = basename of the header `cwd`; `model` = the latest response's
+`message.model`), deduplication and copied history (`headerMs − 2000`) — with these differences:
 
 - **Keys**: `"openclaw:" + id + ":" + stamp` (the stamp of 4.7 step 2).
 - **Timing**: there is no duration field. `startMs = message.timestamp` (taken when OpenClaw's provider transport
@@ -1258,9 +1258,10 @@ classification, state and phase table, assistant steps 1–5, tokens, metadata (
   results, compactions or branch summaries).
 - **Mirrors** (delegated turns): an assistant message is a mirror when `message.__openclaw.mirrorOrigin` is a
   non-empty string (the Codex app server; imported history), when `message.api == "cli"` and
-  `message.provider == "claude-cli"`, when `message.provider` starts with `acp-`, or when its window is delegated and
-  `acp_owned = 1` or the window's runtime is `codex`, `claude-cli` or starts with `acp`. A mirror emits no response and
-  sets no model; it still counts for `lastLineMs` and, in an embedded window, for the phase.
+  `message.provider == "claude-cli"`, when `message.provider` starts with `acp-`, or when its window has
+  `acp_owned = 1` or the runtime (`agent_harness_id`, as above) `codex`, `claude-cli` or one starting with `acp`. A
+  mirror emits no response and sets no model; it still counts for `lastLineMs` and, in an embedded window, for the
+  phase.
 - **Untimed responses**: an assistant message that is not a mirror, when its window is delegated or
   `message.api == "cli"` (the Gemini CLI backend, whose own logs live in a temporary folder that OpenClaw removes; the
   GitHub Copilot and Muse harnesses; other CLI backends), emits its response with `startMs = null`: the usage of a
@@ -1275,8 +1276,9 @@ Startup and reading (section 5): an agent database takes part in the startup ord
 the newer of `openclaw-agent.sqlite` and its `-wal`; within a database the windows are read in `created_at` order, ties
 by `session_id`. Windows whose `transcript_updated_at` (else `created_at`) is within `todayStartMs − 15 min` or later
 are read completely at startup; older windows start after their last row, reading only their header (the first row
-whose entry has type `session`) first, as omp does for a file read from an offset (4.7). While running, change detection watches the
-database and its `-wal` (file watcher plus the 1-second fallback, like 5.2). On a change, one short transaction reads
+whose entry has type `session`) first, as omp does for a file read from an offset (4.7). While running, change
+detection watches the database and its `-wal` (file watcher plus the 1-second fallback, like 5.2). On a change, one
+short transaction reads
 `session_windows` (a few thousand rows at most) and `transcript_rewrite_watermarks`, then the rows with a `seq` above
 the last one read of every window whose `transcript_updated_at` advanced, and all rows of a new window. A window whose
 watermark `generation` changed, or whose highest `seq` dropped, was rewritten: it is reset (parser state, never the
