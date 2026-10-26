@@ -144,6 +144,13 @@ public struct ReportWindow: Equatable, Sendable {
         sample.facts.counters.since(lastCounters).byModel.values.contains { $0.hasTokens }
     }
 
+    /// The ledger received any increment since the previous tick, a counter or agent traffic (the changed rule of
+    /// METRICS 11.9).
+    public func hasIncrement(_ sample: ReportSample) -> Bool {
+        sample.facts.counters.since(lastCounters).byModel.values.contains { !$0.isZero }
+            || !sample.traffic.agentBytes(since: lastTraffic).isEmpty
+    }
+
     /// Empties the window. `keepingTick` keeps this tick's increments (the gap rule, METRICS 11.1).
     public mutating func discard(_ sample: ReportSample, keepingTick: Bool) {
         baseline = keepingTick ? lastCounters : sample.facts.counters

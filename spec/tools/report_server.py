@@ -147,6 +147,8 @@ class Handler(BaseHTTPRequestHandler):
                 print(f"  -> upgrade refused {status} {payload['error']['code']}", flush=True)
             self._send(status, extra, payload)
             return
+        # RFC 6455 4.1: the 101 is an HTTP/1.1 response; BaseHTTPRequestHandler answers HTTP/1.0 by default.
+        self.protocol_version = "HTTP/1.1"
         self.send_response(101)
         self.send_header("Upgrade", "websocket")
         self.send_header("Connection", "Upgrade")
