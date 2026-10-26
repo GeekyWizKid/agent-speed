@@ -109,9 +109,10 @@ struct SpeedEngine: Sendable {
         let measured = timed.filter(\.record.isFinal)
         let unmeasured = timed.filter { !$0.record.isFinal }
         let references = SpeedReferences(timed: measured, nowMs: nowMs)
+        let grader = IntelligenceGrader(table: currentTable, agentProviders: agentProviders)
         let window = LiveWindow(
             nowMs: nowMs, measured: measured, unmeasured: unmeasured, agents: agents,
-            latestEnds: latestEndsByAgent(), references: references
+            latestEnds: latestEndsByAgent(), references: references, grader: grader
         )
         let history = Self.history(nowMs: nowMs, measured: measured, estimates: window.estimates)
 
@@ -152,7 +153,9 @@ struct SpeedEngine: Sendable {
             sourceLiveEstimated: window.estimatedBySource,
             liveCost: window.cost,
             sourceLiveCost: window.costBySource,
-            agents: agentList(nowMs: nowMs, window: window, references: references),
+            intelligence: window.intelligence,
+            sourceIntelligence: window.intelligenceBySource,
+            agents: agentList(nowMs: nowMs, window: window, references: references, grader: grader),
             history: history,
             today: ledger?.totals ?? TokenTotals(),
             todayBySource: ledger?.bySource ?? [:],
@@ -173,17 +176,17 @@ struct SpeedEngine: Sendable {
 
     // MARK: - Live reporting
 
-    /// The table that names models for live reporting: the current one (METRICS 11.3).
-    private var reportTable: PriceTable { pricing?.current ?? PriceBook.bundled }
+    /// The current table: it names models for live reporting (METRICS 11.3) and classes them (6.9).
+    private var currentTable: PriceTable { pricing?.current ?? PriceBook.bundled }
 
     private func reportModelId(of record: ResponseRecord) -> String {
-        reportTable.reportModelId(model: record.model, provider: record.provider)
+        currentTable.reportModelId(model: record.model, provider: record.provider)
     }
 
     /// Agents of the 6.7 base set per source, generating agents per model, and the report ledger (METRICS 11.2).
     private func reportFacts(nowMs: Int64) -> ReportLiveFacts {
         var facts = ReportLiveFacts(counters: reportLedger.counters)
-        let table = reportTable
+        let table = currentTable
         for agent in agents.values {
             let isFresh = agent.lastLineMs.map { nowMs - $0 <= Self.staleMs } ?? false
             let phase = isFresh ? agent.phase : .idle
@@ -309,7 +312,8 @@ struct SpeedEngine: Sendable {
 
     // MARK: - Agents list
 
-    private func agentList(nowMs: Int64, window: LiveWindow, references: SpeedReferences) -> [EngineAgentStatus] {
+    private func agentList(nowMs: Int64, window: LiveWindow, references: SpeedReferences,
+                           grader: IntelligenceGrader) -> [EngineAgentStatus] {
         func status(of agent: EngineAgent) -> EngineAgentStatus {
             let isFresh = agent.lastLineMs.map { nowMs - $0 <= Self.staleMs } ?? false
             return EngineAgentStatus(
@@ -317,7 +321,8 @@ struct SpeedEngine: Sendable {
                 phase: isFresh ? agent.phase : .idle,
                 live: window.byAgent[agent.id] ?? .zero,
                 recentSpeed: references.recent(for: agent.id)?.output,
-                liveCost: window.costByAgent[agent.id] ?? .zero
+                liveCost: window.costByAgent[agent.id] ?? .zero,
+                grade: grader.grade(of: agent)
             )
         }
         var listed: [String: EngineAgentStatus] = [:]

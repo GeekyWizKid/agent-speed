@@ -88,6 +88,8 @@ struct EngineAgentStatus: Equatable, Sendable {
     var parentId: String?
     /// The agent's live cost rate (METRICS 9.5).
     var liveCost: LiveCost = .zero
+    /// Its current model and effort's grade (METRICS 6.9).
+    var grade: IntelligenceGrade = .unknown
 }
 
 /// Everything the engine computes for one instant.
@@ -101,6 +103,9 @@ struct EngineOutput: Sendable {
     /// The live cost rate (METRICS 9.5), in total and per source.
     var liveCost: LiveCost = .zero
     var sourceLiveCost: [SourceKind: LiveCost] = [:]
+    /// The live intelligence sums (METRICS 6.9), in total and per source.
+    var intelligence: IntelligenceSums = .zero
+    var sourceIntelligence: [SourceKind: IntelligenceSums] = [:]
     var agents: [EngineAgentStatus]
     var history: [HistoryPoint]
     var today: TokenTotals

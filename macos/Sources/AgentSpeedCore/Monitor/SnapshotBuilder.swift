@@ -75,7 +75,8 @@ enum SnapshotBuilder {
                 parentId: row.parentId,
                 liveCost: row.liveCost,
                 cwdPath: row.agent.cwdPath,
-                modes: row.agent.modes
+                modes: row.agent.modes,
+                grade: row.grade
             )
         }
         let sources = SourceKind.allCases.map { kind in
@@ -93,7 +94,8 @@ enum SnapshotBuilder {
                 liveCost: output.sourceLiveCost[kind] ?? .zero,
                 todayCost: output.todayCostBySource[kind] ?? .zero,
                 unpricedModels: unpricedModels(output.todayCostByModel[kind]),
-                configuredModes: info?.configuredModes ?? .empty
+                configuredModes: info?.configuredModes ?? .empty,
+                intelligence: output.sourceIntelligence[kind] ?? .zero
             )
         }
         return SpeedSnapshot(
@@ -116,6 +118,7 @@ enum SnapshotBuilder {
             dayStart: date(output.todayStartMs),
             liveCost: output.liveCost,
             todayCost: output.todayCost,
+            intelligence: output.intelligence,
             report: output.report
         )
     }

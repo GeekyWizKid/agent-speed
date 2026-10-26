@@ -110,6 +110,8 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
     public var liveCost: LiveCost
     /// The full working directory the transcript names (METRICS 10.6); nil when it names none.
     public var cwdPath: String?
+    /// The grade of its current model and effort (METRICS 6.9).
+    public var grade: IntelligenceGrade
 
     public init(
         id: String,
@@ -124,7 +126,8 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
         parentId: String? = nil,
         liveCost: LiveCost = .zero,
         cwdPath: String? = nil,
-        modes: ExecutionModes = .empty
+        modes: ExecutionModes = .empty,
+        grade: IntelligenceGrade = .unknown
     ) {
         self.id = id
         self.source = source
@@ -139,6 +142,7 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
         self.parentId = parentId
         self.liveCost = liveCost
         self.cwdPath = cwdPath
+        self.grade = grade
     }
 }
 
@@ -162,6 +166,8 @@ public struct SourceStatus: Identifiable, Equatable, Sendable {
     public var todayCost: CostTally
     /// Models of today's responses without a known price, most unpriced requests first.
     public var unpricedModels: [String]
+    /// The live intelligence sums (METRICS 6.9).
+    public var intelligence: IntelligenceSums
 
     public init(
         kind: SourceKind,
@@ -176,7 +182,8 @@ public struct SourceStatus: Identifiable, Equatable, Sendable {
         liveCost: LiveCost = .zero,
         todayCost: CostTally = .zero,
         unpricedModels: [String] = [],
-        configuredModes: ExecutionModes = .empty
+        configuredModes: ExecutionModes = .empty,
+        intelligence: IntelligenceSums = .zero
     ) {
         self.kind = kind
         self.enabled = enabled
@@ -191,6 +198,7 @@ public struct SourceStatus: Identifiable, Equatable, Sendable {
         self.todayCost = todayCost
         self.unpricedModels = unpricedModels
         self.configuredModes = configuredModes
+        self.intelligence = intelligence
     }
 
     /// Listed on the dashboard (DESIGN 4.3): the source produced output tokens today or is generating right now (its
@@ -275,6 +283,8 @@ public struct SpeedSnapshot: Equatable, Sendable {
     public var liveCost: LiveCost
     /// Today's cost of every source (METRICS 9.6).
     public var todayCost: CostTally
+    /// The live intelligence sums of every source (METRICS 6.9).
+    public var intelligence: IntelligenceSums
     /// Live reporting's agent counts and cumulative ledger (METRICS 11.2, 11.4).
     public var report: ReportLiveFacts
 
@@ -298,6 +308,7 @@ public struct SpeedSnapshot: Equatable, Sendable {
         dayStart: Date = .distantPast,
         liveCost: LiveCost = .zero,
         todayCost: CostTally = .zero,
+        intelligence: IntelligenceSums = .zero,
         report: ReportLiveFacts = .empty
     ) {
         self.timestamp = timestamp
@@ -319,6 +330,7 @@ public struct SpeedSnapshot: Equatable, Sendable {
         self.dayStart = dayStart
         self.liveCost = liveCost
         self.todayCost = todayCost
+        self.intelligence = intelligence
         self.report = report
     }
 
