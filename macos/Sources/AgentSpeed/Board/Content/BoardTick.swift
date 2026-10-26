@@ -3,8 +3,9 @@ import AgentSpeedOrbModel
 import CoreGraphics
 
 /// What one engine tick tells a board (DESIGN 2c Content). The live feed (the app's boards controller, from the
-/// snapshot) and the demo feed make it; a style's `BoardContentBuilding` draws it. Fields are only ever added.
-struct BoardTick {
+/// snapshot) and the demo feed make it; a style's `BoardContentBuilding` draws it. Fields are only ever added. An equal
+/// tick shows the same content, so it is not laid out again.
+struct BoardTick: Equatable {
     /// `live_A` in the board's metric (METRICS 6.8) and its text (METRICS 7).
     var value: Double
     var valueText: String

@@ -78,7 +78,7 @@ final class BoardTimingContent: BoardContentBuilding {
             let stops: [(RGBColor, CGFloat)] = [(RGBColor(hex: 0x2DD4BF), 0), (RGBColor(hex: 0x818CF8), 0.4),
                                                  (RGBColor(hex: 0xFB7185), 0.75), (RGBColor(hex: 0xFACC15), 1)]
             BoardDrawing.glowing(palette.glows ? palette.heat(max(0.1, heat)).opacity(0.7) : nil, blur: 10, in: context) {
-                BoardDrawing.gradient(rail, stops: stops, from: CGPoint(x: 0, y: 0), to: CGPoint(x: width, y: 0), in: context)
+                BoardDrawing.gradient(rail, stops: stops, from: CGPoint(x: 0, y: 0), to: CGPoint(x: width, y: 0), in: $0)
             }
         }
         return [hatch, rail]

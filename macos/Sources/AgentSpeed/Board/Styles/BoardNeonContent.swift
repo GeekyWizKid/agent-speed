@@ -175,14 +175,15 @@ final class BoardNeonContent: BoardContentBuilding {
         var items: [BoardContentItem] = []
         if palette.glows {
             var glow = BoardContentItem(key: "tube.glow", frame: rect, motion: .none, revision: revision) { context, _ in
+                // The light the edge casts inward (`box-shadow: inset`): the glow of everything outside the board.
                 let shape = CGPath(roundedRect: rect, cornerWidth: corner, cornerHeight: corner, transform: nil)
                 context.addPath(shape)
                 context.clip()
-                BoardDrawing.setGlow(base.opacity(0.55 * opacity), blur: 6 + heat * 18, in: context)
-                context.addRect(rect.insetBy(dx: -40, dy: -40))
-                context.addPath(shape)
-                context.setFillColor(RGBColor.black.cgColor)
-                context.fillPath(using: .evenOdd)
+                BoardGlow.fill(base.opacity(0.55 * opacity), blur: 6 + heat * 18, in: context) { outside in
+                    outside.addRect(rect.insetBy(dx: -40, dy: -40))
+                    outside.addPath(shape)
+                    outside.fillPath(using: .evenOdd)
+                }
             }
             glow.rasterScale = BoardContentItem.softScale
             glow.ambient = ambient

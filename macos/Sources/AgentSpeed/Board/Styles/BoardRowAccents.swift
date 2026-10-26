@@ -105,7 +105,7 @@ enum BoardRowDecals {
             // Glass's tint sits on an opaque base so the capsule under it does not show through.
             if style == .glass { BoardDrawing.fill(chip, radius: radius, color: palette.dark ? RGBColor(hex: 0x14161D) : .white, in: context) }
             BoardDrawing.glowing(glow ? BoardPalette.mint.opacity(0.8) : nil, blur: 12, in: context) {
-                BoardDrawing.fill(chip, radius: radius, color: fill, in: context)
+                BoardDrawing.fill(chip, radius: radius, color: fill, in: $0)
             }
             label.draw(in: context, x: chip.minX + 5, baseline: label.baseline(centeredOn: chip.midY))
         }

@@ -174,7 +174,7 @@ struct BoardListRows {
         let start = neon ? heat.opacity(0) : heat.opacity(heat.alpha * 0.35)
         BoardDrawing.glowing(heat.opacity(neon ? heat.alpha : heat.alpha * 0.7), blur: neon ? 8 : 6, in: context) {
             BoardDrawing.gradient(rect, radius: height, stops: [(start, 0), (heat, 1)], from: CGPoint(x: rect.minX, y: 0),
-                                  to: CGPoint(x: rect.maxX, y: 0), in: context)
+                                  to: CGPoint(x: rect.maxX, y: 0), in: $0)
         }
     }
 

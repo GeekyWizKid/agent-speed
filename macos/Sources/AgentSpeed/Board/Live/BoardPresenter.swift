@@ -22,6 +22,8 @@ final class BoardPresenter {
     private var look: Look
     private var builder: BoardContentBuilding
     private var layout: BoardContentLayout?
+    /// The tick `layout` was made from: an equal tick (an idle board) lays out and applies nothing.
+    private var layoutTick: BoardTick?
     private var layoutStale = true
     private var hovered: String?
     private var tooltipTimer: Timer?
@@ -73,6 +75,7 @@ final class BoardPresenter {
         window.dark = dark
         builder = BoardContentBuilders.make(style: next.style, size: next.size, dark: dark, l10n: model.l10n, capsule: nil)
         layoutStale = true
+        layoutTick = nil
         window.contentChanged(animated: false)
         publishAccessibility(force: true)
     }
@@ -94,6 +97,7 @@ final class BoardPresenter {
         guard let tick = runtime.tick else { return [] }
         if layoutStale || layout == nil {
             layout = builder.layout(tick)
+            layoutTick = tick
             layoutStale = false
         }
         guard var items = layout?.takeItems() else { return [] }
@@ -105,8 +109,10 @@ final class BoardPresenter {
 
     private func tickArrived() {
         guard let tick = runtime.tick else { return }
-        layoutStale = true
-        window.contentChanged()
+        if layoutStale || tick != layoutTick {
+            layoutStale = true
+            window.contentChanged()
+        }
         let laidOut = window.isRendering && !layoutStale ? layout : nil
         let punch = runtime.frame.punch
         window.driver.update { fx in BoardEffectsPlayer.play(tick, layout: laidOut, punch: punch, on: &fx) }

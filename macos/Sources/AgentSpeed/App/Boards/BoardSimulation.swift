@@ -98,7 +98,7 @@ struct BoardSimulation {
     let scenario: String
     let tick: Double
     var speedScale = 1.0
-    /// Holds every agent idle (the benchmark's idle state).
+    /// Holds every agent idle (the benchmark's idle state): no speed, every phase idle and none changing.
     var paused = false
     private(set) var agents: [Agent] = []
     private(set) var time = 0.0
@@ -166,8 +166,10 @@ struct BoardSimulation {
         let duel = scenario == "duel"
         for index in agents.indices {
             var a = agents[index]
-            a.phaseLeft -= tick
-            if a.phaseLeft <= 0 { nextPhase(&a) }
+            if !paused {
+                a.phaseLeft -= tick
+                if a.phaseLeft <= 0 { nextPhase(&a) }
+            }
             let wobble = 0.82 + 0.36 * random()
             a.inst = paused ? 0 : a.inst
             var target = a.phase == .generating && !paused ? a.base * a.burst * wobble * speedScale : 0
@@ -191,6 +193,11 @@ struct BoardSimulation {
 
     /// The groups ranked by the production ranking, with this tick's events.
     mutating func snapshot() -> Snapshot {
+        let agents = paused ? self.agents.map { agent in
+            var idle = agent
+            idle.phase = .idle
+            return idle
+        } : self.agents
         var groups: [String: Group] = [:]
         var order: [String] = []
         for a in agents where a.parentID == nil {
@@ -217,8 +224,8 @@ struct BoardSimulation {
         let result = ranking.tick(entries)
         let live = agents.reduce(0) { $0 + $1.live }
         return Snapshot(time: time, groups: result.order.compactMap { groups[$0] }, events: result.events, live: live,
-                        generating: agents.filter { $0.phase == .generating && !paused }.count,
-                        tools: agents.filter { $0.phase == .tools && !paused }.count, peak: peak, today: today, cost: cost,
+                        generating: agents.filter { $0.phase == .generating }.count,
+                        tools: agents.filter { $0.phase == .tools }.count, peak: peak, today: today, cost: cost,
                         history: history)
     }
 }

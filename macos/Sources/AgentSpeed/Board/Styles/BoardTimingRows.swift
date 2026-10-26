@@ -151,7 +151,7 @@ struct BoardTimingRows {
         }
         if palette.highContrast { return BoardDrawing.fill(block, radius: 5, color: BoardPalette.gold, in: context) }
         BoardDrawing.glowing(BoardPalette.gold.opacity(0.35), blur: 12, in: context) {
-            BoardDrawing.fill(block, radius: 5, color: BoardPalette.gold, in: context)
+            BoardDrawing.fill(block, radius: 5, color: BoardPalette.gold, in: $0)
         }
         BoardDrawing.gradient(block, radius: 5, stops: [(RGBColor(hex: 0xFFF1A8), 0), (BoardPalette.gold, 0.45), (RGBColor(hex: 0xD49B00), 1)],
                               from: CGPoint(x: block.minX + 8, y: block.minY), to: CGPoint(x: block.maxX - 8, y: block.maxY), in: context)
@@ -168,7 +168,7 @@ struct BoardTimingRows {
         let stripe = sub ? CGRect(x: x + 1, y: midY - 5, width: 2, height: 10) : CGRect(x: x, y: midY - 9, width: 3, height: 18)
         let tint = color.opacity(sub ? 0.7 : 1)
         BoardDrawing.glowing(palette.glows && !sub ? color.opacity(0.6) : nil, blur: 6, in: context) {
-            BoardDrawing.fill(stripe, radius: 2, color: tint, in: context)
+            BoardDrawing.fill(stripe, radius: 2, color: tint, in: $0)
         }
     }
 }

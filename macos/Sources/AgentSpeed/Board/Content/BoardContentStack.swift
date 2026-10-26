@@ -98,7 +98,7 @@ final class BoardContentStack {
             let target = layerFrame(item.frame)
             if var entry = entries[item.key] {
                 Self.setPlate(item.plate, on: entry.layer)
-                entry.layer.masksToBounds = item.clips
+                if entry.layer.masksToBounds != item.clips { entry.layer.masksToBounds = item.clips }
                 if entry.revision != item.revision || entry.frame.size != item.frame.size {
                     let old = entry.image
                     entry.image = rasterize(item)
@@ -124,8 +124,6 @@ final class BoardContentStack {
                     }
                     entry.frame = item.frame
                 }
-                entry.layer.removeAnimation(forKey: "leave")
-                entry.layer.opacity = 1
                 if animated { play(item, on: entry.layer) }
                 if entry.ambient != item.ambient {
                     entry.ambient = item.ambient
@@ -245,3 +243,5 @@ enum BoardRaster {
         return context.makeImage()
     }
 }
+
+

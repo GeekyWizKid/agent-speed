@@ -6,7 +6,7 @@ import Darwin
 /// clock) in the top-right corner of the main display, feeds it from `BoardSimulation` (`team`) and measures the
 /// DESIGN 2c scenario over a window per state: idle → climb (cruise) → redline with bursts → overtakes → new leader,
 /// then hidden and occluded. Reports process CPU, frames per second, the time share of each frame class, CPU and GPU
-/// time per frame. Writes `DIR/board-bench.txt` and quits. Use a release build.
+/// time per frame, and the main thread's CPU per engine tick (content layout, rasterization and layer updates). Writes `DIR/board-bench.txt` and quits. Use a release build.
 ///
 /// `AGENT_SPEED_BENCH_STYLES` (comma separated), `AGENT_SPEED_BOARD_SIZE` (S, M, L; default M),
 /// `AGENT_SPEED_BOARD_LEVEL` (off, soft, standard, max), `AGENT_SPEED_BENCH_SECONDS` (10),
@@ -44,6 +44,8 @@ final class BoardBenchmark {
         let classes: (Double, Double, Double)
         let cpuMicros: Double
         let gpuMillis: Double
+        /// Main-thread CPU per engine tick for the content (layout, rasterization, layer updates) and effects events.
+        let tickMicros: Double
     }
 
     static let states = [
@@ -70,6 +72,8 @@ final class BoardBenchmark {
     private var stateStart = Date()
     private var scale = 1.0
     private var ticks = 0
+    private var tickNanoseconds: UInt64 = 0
+    private var tickCount = 0
 
     static func start(into directory: URL) {
         let bench = BoardBenchmark(directory: directory)
@@ -169,6 +173,8 @@ final class BoardBenchmark {
             _ = canvas.encoder?.gpuTime.drain()
         }
         var samples = (0, 0, 0)
+        tickNanoseconds = 0
+        tickCount = 0
         let cpuStart = Self.cpuTime()
         let wallStart = Date()
         while Date().timeIntervalSince(wallStart) < seconds {
@@ -192,7 +198,8 @@ final class BoardBenchmark {
         let row = Row(style: style, state: state, cpu: cpu, fps: Double(frames) / wall, backdropFPS: Double(backdropFrames) / wall,
                       classes: (Double(samples.0) / total, Double(samples.1) / total, Double(samples.2) / total),
                       cpuMicros: frames > 0 ? Double(nanoseconds) / Double(frames) / 1000 : 0,
-                      gpuMillis: frames > 0 ? gpuSeconds / Double(frames) * 1000 : 0)
+                      gpuMillis: frames > 0 ? gpuSeconds / Double(frames) * 1000 : 0,
+                      tickMicros: tickCount > 0 ? Double(tickNanoseconds) / Double(tickCount) / 1000 : 0)
         rows.append(row)
         print(Self.format(row))
     }
@@ -202,6 +209,11 @@ final class BoardBenchmark {
         guard let board, let feed else { return }
         setSpeed()
         feed.step()
+        let start = Self.threadNanoseconds()
+        defer {
+            tickNanoseconds += Self.threadNanoseconds() - start
+            tickCount += 1
+        }
         board.contentChanged()
         ticks += 1
         let event = state.event
@@ -272,9 +284,9 @@ final class BoardBenchmark {
         let gpu = row.gpuMillis > 1.5 ? " GPU OVER" : ""
         let classes = String(format: "60:%3.0f%% 30:%3.0f%% none:%3.0f%%", row.classes.0 * 100, row.classes.1 * 100,
                              row.classes.2 * 100)
-        return String(format: "%-7@ %-10@ CPU %6.2f %%  ≤ %3.1f  %-4@  %5.1f fps (warp %4.1f)  [%@]  %6.0f µs/frame  %5.2f ms GPU%@",
+        return String(format: "%-7@ %-10@ CPU %6.2f %%  ≤ %3.1f  %-4@  %5.1f fps (warp %4.1f)  [%@]  %6.0f µs/frame  %5.2f ms GPU  %6.0f µs/tick%@",
                       row.style.rawValue, row.state.name, row.cpu, row.state.budget, pass, row.fps, row.backdropFPS, classes,
-                      row.cpuMicros, row.gpuMillis, gpu)
+                      row.cpuMicros, row.gpuMillis, row.tickMicros, gpu)
     }
 
     private func writeReport() {
@@ -291,6 +303,11 @@ final class BoardBenchmark {
         getrusage(RUSAGE_SELF, &usage)
         func seconds(_ t: timeval) -> Double { Double(t.tv_sec) + Double(t.tv_usec) / 1e6 }
         return seconds(usage.ru_utime) + seconds(usage.ru_stime)
+    }
+
+    /// CPU time of the calling thread.
+    private static func threadNanoseconds() -> UInt64 {
+        clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID)
     }
 
     /// The process's physical footprint in MB.

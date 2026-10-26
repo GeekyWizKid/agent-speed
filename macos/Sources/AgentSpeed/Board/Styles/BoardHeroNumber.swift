@@ -83,9 +83,9 @@ struct BoardHeroNumber {
 
     /// The glow under the digits, without the glyphs (drawn by the hero item at `x`, `top` in its coordinates).
     func drawGlow(in context: CGContext, x: CGFloat, top: CGFloat, color: RGBColor, blurs: [CGFloat]) {
-        for blur in blurs where blur > 0 {
-            label.drawGlowOnly(in: context, x: x, baseline: top + baseline, glow: color, blur: blur)
-        }
+        let blurs = blurs.filter { $0 > 0 }
+        guard !blurs.isEmpty else { return }
+        label.drawGlowOnly(in: context, x: x, baseline: top + baseline, glow: color, blurs: blurs)
     }
 
     /// The gold sheen across the digits of a new peak (the prototypes' `.num.gild`, 1.3 s).
@@ -112,7 +112,7 @@ struct BoardHeroNumber {
         return BoardDecal(frame: frame, motion: .pop(seconds: 2.2), celebration: true) { context, _ in
             let rect = CGRect(x: margin, y: margin, width: chip.width, height: chip.height)
             BoardDrawing.glowing(glows ? BoardPalette.gold.opacity(glass ? 0.45 : 0.7) : nil, blur: glass ? 14 : 16, in: context) {
-                BoardDrawing.fill(rect, radius: glass ? 6 : 4, color: BoardPalette.gold, in: context)
+                BoardDrawing.fill(rect, radius: glass ? 6 : 4, color: BoardPalette.gold, in: $0)
             }
             if glass {
                 BoardDrawing.gradient(rect, radius: 6, stops: [(RGBColor(hex: 0xFFE58A), 0), (BoardPalette.gold, 1)],

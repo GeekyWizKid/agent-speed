@@ -50,18 +50,11 @@ enum BoardDrawing {
         context.restoreGState()
     }
 
-    /// Runs `body` with a glow (CSS `box-shadow` / `drop-shadow` of `blur`) unless `color` is nil.
-    static func glowing(_ color: RGBColor?, blur: CGFloat, in context: CGContext, _ body: () -> Void) {
-        guard let color, blur > 0 else { return body() }
-        context.saveGState()
-        setGlow(color, blur: blur, in: context)
-        body()
-        context.restoreGState()
-    }
-
-    /// A shadow of `blur` points around what follows (shadows are set in device pixels, outside the CTM).
-    static func setGlow(_ color: RGBColor, blur: CGFloat, in context: CGContext) {
-        context.setShadow(offset: .zero, blur: blur * abs(context.userSpaceToDeviceSpaceTransform.a), color: color.cgColor)
+    /// Draws `body` (in the context it is given) with a glow (CSS `box-shadow` / `drop-shadow` of `blur`) under it, or
+    /// plainly when `color` is nil.
+    static func glowing(_ color: RGBColor?, blur: CGFloat, in context: CGContext, _ body: (CGContext) -> Void) {
+        if let color, blur > 0 { BoardGlow.fill(color, blur: blur, in: context, shapes: body) }
+        body(context)
     }
 
     // MARK: Phase badge (DESIGN 4: three dots while generating, a wrench in tools, a grey dot when idle)
@@ -84,7 +77,7 @@ enum BoardDrawing {
             }
         case .generating:
             glowing(glows ? color : nil, blur: 7, in: context) {
-                fillCircle(CGRect(x: origin.x + 2, y: origin.y + 2, width: 6, height: 6), color: color, in: context)
+                fillCircle(CGRect(x: origin.x + 2, y: origin.y + 2, width: 6, height: 6), color: color, in: $0)
             }
         case .tools:
             if let wrench = symbol("wrench.adjustable.fill", size: 8.5, color: color) {
@@ -147,7 +140,7 @@ enum BoardDrawing {
             let rect = CGRect(x: x, y: origin.y, width: diameter, height: diameter)
             if let ring { fillCircle(rect.insetBy(dx: -1.5, dy: -1.5), color: ring, in: context) }
             glowing(glows && ring == nil ? color : nil, blur: 4, in: context) {
-                fillCircle(rect, color: color.opacity(ring == nil ? 1 : 0.85), in: context)
+                fillCircle(rect, color: color.opacity(ring == nil ? 1 : 0.85), in: $0)
             }
             x += diameter - overlap
         }
