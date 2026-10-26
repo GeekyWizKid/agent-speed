@@ -24,7 +24,7 @@ FORGET_AFTER = 3
 MAX_BYTES_PER_SECOND = 12_500_000_000
 SCRIPT_HOSTS = {"node", "nodejs", "bun", "deno"}
 SOURCES = ("codex", "claudeCode", "claudeDesktop", "deepseek", "opencode", "gemini", "omp", "antigravity", "workbuddy",
-           "workbuddyAi", "zcode", "kimi", "grokBuild", "pi")
+           "workbuddyAi", "zcode", "kimi", "grokBuild", "pi", "openclaw")
 
 
 # ---------------------------------------------------------------------------------------------------- formatting
