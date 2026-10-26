@@ -134,7 +134,8 @@ internal static class BoardFrameHarness
         double? captureAt = column.Moment == Moment.AtTime ? end : null;
         while (now < limit)
         {
-            if (rig.Advance(now) && captureAt is null && now >= end && rig.LastTick is { } tick)
+            if (rig.Advance(now) && captureAt is null && now >= end && column.Moment is Moment.AfterOvertake or Moment.AfterNewLeader &&
+                rig.LastTick is { } tick)
             {
                 var wanted = column.Moment == Moment.AfterNewLeader ? BoardRankEventKind.NewLeader : BoardRankEventKind.Overtake;
                 if (tick.Events.Any(e => e.Kind == wanted))
