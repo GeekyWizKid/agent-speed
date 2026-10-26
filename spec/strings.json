@@ -3708,6 +3708,24 @@
     "en": "intelligence %@, thinking %@ tokens per second",
     "ja": "知能 %@、思考 毎秒 %@ トークン"
   },
+  "work.looping": {
+    "zh-Hant": "原地打轉：同一組動作已重複 %d 次，且有失敗",
+    "zh-Hans": "原地打转：同一组动作已重复 %d 次，且有失败",
+    "en": "Going in circles: the same actions repeated %d times, some failing",
+    "ja": "堂々巡り：同じ操作が %d 回繰り返され、失敗を含みます"
+  },
+  "work.repeating": {
+    "zh-Hant": "重複同一組動作 %d 次（沒有失敗，可能在等待）",
+    "zh-Hans": "重复同一组动作 %d 次（没有失败，可能在等待）",
+    "en": "Repeating the same actions %d times (no failures, possibly waiting)",
+    "ja": "同じ操作を %d 回繰り返しています（失敗なし、待機中の可能性）"
+  },
+  "work.summary": {
+    "zh-Hant": "新動作 %@ · 失敗 %d · 已修正 %d",
+    "zh-Hans": "新动作 %@ · 失败 %d · 已修正 %d",
+    "en": "New actions %@ · failed %d · recovered %d",
+    "ja": "新しい操作 %@・失敗 %d・修正済み %d"
+  },
   "orbs.names": {
     "zh-Hant": "名稱標籤",
     "zh-Hans": "名称标签",

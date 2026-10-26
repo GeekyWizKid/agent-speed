@@ -1448,6 +1448,12 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
    with Reduce Motion); `idle` and `generating` show an en dash `–` in tertiary color. Glyph and dash sit in the same
    right-aligned trailing slot as the digits (same baseline, no width change), crossfade 0.2 s to and from numbers,
    and read as the phase name for accessibility (`phase.tools`, `phase.idle`).
+   **Looping mark** — while the agent is *looping* (METRICS 6.10) an amber `arrow.triangle.2.circlepath` (Segoe
+   Fluent Sync U+E895), 11 pt, sits before the project name (4 pt gap) and the row's tooltip starts with
+   `work.looping`. It fades in 0.25 s and out 0.6 s (Reduce Motion: no fade), never moves the row (the 6.7 order is
+   unchanged) and is not drawn on orbs or boards. The tooltip's last line is `work.summary` when the agent has at
+   least 8 recent actions, and `work.repeating` while it repeats without failures. Accessibility: the row label adds
+   `work.looping` while it holds.
    **Effort capsule** — the agent's current reasoning effort and speed (`spec/EXECUTION-MODES.md`, Reasoning effort
    and speed), drawn in a trailing column just before the live value (8 pt gap). The column is as wide as the widest
    capsule among the visible rows (width changes animate 0.2 s), so every meter starts on the same vertical line and

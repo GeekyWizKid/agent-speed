@@ -1377,6 +1377,47 @@ left out of `w'`.
 Every sum is additive over sources, so an orb adds the per-source sums of its `A` (6.8). Claude Opus 5.5 at `xhigh`
 writing 44 % reasoning: 100 + 24 + 20 × 0.44 ≈ 133. The value never drives heat, tiers, titles or peaks.
 
+### 6.10 Work signals
+
+Per agent, from the tool calls in its own file, never from what a tool returned or what the agent wrote: whether it
+is going in circles, and whether its recent actions keep finding something new. Signals appear on the agent's row
+and tooltip (DESIGN 4), never in a score. `spec/tools/work_signals.py` implements this section and checks
+`spec/fixtures/work-signal-cases.json`.
+
+**Actions.** A parser turns every tool call into an action `(time, tool, digest)` and every tool result into an
+outcome `(time, failed)`, matched by call id:
+
+| Source | Call | `tool`, `digest` input | Result | `failed` |
+| --- | --- | --- | --- | --- |
+| Claude (both) | assistant `message.content[]` block `tool_use` (each `id` once per file: a message's lines repeat it) | `name`; `input` | user block `tool_result` with that `tool_use_id` | `is_error == true` |
+| Codex | `response_item` `function_call` / `custom_tool_call` | `name`; `arguments` / `input` | `…_output` with that `call_id` | the output's leading JSON object (in the first `input_text` item when `output` is an array) has an integer `exit_code` ≠ 0 |
+| omp, Pi | assistant `toolCall` block | `name`; `arguments` | `toolResult` with that `toolCallId` | `isError == true` |
+| others | — (no actions; no signals) | | | |
+
+`digest` = the first 16 lowercase hex digits of SHA-256 over the call's input as the file stores it: the UTF-8 text of
+a string input (Codex `arguments` and `input` are strings), the raw JSON text of an object or array exactly as it
+appears in the line (Claude `input`, omp and Pi `arguments`). It is computed while the line is parsed; the input
+itself is never kept. Only
+`tool`, `digest`, times and `failed` are stored, at most the last **64 actions** per agent. An outcome never read
+(no result yet, or a format that does not say) is `unknown`, which is not a failure. Copied history (3.5, 4.7) and
+seeding (6.4) add no actions: a file's actions start with its live lines.
+
+**Signals** of an agent at `nowMs`, over its actions within the last 10 minutes (`recent`):
+
+- **Looping**: the newest actions repeat the same block of 1, 2 or 3 consecutive `(tool, digest)` pairs at least 3
+  times in a row (the same call 3 times; `A B A B A B`; `A B C A B C A B C`), the newest action is less than 120 s
+  old, and at least one action of the repeated run failed. The count shown is the number of repeats (the largest over
+  the three block sizes). Shown as long as it holds.
+- **Repeating**: the same, with no failure in the repeated run (polling, waiting). Shown only in the tooltip.
+- **Novelty**: `distinct (tool, digest) in recent ÷ |recent|` when `|recent| ≥ 8`, else none. Shown in the tooltip
+  only, as a percentage.
+- **Recovered**: an action that failed was followed, within the next 5 actions and 10 minutes, by an action with the
+  same `tool` that did not fail. The counts of failed and recovered actions in `recent` are shown in the tooltip.
+
+A signal never changes phase, speed, totals, intelligence or anything reported (11): it describes behaviour, not
+quality, and identical actions can be legitimate (a test re-run after an edit has the same digest when the command is
+the same).
+
 ## 7. Number formatting (both platforms)
 
 | Value | Display |
