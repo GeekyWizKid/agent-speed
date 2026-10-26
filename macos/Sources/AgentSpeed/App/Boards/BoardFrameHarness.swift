@@ -84,6 +84,7 @@ enum BoardFrameHarness {
         var layout = feed.layout
         if state.accents { layout = feed.builder.layout(accentTick(feed.tick)) }
         var fx = BoardEffects(style: style, side: side, seed: 11) { HeatPalette.color($0).simd }
+        fx.simulatesWarp = false
         fx.setIntensity(level)
         if state.settled {
             fx.setReduceMotion(true)
@@ -167,15 +168,12 @@ enum BoardFrameHarness {
         canvas.context.fillPath()
 
         var scene = OrbScene(capacity: 2048)
-        if fx.starCount > 0 {
-            BoardEffectsRenderer.backdrop(fx, into: &scene)
-            if let warp = OrbSnapshot.image(scene, side: side, scale: 2) {
-                canvas.context.saveGState()
-                canvas.context.addPath(path)
-                canvas.context.clip()
-                canvas.draw(warp, at: board.origin, size: board.size)
-                canvas.context.restoreGState()
-            }
+        if let warp = BoardWarpSnapshot.image(fx, side: side, corner: corner) {
+            canvas.context.saveGState()
+            canvas.context.addPath(path)
+            canvas.context.clip()
+            canvas.draw(warp, at: board.origin, size: board.size)
+            canvas.context.restoreGState()
         }
         canvas.context.saveGState()
         canvas.context.addPath(path)
@@ -190,11 +188,8 @@ enum BoardFrameHarness {
             }
             let draw = accents ? accentDrawings(item).draw : item.draw
             guard let image = BoardRaster.image(size: item.frame.size, scale: 2, draw: draw) else { continue }
-            // A stretched item shows its leftmost fraction of the frame (see `BoardContentStack.setStretch`).
-            let width = item.frame.width * CGFloat(item.stretch ?? 1)
-            let source = CGRect(x: 0, y: 0, width: (width * 2).rounded(), height: CGFloat(image.height))
-            canvas.draw(image, at: CGPoint(x: margin + item.frame.minX, y: margin + item.frame.minY), size: item.frame.size,
-                        source: item.stretch == nil ? nil : source)
+            let shown = item.shownFrame
+            canvas.draw(image, at: CGPoint(x: margin + shown.minX, y: margin + shown.minY), size: shown.size)
         }
         canvas.context.restoreGState()
         if accents {

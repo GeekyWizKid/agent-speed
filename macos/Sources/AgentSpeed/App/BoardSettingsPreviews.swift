@@ -99,21 +99,16 @@ enum BoardSettingsPreviews {
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
         for item in layout.items {
             context.saveGState()
-            context.translateBy(x: item.frame.minX, y: item.frame.minY)
+            let shown = item.shownFrame
+            context.translateBy(x: shown.minX, y: shown.minY)
+            context.scaleBy(x: item.frame.width > 0 ? shown.width / item.frame.width : 1, y: 1)
             if let plate = item.plate {
                 context.addPath(CGPath(roundedRect: CGRect(origin: .zero, size: item.frame.size), cornerWidth: plate.cornerRadius,
                                        cornerHeight: plate.cornerRadius, transform: nil))
                 context.setFillColor(plate.color)
                 context.fillPath()
             }
-            if let stretch = item.stretch {
-                context.saveGState()
-                context.clip(to: CGRect(x: 0, y: 0, width: item.frame.width * CGFloat(stretch), height: item.frame.height))
-                item.draw(context, item.frame.size)
-                context.restoreGState()
-            } else {
-                item.draw(context, item.frame.size)
-            }
+            item.draw(context, item.frame.size)
             context.restoreGState()
         }
         NSGraphicsContext.restoreGraphicsState()

@@ -27,18 +27,13 @@ final class PreviewCanvas {
         context.fill(CGRect(origin: .zero, size: size))
     }
 
-    /// Draws `image` (pixels at `scale`) with its top-left corner at `origin`, or the part of it in `source` (pixels,
-    /// top-left first) across `size`.
-    func draw(_ image: CGImage, at origin: CGPoint, size: CGSize? = nil, source: CGRect? = nil) {
+    /// Draws `image` (pixels at `scale`) with its top-left corner at `origin`.
+    func draw(_ image: CGImage, at origin: CGPoint, size: CGSize? = nil) {
         let size = size ?? CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale)
-        let part = source ?? CGRect(x: 0, y: 0, width: image.width, height: image.height)
-        guard part.width >= 1, let cropped = image.cropping(to: part) else { return }
-        let shown = source == nil ? size
-            : CGSize(width: size.width * part.width / CGFloat(image.width), height: size.height)
         context.saveGState()
-        context.translateBy(x: origin.x, y: origin.y + shown.height)
+        context.translateBy(x: origin.x, y: origin.y + size.height)
         context.scaleBy(x: 1, y: -1)
-        context.draw(cropped, in: CGRect(origin: .zero, size: shown))
+        context.draw(image, in: CGRect(origin: .zero, size: size))
         context.restoreGState()
     }
 

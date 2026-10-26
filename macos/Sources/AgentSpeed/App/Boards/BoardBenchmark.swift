@@ -39,7 +39,6 @@ final class BoardBenchmark {
         let state: State
         let cpu: Double
         let fps: Double
-        let backdropFPS: Double
         /// Share of the window spent in 60, 30 and no-frame classes.
         let classes: (Double, Double, Double)
         let cpuMicros: Double
@@ -167,7 +166,7 @@ final class BoardBenchmark {
     }
 
     private func measure(style: BoardStyle, state: State, board: BoardWindowController) async {
-        let canvases = [board.driver.overlay, board.driver.backdrop]
+        let canvases = [board.driver.overlay]
         for canvas in canvases {
             canvas.resetStats()
             _ = canvas.encoder?.gpuTime.drain()
@@ -188,14 +187,13 @@ final class BoardBenchmark {
         let wall = Date().timeIntervalSince(wallStart)
         let cpu = (Self.cpuTime() - cpuStart) / wall * 100
         let frames = board.driver.overlay.framesDrawn
-        let backdropFrames = board.driver.backdrop.framesDrawn
         let nanoseconds = canvases.reduce(UInt64(0)) { $0 + $1.cpuNanoseconds }
         var gpuSeconds = 0.0
         for canvas in canvases {
             if let (seconds, _) = canvas.encoder?.gpuTime.drain() { gpuSeconds += seconds }
         }
         let total = Double(max(1, samples.0 + samples.1 + samples.2))
-        let row = Row(style: style, state: state, cpu: cpu, fps: Double(frames) / wall, backdropFPS: Double(backdropFrames) / wall,
+        let row = Row(style: style, state: state, cpu: cpu, fps: Double(frames) / wall,
                       classes: (Double(samples.0) / total, Double(samples.1) / total, Double(samples.2) / total),
                       cpuMicros: frames > 0 ? Double(nanoseconds) / Double(frames) / 1000 : 0,
                       gpuMillis: frames > 0 ? gpuSeconds / Double(frames) * 1000 : 0,
@@ -287,8 +285,8 @@ final class BoardBenchmark {
         let gpu = row.gpuMillis > 1.5 ? " GPU OVER" : ""
         let classes = String(format: "60:%3.0f%% 30:%3.0f%% none:%3.0f%%", row.classes.0 * 100, row.classes.1 * 100,
                              row.classes.2 * 100)
-        return String(format: "%-7@ %-10@ CPU %6.2f %%  ≤ %3.1f  %-4@  %5.1f fps (warp %4.1f)  [%@]  %6.0f µs/frame  %5.2f ms GPU  %6.0f µs/tick%@",
-                      row.style.rawValue, row.state.name, row.cpu, row.state.budget, pass, row.fps, row.backdropFPS, classes,
+        return String(format: "%-7@ %-10@ CPU %6.2f %%  ≤ %3.1f  %-4@  %5.1f fps  [%@]  %6.0f µs/frame  %5.2f ms GPU  %6.0f µs/tick%@",
+                      row.style.rawValue, row.state.name, row.cpu, row.state.budget, pass, row.fps, classes,
                       row.cpuMicros, row.gpuMillis, row.tickMicros, gpu)
     }
 

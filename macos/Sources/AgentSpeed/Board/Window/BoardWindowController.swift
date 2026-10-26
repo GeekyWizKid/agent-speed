@@ -45,7 +45,7 @@ final class BoardWindowController {
         self.center = center
         self.dark = dark
         driver = BoardEffectsDriver(style: config.style, side: config.size.side)
-        host = BoardHostView(warp: driver.backdrop)
+        host = BoardHostView(warp: driver.warp.layer)
         animator = OrbWindowAnimator(center: center, diameter: CGFloat(config.size.side))
         panel.contentView = host
         effectsPanel.contentView = driver.overlay

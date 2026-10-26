@@ -2,13 +2,13 @@ import AgentSpeedOrbModel
 import AppKit
 
 /// Runs a board's `BoardEffects` on the shared frame clock (DESIGN 2c Frame policy): the overlay canvas advances the
-/// simulation and draws it, and while the warp runs it draws the backdrop canvas (the warp under the rows) in the
-/// same submission. The overlay asks for the effects' frame class while the board can be seen and for nothing
-/// otherwise, so an idle, hidden or occluded board renders nothing.
+/// simulation and draws it while the board can be seen and asks for nothing otherwise, so an idle, hidden or occluded
+/// board renders nothing. Neon's warp under the rows is animated by the render server (`BoardWarpLayer`) from the
+/// tick's heat: a second surface presented on every frame would cost as much again.
 @MainActor
 final class BoardEffectsDriver {
     let overlay = OrbCanvasView(frame: .zero)
-    let backdrop = OrbCanvasView(frame: .zero)
+    let warp = BoardWarpLayer()
     private(set) var effects: BoardEffects
     /// Visible, not occluded and not faded out.
     var canRender = true {
@@ -17,6 +17,7 @@ final class BoardEffectsDriver {
             if canRender { lastTime = nil }
             updateRequests()
             if canRender { refresh() }
+            updateWarp()
         }
     }
     var highContrast = false {
@@ -29,31 +30,28 @@ final class BoardEffectsDriver {
 
     init(style: BoardStyle, side: Double) {
         effects = BoardEffects(style: style, side: side) { HeatPalette.color($0).simd }
+        effects.simulatesWarp = false
         overlay.sceneProvider = { [unowned self] scene, _, _, time in
             advance(to: time)
             BoardEffectsRenderer.overlay(effects, into: &scene, highContrast: highContrast)
         }
         overlay.onFrame = { [unowned self] in updateRequests() }
-        backdrop.sceneProvider = { [unowned self] scene, _, _, _ in
-            BoardEffectsRenderer.backdrop(effects, into: &scene)
-        }
-        backdrop.layer?.masksToBounds = true
         updateRequests()
     }
 
-    /// Changes the effects (heat, events, settings) and wakes the canvases when they need frames or one redraw; a
-    /// change that leaves the picture as it is draws nothing.
+    /// Changes the effects (heat, events, settings) and wakes the canvas when it needs frames or one redraw; a change
+    /// that leaves the picture as it is draws nothing.
     func update(_ change: (inout BoardEffects) -> Void) {
-        let warpWasOn = effects.starCount > 0
         let before = effects.still
         change(&effects)
         updateRequests()
-        if effects.still != before || warpWasOn != (effects.starCount > 0) { refresh(warp: warpWasOn) }
+        if effects.still != before { refresh() }
+        updateWarp()
     }
 
     func setBoard(side: Double, corner: CGFloat) {
         effects.setSide(side)
-        backdrop.layer?.cornerRadius = corner
+        warp.setBoard(side: CGFloat(side), corner: corner)
         refresh()
     }
 
@@ -66,17 +64,17 @@ final class BoardEffectsDriver {
     private func updateRequests() {
         let frameClass = canRender ? effects.frameClass : .none
         overlay.request = OrbFrameRequest(frameClass: frameClass)
-        let warping = overlay.companion != nil
-        overlay.companion = canRender && frameClass != .none && (effects.warpOn || effects.starCount > 0) ? backdrop : nil
-        // The last warp frame stays on screen: clear it once.
-        if warping, overlay.companion == nil { backdrop.setNeedsFrame() }
         if frameClass == .none { lastTime = nil }
     }
 
     /// One frame of the current state when nothing animates (a static board keeps its last frame).
-    private func refresh(warp warpWasOn: Bool = true) {
-        guard canRender else { return }
-        if overlay.request.frameClass == .none { overlay.setNeedsFrame() }
-        if overlay.companion == nil, warpWasOn || effects.starCount > 0 { backdrop.setNeedsFrame() }
+    private func refresh() {
+        guard canRender, overlay.request.frameClass == .none else { return }
+        overlay.setNeedsFrame()
+    }
+
+    /// The warp follows the tick's heat; it holds still while the board cannot be seen.
+    private func updateWarp() {
+        warp.update(effects.warpRequested ? BoardWarpLayer.Look(effects) : nil, running: canRender)
     }
 }

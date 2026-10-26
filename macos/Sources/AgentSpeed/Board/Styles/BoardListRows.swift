@@ -78,8 +78,8 @@ struct BoardListRows {
     private func underline(_ model: BoardRowModel, sub: Bool, key: String, frame: CGRect, look: AnyHashable) -> BoardContentItem {
         let rows = self, box = frame.size
         let reach = (neon ? 8 : 6) * 1.5 + 2
-        let width = box.width - (sub ? 46 : 40)
-        let rect = CGRect(x: (sub ? 46 : 40) - reach, y: box.height - 3 - reach, width: width + reach, height: reach + 3)
+        let left: CGFloat = sub ? 46 : 40
+        let rect = CGRect(x: left - reach, y: box.height - 3 - reach, width: box.width - left + reach, height: reach + 3)
         var item = BoardContentItem.part(key + "#line", of: frame, rect: rect, motion: .row,
                                          revision: AnyHashable([AnyHashable(model.heat), AnyHashable(sub), look])) { context in
             var full = model
@@ -87,7 +87,8 @@ struct BoardListRows {
             rows.drawUnderline(full, sub: sub, in: context, size: box)
         }
         item.stretch = model.shareFraction
-        item.stretchAnchor = sub ? 46 : 40
+        // The bar grows from its start, inside the part's frame (whole points, so the start sits a little in).
+        item.stretchAnchor = frame.minX + left - item.frame.minX
         return item
     }
 

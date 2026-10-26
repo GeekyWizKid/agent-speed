@@ -3,7 +3,7 @@ import CoreGraphics
 
 /// Draws `BoardEffects` with the orbs' instanced SDF shapes (DESIGN 2c Frame policy, Two layers): the overlay above
 /// the rows (bloom, ring, comets, particles, waves, bolts, flash) on a canvas `BoardEffects.margin` larger than the
-/// board on every side, and the backdrop under the rows (neon's warp streaks) on a canvas the size of the board.
+/// board on every side. Neon's warp under the rows is `BoardWarpLayer`.
 /// Glows are analytic Gaussians of the fx.js SVG blurs; nothing allocates once the scene is warm.
 enum BoardEffectsRenderer {
     /// A stroke `width` wide blurred by `blur` (σ) is about a Gaussian of σ √(blur² + width² / 12) peaking at
@@ -97,18 +97,6 @@ enum BoardEffectsRenderer {
                                    halfSize: CGSize(width: fx.side / 2, height: fx.side / 2), rotation: 0,
                                    corner: CGFloat(fx.preset.cornerRadius), color: RGBColor.white.opacity(0.16 * eased)),
                       blend: .additive)
-        }
-    }
-
-    /// Neon's hyperspace streaks, in board points (the backdrop canvas is the board itself, clipped to its corners).
-    static func backdrop(_ fx: BoardEffects, into scene: inout OrbScene) {
-        scene.reset()
-        for index in 0..<fx.starCount {
-            let star = fx.star(index)
-            let head = CGPoint(x: star.x, y: star.y)
-            let tail = CGPoint(x: star.x - cos(star.angle) * star.tail, y: star.y - sin(star.angle) * star.tail)
-            scene.add(.capsule(from: tail, to: head, width: CGFloat(star.width),
-                               color: RGBColor(fx.heatColor(at: star.heat)).opacity(star.alpha)), blend: .additive)
         }
     }
 }
