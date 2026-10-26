@@ -55,7 +55,7 @@ public sealed record BoardHeroLayout(
     public const double UnitPad = 16;
 
     /// <summary>Room around the history's layer for the sparkline's end dot, the bars' rounding and the LED bloom.</summary>
-    public const double HistoryPad = 8;
+    public const double HistoryPad = 12;
 
     public static BoardHeroLayout For(BoardStyle style, BoardSize size)
     {
