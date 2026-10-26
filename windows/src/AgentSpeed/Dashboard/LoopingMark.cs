@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Media.Animation;
 using AgentSpeed.Modes;
@@ -48,6 +49,9 @@ internal sealed class LoopingMark : TextBlock
         set => SetValue(AppearanceProperty, value);
     }
 
+    /// <summary>The row's label says <c>work.looping</c>; the glyph itself is decoration.</summary>
+    protected override AutomationPeer OnCreateAutomationPeer() => new DecorativePeer(this);
+
     private void Paint() => Foreground = Appearance.Brushes.Bolt;
 
     private void Show(bool animate)
@@ -82,5 +86,12 @@ internal sealed class LoopingMark : TextBlock
         }
 
         BeginAnimation(OpacityProperty, fade);
+    }
+
+    private sealed class DecorativePeer(LoopingMark owner) : TextBlockAutomationPeer(owner)
+    {
+        protected override bool IsControlElementCore() => false;
+
+        protected override bool IsContentElementCore() => false;
     }
 }

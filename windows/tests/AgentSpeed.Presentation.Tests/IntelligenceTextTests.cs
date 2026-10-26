@@ -15,9 +15,9 @@ public class IntelligenceTextTests
     [Fact]
     public void AnAgentsGradeNamesItsClass()
     {
-        Assert.Equal("等級 124 · 旗艦", OrbLinesText.Grade(new ModelGrade(ModelClass.Flagship, 4), ZhHant));
-        Assert.Equal(En.Format("intel.grade", "92", En["intel.class.standard"]), OrbLinesText.Grade(ModelGrade.Unknown, En));
-        Assert.Equal(En.Format("intel.grade", "60", En["intel.class.light"]), OrbLinesText.Grade(new ModelGrade(ModelClass.Light, 0), En));
+        Assert.Equal("等級 124 · 旗艦", IntelligenceText.Grade(new ModelGrade(ModelClass.Flagship, 4), ZhHant));
+        Assert.Equal(En.Format("intel.grade", "92", En["intel.class.standard"]), IntelligenceText.Grade(ModelGrade.Unknown, En));
+        Assert.Equal(En.Format("intel.grade", "60", En["intel.class.light"]), IntelligenceText.Grade(new ModelGrade(ModelClass.Light, 0), En));
     }
 
     [Fact]

@@ -48,17 +48,4 @@ public static class OrbLinesText
             localizer.Format("intel.tooltip", shown, HistoryText.Percent(sums.ThinkingShare)) + "\n" + localizer["intel.disclaimer"]);
         return new OrbLinesSample(OrbLinesKind.Intelligence, content, true);
     }
-
-    /// <summary><c>等級 124 · 旗艦</c>: an agent's grade and class (DESIGN 4 tooltip).</summary>
-    public static string Grade(ModelGrade grade, Localizer localizer)
-    {
-        ArgumentNullException.ThrowIfNull(localizer);
-        var name = grade.Class switch
-        {
-            ModelClass.Flagship => localizer["intel.class.flagship"],
-            ModelClass.Standard => localizer["intel.class.standard"],
-            _ => localizer["intel.class.light"],
-        };
-        return localizer.Format("intel.grade", grade.Value.ToString(localizer.Culture), name);
-    }
 }

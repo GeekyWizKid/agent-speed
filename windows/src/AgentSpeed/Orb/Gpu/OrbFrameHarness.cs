@@ -12,6 +12,7 @@ using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Motion;
 using AgentSpeed.Presentation.Orb;
 using AgentSpeed.Presentation.Orb.Gpu;
+using AgentSpeed.Presentation.Orb.Lines;
 using AgentSpeed.Presentation.Settings;
 
 namespace AgentSpeed.Orb.Gpu;
@@ -20,7 +21,8 @@ namespace AgentSpeed.Orb.Gpu;
 /// Developer harness <c>AGENT_SPEED_ORB_FRAMES=DIR</c>: renders every orb style on a simulated clock with the Direct3D
 /// renderer into PNG sheets laid out like the macOS previews (<c>orb-style-STYLE-dark|light.png</c>: columns idle, cruise,
 /// boost, overdrive, redline, beyond, new peak, hover, pulse; rows 96 (64 for minimal), 148 and 240 pt at 2×, R = 2000,
-/// three agents, zh-Hant), plus per-level sheets and the GPU/CPU cost of each frame, then exits. Deterministic: fixed seeds,
+/// three agents, zh-Hant), plus per-level sheets, the two-line readout's network and intelligence modes (<c>orb-lines.png</c>)
+/// and the GPU/CPU cost of each frame, then exits. Deterministic: fixed seeds,
 /// fixed time steps; no window, so it also runs without a desktop. <c>AGENT_SPEED_ORB_FRAMES_STYLES</c> limits the styles,
 /// <c>AGENT_SPEED_ORB_FRAMES_SCALE</c> sets the pixel scale.
 /// </summary>
@@ -171,6 +173,34 @@ internal static class OrbFrameHarness
 
         WriteSheet(money, true, scale, Path.Combine(directory, "orb-money.png"));
 
+        // The two-line readout (DESIGN 10): network speed, then live intelligence, at 148 and 196 pt; dark, light, high contrast.
+        var traffic = OrbLinesText.Traffic(new Core.Traffic.TrafficRate(1_280_000, 64_000), false, loc);
+        var intelligence = OrbLinesText.Intelligence(new Core.Intelligence.IntelligenceSums(1200, 1200 * 124, 528, 1200), true, loc);
+        var lines = new List<List<BitmapSource>>();
+        foreach (var (dark, highContrast) in new[] { (true, false), (false, false), (true, true) })
+        {
+            foreach (var style in styles)
+            {
+                var row = new List<BitmapSource>();
+                foreach (var size in new[] { 148.0, 196 })
+                {
+                    foreach (var sample in new[] { traffic, intelligence })
+                    {
+                        var (bitmap, _) = Still(device, target, style, size, scale, dark, Redline * 0.3, Extra.None, strings, info,
+                            EffectsIntensity.Standard, highContrast: highContrast, lines: sample);
+                        if (bitmap is not null)
+                        {
+                            row.Add(bitmap);
+                        }
+                    }
+                }
+
+                lines.Add(row);
+            }
+        }
+
+        WriteSheet(lines, true, scale, Path.Combine(directory, "orb-lines.png"));
+
         // GPU time per frame at S = 240 (the budget's size) at the redline, Max effects.
         foreach (var style in styles)
         {
@@ -191,7 +221,7 @@ internal static class OrbFrameHarness
     /// <summary>A still of <paramref name="style"/> at <paramref name="value"/> after 2.4 s at that speed, with the extra event in flight.</summary>
     private static (BitmapSource? Bitmap, double BuildSeconds) Still(GpuDevice device, OffscreenTarget target, OrbStyle style, double size,
         double scale, bool dark, double value, Extra extra, OrbReadoutStrings strings, string info, EffectsIntensity level, int warmFrames = 0,
-        bool highContrast = false, MoneyState money = MoneyState.None)
+        bool highContrast = false, MoneyState money = MoneyState.None, OrbLinesSample? lines = null)
     {
         var effects = new EffectsPolicy(level, false, highContrast);
         var orb = new OrbGpuOrb(0x9E3779B9u, device.Atlas.ForScale(scale));
@@ -203,6 +233,11 @@ internal static class OrbFrameHarness
         SourceKind[] agents = value > 0 ? [SourceKind.Codex, SourceKind.ClaudeCode, SourceKind.ClaudeDesktop] : [];
         var time = 100.0;
         orb.SetData(time, value, tier, title, agents, info, null);
+        if (lines is { } sample)
+        {
+            orb.SetLines(time, sample, enabled: true);
+        }
+
         orb.SnapNext();
         device.Atlas.BeginFrame();
         orb.Render(time);

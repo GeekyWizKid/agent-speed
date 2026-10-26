@@ -12,7 +12,6 @@ using AgentSpeed.Presentation.Heat;
 using AgentSpeed.Presentation.Layout;
 using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Modes;
-using AgentSpeed.Presentation.Orb.Lines;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Presentation.Titles;
 using AgentSpeed.Theme;
@@ -587,7 +586,7 @@ internal sealed partial class DashboardViewModel : ObservableObject
                 tooltip.AddRange(capsule.TooltipLines(loc));
             }
 
-            tooltip.Add(OrbLinesText.Grade(agent.Grade, loc));
+            tooltip.Add(IntelligenceText.Grade(agent.Grade, loc));
             tooltip.AddRange(WorkText.Closing(agent.Work, loc));
             row.Tooltip = string.Join("\n", tooltip);
 
