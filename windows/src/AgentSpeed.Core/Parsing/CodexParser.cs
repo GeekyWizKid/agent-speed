@@ -10,6 +10,9 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
 
     private readonly bool _pathIsSubagent;
     private long? _fileCreatedMs;
+
+    /// <summary>Lines of a paginated sub-agent below this ordinal copy its parent's records (METRICS 3.5).</summary>
+    private long? _subagentStartOrdinal;
     private string _myAgentPath = RootAgentPath;
     private string? _metaThreadId;
     private string? _parentThreadId;
@@ -44,6 +47,7 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
     {
         base.Reset();
         _fileCreatedMs = null;
+        _subagentStartOrdinal = null;
         _myAgentPath = RootAgentPath;
         _metaThreadId = null;
         _parentThreadId = null;
@@ -81,6 +85,11 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
             return;
         }
 
+        if (_subagentStartOrdinal is { } start && line.Ordinal is { } ordinal && ordinal < start)
+        {
+            return;
+        }
+
         Touch(ts);
         RecordTools(in line.Tools, ts);
         switch (line.Kind)
@@ -113,6 +122,7 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
         }
 
         _fileCreatedMs = ts;
+        _subagentStartOrdinal = line.SubagentStartOrdinal;
         Touch(ts);
         SetProjectFromCwd(line.Cwd);
         _myAgentPath = line.AgentPath ?? RootAgentPath;
