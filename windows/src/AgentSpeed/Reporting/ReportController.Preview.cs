@@ -116,7 +116,9 @@ internal sealed partial class ReportController
             nextIn = (int)Math.Max(0, (due - now + 999) / 1000);
         }
 
-        return new ReportPreview(body, request.RequestLine, request.Headers, nextIn, webSocket && draft is null, assumed);
+        // Like the countdown, the WebSocket note only shows while reports actually go out as the data changes.
+        var onChange = stream is { Scheduler: { Available: true, Stop: null, Mode: not ReportMode.Quiet } } && !IsPaused;
+        return new ReportPreview(body, request.RequestLine, request.Headers, nextIn, onChange, assumed);
     }
 
     /// <summary>The preset's name and what the invitation says (DESIGN 11, Dashboard invitation): nothing is fetched.</summary>
