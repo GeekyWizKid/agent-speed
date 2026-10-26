@@ -20,7 +20,8 @@ struct SessionTests {
             opencodeRoot: directory.file("opencode"),
             geminiRoot: directory.file("gemini"),
             ompRoot: directory.file("missing-omp"),
-            antigravityRoot: directory.file("missing-antigravity")
+            antigravityRoot: directory.file("missing-antigravity"),
+            piRoot: directory.file("missing-pi")
         )
         return (directory, configuration)
     }
