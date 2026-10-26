@@ -174,7 +174,9 @@ final class HistoryInteraction {
     private enum TableHoverTarget { case day(DayKey), outside }
 
     /// The day under the pointer, and where the pointer is.
-    private(set) var hovered: (day: DayKey, origin: Origin)?
+    private(set) var hovered: (day: DayKey, origin: Origin)? {
+        didSet { markHovered(hovered?.day) }
+    }
     /// The day the chart's keyboard cursor sits on while the chart has focus.
     var keyboardDay: DayKey?
     var selection: Set<DayKey> = []
@@ -186,6 +188,9 @@ final class HistoryInteraction {
     @ObservationIgnored private var revealCount = 0
     @ObservationIgnored private var pendingTableHover: TableHoverTarget?
     @ObservationIgnored private var tableHoverScheduled = false
+    /// Per-row hover flags: rows read their own, so a hover change redraws two row backgrounds, never every row.
+    @ObservationIgnored private var rowMarks: [DayKey: HistoryRowMark] = [:]
+    @ObservationIgnored private var markedDay: DayKey?
 
     var hoveredDay: DayKey? { hovered?.day }
 
@@ -198,11 +203,6 @@ final class HistoryInteraction {
         } else if hovered?.origin == origin {
             hovered = nil
         }
-    }
-
-    /// The pointer left `day`'s row; a row entered in the meantime keeps its hover.
-    func unhover(_ day: DayKey, from origin: Origin) {
-        if hovered?.day == day, hovered?.origin == origin { hovered = nil }
     }
 
     /// SwiftUI may send a row's exit and re-entry while updating its help/hover responders. Publishing each edge
@@ -237,6 +237,21 @@ final class HistoryInteraction {
         }
     }
 
+    /// The hover flag of `day`'s row; reading it never subscribes a row to the shared hover state.
+    func mark(for day: DayKey) -> HistoryRowMark {
+        if let mark = rowMarks[day] { return mark }
+        let mark = HistoryRowMark(hovered: markedDay == day)
+        rowMarks[day] = mark
+        return mark
+    }
+
+    private func markHovered(_ day: DayKey?) {
+        guard day != markedDay else { return }
+        if let previous = markedDay { rowMarks[previous]?.hovered = false }
+        if let day { rowMarks[day]?.hovered = true }
+        markedDay = day
+    }
+
     func revealInTable(_ day: DayKey) {
         revealCount += 1
         reveal = (day, revealCount)
@@ -254,6 +269,17 @@ final class HistoryInteraction {
         keyboardDay = nil
         selection = []
         anchor = nil
+    }
+}
+
+/// Whether one table row is hovered, from the table or from the chart.
+@MainActor
+@Observable
+final class HistoryRowMark {
+    fileprivate(set) var hovered: Bool
+
+    init(hovered: Bool) {
+        self.hovered = hovered
     }
 }
 
