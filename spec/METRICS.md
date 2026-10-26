@@ -126,6 +126,19 @@ For Codex, once `session_meta` has been read, any later line whose timestamp is 
 is copied history (forks and sub-agents copy their parent's records): ignore it completely (no totals, no speed, no
 state change). For Claude, copied history is removed by deduplication (3.4).
 
+A paginated Codex sub-agent (multi-agent v2: `history_mode == "paginated"`) starts with a copy of its parent's records
+written with fresh timestamps, so the timestamp rule misses them. Every line of such a rollout carries a top-level
+`ordinal` (0 for the `session_meta` line), and the first `session_meta`'s `payload.subagent_history_start_ordinal` is
+the first ordinal that belongs to the sub-agent (Codex: earlier records are "inherited model context"). When that
+field is an *ordinal*, any later line whose own `ordinal` is an ordinal below it is copied history too: ignore it
+completely, like the timestamp rule (no totals, no speed, no state change: no model, project, execution-mode facts,
+work-signal actions or phase). An ordinal is an integer literal from 0 through 2^63 − 1; any other value (missing,
+null, negative, fractional, exponent, string, beyond 64 bits) is no boundary for the field and catches nothing on a
+line. Each line's own `ordinal` decides, never its position in the file: a malformed or truncated line does not shift
+the boundary. Rollouts without the field (main threads, reverted threads with `history_base`, which start at a
+non-zero ordinal and copy nothing) are unaffected. Adding this rule bumped the history analysis version (8), so days
+whose logs still exist are recomputed.
+
 ### 3.6 Numbers
 JSON numbers mean what Python's `json` reads: an integer literal is exact (any length), every other literal is the
 nearest double (`1e999` is infinite). `NaN`, `Infinity` and `-Infinity` are not JSON: a line that contains them anywhere
@@ -185,12 +198,15 @@ Assistant line:
 
 Every line is an envelope `{ "timestamp", "type", "payload" }`.
 
-State: `fileCreatedMs`, `myAgentPath`, `pendingStartMs`, `streaming` (bool), `sawModernUsage` (bool),
-`previousLegacyTotals` (nullable), `phase`.
+State: `fileCreatedMs`, `subagentStartOrdinal` (nullable), `myAgentPath`, `pendingStartMs`, `streaming` (bool),
+`sawModernUsage` (bool), `previousLegacyTotals` (nullable), `phase`.
+
+Every later line first passes both copied-history rules of 3.5 (timestamp, then `ordinal` below
+`subagentStartOrdinal`); a copied line does nothing below.
 
 | Line | Action |
 | --- | --- |
-| first `session_meta` of the file | `fileCreatedMs = ts`; `project` from `payload.cwd`; `myAgentPath = payload.agent_path ?? "/root"`; `isSubagent = payload.thread_source == "subagent"` or `payload.source.subagent` exists; `threadId = payload.id`. Later `session_meta` lines (sub-agents copy their parent's) are ignored entirely. |
+| first `session_meta` of the file | `fileCreatedMs = ts`; `subagentStartOrdinal = payload.subagent_history_start_ordinal` when it is an ordinal (3.5), else null; `project` from `payload.cwd`; `myAgentPath = payload.agent_path ?? "/root"`; `isSubagent = payload.thread_source == "subagent"` or `payload.source.subagent` exists; `threadId = payload.id`. Later `session_meta` lines (sub-agents copy their parent's) are ignored entirely. |
 | `turn_context` | `model = payload.model`; `project` from `payload.cwd` when present |
 | input (see below) | if not `streaming`: `pendingStartMs = ts`; phase `generating` (`inFlightStartMs = pendingStartMs`) |
 | mailbox input (see below) | if not `streaming`: `pendingStartMs = ts`; the phase does not change |
@@ -1509,7 +1525,8 @@ response keys it owns, and its per-day contributions. On launch and periodically
 unchanged files reuse their contributions; new or changed files are re-parsed completely, skipping keys owned by any
 other file (ownership follows startup order); files that no longer exist keep their contributions. Daily totals are
 the sums over files. The history store is versioned: a parser change bumps the version and triggers a full
-recomputation that keeps previously stored days for which no logs exist any more. "Clear history" (settings) deletes
+recomputation that keeps previously stored days for which no logs exist any more (analysis version 6: the Codex
+ordinal rule of 3.5). "Clear history" (settings) deletes
 the store and recomputes from the current logs.
 
 Cost (9.7): every row also has `costMicroUsd` and `unpricedRequests`, every model `costMicroUsd` and

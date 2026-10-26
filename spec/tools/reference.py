@@ -110,6 +110,11 @@ def trunc64(value):
     return min(max(int(value), INT64_MIN), INT64_MAX)
 
 
+def ordinal(value):
+    """A Codex rollout ordinal (METRICS 3.5): an integer literal from 0 through 2^63 - 1; anything else is None."""
+    return value if type(value) is int and 0 <= value <= INT64_MAX else None
+
+
 def num(value):
     """A token value (METRICS 3.2): a number truncated toward zero and clamped to 0…10^12; anything else is 0."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -182,6 +187,7 @@ class FileState:
         self.ultra_turn = False
         # codex
         self.file_created = None
+        self.start_ordinal = None
         self.provider = None
         self.my_agent_path = "/root"
         self.thread_id = None
@@ -245,6 +251,7 @@ def codex_line(state, obj, dedupe):
         if state.file_created is not None:
             return
         state.file_created = ts
+        state.start_ordinal = ordinal(payload.get("subagent_history_start_ordinal"))
         state.last_line = ts if state.last_line is None else max(state.last_line, ts)
         state.project = basename(payload.get("cwd")) or state.project
         state.my_agent_path = payload.get("agent_path") or "/root"
@@ -259,6 +266,9 @@ def codex_line(state, obj, dedupe):
             spawn.get("parent_thread_id") if isinstance(spawn, dict) else None)
         return
     if state.file_created is not None and ts < state.file_created - 2000:
+        return
+    line_ordinal = ordinal(obj.get("ordinal"))
+    if state.start_ordinal is not None and line_ordinal is not None and line_ordinal < state.start_ordinal:
         return
     state.last_line = ts if state.last_line is None else max(state.last_line, ts)
     ptype = payload.get("type")

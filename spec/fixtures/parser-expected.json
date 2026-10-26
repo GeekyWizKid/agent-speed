@@ -5,6 +5,7 @@
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-20-subagent.jsonl",
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-00-legacy.jsonl",
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-20-compressed.jsonl.zst",
+    "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-40-paginated.jsonl",
     "claude/projects/-Users-dev-projects-nova/s-cli.jsonl",
     "claude/projects/-Users-dev-projects-nova/s-cli/subagents/agent-abc.jsonl",
     "claude/projects/-Users-dev-projects-orbit/s-desk.jsonl",
@@ -273,6 +274,70 @@
           "final": true
         }
       ]
+    },
+    "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-40-paginated.jsonl": {
+      "source": "codex",
+      "project": "rocket",
+      "model": "gpt-6.1-sol-mini",
+      "isSubagent": true,
+      "parentFile": "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl",
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792490508700,
+      "malformedLines": 1,
+      "responses": [
+        {
+          "key": "resp-p1",
+          "startMs": 1792490500610,
+          "endMs": 1792490504010,
+          "input": 7000,
+          "cachedInput": 6000,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 90,
+          "reasoning": 30,
+          "model": "gpt-6.1-sol-mini",
+          "provider": "openai",
+          "fast": false,
+          "final": true
+        },
+        {
+          "key": "resp-p2",
+          "startMs": 1792490506000,
+          "endMs": 1792490508500,
+          "input": 7300,
+          "cachedInput": 7000,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 40,
+          "reasoning": 0,
+          "model": "gpt-6.1-sol-mini",
+          "provider": "openai",
+          "fast": false,
+          "final": true
+        }
+      ],
+      "effort": {
+        "mode": "medium",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "resp-p1": {
+          "effort": {
+            "mode": "medium",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "resp-p2": {
+          "effort": {
+            "mode": "medium",
+            "evidence": "recorded"
+          },
+          "speed": null
+        }
+      }
     },
     "claude/projects/-Users-dev-projects-nova/s-cli.jsonl": {
       "source": "claudeCode",
@@ -2244,6 +2309,7 @@
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-20-subagent.jsonl": 1792490448000,
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-00-legacy.jsonl": 1792490471000,
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-20-compressed.jsonl.zst": 1792490490000,
+    "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-40-paginated.jsonl": 1792490510000,
     "claude/projects/-Users-dev-projects-nova/s-cli.jsonl": 1792490546000,
     "claude/projects/-Users-dev-projects-nova/s-cli/subagents/agent-abc.jsonl": 1792490547000,
     "claude/projects/-Users-dev-projects-orbit/s-desk.jsonl": 1792490586000,
