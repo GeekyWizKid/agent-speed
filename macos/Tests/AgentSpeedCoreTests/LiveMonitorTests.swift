@@ -51,7 +51,7 @@ struct LiveMonitorTests {
         #expect(snapshot.sources.count == SourceKind.allCases.count)
         #expect(snapshot.sources.first { $0.kind == .codex }?.available == true)
         #expect(snapshot.sources.first { $0.kind == .deepseek }?.available == true)
-        #expect(snapshot.warnings.contains(.malformedLines(2)))
+        #expect(snapshot.warnings.contains(.malformedLines(3)))
         #expect(snapshot.history.count == 300)
         #expect(completions.isEmpty, "seeded responses never produce live events")
 

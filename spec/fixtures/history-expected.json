@@ -67,19 +67,19 @@
     {
       "date": "2026-10-20",
       "source": "codex",
-      "requests": 8,
-      "input": 82900,
-      "cachedInput": 53000,
+      "requests": 10,
+      "input": 97200,
+      "cachedInput": 66000,
       "cacheWriteInput": 0,
-      "output": 2070,
-      "reasoning": 540,
-      "measuredOutput": 2070,
-      "measuredMs": 29500,
+      "output": 2200,
+      "reasoning": 570,
+      "measuredOutput": 2200,
+      "measuredMs": 35400,
       "unfinalized": 0,
-      "costMicroUsd": 71897,
+      "costMicroUsd": 73353,
       "unpricedRequests": 0,
       "priceVersion": 1,
-      "agents": 4,
+      "agents": 5,
       "models": {
         "gpt-5.5": {
           "requests": 2,
@@ -98,11 +98,11 @@
           "unpricedRequests": 0
         },
         "gpt-6.1-sol-mini": {
-          "requests": 2,
-          "output": 360,
-          "measuredOutput": 360,
-          "measuredMs": 6000,
-          "costMicroUsd": 2112,
+          "requests": 4,
+          "output": 490,
+          "measuredOutput": 490,
+          "measuredMs": 11900,
+          "costMicroUsd": 3568,
           "unpricedRequests": 0
         }
       }

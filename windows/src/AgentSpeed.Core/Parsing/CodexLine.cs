@@ -73,6 +73,12 @@ internal struct CodexLine
     public LineStatus Status;
     public bool HasTimestamp;
     public long TimestampMs;
+
+    /// <summary>The top-level <c>ordinal</c> of a paginated rollout line, when it is an ordinal (METRICS 3.5).</summary>
+    public long? Ordinal;
+
+    /// <summary><c>payload.subagent_history_start_ordinal</c> of a <c>session_meta</c>: lower ordinals are copied history.</summary>
+    public long? SubagentStartOrdinal;
     public CodexLineKind Kind;
     public CodexPayloadKind PayloadKind;
     public CodexRole Role;
@@ -146,6 +152,11 @@ internal static class CodexLineReader
                 {
                     reader.Read();
                     result.HasTimestamp = JsonScan.TryReadTimestamp(ref reader, out result.TimestampMs);
+                }
+                else if (reader.ValueTextEquals("ordinal"u8))
+                {
+                    reader.Read();
+                    result.Ordinal = JsonScan.ReadOrdinal(ref reader);
                 }
                 else if (reader.ValueTextEquals("type"u8))
                 {
@@ -243,6 +254,11 @@ internal static class CodexLineReader
             {
                 reader.Read();
                 result.ModelProvider = JsonScan.ReadString(ref reader);
+            }
+            else if (hints.Meta && reader.ValueTextEquals("subagent_history_start_ordinal"u8))
+            {
+                reader.Read();
+                result.SubagentStartOrdinal = JsonScan.ReadOrdinal(ref reader);
             }
             else if (hints.Meta && reader.ValueTextEquals("agent_path"u8))
             {

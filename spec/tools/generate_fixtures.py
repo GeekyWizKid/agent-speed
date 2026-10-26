@@ -257,6 +257,85 @@ expect(rel, source="codex", project="comet", model="gpt-6.1-sol-mini", isSubagen
                 provider="custom"),
        ])
 
+
+# --- Codex, paginated sub-agent (multi-agent v2) with a copied prefix -----------
+# Ordinals 1-14 copy thread-main's records with fresh timestamps (METRICS 3.5): a legacy token_count before any
+# turn_context, the parent's settings, tool calls left streaming, and a truncated line (ordinal 10). Only ordinals
+# from subagent_history_start_ordinal (15) on are the sub-agent's own.
+def paged(ms, ordinal, kind, payload):
+    return {"timestamp": ts(ms), "ordinal": ordinal, "type": kind, "payload": payload}
+
+
+rel = "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-40-paginated.jsonl"
+C = at(1, 40)
+p1 = cx(7000, 6000, 90, 30, 0)
+p2 = cx(7300, 7000, 40, 0, 0)
+truncated = json.dumps(paged(C + 9, 10, "response_item", {"type": "function_call_output", "call_id": "call-1",
+                                                           "output": "ok"}), separators=(",", ":"))[:60]
+write_jsonl(rel, [
+    paged(C, 0, "session_meta", {"id": "thread-pag", "session_id": "sess-1", "timestamp": ts(C),
+                                 "forked_from_id": "thread-main", "parent_thread_id": "thread-main",
+                                 "cwd": "/Users/dev/projects/rocket", "originator": "codex_cli_rs",
+                                 "cli_version": "0.170.0",
+                                 "source": {"subagent": {"thread_spawn": {"parent_thread_id": "thread-main", "depth": 1,
+                                                                          "agent_path": "/root/scout",
+                                                                          "agent_nickname": "Scout"}}},
+                                 "thread_source": "subagent", "agent_path": "/root/scout", "model_provider": "openai",
+                                 "history_mode": "paginated", "subagent_history_start_ordinal": 15,
+                                 "multi_agent_version": "v2"}),
+    paged(C + 1, 1, "session_meta", {"id": "thread-main", "session_id": "sess-1", "timestamp": ts(at(0, 0)),
+                                     "cwd": "/Users/dev/projects/rocket", "source": "cli", "model_provider": "openai"}),
+    paged(C + 2, 2, "event_msg", {"type": "token_count", "info": {"total_token_usage": u1, "last_token_usage": u1}}),
+    paged(C + 3, 3, "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-main",
+                                  "thread_settings": {"service_tier": "priority", "reasoning_effort": "high"}}),
+    paged(C + 4, 4, "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol", "effort": "xhigh"}),
+    paged(C + 5, 5, "event_msg", {"type": "task_started", "turn_id": "turn-1"}),
+    paged(C + 6, 6, "response_item", {"type": "message", "role": "user",
+                                      "content": [{"type": "input_text", "text": "Ship it"}]}),
+    paged(C + 7, 7, "response_item", {"type": "function_call", "name": "shell", "arguments": "{}",
+                                      "call_id": "call-1"}),
+    paged(C + 8, 8, "event_msg", {"type": "token_count", "info": {"total_token_usage": u1, "last_token_usage": u1}}),
+    paged(C + 8, 9, "event_msg", {"type": "token_count",
+                                  "info": {"total_token_usage": cum2, "last_token_usage": u2}}),
+    truncated,
+    paged(C + 10, 11, "response_item", {"type": "custom_tool_call", "name": "exec", "input": "cargo test",
+                                        "call_id": "call-copied"}),
+    paged(C + 11, 12, "response_item", {"type": "reasoning", "summary": []}),
+    paged(C + 12, 13, "response_item", {"type": "message", "role": "developer",
+                                        "content": [{"type": "input_text", "text": "You are Scout."}]}),
+    paged(C + 13, 14, "response_item", {"type": "message", "role": "developer",
+                                        "content": [{"type": "input_text", "text": "Report back."}]}),
+    paged(C + 500, 15, "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-pag",
+                                     "thread_settings": {"model": "gpt-6.1-sol-mini", "reasoning_effort": "low"}}),
+    paged(C + 600, 16, "event_msg", {"type": "task_started", "turn_id": "turn-s1"}),
+    paged(C + 610, 17, "response_item", {"type": "message", "role": "user",
+                                         "content": [{"type": "input_text", "text": "Find the flaky test"}]}),
+    paged(C + 700, 18, "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol-mini",
+                                        "effort": "medium"}),
+    paged(C + 3000, 19, "response_item", {"type": "reasoning", "summary": []}),
+    paged(C + 4000, 20, "response_item", {"type": "custom_tool_call", "name": "exec", "input": "rg flaky",
+                                          "call_id": "call-s1"}),
+    paged(C + 4010, 21, "token_usage_record", {"thread_id": "thread-pag", "session_id": "sess-1",
+                                               "response_id": "resp-p1", "usage": p1}),
+    paged(C + 4012, 22, "event_msg", {"type": "token_count", "info": {"total_token_usage": p1, "last_token_usage": p1}}),
+    paged(C + 6000, 23, "response_item", {"type": "custom_tool_call_output", "call_id": "call-s1", "output": "a.rs"}),
+    paged(C + 7000, 24, "response_item", {"type": "message", "role": "assistant",
+                                          "content": [{"type": "output_text", "text": "Found it"}]}),
+    paged(C + 8500, 25, "token_usage_record", {"thread_id": "thread-pag", "session_id": "sess-1",
+                                               "response_id": "resp-p2", "usage": p2}),
+    paged(C + 8700, 26, "event_msg", {"type": "task_complete", "turn_id": "turn-s1"}),
+])
+expect(rel, source="codex", project="rocket", model="gpt-6.1-sol-mini", isSubagent=True,
+       parentFile="codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl", phase="idle",
+       inFlightStartMs=None, lastLineMs=C + 8700, malformedLines=1,
+       responses=[
+           resp("resp-p1", C + 610, C + 4010, 7000, 6000, 0, 90, 30, "gpt-6.1-sol-mini", provider="openai"),
+           resp("resp-p2", C + 6000, C + 8500, 7300, 7000, 0, 40, 0, "gpt-6.1-sol-mini", provider="openai"),
+       ],
+       effort=mode("medium"), speed=None,
+       responseModes={"resp-p1": {"effort": mode("medium"), "speed": None},
+                      "resp-p2": {"effort": mode("medium"), "speed": None}})
+
 # --- Claude Code CLI ----------------------------------------------------------
 def claude(kind, ms, entry="cli", cwd="/Users/dev/projects/nova", session="s-cli", sidechain=False, **extra):
     row = {"parentUuid": None, "isSidechain": sidechain, "userType": "external", "cwd": cwd,
