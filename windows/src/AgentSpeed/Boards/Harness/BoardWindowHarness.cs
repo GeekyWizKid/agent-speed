@@ -49,7 +49,8 @@ internal static class BoardWindowHarness
         Phase[] phases =
         [
             new("baseline", 3, 0, Quiet: true, Hidden: true, Ticks: false),
-            new("warm-up", 3, 3200, Measured: false),
+            // Tiered JIT promotes a method after 30 calls: once-per-tick code needs 15 s of ticks (DESIGN 2c measures after warm-up).
+            new("warm-up", 16, 3200, Measured: false),
             new("redline", seconds, 3200),
             new("settle", 1, 700, Measured: false),
             new("cruise", seconds, 700),
