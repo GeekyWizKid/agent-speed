@@ -101,6 +101,9 @@ internal struct OmpLine
     /// <summary>Distinct string ids of the <c>toolCall</c> content blocks.</summary>
     public string[]? ToolCallIds;
 
+    /// <summary>The <c>toolCall</c> blocks and the tool result as actions (METRICS 6.10).</summary>
+    public Work.LineTools Tools;
+
     /// <summary>Tool result <c>toolCallId</c> when it is a string.</summary>
     public string? ToolCallId;
 

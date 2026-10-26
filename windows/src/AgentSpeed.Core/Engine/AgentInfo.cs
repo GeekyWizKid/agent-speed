@@ -14,4 +14,7 @@ internal readonly record struct AgentInfo(
     string? ParentId = null)
 {
     public ExecutionModes Modes { get; init; } = ExecutionModes.Empty;
+
+    /// <summary>The file's latest tool calls (METRICS 6.10), oldest first.</summary>
+    public IReadOnlyList<Work.WorkAction> Work { get; init; } = [];
 }

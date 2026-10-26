@@ -2,6 +2,7 @@ using AgentSpeed.Core.History;
 using AgentSpeed.Core.Intelligence;
 using AgentSpeed.Core.Parsing;
 using AgentSpeed.Core.Pricing;
+using AgentSpeed.Core.Work;
 using AgentSpeed.Core.Reporting;
 
 namespace AgentSpeed.Core.Engine;
@@ -567,6 +568,7 @@ internal sealed class SpeedEngine
             {
                 LiveCost = costs.Agent.TryGetValue(agent.Id, out var cost) ? PerSecond(cost, seconds) : LiveCost.Zero,
                 Grade = Grade(agent),
+                Work = WorkSignals.Of(agent.Work, nowMs),
             };
         });
 

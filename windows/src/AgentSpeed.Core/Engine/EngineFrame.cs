@@ -8,6 +8,9 @@ internal sealed record AgentFrame(AgentInfo Info, AgentPhase Phase, Rate Live, d
 
     /// <summary>The grade of the agent's current model and effort (METRICS 6.9).</summary>
     public Intelligence.ModelGrade Grade { get; init; }
+
+    /// <summary>What the agent's recent tool calls say (METRICS 6.10).</summary>
+    public Work.WorkSignals Work { get; init; } = Core.Work.WorkSignals.None;
 }
 
 /// <summary>Everything the engine computes for one instant (METRICS 6).</summary>

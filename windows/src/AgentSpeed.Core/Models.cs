@@ -85,6 +85,9 @@ public sealed record AgentStatus(
 
     /// <summary>The grade of the agent's current model and effort (METRICS 6.9).</summary>
     public Intelligence.ModelGrade Grade { get; init; } = Intelligence.ModelGrade.Unknown;
+
+    /// <summary>What the agent's recent tool calls say (METRICS 6.10).</summary>
+    public Work.WorkSignals Work { get; init; } = Core.Work.WorkSignals.None;
 }
 
 /// <param name="Available">The root folder exists and is readable.</param>
