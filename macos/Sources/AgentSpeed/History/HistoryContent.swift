@@ -61,6 +61,25 @@ struct HistoryChartModel: Equatable, Sendable {
     func scaledSpeed(_ speed: Double) -> Double {
         speedTicks.max > 0 ? speed / speedTicks.max * outputTicks.max : 0
     }
+
+    /// The left axis label at `value`: output, cost in the display currency, or traffic.
+    func leadingAxisLabel(_ value: Double) -> String {
+        if metric == .traffic {
+            // The outermost labels name their side: download above the axis, upload below.
+            guard value != 0 else { return "0" }
+            let text = HistoryText.axisBytes(value)
+            if value == outputTicks.max { return "↓ " + text }
+            if value == -(lowerTicks?.max ?? 0) { return "↑ " + text }
+            return text
+        }
+        guard metric == .cost, let money else { return HistoryText.axisNumber(value) }
+        return money.axisLabel(value, step: outputTicks.step)
+    }
+
+    /// The right axis label at the output axis' `value`: the speed it stands for (output only, DESIGN 9).
+    func trailingAxisLabel(_ value: Double) -> String {
+        HistoryText.axisNumber(outputTicks.max > 0 ? value / outputTicks.max * speedTicks.max : 0)
+    }
 }
 
 /// Everything the window shows for one filter, computed once per change of the data or the filter.
