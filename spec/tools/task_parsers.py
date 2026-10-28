@@ -86,7 +86,7 @@ def num(text):
 
 
 FAMILY = {"claudeCode": "claude", "claudeDesktop": "claude", "codex": "codex", "omp": "omp", "pi": "pi",
-          "openclaw": "openclaw"}
+          "openclaw": "openclaw", "droid": "droid"}
 
 TOOL_KINDS = {
     "claude": {
@@ -128,6 +128,14 @@ TOOL_KINDS = {
         "command": ("exec", "bash"),
         "delegate": ("sessions_spawn", "sessions_send"),
         "web": ("web_search", "web_fetch", "x_search", "browser"),
+    },
+    "droid": {
+        "read": ("Read", "LS"),
+        "search": ("Grep", "Glob"),
+        "edit": ("Create", "Edit", "MultiEdit"),
+        "command": ("Execute",),
+        "delegate": ("Task",),
+        "web": ("WebSearch", "FetchUrl"),
     },
 }
 KIND_OF = {fam: {name: kind for kind, names in table.items() for name in names} for fam, table in TOOL_KINDS.items()}
@@ -1668,17 +1676,22 @@ def segment_tokens(seg, cwd):
     return tokens
 
 
-def command_info(text, cwd=None, parsed=None):
-    parsed = parsed or parse_command(text, cwd)
-    cwd = cwd if isinstance(cwd, str) else None
-    segs = parsed.segments
-    best_index, best = None, RESULT_OTHER
-    classes = []
+def choose(segs, cwd):
+    """The class of every segment, and the chosen one: the first with the highest class rank (3.7)."""
+    best_index, best, classes = None, RESULT_OTHER, []
     for k, seg in enumerate(segs):
         result = classify(seg.words, cwd) if not is_neutral(seg) else RESULT_OTHER
         classes.append(result)
         if CLASS_RANK[result[0]] > CLASS_RANK[best[0]]:
             best_index, best = k, result
+    return classes, best_index, best
+
+
+def command_info(text, cwd=None, parsed=None):
+    parsed = parsed or parse_command(text, cwd)
+    cwd = cwd if isinstance(cwd, str) else None
+    segs = parsed.segments
+    classes, best_index, best = choose(segs, cwd)
     kept = [segment_tokens(seg, cwd) for seg, c in zip(segs, classes) if c[0] != "other"]
     if not kept:
         kept = [segment_tokens(seg, cwd) for seg in segs if not is_neutral(seg)]
@@ -1688,13 +1701,193 @@ def command_info(text, cwd=None, parsed=None):
     if best_index is None:
         background = any(s.background for s in segs)
         return {"class": "other", "suite": None, "targeted": False, "key": key, "masked": False,
-                "background": background}
+                "background": background, "errorFilter": False}
     chosen = segs[best_index]
     later = segs[best_index + 1:]
     masked = bool(later) and ((chosen.op_after == "|" and not parsed.pipefail)
                               or any(x.op_before in (";", "||", "&") for x in later))
     return {"class": best[0], "suite": best[1], "targeted": bool(best[2]), "key": key, "masked": masked,
-            "background": chosen.background}
+            "background": chosen.background,
+            "errorFilter": best[0] in ("build", "check") and error_filter(segs, best_index)}
+
+
+# ---------------------------------------------------------------------------- masked runs (3.10)
+
+STATUS_REF = rx(r"\$\?|\$\{\?\}|\$\{PIPESTATUS\[([0-9]+)\]\}|\$PIPESTATUS")
+STATUS_VALUE = rx(r"-?[0-9]+")
+GREP_PROGRAMS = ("grep", "egrep")
+GREP_FLAGS = "iEnwFPashHo"
+GREP_LONG_FLAGS = ("--ignore-case", "--extended-regexp", "--line-number", "--word-regexp", "--fixed-strings",
+                   "--perl-regexp", "--text", "--no-messages", "--no-filename", "--with-filename", "--only-matching")
+GREP_VALUE_OPTIONS = ("-e", "-A", "-B", "-C", "-m", "--regexp", "--after-context", "--before-context", "--context",
+                      "--max-count")
+LIMITERS = ("head", "tail")
+NO_OUTPUT = "(Bash completed with no output)"
+
+
+def pipeline_end(segs, k):
+    """Index of the last segment of the pipeline that holds segs[k]."""
+    while k + 1 < len(segs) and segs[k].op_after == "|":
+        k += 1
+    return k
+
+
+def pipeline_start(segs, k):
+    while k > 0 and segs[k].op_before == "|":
+        k -= 1
+    return k
+
+
+def grep_patterns(words):
+    """The patterns of a grep that reads only its input (no file operands, no inverting or counting option), else
+    None."""
+    patterns, positional, i = [], [], 1
+    while i < len(words):
+        w = words[i]
+        if w == "--":
+            positional += words[i + 1:]
+            break
+        name, eq, value = w.partition("=")
+        if w in GREP_VALUE_OPTIONS or (w.startswith("--") and eq and name in GREP_VALUE_OPTIONS):
+            if eq:
+                arg = value
+            elif i + 1 < len(words):
+                arg, i = words[i + 1], i + 1
+            else:
+                return None
+            if name in ("-e", "--regexp"):
+                patterns.append(arg)
+        elif len(w) > 2 and w[:2] in ("-e", "-A", "-B", "-C", "-m") and not w.startswith("--"):
+            if w[:2] == "-e":
+                patterns.append(w[2:])
+        elif w in GREP_LONG_FLAGS or name == "--color" or name == "--colour":
+            pass
+        elif w.startswith("-") and len(w) > 1 and not w.startswith("--"):
+            if any(c not in GREP_FLAGS for c in w[1:]):
+                return None
+        elif w.startswith("--"):
+            return None
+        else:
+            positional.append(w)
+        i += 1
+    if not patterns:
+        if not positional:
+            return None
+        patterns, positional = [positional[0]], positional[1:]
+    return None if positional else patterns
+
+
+def error_filter(segs, k):
+    """The chosen segment pipes into a grep for error lines, then at most `head` / `tail`, ending the command (3.10)."""
+    end = pipeline_end(segs, k)
+    if end == k or end != len(segs) - 1 or segs[k].op_after != "|":
+        return False
+    words = segs[k + 1].words
+    if not words or prog(words[0]) not in GREP_PROGRAMS:
+        return False
+    patterns = grep_patterns(words)
+    if not patterns or not any("error" in pat.translate(ASCII_LOWER) for pat in patterns):
+        return False
+    return all(segs[j].words and prog(segs[j].words[0]) in LIMITERS for j in range(k + 2, end + 1))
+
+
+def echo_text(seg):
+    """What an `echo` segment prints to the output (its words joined by spaces), or None."""
+    w = seg.words
+    if len(w) < 2 or prog(w[0]) != "echo" or seg.redirs or seg.heredocs or w[1].startswith("-"):
+        return None
+    return " ".join(w[1:])
+
+
+def status_text(text):
+    """(prefix, suffix, PIPESTATUS index or None) of an echo text with exactly one status reference and no other
+    expansion, (text, None, None) for a fixed text, or None."""
+    refs = list(STATUS_REF.finditer(text))
+    if len(refs) > 1:
+        return None
+    if not refs:
+        return None if "$" in text or "`" in text or not text.strip(WS) else (text, None, None)
+    m = refs[0]
+    rest = text[:m.start()] + text[m.end():]
+    if "$" in rest or "`" in rest:
+        return None
+    index = 0 if m.group(0) == "$PIPESTATUS" else (int(m.group(1)) if m.group(1) is not None else None)
+    return text[:m.start()], text[m.end():], index
+
+
+def status_echo(parsed, k):
+    """The status echo that reports the exit status of the chosen segment segs[k] (3.10) as {form, …}, or None."""
+    segs = parsed.segments
+    end = pipeline_end(segs, k)
+    own = end == k or parsed.pipefail
+    after = segs[end + 1:]
+    texts = [status_text(echo_text(seg) or "") for seg in after]
+    if None in texts:
+        return None
+    if len(after) == 1 and after[0].op_before == ";":
+        prefix, suffix, index = texts[0]
+        if suffix is None or (own if index is None else index == k - pipeline_start(segs, k)) is False:
+            return None
+        return {"form": "printed", "prefix": prefix, "suffix": suffix}
+    if not own or any(index is not None for _, _, index in texts):
+        return None
+    if len(after) == 2 and after[0].op_before == "&&" and after[1].op_before == "||":
+        ok, fail = texts
+        if ok[1] is not None or (fail[1] is None and fail[0].strip(WS) == ok[0].strip(WS)):
+            return None
+        return {"form": "branches", "ok": ok[0], "fail": [fail[0], fail[1]]}
+    if len(after) == 1 and after[0].op_before == "||":
+        return {"form": "else", "fail": [texts[0][0], texts[0][1]]}
+    return None
+
+
+def printed_value(line, prefix, suffix):
+    """The integer that `line` holds between `prefix` and `suffix` (both trimmed at their outer edge), or None."""
+    prefix, suffix = prefix.lstrip(WS), suffix.rstrip(WS)
+    if len(line) < len(prefix) + len(suffix) or not line.startswith(prefix) or not line.endswith(suffix):
+        return None
+    middle = line[len(prefix):len(line) - len(suffix)]
+    return num(middle) if STATUS_VALUE.fullmatch(middle) else None
+
+
+def silent(text):
+    """No output at all: nothing but whitespace, or Claude Code's placeholder for it."""
+    stripped = text.strip(JSON_WS)
+    return stripped == "" or stripped == NO_OUTPUT
+
+
+def masked_status(text, output, cwd=None):
+    """{exitCode, failed} that a masked command shows in its output (3.10), or None. `exitCode` null means kept."""
+    parsed = parse_command(text, cwd)
+    info = command_info(text, cwd, parsed)
+    if not info["masked"]:
+        return None
+    k = choose(parsed.segments, cwd if isinstance(cwd, str) else None)[1]
+    lines = [x.strip(WS) for x in lf(output).split("\n") if x.strip(WS)]
+    last = lines[-1] if lines else None
+    echo = status_echo(parsed, k) if k is not None else None
+    if echo is not None and last is not None:
+        if echo["form"] == "printed":
+            value = printed_value(last, echo["prefix"], echo["suffix"])
+            if value is not None:
+                return {"exitCode": value, "failed": value != 0}
+        else:
+            if echo["form"] == "branches" and last == echo["ok"].strip(WS):
+                return {"exitCode": 0, "failed": False}
+            prefix, suffix = echo["fail"]
+            if suffix is None:
+                if last == prefix.strip(WS):
+                    return {"exitCode": None, "failed": True}
+            else:
+                value = printed_value(last, prefix, suffix)
+                if value is not None and value != 0:
+                    return {"exitCode": value, "failed": True}
+    if info["errorFilter"] and silent(output):
+        return {"exitCode": None, "failed": False}
+    return None
+
+
+
 
 
 def shell_kind(parsed, cwd=None):
@@ -1861,6 +2054,8 @@ def result_text(source, result):
         return text
     if family == "codex":
         return codex_status(result)["body"]
+    if family == "droid":
+        return lf(blocks_text(result.get("content"))) if isinstance(result, dict) else ""
     if family in ("omp", "pi", "openclaw"):
         if not isinstance(result, dict):
             return ""
@@ -1884,6 +2079,12 @@ def shell_call_state(source, tool, value, cwd=None):
                  (family == "openclaw" and args.get("background") is True)
     info = command_info(text, cwd)
     return background or info["background"], info["masked"]
+
+
+def masked_outcome(source, tool, value, result, cwd=None):
+    """What a masked shell call's output says about its chosen segment (3.10), or None."""
+    text = command_text(source, tool, value)
+    return masked_status(text, result_text(source, result), cwd) if text is not None else None
 
 
 def outcome(source, result, t=None, tool=None, value=None, cwd=None):
@@ -1931,6 +2132,8 @@ def outcome(source, result, t=None, tool=None, value=None, cwd=None):
         elif nonempty and (PI_ABORT.fullmatch(nonempty[-1]) or PI_ABORT.fullmatch(nonempty[0])):
             state = "aborted"
         failed = (exit_code != 0) if exit_code is not None else (result.get("isError") is True)
+    elif family == "droid" and isinstance(result, dict):
+        failed = result.get("is_error") is True
     else:
         return {"exitCode": None, "failed": None, "t": t}
     if tool is not None and state == "done":
@@ -1938,7 +2141,13 @@ def outcome(source, result, t=None, tool=None, value=None, cwd=None):
         if background:
             state = "running"
         elif masked:
-            failed = None
+            shown = masked_outcome(source, tool, value, result, cwd)
+            if shown is None:
+                failed = None
+            else:
+                failed = shown["failed"]
+                if shown["exitCode"] is not None or failed:
+                    exit_code = shown["exitCode"]
     if state != "done":
         failed = None
         if state in ("running", "aborted"):
@@ -3652,6 +3861,8 @@ def failures_detail(info, output_text, cwd=None, failed=None):
     else:
         framework = completion(segments)
         failed_count, passed_count = (0 if framework else None), None
+        if failed_count is None and failed is False and info.get("errorFilter") and silent(output_text):
+            failed_count = 0
     fingerprints = sorted({sha16(c) for c in canonical})[:MAX_FINGERPRINTS]
     return {"fingerprints": fingerprints, "failedCount": failed_count, "passedCount": passed_count,
             "framework": framework}, canonical
@@ -3867,6 +4078,28 @@ def patch_input(text, cwd):
     return []
 
 
+def droid_pair(entry):
+    """(old, new) of a Factory Droid replacement: `old_str` / `new_str`, else `old_string` / `new_string` (6.2)."""
+    for old_key, new_key in (("old_str", "new_str"), ("old_string", "new_string")):
+        if isinstance(entry.get(old_key), str) and isinstance(entry.get(new_key), str):
+            return entry[old_key], entry[new_key]
+    return None
+
+
+def droid_hunks(name, args, cwd):
+    path = args.get("file_path") if isinstance(args.get("file_path"), str) else None
+    if path is None:
+        return []
+    if name == "Create":
+        return [whole(path, args["content"], cwd)] if isinstance(args.get("content"), str) else []
+    if name == "Edit":
+        pair = droid_pair(args)
+        return [hunk(path, pair[0], pair[1], cwd)] if pair else []
+    edits = args.get("edits") if isinstance(args.get("edits"), list) else []
+    pairs = [droid_pair(e) for e in edits if isinstance(e, dict)]
+    return [hunk(path, old, new, cwd) for old, new in (p for p in pairs if p)]
+
+
 def edit_hunks(source, tool, value, cwd=None):
     family = FAMILY.get(source)
     if family is None or not isinstance(tool, str):
@@ -3890,6 +4123,8 @@ def edit_hunks(source, tool, value, cwd=None):
         return codex_patch(text, cwd) if isinstance(text, str) else []
     if args is None:
         return []
+    if family == "droid":
+        return droid_hunks(name, args, cwd)
     if family == "claude":
         path = args.get("file_path") if isinstance(args.get("file_path"), str) else None
         if name == "Edit" and path and isinstance(args.get("old_string"), str) and isinstance(args.get("new_string"),
@@ -3942,6 +4177,11 @@ APPENDIX_END = "<!-- appendix end -->"
 
 def code_list(values):
     return ", ".join("`" + v + "`" if "`" not in v else "``" + v + "``" for v in values) or "none"
+
+
+# Strings and maps the text names, listed in A.6 (a list, so A.2 does not list it as a word tuple).
+APPENDIX_CONSTANTS = ["GREP_FLAGS", "NO_OUTPUT", "CODE_COMPLETED", "CC_EXT", "NOT_IN_PATH", "RUNNER_SUBCOMMANDS",
+                      "SCRIPT_LABEL"]
 
 
 def spec_appendix():
@@ -4003,7 +4243,18 @@ def spec_appendix():
             if is_pattern and name not in names:
                 names.append(name)
         out.append("- %s: %s" % (cls.__name__, ", ".join("`%s`" % n for n in names)))
-    out += ["", APPENDIX_END]
+    out += ["", "### A.6 Named strings and maps", "",
+            "Strings as JSON string literals (escapes as in JSON; regular-expression fragments that the patterns of "
+            "A.4 already contain expanded); maps as `key → values`.", "", "```text"]
+    for name in APPENDIX_CONSTANTS:
+        value = getattr(sys.modules[__name__], name)
+        if isinstance(value, str):
+            shown = json.dumps(value, ensure_ascii=False)
+        else:
+            shown = "; ".join("%s → %s" % (k, ", ".join(json.dumps(x, ensure_ascii=False) for x in v))
+                              for k, v in value.items())
+        out.append("%-18s %s" % (name, shown))
+    out += ["```", "", APPENDIX_END]
     return "\n".join(out) + "\n"
 
 
@@ -4024,7 +4275,7 @@ def compute(case):
         return action_kind(case["source"], case["tool"], case["input"], cwd)
     if group == "command":
         info = command_info(case["text"], cwd)
-        return {k: info[k] for k in ("class", "suite", "targeted", "key", "masked", "background")}
+        return {k: info[k] for k in ("class", "suite", "targeted", "key", "masked", "background", "errorFilter")}
     if group == "outcome":
         return outcome(case["source"], case["result"], case.get("t"), case.get("tool"), case.get("input"), cwd)
     if group == "resultText":
@@ -4044,6 +4295,8 @@ def compute(case):
         return code_script(case["source"], case["tool"], case["input"])
     if group == "codeItems":
         return code_items(case["source"], case["result"])
+    if group == "maskedStatus":
+        return masked_status(case["text"], case["output"], cwd)
     raise ValueError(group)
 
 

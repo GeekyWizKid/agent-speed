@@ -166,6 +166,8 @@ class Composer:
             t = self.codex(state, obj)
         elif fam in PI_FAMILY:
             t = self.pi_family(state, obj, dedupe, raw)
+        elif fam == "droid":
+            t = self.droid(state, obj, dedupe, raw)
         else:
             return
         if t is not None:
@@ -283,6 +285,37 @@ class Composer:
                 self.calls_in(state.source, message.get("content"), "toolCall", "arguments", t, raw)
         elif role == "toolResult":
             self.result(state.source, message.get("toolCallId"), message, t)
+        return t
+
+    # -- Factory Droid
+    def droid(self, state, obj, dedupe, raw):
+        ref = engine()
+        kind = obj.get("type")
+        if kind == "session_start":
+            if self.header_seen:
+                return None
+            self.header_seen = True
+            if not blank(obj.get("cwd")):
+                self.cwd = obj["cwd"]
+            return ref.parse_ts(obj.get("timestamp"))
+        t = ref.parse_ts(obj.get("timestamp"))
+        message = obj.get("message")
+        if t is None or kind != "message" or not isinstance(message, dict):
+            return t
+        role = message.get("role")
+        if role == "user":
+            found = model.prompt_line(state.source, obj)
+            if found is not None:
+                self.line_kind(found["kind"], found.get("t", t), found.get("continuation"))
+            content = message.get("content")
+            for block in content if isinstance(content, list) else []:
+                if isinstance(block, dict) and block.get("type") == "tool_result":
+                    self.result(state.source, block.get("tool_use_id"), block, t)
+        elif role == "assistant" and isinstance(obj.get("id"), str) and obj["id"]:
+            duplicate = dedupe.owner("droid:" + obj["id"]) not in (None, self.path)
+            self.assistant(duplicate)
+            if not duplicate:
+                self.calls_in(state.source, message.get("content"), "tool_use", "input", t, raw)
         return t
 
     # -- prompts and withdrawal (6.9 Tasks)

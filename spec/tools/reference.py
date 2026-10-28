@@ -2350,6 +2350,8 @@ def droid_feed(state, dedupe, start_offset=0, max_lines=None):
             state.malformed += 1
             continue
         droid_line(state, obj, dedupe, offset, len(raw))
+        if state.tasks is not None:
+            state.tasks.feed(state, obj, dedupe, raw)
     return end
 
 
@@ -3133,7 +3135,7 @@ def today_stats(responses, today_start, now):
 
 # ----------------------------------------------------------------------------- task score (METRICS 6.9, 6.11)
 
-TASK_SOURCES = ("codex", "claudeCode", "claudeDesktop", "omp", "pi", "openclaw")
+TASK_SOURCES = ("codex", "claudeCode", "claudeDesktop", "omp", "pi", "openclaw", "droid")
 
 
 def task_states(files, dedupe, include=lambda path: True):
@@ -4534,7 +4536,7 @@ def main():
             parser.error("--source takes a scored source id: " + ", ".join(TASK_SOURCES))
         files = startup_files(codex_root, claude_root, os.path.join(home, ".agent-speed-none"), omp_dirs=omp_dirs,
                               limit=10 ** 9, include_archived=True, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
-                              codex_roots=codex_roots)
+                              codex_roots=codex_roots, droid_roots=droid_roots)
         dump_tasks(files, args.first, args.last, args.source, timezone.utc if args.utc else None)
         return
     if args.dump_unpriced:

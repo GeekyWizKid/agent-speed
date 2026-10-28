@@ -55,6 +55,18 @@
   {
    "source": "claudeCode",
    "path": "tasks/claude/projects/-Users-dev-work-orbit/c4e8a2f0-3b1d-4e6a-8f27-5a9d1c3e7b03.jsonl"
+  },
+  {
+   "source": "droid",
+   "path": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-2222-4a5b-8c6d-7e8f9a0b1c02.jsonl"
+  },
+  {
+   "source": "droid",
+   "path": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl"
+  },
+  {
+   "source": "droid",
+   "path": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-3333-4a5b-8c6d-7e8f9a0b1c03.jsonl"
   }
  ],
  "sets": [
@@ -78,12 +90,19 @@
    "openclaw"
   ],
   [
+   "droid"
+  ],
+  [
    "codex",
    "pi"
   ],
   [
    "omp",
    "openclaw"
+  ],
+  [
+   "claudeCode",
+   "droid"
   ]
  ],
  "comparisonRange": {
@@ -4351,6 +4370,178 @@
       "exitCode": 0,
       "failed": false,
       "t": 1793098326000
+     }
+    }
+   ]
+  },
+  "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl": {
+   "source": "droid",
+   "stitched": 0,
+   "events": [
+    {
+     "t": 1793097840500,
+     "type": "prompt",
+     "continuation": false
+    },
+    {
+     "t": 1793097845000,
+     "type": "action",
+     "kind": "command",
+     "tool": "Execute",
+     "digest": "4925ab8b7f141e49",
+     "command": {
+      "class": "test",
+      "suite": "npm test",
+      "targeted": false,
+      "key": "407f776d577b09c7"
+     },
+     "outcome": {
+      "exitCode": 1,
+      "failed": true,
+      "t": 1793097860000
+     },
+     "failures": {
+      "fingerprints": [],
+      "failedCount": 2,
+      "passedCount": 12,
+      "framework": "mocha"
+     }
+    },
+    {
+     "t": 1793097870000,
+     "type": "action",
+     "kind": "edit",
+     "tool": "Edit",
+     "digest": "a3e73699c2a4fd7a",
+     "hunks": [
+      {
+       "file": "d027d3b9853e6bed",
+       "old": "39d0167ddcd1e161",
+       "new": "777f46e898508a75"
+      }
+     ],
+     "outcome": {
+      "exitCode": null,
+      "failed": false,
+      "t": 1793097871000
+     }
+    },
+    {
+     "t": 1793097880000,
+     "type": "action",
+     "kind": "delegate",
+     "tool": "Task",
+     "digest": "8499c9c79e5fad17",
+     "outcome": {
+      "exitCode": null,
+      "failed": false,
+      "t": 1793097930000
+     }
+    },
+    {
+     "t": 1793097940000,
+     "type": "action",
+     "kind": "command",
+     "tool": "Execute",
+     "digest": "12cbc0fe5ba96fa6",
+     "command": {
+      "class": "check",
+      "suite": "tsc",
+      "targeted": false,
+      "key": "b6a113a7cac44e3d"
+     },
+     "outcome": {
+      "exitCode": null,
+      "failed": false,
+      "t": 1793097948000
+     },
+     "failures": {
+      "fingerprints": [],
+      "failedCount": 0,
+      "passedCount": null,
+      "framework": null
+     }
+    },
+    {
+     "t": 1793097950000,
+     "type": "action",
+     "kind": "command",
+     "tool": "Execute",
+     "digest": "c90276a9273c24a7",
+     "command": {
+      "class": "test",
+      "suite": "npm test",
+      "targeted": false,
+      "key": "407f776d577b09c7"
+     },
+     "outcome": {
+      "exitCode": null,
+      "failed": false,
+      "t": 1793097958000
+     },
+     "failures": {
+      "fingerprints": [],
+      "failedCount": 0,
+      "passedCount": 14,
+      "framework": "mocha"
+     }
+    },
+    {
+     "t": 1793098680000,
+     "type": "prompt",
+     "continuation": true
+    }
+   ]
+  },
+  "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-2222-4a5b-8c6d-7e8f9a0b1c02.jsonl": {
+   "source": "droid",
+   "stitched": 0,
+   "events": [
+    {
+     "t": 1793097881000,
+     "type": "prompt",
+     "continuation": false
+    },
+    {
+     "t": 1793097885000,
+     "type": "action",
+     "kind": "search",
+     "tool": "Grep",
+     "digest": "49a2d12ede2a7ab0",
+     "outcome": {
+      "exitCode": null,
+      "failed": false,
+      "t": 1793097886000
+     }
+    }
+   ]
+  },
+  "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-3333-4a5b-8c6d-7e8f9a0b1c03.jsonl": {
+   "source": "droid",
+   "stitched": 0,
+   "events": [
+    {
+     "t": 1793098200000,
+     "type": "prompt",
+     "continuation": false
+    },
+    {
+     "t": 1793098205000,
+     "type": "action",
+     "kind": "edit",
+     "tool": "Create",
+     "digest": "64a59d1ff63911dd",
+     "hunks": [
+      {
+       "file": "06572a96a58dc510",
+       "old": null,
+       "new": "02c0d863d22894fa"
+      }
+     ],
+     "outcome": {
+      "exitCode": null,
+      "failed": false,
+      "t": 1793098206000
      }
     }
    ]
@@ -9022,6 +9213,178 @@
    "fixRows": []
   },
   {
+   "agentId": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl",
+   "ordinal": 0,
+   "source": "droid",
+   "model": "claude-opus-5-5",
+   "effort": "high",
+   "startMs": 1793097840500,
+   "endMs": 1793098680000,
+   "day": "2026-10-27",
+   "complete": false,
+   "state": "passing",
+   "score": 96.25,
+   "dims": {
+    "V": 40.0,
+    "C": 25.0,
+    "R": 15.0,
+    "E": 6.25,
+    "K": 10.0
+   },
+   "counts": {
+    "actions": 5,
+    "counted": 5,
+    "edits": 1,
+    "oscillations": 0,
+    "loopActions": 0,
+    "runs": 3,
+    "failingRuns": 1,
+    "episodes": 1,
+    "recovered": 1,
+    "recoverAttempts": 1,
+    "fixAttempts": 1,
+    "fixFailures": 0
+   },
+   "firstPassMs": 1793097948000,
+   "success": true,
+   "stalled": false,
+   "snapshots": [
+    [
+     1,
+     0.0,
+     1.0,
+     0.0,
+     1.0,
+     0.0,
+     0.0,
+     0.1111111111111111,
+     0
+    ],
+    [
+     2,
+     0.0,
+     1.0,
+     0.0,
+     1.0,
+     0.0,
+     0.0,
+     0.1761069445245729,
+     0
+    ],
+    [
+     4,
+     1.0,
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.0,
+     0.2579920105430402,
+     0
+    ]
+   ],
+   "fixRows": [
+    [
+     0.0,
+     0.1981203125901445,
+     1.0,
+     0.0,
+     1.0,
+     0
+    ]
+   ]
+  },
+  {
+   "agentId": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-2222-4a5b-8c6d-7e8f9a0b1c02.jsonl",
+   "ordinal": 0,
+   "source": "droid",
+   "model": "claude-opus-5-5",
+   "effort": "high",
+   "startMs": 1793097881000,
+   "endMs": 1793097886000,
+   "day": "2026-10-27",
+   "complete": false,
+   "state": "none",
+   "score": null,
+   "dims": {
+    "V": 0.0,
+    "C": 0.0,
+    "R": 0.0,
+    "E": 1.25,
+    "K": 0.0
+   },
+   "counts": {
+    "actions": 1,
+    "counted": 1,
+    "edits": 0,
+    "oscillations": 0,
+    "loopActions": 0,
+    "runs": 0,
+    "failingRuns": 0,
+    "episodes": 0,
+    "recovered": 0,
+    "recoverAttempts": 0,
+    "fixAttempts": 0,
+    "fixFailures": 0
+   },
+   "firstPassMs": null,
+   "success": false,
+   "stalled": false,
+   "snapshots": [],
+   "fixRows": []
+  },
+  {
+   "agentId": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-3333-4a5b-8c6d-7e8f9a0b1c03.jsonl",
+   "ordinal": 0,
+   "source": "droid",
+   "model": "claude-opus-5-5",
+   "effort": "high",
+   "startMs": 1793098200000,
+   "endMs": 1793098206000,
+   "day": "2026-10-27",
+   "complete": false,
+   "state": "unverified",
+   "score": 1.25,
+   "dims": {
+    "V": 0.0,
+    "C": 0.0,
+    "R": 0.0,
+    "E": 1.25,
+    "K": 0.0
+   },
+   "counts": {
+    "actions": 1,
+    "counted": 1,
+    "edits": 1,
+    "oscillations": 0,
+    "loopActions": 0,
+    "runs": 0,
+    "failingRuns": 0,
+    "episodes": 0,
+    "recovered": 0,
+    "recoverAttempts": 0,
+    "fixAttempts": 0,
+    "fixFailures": 0
+   },
+   "firstPassMs": null,
+   "success": false,
+   "stalled": false,
+   "snapshots": [
+    [
+     1,
+     0.0,
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.0,
+     0.1111111111111111,
+     0
+    ]
+   ],
+   "fixRows": []
+  },
+  {
    "agentId": "tasks/omp/agent/sessions/-Users-dev-work-ember/2026-10-27T10-10-00-000Z_01a17cd6-94c0-7899-8acb-001956e27d59.jsonl",
    "ordinal": 0,
    "source": "omp",
@@ -9497,6 +9860,46 @@
    }
   },
   "openclaw": {
+   "success": {
+    "coefficients": [
+     -1.5,
+     3.0,
+     -0.5,
+     1.0,
+     1.0,
+     -2.0,
+     -1.5,
+     -0.5
+    ],
+    "calibrated": false,
+    "tasks": 0
+   },
+   "stall": {
+    "coefficients": [
+     -1.0,
+     -2.0,
+     3.0,
+     2.0,
+     0.8,
+     0.5
+    ],
+    "calibrated": false,
+    "tasks": 0
+   },
+   "fix": {
+    "coefficients": [
+     -0.5,
+     1.5,
+     1.0,
+     1.0,
+     1.5,
+     -1.0
+    ],
+    "calibrated": false,
+    "tasks": 0
+   }
+  },
+  "droid": {
    "success": {
     "coefficients": [
      -1.5,
@@ -10389,6 +10792,190 @@
      "tasks": 0
     }
    }
+  },
+  {
+   "agentId": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-2222-4a5b-8c6d-7e8f9a0b1c02.jsonl",
+   "source": "droid",
+   "phase": "idle",
+   "lastLineMs": 1793097925000,
+   "parentId": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl",
+   "taskStartMs": 1793097881000,
+   "form": "none",
+   "score": null,
+   "shown": null,
+   "state": "none",
+   "dims": {
+    "V": 0.0,
+    "C": 0.0,
+    "R": 0.0,
+    "E": 1.25,
+    "K": 0.0
+   },
+   "ig": 1.0,
+   "loop": 0.0,
+   "osc": 0.0,
+   "counts": {
+    "actions": 1,
+    "counted": 1,
+    "edits": 0,
+    "oscillations": 0,
+    "loopActions": 0,
+    "runs": 0,
+    "failingRuns": 0,
+    "episodes": 0,
+    "recovered": 0,
+    "recoverAttempts": 0,
+    "fixAttempts": 0,
+    "fixFailures": 0
+   },
+   "firstPassMs": null,
+   "vHeld": null,
+   "openFailure": null,
+   "lastPass": null,
+   "predictions": null,
+   "models": {
+    "success": {
+     "calibrated": false,
+     "tasks": 0
+    },
+    "stall": {
+     "calibrated": false,
+     "tasks": 0
+    },
+    "fix": {
+     "calibrated": false,
+     "tasks": 0
+    }
+   }
+  },
+  {
+   "agentId": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl",
+   "source": "droid",
+   "phase": "generating",
+   "lastLineMs": 1793098680000,
+   "parentId": null,
+   "taskStartMs": 1793097840500,
+   "form": "live",
+   "score": 96.25,
+   "shown": 96,
+   "state": "passing",
+   "dims": {
+    "V": 40.0,
+    "C": 25.0,
+    "R": 15.0,
+    "E": 6.25,
+    "K": 10.0
+   },
+   "ig": 1.0,
+   "loop": 0.0,
+   "osc": 0.0,
+   "counts": {
+    "actions": 5,
+    "counted": 5,
+    "edits": 1,
+    "oscillations": 0,
+    "loopActions": 0,
+    "runs": 3,
+    "failingRuns": 1,
+    "episodes": 1,
+    "recovered": 1,
+    "recoverAttempts": 1,
+    "fixAttempts": 1,
+    "fixFailures": 0
+   },
+   "firstPassMs": 1793097948000,
+   "vHeld": null,
+   "openFailure": null,
+   "lastPass": {
+    "suite": "npm test",
+    "class": "test",
+    "key": "407f776d577b09c7",
+    "buildOnly": false
+   },
+   "predictions": {
+    "success": 0.9663134941434723,
+    "stall": 0.054351898396000436,
+    "fix": null,
+    "successShown": 97,
+    "stallShown": 5,
+    "fixShown": null
+   },
+   "models": {
+    "success": {
+     "calibrated": false,
+     "tasks": 0
+    },
+    "stall": {
+     "calibrated": false,
+     "tasks": 0
+    },
+    "fix": {
+     "calibrated": false,
+     "tasks": 0
+    }
+   }
+  },
+  {
+   "agentId": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-3333-4a5b-8c6d-7e8f9a0b1c03.jsonl",
+   "source": "droid",
+   "phase": "idle",
+   "lastLineMs": 1793098220000,
+   "parentId": null,
+   "taskStartMs": 1793098200000,
+   "form": "resting",
+   "score": 1.25,
+   "shown": 1,
+   "state": "unverified",
+   "dims": {
+    "V": 0.0,
+    "C": 0.0,
+    "R": 0.0,
+    "E": 1.25,
+    "K": 0.0
+   },
+   "ig": 1.0,
+   "loop": 0.0,
+   "osc": 0.0,
+   "counts": {
+    "actions": 1,
+    "counted": 1,
+    "edits": 1,
+    "oscillations": 0,
+    "loopActions": 0,
+    "runs": 0,
+    "failingRuns": 0,
+    "episodes": 0,
+    "recovered": 0,
+    "recoverAttempts": 0,
+    "fixAttempts": 0,
+    "fixFailures": 0
+   },
+   "firstPassMs": null,
+   "vHeld": null,
+   "openFailure": null,
+   "lastPass": null,
+   "predictions": {
+    "success": 0.3645764407416393,
+    "stall": 0.049999740399933254,
+    "fix": null,
+    "successShown": 36,
+    "stallShown": 5,
+    "fixShown": null
+   },
+   "models": {
+    "success": {
+     "calibrated": false,
+     "tasks": 0
+    },
+    "stall": {
+     "calibrated": false,
+     "tasks": 0
+    },
+    "fix": {
+     "calibrated": false,
+     "tasks": 0
+    }
+   }
   }
  ],
  "taskSets": {
@@ -10397,6 +10984,8 @@
    "tasks/claude/projects/-Users-dev-work-orbit/c4e8a2f0-3b1d-4e6a-8f27-5a9d1c3e7b03.jsonl",
    "tasks/codex/sessions/2026/10/27/rollout-2026-10-27T10-29-58-019a2b3c-4d5e-7f60-8a71-b2c3d4e5f601.jsonl",
    "tasks/codex/sessions/2026/10/27/rollout-2026-10-27T10-52-00-019a2b3c-4d5e-7f60-8a71-b2c3d4e5f602.jsonl",
+   "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl",
+   "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-3333-4a5b-8c6d-7e8f9a0b1c03.jsonl",
    "tasks/openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite#w-main-0001",
    "tasks/openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite#w-sub-0002",
    "tasks/pi/agent/sessions/--Users-dev-work-halo--/2026-10-27T10-50-00-000Z_01a17cfb-33c0-7e7b-8e71-001a935170bb.jsonl"
@@ -10405,9 +10994,9 @@
    {
     "sources": null,
     "form": "live",
-    "score": 67.75,
-    "shown": 68,
-    "agent": "tasks/claude/projects/-Users-dev-work-atlas/5b1c7e2a-0d4f-4b8e-9a31-6c2f0e8d1a01.jsonl"
+    "score": 96.25,
+    "shown": 96,
+    "agent": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl"
    },
    {
     "sources": [
@@ -10465,6 +11054,15 @@
    },
    {
     "sources": [
+     "droid"
+    ],
+    "form": "live",
+    "score": 96.25,
+    "shown": 96,
+    "agent": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl"
+   },
+   {
+    "sources": [
      "codex",
      "pi"
     ],
@@ -10482,6 +11080,16 @@
     "score": 69.0,
     "shown": 69,
     "agent": "tasks/openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite#w-main-0001"
+   },
+   {
+    "sources": [
+     "claudeCode",
+     "droid"
+    ],
+    "form": "live",
+    "score": 96.25,
+    "shown": 96,
+    "agent": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl"
    }
   ],
   "groups": {
@@ -10512,6 +11120,24 @@
     "score": 66.5,
     "shown": 67,
     "agent": "tasks/codex/sessions/2026/10/27/rollout-2026-10-27T10-29-58-019a2b3c-4d5e-7f60-8a71-b2c3d4e5f601.jsonl"
+   },
+   "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl": {
+    "members": [
+     "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl"
+    ],
+    "form": "live",
+    "score": 96.25,
+    "shown": 96,
+    "agent": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01.jsonl"
+   },
+   "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-3333-4a5b-8c6d-7e8f9a0b1c03.jsonl": {
+    "members": [
+     "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-3333-4a5b-8c6d-7e8f9a0b1c03.jsonl"
+    ],
+    "form": "resting",
+    "score": 1.25,
+    "shown": 1,
+    "agent": "tasks/droid/.factory/sessions/-Users-dev-work-forge/0a1b2c3d-3333-4a5b-8c6d-7e8f9a0b1c03.jsonl"
    },
    "tasks/openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite#w-main-0001": {
     "members": [

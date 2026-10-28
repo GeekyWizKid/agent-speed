@@ -1745,8 +1745,9 @@ the same day (9.6) until the next launch seeds the session by the history rule.
   a call that asked for tools until their results are written, and `idle` follows a call without tools and a turn
   outcome. The sidecar never changes the phase.
 - Effort (EXECUTION-MODES): each call's `reasoningEffort`; no speed facts.
-- Work signals (6.10) do not cover Factory Droid. Its transcript records tool calls in Anthropic's shape (`tool_use`
-  blocks in assistant messages, `tool_result` blocks in the next user message), which are not read here.
+- Work signals (6.10) and the task score (6.9) read its tool calls, which the transcript records in Anthropic's shape
+  (`tool_use` blocks in assistant messages, `tool_result` blocks in the next user message); a Task worker's
+  `callingToolUseId` is the parent's `Task` call.
 - Settings (DESIGN 5) count today's main sessions: session files whose `lastLineMs` is today and whose session is not a
   sub-agent.
 
@@ -2020,7 +2021,8 @@ differs).
 The score replaces the grade of earlier versions (model class from the price table, 6 × effort level, 20 × thinking
 share), which is retired everywhere. The thinking line (*Live thinking*, below) is unchanged.
 
-Sources: Claude Code, Claude Desktop, Codex, omp, Pi and OpenClaw, which record tool calls (6.10). Every other source
+Sources: Claude Code, Claude Desktop, Codex, omp, Pi, OpenClaw and Factory Droid, which record tool calls (6.10).
+Every other source
 has no tasks, and its agents' value is none.
 
 #### Tasks
@@ -2042,6 +2044,7 @@ The latest task is the agent's **current task**. It stays current after the agen
 | Claude (both) | a `type == "user"` line classified *prompt* or *command* below; a *queued message* (below) | assistant lines, every other attachment, every other type |
 | Codex | a `response_item` with `payload.type == "message"` and `payload.role == "user"` whose content (a string, or its `input_text` and `text` blocks) has a non-blank text or an `input_image` block, unless the first text, with leading whitespace removed, starts with `<` and an ASCII letter or with `# AGENTS.md instructions`; its text is the string, or the text blocks that do not start (after leading whitespace) with `<`, joined with LF | injected user-role context (`<environment_context>`, `<heartbeat>`, `<subagent_notification>`, `<turn_aborted>`, the user's reply to the agent's question `<send_user_message_question_reply>`, AGENTS.md), `developer` and `system` messages, the `event_msg` `user_message` (older versions write it beside the item; the versions on this Mac since 2026-04 write none), mailbox input (4.2), tool outputs |
 | omp, Pi, OpenClaw | a `message` entry with `message.role == "user"` whose content is a non-blank string, or has a non-blank `text` block or an `image` block; its text is the string, or the `text` blocks joined with LF | `developer`, `toolResult`, `bashExecution` and the other roles; `compaction`, `branch_summary`, `custom_message` and every other entry |
+| Factory Droid | a `type == "message"` line with `message.role == "user"` and no `message.visibility` (absent or null: the user's own message) whose content has no `tool_result` block and has a non-blank text or an `image` block (rule 1 below, with `image` only); its text as rule 5 | tool results (the same role, with `tool_result` blocks), the per-turn context (`visibility: "llm_only"`, id `context-<turn id>`), notices and hook records (`user_only`), assistant messages and every other type (4.16). From public recordings; no Droid session was read on this machine |
 
 *Blank* and *trimmed* are as in 4.9. A Claude `type == "user"` line is classified by the first rule that matches:
 
@@ -2069,12 +2072,13 @@ test for text or an image or document, rule 5's text), so it can be a continuati
 messages of sub-agents (`isMeta`, text starting `<agent-message`). Checked against real Claude Code logs, counts and
 field names only (2026-10-28).
 
-**Withdrawal** (Claude, omp, Pi, OpenClaw). A prompt or command takes effect as soon as its line is read, so the new
+**Withdrawal** (Claude, omp, Pi, OpenClaw, Factory Droid). A prompt or command takes effect as soon as its line is
+read, so the new
 task shows at once. It is *withdrawn* — as if the line were not there, and the previous task stays current — when:
 
-- the first assistant line (Claude) or assistant `message` entry (omp, Pi, OpenClaw) after it is ignored because its key
-  was first seen in another file (4.1 step 2, 4.7 step 2): the prompt was copied with its conversation (a forked Claude
-  session, omp's byte copies of sub-agent transcripts);
+- the first assistant line (Claude) or assistant `message` entry (omp, Pi, OpenClaw, Factory Droid) after it is ignored
+  because its key was first seen in another file (4.1 step 2, 4.7 step 2, 4.16 *Calls*): the prompt was copied with
+  its conversation (a forked Claude or Droid session, omp's byte copies of sub-agent transcripts);
 - for a command only: a command output line comes before any assistant line that is not ignored. The command never
   asked the model anything (`/model`, `/cost`, `/compact`, …).
 
@@ -2152,13 +2156,15 @@ another file (4.1 step 2, 4.7 step 2) is a **duplicate**. `spec/tools/task_event
 | Claude (both) | the line's `timestamp` (3.1); a line without one adds nothing | a non-blank string `cwd` of the line, taken before the line's own calls; the latest wins | `user` lines classified *prompt*, *command* or *command output*, and queued messages (*Tasks*) | blocks `tool_use` (`id`, `name`, `input`) of an `assistant` line that is not `<synthetic>` (4.1 step 1) and not a duplicate | blocks `tool_result` of a `user` line, by `tool_use_id`; the result is the block |
 | Codex | the envelope's `timestamp`; lines that 3.5 removes add nothing | the first `session_meta`'s `payload.cwd`, then every `turn_context`'s `payload.cwd` (non-blank strings) | `response_item` user messages (*Tasks*) | `response_item` / `function_call` (`call_id`, `name`, `arguments`) and `custom_tool_call` (`call_id`, `name`, `input`); a code-mode script gives its tool calls instead (below) | `response_item` / `function_call_output` and `custom_tool_call_output`, by `call_id`; the result is the payload |
 | omp, Pi, OpenClaw | the entry's `timestamp`; entries that 4.7 ignores (before the header, without a string `id` or a time, copied history) add nothing | the header's `cwd` (a non-blank string) | `message` entries of role `user` (*Tasks*) | blocks `toolCall` (`id`, `name`, `arguments`) of an assistant `message` that passes 4.7 step 1, is not a duplicate and, for OpenClaw, is not a mirror (4.14) | `message` entries of role `toolResult`, by `toolCallId`; the result is the message |
+| Factory Droid | the line's `timestamp`; a line without one (`agent_turn_outcome`) adds nothing | the first `session_start`'s `cwd` (a non-blank string) | user `message` lines (*Tasks*) | blocks `tool_use` (`id`, `name`, `input`) of an assistant `message` line whose `id` is a non-empty string and whose key `droid:<id>` is not a duplicate (4.16 *Calls*) | blocks `tool_result` of a user `message` line, by `tool_use_id`; the result is the block |
 
 *Non-blank* is as in 4.9; the `cwd` is passed to the parsers as stored (TASK-PARSERS normalises it).
 
 **Prompts.** Prompt, command and command-output lines and the assistant lines with their duplicate flag go through the
 withdrawal of *Tasks* in line order: a prompt or command adds its prompt event at once and is removed again when the
 first assistant line after it is a duplicate, or, for a command, when a command output comes first. The assistant lines
-that decide are, for Claude, every `assistant` line with a time except `<synthetic>` ones, and for omp, Pi and OpenClaw
+that decide are, for Claude, every `assistant` line with a time except `<synthetic>` ones, for Factory Droid every
+assistant `message` line with a time and a non-empty string `id`, and for omp, Pi and OpenClaw
 every assistant `message` that passes 4.7 step 1 (an OpenClaw mirror decides like any other). Codex has no withdrawal.
 
 **Calls.** A call needs a string id and a string tool name; an id the agent's file already had is a repeat and adds
@@ -2223,11 +2229,12 @@ whenever it finishes. An evaluation at `nowMs` sees it from the continuation res
   fire while seeding). A file read from an offset (5) composes from that offset, after the header that omp and Pi read
   first (its `cwd` counts); its events before the first prompt form a task of their own (*Tasks*).
 - Copied history adds nothing: Codex lines that 3.5 removes, and omp, Pi and OpenClaw entries before `headerMs − 2000`.
-  Claude copies (forks, resumes) are found by deduplication: their assistant lines are duplicates (no actions, and the
-  prompt before them is withdrawn), and their tool results match no call. omp's byte copies of sub-agent transcripts are
+  Claude and Factory Droid copies (forks, resumes) are found by deduplication: their assistant lines are duplicates (no
+  actions, and the prompt before them is withdrawn), and their tool results match no call. omp's byte copies of sub-agent transcripts are
   duplicates the same way.
 - Every agent has its own stream: a Claude `subagents/*.jsonl` file, a Codex sub-agent rollout, an omp or Pi nested
-  file, an OpenClaw spawned window. The request its parent gave it is its first prompt (a Claude `user` line, a Codex
+  file, an OpenClaw spawned window, a Factory Droid Task worker (its own session file, with `callingSessionId`; its
+  `callingToolUseId` names the parent's `Task` call, which is the parent's `delegate` action). The request its parent gave it is its first prompt (a Claude `user` line, a Codex
   `user_message`, a user message of the Pi family); a request that arrives otherwise (a Codex mailbox message, 4.2)
   leaves its first events to a task before the first prompt.
 - An OpenClaw delegated window's mirrors add no actions (the runtime that ran the turn records the tools in its own
@@ -2273,8 +2280,11 @@ their number.
 - **pass** otherwise, when `outcome.failed` is false, or when `failedCount == 0` and `passedCount` is not 0 (a
   summary that reports no failure: tests that passed, or a checker or build, which counts no passes — unless it says
   that nothing ran);
-- otherwise (no outcome yet, or `failed` null — backgrounded, interrupted or still running, TASK-PARSERS — without
-  counts) it is not a run, only a counted action.
+- otherwise (no outcome yet, or `failed` null — backgrounded, interrupted or still running, or masked by a pipe or a
+  list without a status the output states, TASK-PARSERS 3.10 — without counts) it is not a run, only a counted
+  action. A masked command whose output prints its own exit code (`; echo $?` after a command that owns its status,
+  `${PIPESTATUS[0]}`, `&& echo ok || echo fail`, `|| echo "failed $?"`) gets that status, and a build or check piped
+  into a grep for error lines that printed nothing passes (user's decision, 2026-10-28).
 
 The error count of a run is `F = 0` for a pass and `max(1, |fingerprints|, failedCount)` for a fail (a null count is 0).
 
@@ -2491,11 +2501,12 @@ outcome `(time, failed)`, matched by call id:
 | Claude (both) | assistant `message.content[]` block `tool_use` (each `id` once per file: a message's lines repeat it) | `name`; `input` | user block `tool_result` with that `tool_use_id` | `is_error == true` |
 | Codex | `response_item` `function_call` / `custom_tool_call` | `name`; `arguments` / `input` | `…_output` with that `call_id` | the output's leading JSON object (in the first `input_text` item when `output` is an array) has an integer `exit_code` ≠ 0 |
 | omp, Pi, OpenClaw | assistant `toolCall` block | `name`; `arguments` | `toolResult` with that `toolCallId` | `isError == true` |
+| Factory Droid | assistant `message` line, `message.content[]` block `tool_use` (each `id` once per file) | `name`; `input` | user `message` line, block `tool_result` with that `tool_use_id` | `is_error == true` |
 | others | — (no actions; no signals) | | | |
 
 `digest` = the first 16 lowercase hex digits of SHA-256 over the call's input as the file stores it: the UTF-8 text of
 a string input (Codex `arguments` and `input` are strings), the raw JSON text of an object or array exactly as it
-appears in the line (Claude `input`, omp and Pi `arguments`; OpenClaw: in the decoded entry). It is computed while the
+appears in the line (Claude and Factory Droid `input`, omp and Pi `arguments`; OpenClaw: in the decoded entry). It is computed while the
 line is parsed. An assistant line or entry ignored because its key was first seen in another file (4.1 step 2, 4.7
 step 2) adds no actions, and its results match nothing.
 

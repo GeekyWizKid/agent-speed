@@ -191,6 +191,20 @@ def prompt_lines():
          {"type": "message", "id": "e1", "message": {"role": "developer", "content": "rules"}}, None),
         ("openclaw: a tool result is not a prompt", "openclaw",
          {"type": "message", "id": "e1", "message": {"role": "toolResult", "toolCallId": "c1", "content": "x"}}, None),
+        ("droid: a user message without visibility is a prompt", "droid",
+         {"type": "message", "id": "m1", "message": {"role": "user", "content": [{"type": "text",
+                                                                                 "text": "Fix the cache flush"}]}}, p),
+        ("droid: a continuation", "droid",
+         {"type": "message", "id": "m2", "message": {"role": "user", "content": "keep going"}}, c),
+        ("droid: the per-turn context (llm_only) is not a prompt", "droid",
+         {"type": "message", "id": "context-t1", "message": {"role": "user", "visibility": "llm_only",
+                                                             "content": [{"type": "text", "text": "cwd: /w"}]}}, None),
+        ("droid: a notice (user_only) is not a prompt", "droid",
+         {"type": "message", "id": "n1", "message": {"role": "user", "visibility": "user_only",
+                                                     "content": [{"type": "text", "text": "Hook ran"}]}}, None),
+        ("droid: tool results are not a prompt", "droid",
+         {"type": "message", "id": "r1", "message": {"role": "user", "content": [
+             {"type": "tool_result", "tool_use_id": "toolu_1", "content": "ok", "is_error": False}]}}, None),
         ("hermes has no tasks", "hermes", {"type": "message", "message": {"role": "user", "content": "hi"}}, None),
     ]
 
