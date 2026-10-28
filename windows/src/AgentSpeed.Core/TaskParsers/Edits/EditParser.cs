@@ -45,7 +45,61 @@ internal static class EditParser
             return [];
         }
 
-        return family == TaskFamily.Claude ? ClaudeHunks(name, obj, cwd) : PiHunks(family, name, obj, cwd);
+        return family switch
+        {
+            TaskFamily.Claude => ClaudeHunks(name, obj, cwd),
+            TaskFamily.Droid => DroidHunks(name, obj, cwd),
+            _ => PiHunks(family, name, obj, cwd),
+        };
+    }
+
+    /// <summary>Factory Droid <c>Create</c>, <c>Edit</c> and <c>MultiEdit</c> (6.2); an empty path still counts.</summary>
+    private static IReadOnlyList<EditHunk> DroidHunks(string name, JsonElement args, string? cwd)
+    {
+        if (TaskJson.GetString(args, "file_path") is not { } path)
+        {
+            return [];
+        }
+
+        if (name == "Create")
+        {
+            return TaskJson.GetString(args, "content") is { } content ? [EditText.Whole(path, content, cwd)] : [];
+        }
+
+        if (name == "Edit")
+        {
+            return DroidPair(args) is var (old, @new) ? [EditText.Hunk(path, old, @new, cwd)] : [];
+        }
+
+        var hunks = new List<EditHunk>();
+        if (TaskJson.Get(args, "edits") is { ValueKind: JsonValueKind.Array } edits)
+        {
+            foreach (var entry in edits.EnumerateArray())
+            {
+                if (entry.ValueKind == JsonValueKind.Object && DroidPair(entry) is var (entryOld, entryNew))
+                {
+                    hunks.Add(EditText.Hunk(path, entryOld, entryNew, cwd));
+                }
+            }
+        }
+
+        return hunks;
+    }
+
+    /// <summary>A Droid replacement: <c>old_str</c> / <c>new_str</c>, else <c>old_string</c> / <c>new_string</c>.</summary>
+    private static (string Old, string New)? DroidPair(JsonElement entry)
+    {
+        if (TaskJson.GetString(entry, "old_str") is { } old && TaskJson.GetString(entry, "new_str") is { } @new)
+        {
+            return (old, @new);
+        }
+
+        if (TaskJson.GetString(entry, "old_string") is { } oldString && TaskJson.GetString(entry, "new_string") is { } newString)
+        {
+            return (oldString, newString);
+        }
+
+        return null;
     }
 
     /// <summary>Every patch text in a shell command (3.9): heredoc bodies, <c>bash -lc</c> scripts and argv elements.</summary>

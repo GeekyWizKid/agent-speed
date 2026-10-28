@@ -2,8 +2,8 @@ namespace AgentSpeed.Core.TaskParsers;
 
 /// <summary>
 /// <c>failures(info, outputText, cwd, failed)</c> (TASK-PARSERS 5): the fingerprints of the failing tests and errors in
-/// a command's output, its failed and passed counts and the framework that decided them. Only the suite of the
-/// command's <c>command_info</c> is read; the output is analysed in memory and never kept.
+/// a command's output, its failed and passed counts and the framework that decided them. Only the suite and the error
+/// filter flag of the command's <c>command_info</c> are read; the output is analysed in memory and never kept.
 /// </summary>
 internal static class FailureParser
 {
@@ -11,13 +11,14 @@ internal static class FailureParser
 
     private static readonly (string By, string Dropped)[] Supersedes = [("nextest", "cargo")];
 
-    /// <summary>failures(info, outputText, cwd, failed): only the suite of command_info is read.</summary>
-    public static FailureReport Failures(string? suite, string outputText, string? cwd, bool? failed) =>
-        Detail(suite, outputText, cwd, failed).Report;
+    /// <summary>failures(info, outputText, cwd, failed); <paramref name="info"/> is null for a call without command text.</summary>
+    public static FailureReport Failures(CommandInfo? info, string outputText, string? cwd, bool? failed) =>
+        Detail(info, outputText, cwd, failed).Report;
 
     /// <summary>The same plus the canonical strings (sorted with <see cref="TaskText.ScalarOrder"/>), for tests only.</summary>
-    internal static (FailureReport Report, IReadOnlyList<string> Canonical) Detail(string? suite, string outputText, string? cwd, bool? failed)
+    internal static (FailureReport Report, IReadOnlyList<string> Canonical) Detail(CommandInfo? info, string outputText, string? cwd, bool? failed)
     {
+        var suite = info?.Suite;
         var found = new FailureFound(cwd);
         var segments = new List<(string[] Lines, bool[] Claimed)>(2);
         foreach (var segment in FailureBudget.Segments(TaskText.Scalars(outputText ?? "")))
@@ -72,6 +73,12 @@ internal static class FailureParser
         {
             framework = FailureFallback.Completion(segments.Select(s => s.Lines));
             failedCount = framework is null ? null : 0;
+
+            // A silent error filter found no error line (3.10, 5.4).
+            if (failedCount is null && failed == false && info is { ErrorFilter: true } && MaskedRuns.Silent(outputText ?? ""))
+            {
+                failedCount = 0;
+            }
         }
 
         return (new FailureReport(fingerprints, failedCount, passedCount, framework), canonical);

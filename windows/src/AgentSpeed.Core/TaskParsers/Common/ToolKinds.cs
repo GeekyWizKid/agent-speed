@@ -40,6 +40,14 @@ internal static class ToolKinds
         (ActionKind.Delegate, ["sessions_spawn", "sessions_send"]),
         (ActionKind.Web, ["web_search", "web_fetch", "x_search", "browser"]));
 
+    private static readonly Dictionary<string, ActionKind> Droid = Table(
+        (ActionKind.Read, ["Read", "LS"]),
+        (ActionKind.Search, ["Grep", "Glob"]),
+        (ActionKind.Edit, ["Create", "Edit", "MultiEdit"]),
+        (ActionKind.Command, ["Execute"]),
+        (ActionKind.Delegate, ["Task"]),
+        (ActionKind.Web, ["WebSearch", "FetchUrl"]));
+
     /// <summary>
     /// The kind of a tool name already folded by <see cref="TaskFamilies.ToolName"/>, or null when the source's table
     /// does not list it (kind <c>other</c>).
@@ -53,6 +61,7 @@ internal static class ToolKinds
             TaskFamily.Omp => Omp,
             TaskFamily.Pi => Pi,
             TaskFamily.OpenClaw => OpenClaw,
+            TaskFamily.Droid => Droid,
             _ => null,
         };
         return table is not null && table.TryGetValue(name, out var kind) ? kind : null;

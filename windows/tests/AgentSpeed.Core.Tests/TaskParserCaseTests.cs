@@ -9,7 +9,7 @@ namespace AgentSpeed.Core.Tests;
 public sealed partial class TaskParserCaseTests
 {
     private static readonly string[] Groups =
-        ["actionKind", "command", "outcome", "resultText", "session", "notification", "codeScript", "codeItems", "edits", "failures"];
+        ["actionKind", "command", "outcome", "resultText", "session", "notification", "codeScript", "codeItems", "maskedStatus", "edits", "failures"];
 
     private static readonly Lazy<JsonElement[]> AllCases = new(() =>
         [.. JsonDocument.Parse(File.ReadAllBytes(FixtureLocator.PathOf("task-parser-cases.json"))).RootElement.GetProperty("cases").EnumerateArray()]);
@@ -20,7 +20,7 @@ public sealed partial class TaskParserCaseTests
     [Fact]
     public void EveryCaseBelongsToACheckedGroup()
     {
-        Assert.True(AllCases.Value.Length >= 522, "the fixture holds " + AllCases.Value.Length + " cases");
+        Assert.True(AllCases.Value.Length >= 602, "the fixture holds " + AllCases.Value.Length + " cases");
         foreach (var item in AllCases.Value)
         {
             Assert.Contains(item.GetProperty("group").GetString(), Groups);

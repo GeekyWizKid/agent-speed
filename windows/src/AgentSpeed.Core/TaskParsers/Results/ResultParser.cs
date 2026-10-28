@@ -34,6 +34,8 @@ internal static class ResultParser
                 return CodexStatus.Of(result).Body;
             case TaskFamily.Omp or TaskFamily.Pi or TaskFamily.OpenClaw:
                 return result.ValueKind == JsonValueKind.Object ? PiText(TaskJson.Get(result, "content")) : "";
+            case TaskFamily.Droid:
+                return result.ValueKind == JsonValueKind.Object ? TaskText.Lf(ResultBlocks.Text(TaskJson.Get(result, "content"))) : "";
             default:
                 return "";
         }
@@ -62,20 +64,37 @@ internal static class ResultParser
             case TaskFamily.Omp or TaskFamily.Pi or TaskFamily.OpenClaw when result.ValueKind == JsonValueKind.Object:
                 PiOutcome(result, out exit, out failed, out state);
                 break;
+            case TaskFamily.Droid when result.ValueKind == JsonValueKind.Object:
+                exit = null;
+                state = ResultState.Done;
+                failed = TaskJson.IsTrue(TaskJson.Get(result, "is_error"));
+                break;
             default:
                 return new TaskOutcome(null, null, t);
         }
 
         if (tool is not null && state == ResultState.Done)
         {
-            var (background, masked) = ShellCallState(family, tool, input, cwd);
+            var (background, command) = ShellCallState(family, tool, input, cwd);
             if (background)
             {
                 state = ResultState.Running;
             }
-            else if (masked)
+            else if (command is { Info.Masked: true })
             {
-                failed = null;
+                // A masked command's status is the pipeline's unless its own output shows the chosen segment's (3.10).
+                if (MaskedRuns.Status(command, ResultText(family, result)) is { } shown)
+                {
+                    failed = shown.Failed;
+                    if (shown.ExitCode is not null || shown.Failed)
+                    {
+                        exit = shown.ExitCode;
+                    }
+                }
+                else
+                {
+                    failed = null;
+                }
             }
         }
 
@@ -321,14 +340,14 @@ internal static class ResultParser
     }
 
     /// <summary>
-    /// The call's part of 4.2: whether the input or the command backgrounds it, and whether the command is
-    /// <c>masked</c>. A call without command text is neither.
+    /// The call's part of 4.2: whether the input or the command backgrounds it, and the command's analysis (for
+    /// <c>masked</c> and 3.10). A call without command text is neither.
     /// </summary>
-    private static (bool Background, bool Masked) ShellCallState(TaskFamily family, string tool, JsonElement input, string? cwd)
+    private static (bool Background, ShellAnalysis? Command) ShellCallState(TaskFamily family, string tool, JsonElement input, string? cwd)
     {
         if (ShellCommands.CommandText(family, tool, input) is not { } text)
         {
-            return (false, false);
+            return (false, null);
         }
 
         var flag = family switch
@@ -339,10 +358,10 @@ internal static class ResultParser
         };
         if (flag)
         {
-            return (true, false);
+            return (true, null);
         }
 
-        var info = ShellCommands.Info(text, cwd);
-        return (info.Background, info.Masked);
+        var command = ShellCommands.Analyze(text, cwd);
+        return (command.Info.Background, command);
     }
 }

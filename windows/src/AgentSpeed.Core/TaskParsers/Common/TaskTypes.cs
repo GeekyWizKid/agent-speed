@@ -25,10 +25,16 @@ public enum CommandClass
 
 /// <summary>
 /// <c>command_info</c> (TASK-PARSERS 3): the chosen segment's class, suite (null or one of <c>SUITES</c>) and whether its
-/// run is narrowed, the 16-hex key of the normalised command, and the <see cref="Masked"/> and
-/// <see cref="Background"/> flags that <c>outcome</c> reads.
+/// run is narrowed, the 16-hex key of the normalised command, and the <see cref="Masked"/>, <see cref="Background"/>
+/// and <see cref="ErrorFilter"/> flags that <c>outcome</c> and <c>failures</c> read (3.7, 3.10).
 /// </summary>
-public sealed record CommandInfo(CommandClass Class, string? Suite, bool Targeted, string Key, bool Masked, bool Background);
+public sealed record CommandInfo(CommandClass Class, string? Suite, bool Targeted, string Key, bool Masked, bool Background, bool ErrorFilter);
+
+/// <summary>
+/// <c>masked_status</c> (TASK-PARSERS 3.10): the status a masked command shows in its own output. A null
+/// <see cref="ExitCode"/> means the exit code is not shown.
+/// </summary>
+public readonly record struct MaskedStatus(long? ExitCode, bool Failed);
 
 /// <summary><c>outcome</c> (TASK-PARSERS 4.2): a null <see cref="Failed"/> means unknown, never a failure.</summary>
 public readonly record struct TaskOutcome(long? ExitCode, bool? Failed, long? T);
@@ -76,6 +82,7 @@ internal enum TaskFamily
     Omp,
     Pi,
     OpenClaw,
+    Droid,
 }
 
 internal static class TaskFamilies
@@ -87,6 +94,7 @@ internal static class TaskFamilies
         SourceKind.Omp => TaskFamily.Omp,
         SourceKind.Pi => TaskFamily.Pi,
         SourceKind.OpenClaw => TaskFamily.OpenClaw,
+        SourceKind.Droid => TaskFamily.Droid,
         _ => TaskFamily.None,
     };
 

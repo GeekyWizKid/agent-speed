@@ -19,10 +19,17 @@ public sealed partial class TaskParserCaseTests
         var expect = item.GetProperty("expect");
 
         // As the reference: the case's own info when it has one, else command_info of its command.
-        var suite = Member(item, "info") is { ValueKind: JsonValueKind.Object } info
-            ? (Member(info, "suite") is { ValueKind: JsonValueKind.String } s ? s.GetString() : null)
-            : ShellCommands.Info(Member(item, "command") is { ValueKind: JsonValueKind.String } c ? c.GetString()! : "", cwd).Suite;
-        var (report, canonical) = FailureParser.Detail(suite, output, cwd, failed);
+        var info = Member(item, "info") is { ValueKind: JsonValueKind.Object } given
+            ? new CommandInfo(
+                CommandClass.Other,
+                Member(given, "suite") is { ValueKind: JsonValueKind.String } s ? s.GetString() : null,
+                false,
+                TaskText.EmptyDigest,
+                false,
+                false,
+                Member(given, "errorFilter").ValueKind == JsonValueKind.True)
+            : ShellCommands.Info(Member(item, "command") is { ValueKind: JsonValueKind.String } c ? c.GetString()! : "", cwd);
+        var (report, canonical) = FailureParser.Detail(info, output, cwd, failed);
 
         var expectedCanonical = expect.GetProperty("canonical").EnumerateArray().Select(e => e.GetString()!).ToArray();
         Assert.True(
@@ -35,7 +42,7 @@ public sealed partial class TaskParserCaseTests
         Assert.True(OptionalLong(expect.GetProperty("passedCount")) == report.PassedCount, id + " passedCount: " + report.PassedCount);
         Assert.True(OptionalString(expect.GetProperty("framework")) == report.Framework, id + " framework: " + report.Framework);
 
-        var plain = FailureParser.Failures(suite, output, cwd, failed);
+        var plain = TaskParser.Failures(info, output, cwd, failed);
         Assert.Equal(report.Fingerprints, plain.Fingerprints);
         Assert.Equal((report.FailedCount, report.PassedCount, report.Framework), (plain.FailedCount, plain.PassedCount, plain.Framework));
     }
