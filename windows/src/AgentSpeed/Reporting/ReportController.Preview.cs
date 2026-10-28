@@ -84,7 +84,8 @@ internal sealed partial class ReportController
             return null;
         }
 
-        var webSocket = (draft is not null ? Preferences.TransportOf(draft.Service) : Transport) == ReportTransportKind.WebSocket;
+        var webSocket = ReportTransports.Effective(draft is not null ? Preferences.TransportOf(draft.Service) : Transport, document)
+            == ReportTransportKind.WebSocket;
         var http = draft is null && !webSocket ? _run : null;
         var stream = draft is null && webSocket ? _stream : null;
         var window = http?.Window ?? stream?.Window ?? _previewWindow ?? new ReportWindow(sample);

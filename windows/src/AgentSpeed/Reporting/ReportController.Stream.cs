@@ -6,10 +6,10 @@ using AgentSpeed.Presentation.Settings;
 namespace AgentSpeed.Reporting;
 
 /// <summary>
-/// Live reporting over WebSocket (METRICS 11.9, DESIGN 11 item 2b), chosen per service by the user: every snapshot and every
-/// wake-up the stream scheduler asks for drive one transport session; its actions open and end the connection, build and
-/// write reports and take the reactions of REPORTING 8.3. Nothing of this runs while HTTP is chosen, and HTTP is never used
-/// instead.
+/// Live reporting over WebSocket (METRICS 11.9, DESIGN 11 item 2b), the default transport: every snapshot and every wake-up the
+/// stream scheduler asks for drive one transport session; its actions open and end the connection, build and write reports
+/// and take the reactions of REPORTING 8.3. Nothing of this runs while HTTP is effective — chosen by the user, or because the
+/// service's document lacks the capability — and a stop of this transport never falls back to HTTP.
 /// </summary>
 internal sealed partial class ReportController
 {
@@ -23,24 +23,27 @@ internal sealed partial class ReportController
     private bool _quitting;
     private bool _quitFlushing;
     private StreamSignature _streamSignature;
+    private readonly ReportTransportTracker _effectiveTransport = new();
 
-    /// <summary>The selected service's transport (DESIGN 11, Transport): the user's choice, HTTP by default.</summary>
+    /// <summary>The selected service's chosen transport (DESIGN 11, Transport): WebSocket by default, HTTP by the user's choice.</summary>
     public ReportTransportKind Transport => Preferences.TransportOf(SelectedService);
 
-    public bool UsesWebSocket => Transport == ReportTransportKind.WebSocket;
+    /// <summary>The transport reports take (METRICS 11.9): the choice, or HTTP while the stored document lacks the capability.</summary>
+    public ReportTransportKind EffectiveTransport => Preferences.EffectiveTransportOf(SelectedService);
+
+    public bool UsesWebSocket => EffectiveTransport == ReportTransportKind.WebSocket;
 
     /// <summary>The WebSocket transport session (counters, latency, connection), or null while none runs.</summary>
     public ReportStreamScheduler? StreamSession => _stream?.Scheduler;
 
     /// <summary>The stream's own status line (DESIGN 11, Status), or null when the shared statuses apply.</summary>
-    public ReportStreamStatusKind? StreamStatus => !UsesWebSocket ? null
-        : _stream is { Scheduler: var s } ? ReportStreamStatus.Of(s.Available, s.Stop, s.Connection, s.Failures, s.Mode)
-        : Discovery is { WebSocket: null } ? ReportStreamStatusKind.Unsupported
+    public ReportStreamStatusKind? StreamStatus => UsesWebSocket && _stream is { Scheduler: var s }
+        ? ReportStreamStatus.Of(s.Stop, s.Connection, s.Failures, s.Mode)
         : null;
 
     /// <summary>
-    /// Switches the selected service's transport. It applies at once: the old transport stops without a leaving report (its
-    /// unanswered reports are dropped) and a new run starts on the new one.
+    /// Chooses the selected service's transport. When that changes the effective transport it applies at once (see
+    /// <see cref="FollowEffectiveTransport"/>); choosing HTTP while WebSocket falls back to it keeps the HTTP run going.
     /// </summary>
     public void SetTransport(ReportTransportKind transport)
     {
@@ -49,16 +52,37 @@ internal sealed partial class ReportController
             return;
         }
 
-        EndRun();
         UpdatePreferences(p => p.WithTransport(service.Origin, transport));
+        ReportLog.Write($"transport chosen for {service.Host}: {Name(transport)}");
+        Tick();
+        Notify();
+    }
+
+    /// <summary>
+    /// A change of the effective transport — the user's choice, or a stored or refreshed document that adds or drops the
+    /// capability — is a change of transport (METRICS 11.9): the old run stops without a leaving report (its unanswered reports
+    /// are dropped) and the caller's tick starts a new run on the new one. True when it changed.
+    /// </summary>
+    private bool FollowEffectiveTransport()
+    {
+        var service = SelectedService;
+        var effective = EffectiveTransport;
+        if (!_effectiveTransport.Update(service?.Origin, effective))
+        {
+            return false;
+        }
+
+        EndRun();
         RetryReason = null;
         RateLimitedUntil = null;
         LastDeliveryAt = null;
         ClearRejection();
-        ReportLog.Write($"transport for {service.Host}: {(transport == ReportTransportKind.WebSocket ? "websocket" : "http")}");
-        Tick();
-        Notify();
+        var fallback = effective != Transport ? " (the service lacks websocket)" : string.Empty;
+        ReportLog.Write($"transport for {service?.Host}: {Name(effective)}{fallback}");
+        return true;
     }
+
+    private static string Name(ReportTransportKind transport) => transport == ReportTransportKind.WebSocket ? "websocket" : "http";
 
     /// <summary><i>Try Again</i> after <c>report.status.wsMismatch</c> or <c>report.status.wsReplaced</c>: clears the stop and reconnects.</summary>
     public void RetryStream()
@@ -140,7 +164,7 @@ internal sealed partial class ReportController
         var scheduler = new ReportStreamScheduler(document.WebSocket, document.Limits.HeartbeatSeconds, IsPaused, !NetworkEnabled);
         _stream = new ReportStreamRun(identity.Id, scheduler, new ReportWindow(sample));
         _renamedForMismatch = false;
-        ReportLog.Write($"websocket session for {identity.Service.Host}{(document.WebSocket is null ? " (unavailable)" : string.Empty)}");
+        ReportLog.Write($"websocket session for {identity.Service.Host}");
     }
 
     /// <summary>Ends the session: an open connection is closed (a leaving report already written goes first), any other dropped.</summary>

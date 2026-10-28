@@ -291,8 +291,11 @@ internal sealed class ReportPaneViewModel : ObservableObject, IDisposable
 
     public string? TransportCaption => TransportNotes.CaptionKey is { } key ? _loc[key] : null;
 
-    /// <summary>The amber <c>report.status.wsUnsupported</c>: nothing is sent, the choice stays.</summary>
+    /// <summary>The secondary <c>report.status.wsUnsupported</c> in the caption's place: reports go over HTTP meanwhile, the choice stays.</summary>
     public string? TransportUnsupportedText => TransportNotes.Unsupported ? _loc["report.status.wsUnsupported"] : null;
+
+    /// <summary>What the segments' help text reads: the caption, or the note that replaces it.</summary>
+    public string? TransportHelpText => TransportCaption ?? TransportUnsupportedText;
 
     public string? TransportThrottledText => TransportNotes.ThrottledMs is { } interval ? _loc.Format("report.transport.throttled", interval) : null;
 
@@ -401,7 +404,7 @@ internal sealed class ReportPaneViewModel : ObservableObject, IDisposable
 
     public string? RankText => _report.Rank is { } rank && _report.IsOn ? _loc.Format("report.status.rank", rank) : null;
 
-    /// <summary><c>report.ws.stats</c> while WebSocket is chosen and the session delivered or lost anything.</summary>
+    /// <summary><c>report.ws.stats</c> while WebSocket is effective and the session delivered or lost anything.</summary>
     public string? StreamStatsText => _report.UsesWebSocket && _report.StreamSession is { } session
         ? ReportStreamStats.Line(_loc, session.Counters, session.Latency)
         : null;
