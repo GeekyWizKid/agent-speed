@@ -3853,10 +3853,10 @@
     "ja": "知能：スコアなし"
   },
   "agents.intel.hint": {
-    "zh-Hant": "智力是目前任務的評分（0–100）：每個新要求從 0 開始，修改通過測試、錯誤減少才會上升。虛線底表示還沒有驗證；淡色是上個任務的分數。",
-    "zh-Hans": "智力是当前任务的评分（0–100）：每个新请求从 0 开始，修改通过测试、错误减少才会上升。虚线底表示还没有验证；淡色是上个任务的分数。",
-    "en": "Intelligence scores the current task from 0 to 100: each new request starts at 0 and climbs as changes pass tests and errors shrink. A dotted underline means not verified yet; dimmed is the last task's score.",
-    "ja": "知能は現在のタスクのスコア（0〜100）です。新しい依頼ごとに 0 から始まり、変更がテストを通りエラーが減るにつれて上がります。点線の下線はまだ検証されていないこと、淡色は前のタスクのスコアを表します。"
+    "zh-Hant": "智力是目前任務的評分（0–100）：每個新要求從 0 開始，修改通過測試、錯誤減少才會上升；檢查失敗、通過後又修改，或開始打轉時會下降。虛線底表示還沒有驗證；淡色是閒置 agent 的分數。",
+    "zh-Hans": "智力是当前任务的评分（0–100）：每个新请求从 0 开始，修改通过测试、错误减少才会上升；检查失败、通过后又修改，或开始打转时会下降。虚线底表示还没有验证；淡色是空闲 agent 的分数。",
+    "en": "Intelligence scores the current task from 0 to 100: each new request starts at 0 and climbs as changes pass tests and errors shrink; it drops when a check fails, when code changes after a pass, or when the agent starts going in circles. A dotted underline means not verified yet; dimmed is an idle agent's score.",
+    "ja": "知能は現在のタスクのスコア（0〜100）です。新しい依頼ごとに 0 から始まり、変更がテストを通りエラーが減ると上がり、チェックの失敗、通過後の編集、堂々巡りで下がります。点線の下線はまだ検証されていないこと、淡色は待機中の agent のスコアを表します。"
   },
   "a11y.agent.intel": {
     "zh-Hant": "智力 %@",
@@ -3949,16 +3949,22 @@
     "ja": "編集済みですが、テスト・ビルド・チェックはまだです"
   },
   "task.status.failing": {
-    "zh-Hant": "%@：還有 %d 個不同的錯誤（最多時 %d 個）",
-    "zh-Hans": "%@：还有 %d 个不同的错误（最多时 %d 个）",
-    "en": "%@: %d distinct errors left (peak %d)",
-    "ja": "%@：異なるエラーが残り %d 件（最大 %d 件）"
+    "zh-Hant": "%@：還有 %d 個錯誤（最多時 %d 個）",
+    "zh-Hans": "%@：还有 %d 个错误（最多时 %d 个）",
+    "en": "%@: %d errors left (peak %d)",
+    "ja": "%@：エラーが残り %d 件（最大 %d 件）"
   },
   "task.status.failing.noCount": {
     "zh-Hant": "%@：沒有通過",
     "zh-Hans": "%@：没有通过",
     "en": "%@: failing",
     "ja": "%@：失敗"
+  },
+  "task.status.failing.edited": {
+    "zh-Hant": "%@：失敗後已修改，等待重新執行",
+    "zh-Hans": "%@：失败后已修改，等待重新运行",
+    "en": "%@: edited after failing; waiting to run again",
+    "ja": "%@：失敗後に編集あり。再実行を待っています"
   },
   "task.status.passing": {
     "zh-Hant": "%@：通過，修改已驗證",
@@ -3975,14 +3981,8 @@
   "task.status.pending": {
     "zh-Hant": "%@：通過後又修改，等待重新執行",
     "zh-Hans": "%@：通过后又修改，等待重新运行",
-    "en": "%@: edited since it passed; waiting for a re-run",
+    "en": "%@: edited since it passed; waiting to run again",
     "ja": "%@：通過後に編集あり。再実行を待っています"
-  },
-  "task.card.lastTask": {
-    "zh-Hant": "上個任務",
-    "zh-Hans": "上个任务",
-    "en": "Last task",
-    "ja": "前のタスク"
   },
   "task.card.top": {
     "zh-Hant": "%d 個 agent 中最高",
@@ -4086,17 +4086,29 @@
     "en": "Fix fails",
     "ja": "修正失敗"
   },
-  "task.predict.calibrated": {
-    "zh-Hant": "依你的 %d 個 %@ 任務校準",
-    "zh-Hans": "按你的 %d 个 %@ 任务校准",
-    "en": "Calibrated on %d of your %@ tasks",
-    "ja": "あなたの履歴の %d タスク（%@）で較正"
+  "task.predict.cell.calibrated": {
+    "zh-Hant": "依 %d 個任務",
+    "zh-Hans": "依 %d 个任务",
+    "en": "%d tasks",
+    "ja": "%d タスク"
   },
-  "task.predict.prior": {
-    "zh-Hant": "預設值；累積 %d 個完成的任務後改依你的紀錄校準（目前 %d 個）",
-    "zh-Hans": "默认值；累计 %d 个完成的任务后改按你的记录校准（目前 %d 个）",
-    "en": "Default values; calibrated on your own history after %d finished tasks (%d so far)",
-    "ja": "初期値です。完了したタスクが %d 件たまると履歴で較正します（現在 %d 件）"
+  "task.predict.cell.prior": {
+    "zh-Hant": "預設值 · %d/%d",
+    "zh-Hans": "默认值 · %d/%d",
+    "en": "Prior · %d/%d",
+    "ja": "初期値・%d/%d"
+  },
+  "task.predict.cell.priorOnly": {
+    "zh-Hant": "預設值",
+    "zh-Hans": "默认值",
+    "en": "Prior",
+    "ja": "初期値"
+  },
+  "task.predict.note": {
+    "zh-Hant": "依你在 %@ 的任務紀錄校準；完成的任務不到 %d 個，或幾乎都是同一種結果時，使用預設值。",
+    "zh-Hans": "按你在 %@ 的任务记录校准；完成的任务不到 %d 个，或几乎都是同一种结果时，使用默认值。",
+    "en": "Calibrated on your own %@ tasks; prior values are used until %d tasks have finished with mixed outcomes.",
+    "ja": "%@ でのあなたのタスク履歴で較正します。完了したタスクが %d 件に満たないか、結果がほぼ同じときは初期値です。"
   },
   "task.signals.title": {
     "zh-Hant": "行為",
@@ -4128,17 +4140,17 @@
     "en": "%@, re-check pending",
     "ja": "%@、再検証待ち"
   },
+  "a11y.task.idle": {
+    "zh-Hant": "%@，閒置中",
+    "zh-Hans": "%@，空闲中",
+    "en": "%@, idle",
+    "ja": "%@、待機中"
+  },
   "a11y.task.top": {
     "zh-Hant": "%@，%d 個 agent 中最高",
     "zh-Hans": "%@，%d 个 agent 中最高",
     "en": "%@, the highest of %d agents",
     "ja": "%@、%d 個の agent の中で最高"
-  },
-  "a11y.task.lastTask": {
-    "zh-Hant": "%@，上個任務",
-    "zh-Hans": "%@，上个任务",
-    "en": "%@, last task",
-    "ja": "%@、前のタスク"
   },
   "a11y.task.card": {
     "zh-Hant": "任務評分詳情",
@@ -4175,6 +4187,18 @@
     "zh-Hans": "修复失败的概率 %@",
     "en": "chance a fix fails %@",
     "ja": "修正が失敗する確率 %@"
+  },
+  "a11y.task.predict.calibrated": {
+    "zh-Hant": "%@，依 %d 個任務校準",
+    "zh-Hans": "%@，按 %d 个任务校准",
+    "en": "%@, calibrated on %d tasks",
+    "ja": "%@、%d タスクで較正"
+  },
+  "a11y.task.predict.prior": {
+    "zh-Hant": "%@，預設值",
+    "zh-Hans": "%@，默认值",
+    "en": "%@, prior value",
+    "ja": "%@、初期値"
   },
   "a11y.task.below": {
     "zh-Hant": "不到 %d%%",
@@ -5605,10 +5629,10 @@
     "ja": "タスク"
   },
   "history.tasks.metric.scored": {
-    "zh-Hant": "已評分",
-    "zh-Hans": "已评分",
-    "en": "Scored",
-    "ja": "採点済み"
+    "zh-Hant": "已評分任務",
+    "zh-Hans": "已评分任务",
+    "en": "Scored tasks",
+    "ja": "採点済みタスク"
   },
   "history.tasks.metric.scored.hint": {
     "zh-Hant": "有修改或有驗證、因此有分數的任務。只讀程式碼或聊天的任務沒有分數。",
@@ -5616,17 +5640,29 @@
     "en": "Tasks with an edit or a check, and so a score. Tasks that only read code or chat have none.",
     "ja": "編集かチェックがあり、スコアのついたタスク。コードを読むだけ・会話だけのタスクにはスコアがありません。"
   },
+  "history.tasks.metric.scored.short": {
+    "zh-Hant": "已評分",
+    "zh-Hans": "已评分",
+    "en": "Scored",
+    "ja": "採点済み"
+  },
   "history.tasks.metric.median": {
-    "zh-Hant": "中位數",
-    "zh-Hans": "中位数",
-    "en": "Median",
-    "ja": "中央値"
+    "zh-Hant": "中位數分數",
+    "zh-Hans": "中位数分数",
+    "en": "Median score",
+    "ja": "スコアの中央値"
   },
   "history.tasks.metric.median.hint": {
     "zh-Hant": "已評分任務的最終分數排在正中間的值：一半的任務比它高。",
     "zh-Hans": "已评分任务的最终分数排在正中间的值：一半的任务比它高。",
     "en": "The middle final score of the scored tasks: half of them scored higher.",
     "ja": "採点済みタスクの最終スコアの真ん中の値。半分のタスクはこれより高い。"
+  },
+  "history.tasks.metric.median.short": {
+    "zh-Hant": "中位數",
+    "zh-Hans": "中位数",
+    "en": "Median",
+    "ja": "中央値"
   },
   "history.tasks.metric.success": {
     "zh-Hant": "成功率",
@@ -5635,10 +5671,10 @@
     "ja": "成功率"
   },
   "history.tasks.metric.success.hint": {
-    "zh-Hant": "已評分的任務中，以可靠的檢查全部通過收尾的比例。",
-    "zh-Hans": "已评分的任务中，以可靠的检查全部通过收尾的比例。",
-    "en": "Share of scored tasks that ended with every reliable check passing.",
-    "ja": "採点済みタスクのうち、信頼できるチェックがすべて通過して終わった割合。"
+    "zh-Hant": "已評分的任務中，結束時為「已通過」的比例。",
+    "zh-Hans": "已评分的任务中，结束时为“已通过”的比例。",
+    "en": "Share of scored tasks that ended passing.",
+    "ja": "採点済みタスクのうち、「通過」で終わった割合。"
   },
   "history.tasks.metric.stall": {
     "zh-Hant": "卡住率",
@@ -5647,10 +5683,10 @@
     "ja": "停滞率"
   },
   "history.tasks.metric.stall.hint": {
-    "zh-Hant": "已評分的任務中，打轉、重複同樣的失敗，或沒有新進展就結束的比例。",
-    "zh-Hans": "已评分的任务中，打转、重复同样的失败，或没有新进展就结束的比例。",
-    "en": "Share of scored tasks that looped, kept failing the same way, or ended without new progress.",
-    "ja": "採点済みタスクのうち、堂々巡りや同じ失敗の繰り返し、進展のないまま終わった割合。"
+    "zh-Hant": "所有任務中卡住過的比例：連續 8 個動作幾乎沒有新發現。",
+    "zh-Hans": "所有任务中卡住过的比例：连续 8 个动作几乎没有新发现。",
+    "en": "Share of all tasks that stalled: 8 actions in a row with almost nothing new.",
+    "ja": "すべてのタスクのうち停滞した割合：新しい発見がほとんどない操作が 8 回続いた。"
   },
   "history.tasks.metric.fixFail": {
     "zh-Hant": "修復失敗率",
@@ -5659,34 +5695,46 @@
     "ja": "修正失敗率"
   },
   "history.tasks.metric.fixFail.hint": {
-    "zh-Hant": "出錯後試著修正，但到任務結束都沒有通過的比例。",
-    "zh-Hans": "出错后试着修正，但到任务结束都没有通过的比例。",
-    "en": "Share of tasks that tried to fix an error but never passed before the task ended.",
-    "ja": "エラーを修正しようとしたが、タスクの終わりまで通過しなかった割合。"
+    "zh-Hant": "每次檢查失敗後，下一次執行同一個檢查仍然失敗（或一直沒有修好）的比例。",
+    "zh-Hans": "每次检查失败后，下一次运行同一个检查仍然失败（或一直没有修好）的比例。",
+    "en": "Share of failing runs whose next run of the same check failed too, or that were never fixed.",
+    "ja": "失敗した実行のうち、同じチェックの次の実行も失敗した（または最後まで直らなかった）割合。"
   },
   "history.tasks.metric.attempts": {
-    "zh-Hant": "恢復嘗試",
-    "zh-Hans": "恢复尝试",
-    "en": "Attempts to recover",
-    "ja": "回復までの試行"
+    "zh-Hant": "平均恢復嘗試",
+    "zh-Hans": "平均恢复尝试",
+    "en": "Mean attempts to recover",
+    "ja": "回復までの平均試行"
   },
   "history.tasks.metric.attempts.hint": {
-    "zh-Hant": "從出錯到通過需要幾次修正（中位數）。",
-    "zh-Hans": "从出错到通过需要几次修正（中位数）。",
-    "en": "How many fix attempts it took to get from an error to a pass (median).",
-    "ja": "エラーから通過までに要した修正の回数（中央値）。"
+    "zh-Hant": "有修好的錯誤，平均失敗幾次才通過。",
+    "zh-Hans": "修好的错误，平均失败几次才通过。",
+    "en": "For errors that got fixed, the average number of failing runs before the pass.",
+    "ja": "直ったエラーについて、通過までに失敗した実行の平均回数。"
+  },
+  "history.tasks.metric.attempts.short": {
+    "zh-Hant": "恢復嘗試",
+    "zh-Hans": "恢复尝试",
+    "en": "Attempts",
+    "ja": "回復試行"
   },
   "history.tasks.metric.firstPass": {
-    "zh-Hant": "首次通過",
-    "zh-Hans": "首次通过",
-    "en": "Time to first pass",
-    "ja": "初回通過まで"
+    "zh-Hant": "首次通過時間（中位數）",
+    "zh-Hans": "首次通过时间（中位数）",
+    "en": "Median time to first pass",
+    "ja": "初回通過までの時間（中央値）"
   },
   "history.tasks.metric.firstPass.hint": {
-    "zh-Hant": "從任務開始到第一次通過檢查的時間（中位數）。",
-    "zh-Hans": "从任务开始到第一次通过检查的时间（中位数）。",
-    "en": "Time from the start of a task to its first passing check (median).",
-    "ja": "タスクの開始から最初にチェックを通過するまでの時間（中央値）。"
+    "zh-Hant": "從任務開始到第一次通過檢查的時間，取中位數。",
+    "zh-Hans": "从任务开始到第一次通过检查的时间，取中位数。",
+    "en": "Time from the start of a task to its first passing check, the median over tasks that passed.",
+    "ja": "タスクの開始から最初にチェックを通過するまでの時間（通過したタスクの中央値）。"
+  },
+  "history.tasks.metric.firstPass.short": {
+    "zh-Hant": "首次通過",
+    "zh-Hans": "首次通过",
+    "en": "First pass",
+    "ja": "初回通過"
   },
   "history.tasks.lowerBetter": {
     "zh-Hant": "越低越好",
@@ -5772,11 +5820,29 @@
     "en": "%@",
     "ja": "%@ 回"
   },
-  "history.tasks.rate.tooltip": {
+  "history.tasks.rate.scored": {
     "zh-Hant": "%d / %d 個已評分的任務",
     "zh-Hans": "%d / %d 个已评分的任务",
     "en": "%d of %d scored tasks",
     "ja": "%d 件（採点済み %d 件中）"
+  },
+  "history.tasks.rate.tasks": {
+    "zh-Hant": "%d / %d 個任務",
+    "zh-Hans": "%d / %d 个任务",
+    "en": "%d of %d tasks",
+    "ja": "%d 件（全 %d タスク中）"
+  },
+  "history.tasks.rate.fixes": {
+    "zh-Hant": "%d / %d 次失敗後的下一次執行",
+    "zh-Hans": "%d / %d 次失败后的下一次运行",
+    "en": "%d of %d runs after a failure",
+    "ja": "%d 件（失敗後の実行 %d 件中）"
+  },
+  "history.tasks.model.sources": {
+    "zh-Hant": "來源：%@",
+    "zh-Hans": "来源：%@",
+    "en": "Sources: %@",
+    "ja": "ソース：%@"
   },
   "history.tasks.noValue.attempts": {
     "zh-Hant": "這段期間沒有出錯後恢復的任務",
