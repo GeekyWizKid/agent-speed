@@ -38,6 +38,9 @@ internal enum RootFamily
 
     /// <summary>Log folders read by <see cref="Hermes.HermesSource"/>; watched only, never enumerated as transcripts (METRICS 4.15).</summary>
     Hermes,
+
+    /// <summary>Factory Droid's sessions folder: transcripts read with their settings files (METRICS 4.16).</summary>
+    Droid,
 }
 
 /// <summary>Per-family file rules: names, parser and the sources it can produce (METRICS 2 and 4).</summary>
@@ -65,6 +68,7 @@ internal static class Families
         RootFamily.Pi => TranscriptNaming.PiSession,
         RootFamily.OpenClaw => TranscriptNaming.OpenClawDatabase,
         RootFamily.Hermes => TranscriptNaming.HermesLog,
+        RootFamily.Droid => TranscriptNaming.DroidSession,
         _ => TranscriptNaming.Jsonl,
     };
 
@@ -82,6 +86,7 @@ internal static class Families
         RootFamily.Kimi => new Kimi.KimiParser(path, deduper),
         RootFamily.GrokBuild => new GrokBuild.GrokParser(path, deduper),
         RootFamily.Pi => Pi.PiParser.ForPath(path, deduper),
+        RootFamily.Droid => throw new NotSupportedException("Factory Droid parser pending"),
         _ => throw new ArgumentOutOfRangeException(nameof(family)),
     };
 
@@ -108,6 +113,7 @@ internal static class Families
         RootFamily.Pi => enabled.Contains(SourceKind.Pi),
         RootFamily.OpenClaw => enabled.Contains(SourceKind.OpenClaw),
         RootFamily.Hermes => enabled.Contains(SourceKind.Hermes),
+        RootFamily.Droid => enabled.Contains(SourceKind.Droid),
         _ => false,
     };
 
@@ -127,6 +133,7 @@ internal static class Families
         SourceKind.Pi => RootFamily.Pi,
         SourceKind.OpenClaw => RootFamily.OpenClaw,
         SourceKind.Hermes => RootFamily.Hermes,
+        SourceKind.Droid => RootFamily.Droid,
         _ => RootFamily.Claude,
     };
 }

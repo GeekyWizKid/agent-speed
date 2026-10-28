@@ -229,6 +229,7 @@ public static class ReportBody
         SourceKind.Pi => "pi",
         SourceKind.OpenClaw => "openclaw",
         SourceKind.Hermes => "hermes",
+        SourceKind.Droid => "droid",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 

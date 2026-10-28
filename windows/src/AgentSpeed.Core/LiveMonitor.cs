@@ -145,6 +145,15 @@ public sealed class LiveMonitor : IDisposable
     /// </summary>
     public static string DefaultHermesRoot => Hermes.HermesPaths.AutomaticHome();
 
+    /// <summary>
+    /// Factory Droid's sessions folder, <c>%USERPROFILE%\.factory\sessions</c> (macOS <c>~/.factory/sessions</c>); no environment
+    /// variable moves it (METRICS 2, 4.16).
+    /// </summary>
+    public static string DefaultDroidRoot => Droid.DroidPaths.DefaultRoot(UserHome);
+
+    /// <summary>The Factory Droid sessions folder a setting stands for: its <c>sessions</c> folder or the folder itself; null: the default.</summary>
+    public static string DroidRoot(string? setting) => SourceLocations.DroidRootOf(setting);
+
     /// <summary>Every automatic OpenClaw state folder: the override alone, else <c>.openclaw</c> and its profiles.</summary>
     public static IReadOnlyList<string> DefaultOpenClawRoots => OpenClaw.OpenClawPaths.AutomaticStateFolders();
 

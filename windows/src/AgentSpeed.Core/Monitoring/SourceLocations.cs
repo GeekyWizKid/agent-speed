@@ -16,6 +16,7 @@ namespace AgentSpeed.Core.Monitoring;
 /// </param>
 /// <param name="HermesRoot">The Hermes home (automatic), or the chosen home or log folder; empty when not available.</param>
 /// <param name="HermesChosen">The Hermes root is the user setting, which replaces the automatic home (METRICS 4.15).</param>
+/// <param name="DroidRoot">The Factory Droid sessions folder (automatic or from the setting); empty when not available.</param>
 internal sealed record SourceLocations(
     string CodexRoot,
     string ClaudeRoot,
@@ -36,7 +37,8 @@ internal sealed record SourceLocations(
     bool OpenClawAutomatic = false,
     bool CodexAutomatic = true,
     string HermesRoot = "",
-    bool HermesChosen = false)
+    bool HermesChosen = false,
+    string DroidRoot = "")
 {
     public static SourceLocations Resolve(MonitorConfiguration configuration) => new(
         Normalize(configuration.CodexRoot ?? LiveMonitor.DefaultCodexRoot),
@@ -58,7 +60,12 @@ internal sealed record SourceLocations(
         OpenClawAutomatic: configuration.OpenClawRoot is null,
         CodexAutomatic: configuration.CodexRoot is null,
         HermesRoot: Normalize(configuration.HermesRoot ?? LiveMonitor.DefaultHermesRoot),
-        HermesChosen: configuration.HermesRoot is not null);
+        HermesChosen: configuration.HermesRoot is not null,
+        DroidRoot: DroidRootOf(configuration.DroidRoot));
+
+    /// <summary>The Factory Droid root for a setting: its <c>sessions</c> folder or the folder itself; null: the automatic root (METRICS 4.16).</summary>
+    public static string DroidRootOf(string? setting) =>
+        string.IsNullOrWhiteSpace(setting) ? Normalize(LiveMonitor.DefaultDroidRoot) : Normalize(Droid.DroidPaths.RootOf(Normalize(setting)));
 
     /// <summary>The Hermes log folders now: the home's <c>logs</c> and every profile's, or the chosen folder's (METRICS 4.15).</summary>
     public IReadOnlyList<string> HermesFolders() =>
@@ -87,7 +94,7 @@ internal sealed record SourceLocations(
 
     /// <summary>
     /// Transcript roots in family order; Codex (OpenClaw's agent-scoped Codex homes), Gemini, omp and Pi may contribute several, Antigravity one <c>conversations</c>
-    /// folder per store, each WorkBuddy edition its <c>projects</c> folder. A path listed twice within a family is returned
+    /// folder per store, each WorkBuddy edition its <c>projects</c> folder, Factory Droid its sessions folder. A path listed twice within a family is returned
     /// once; an omp root that is a Pi root or lies inside one is Pi's only (METRICS 4.7).
     /// </summary>
     public IEnumerable<(RootFamily Family, string Path)> FileRoots()
@@ -139,6 +146,11 @@ internal sealed record SourceLocations(
         foreach (var root in piRoots)
         {
             yield return (RootFamily.Pi, root);
+        }
+
+        if (DroidRoot.Length > 0)
+        {
+            yield return (RootFamily.Droid, DroidRoot);
         }
     }
 
