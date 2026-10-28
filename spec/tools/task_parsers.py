@@ -23,8 +23,16 @@ sys.dont_write_bytecode = True
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures", "task-parser-cases.json")
 
 
+LONE_SURROGATE = re.compile(r"[\ud800-\udfff]")
+
+
+def scalars(text):
+    """Text with every unpaired surrogate (possible only through JSON escapes) replaced by U+FFFD."""
+    return LONE_SURROGATE.sub("\ufffd", text)
+
+
 def sha16(text):
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(scalars(text).encode("utf-8")).hexdigest()[:16]
 
 
 EMPTY = sha16("")
@@ -35,11 +43,47 @@ def rx(pattern):
 
 
 WS = " \t"                                   # trimming removes ASCII spaces and tabs only
+ASCII_ALNUM = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 JSON_WS = " \t\r\n"
+ASCII_UPPER = str.maketrans("abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
 
 
 # ============================================================================ sources and tool tables (1, 2)
+
+DRIVE = rx(r"[A-Za-z]:/")
+MAX_WRAPPER_DEPTH = 4
+MAX_NUMBER = 999_999_999_999_999_999         # numbers read from text are capped at 18 digits
+
+
+def norm_cwd(cwd):
+    """The working directory with `/` separators and no trailing `/`; None when absent, not a string or the root."""
+    if not isinstance(cwd, str):
+        return None
+    c = cwd.replace("\\", "/").rstrip("/")
+    return c or None
+
+
+def cwd_relative(path, cwd):
+    """(path below cwd, True) when the `/`-separated path is cwd or inside it, else (path, False). A drive cwd
+    compares ASCII case-insensitively."""
+    c = norm_cwd(cwd)
+    if c is None:
+        return path, False
+    a, b = (path.translate(ASCII_LOWER), c.translate(ASCII_LOWER)) if DRIVE.match(c + "/") else (path, c)
+    if a == b:
+        return "", True
+    if a.startswith(b + "/"):
+        return path[len(c) + 1:], True
+    return path, False
+
+
+def num(text):
+    """A decimal number read from text, capped at MAX_NUMBER (and -MAX_NUMBER)."""
+    sign = -1 if text.startswith("-") else 1
+    digits = text.lstrip("+-").lstrip("0") or "0"
+    return sign * (MAX_NUMBER if len(digits) > 18 else int(digits))
+
 
 FAMILY = {"claudeCode": "claude", "claudeDesktop": "claude", "codex": "codex", "omp": "omp", "pi": "pi",
           "openclaw": "openclaw"}
@@ -99,14 +143,12 @@ def decode_args(value):
     if isinstance(value, dict):
         return value
     if isinstance(value, str) and value.lstrip(JSON_WS).startswith("{"):
-        try:
-            parsed = json.loads(value)
-        except ValueError:
-            return None
+        parsed = parse_json(value)
         return parsed if isinstance(parsed, dict) else None
     return None
 
 
+ARGV_TOOLS = ("shell", "container.exec", "local_shell")
 SAFE_ARG = rx(r"[A-Za-z0-9_@%+=:,./-]+")
 
 
@@ -127,9 +169,7 @@ def command_text(source, tool, value):
     args = decode_args(value)
     if family == "codex" and name == "exec":
         if args is not None:
-            for field in ("cmd", "command"):
-                if isinstance(args.get(field), str):
-                    return args[field]
+            return next((args[f] for f in ("cmd", "command") if isinstance(args.get(f), str)), None)
         return value if isinstance(value, str) else None
     if args is None:
         return None
@@ -137,7 +177,8 @@ def command_text(source, tool, value):
     command = args.get(field)
     if isinstance(command, str):
         return command
-    if isinstance(command, list) and command and all(isinstance(a, str) for a in command):
+    if family == "codex" and name in ARGV_TOOLS and isinstance(command, list) and command \
+            and all(isinstance(a, str) for a in command):
         return " ".join(quote_arg(a) for a in command)
     return None
 
@@ -156,7 +197,7 @@ def action_kind(source, tool, value, cwd=None):
 # ============================================================================ shell tokenizer (3.2)
 
 REDIR = rx(r"([0-9]*)(<<<|<<-|<<|>>|>&|<&|>\||<>|&>>|&>|>|<)")
-NAME_ASSIGN = rx(r"[A-Za-z_][A-Za-z0-9_]*=.*")
+NAME_ASSIGN = rx(r"[A-Za-z_][A-Za-z0-9_]*=")
 
 
 class Tokens:
@@ -306,14 +347,13 @@ def tokenize(text):
 # ============================================================================ segments, prefixes, runners (3.3, 3.4)
 
 class Segment:
-    __slots__ = ("words", "redirs", "heredocs", "op_before", "op_after", "background", "ctx", "depth")
+    __slots__ = ("words", "redirs", "heredocs", "ops", "op_before", "op_after", "background", "ctx")
 
     def __init__(self):
-        self.words, self.redirs, self.heredocs = [], [], []
+        self.words, self.redirs, self.heredocs, self.ops = [], [], [], []
         self.op_before = self.op_after = None
         self.background = False
         self.ctx = ""
-        self.depth = 0
 
 
 SHELLS = ("bash", "sh", "zsh", "dash", "ksh", "fish")
@@ -342,26 +382,9 @@ def prog(word):
             "bazelisk": "bazel", "msbuild": "msbuild", "pnpx": "pnpx"}.get(base, base)
 
 
-def split_segments(items, depth):
-    segments = []
-    current = Segment()
-    current.depth = depth
-    paren = 0
-    last_op = None
-
-    def close(op):
-        nonlocal current, last_op
-        current.op_after = op
-        if op == "&":
-            current.background = True
-        if current.words or current.heredocs:
-            segments.append(current)
-        nxt = Segment()
-        nxt.depth = depth
-        nxt.op_before = op
-        current = nxt
-        last_op = op
-
+def split_segments(items):
+    """Segments with `ops`, the operators read since the previous segment; and the operators after the last one."""
+    segments, current, ops = [], Segment(), []
     for item in items:
         kind = item[0]
         if kind == "word":
@@ -370,16 +393,18 @@ def split_segments(items, depth):
             current.redirs.append((item[1], item[2]))
         elif kind == "heredoc":
             current.heredocs.append(item[1])
-        elif item[1] == "(":
-            paren += 1
-            close("(")
-        elif item[1] == ")":
-            paren -= 1
-            close(")")
         else:
-            close(item[1])
-    close(None)
-    return segments
+            if current.words or current.heredocs:
+                current.ops = ops
+                segments.append(current)
+                ops = []
+            current = Segment()
+            ops.append(item[1])
+    if current.words or current.heredocs:
+        current.ops = ops
+        segments.append(current)
+        ops = []
+    return segments, ops
 
 
 def drop_options(words, i, with_value=(), stop_dashdash=True):
@@ -438,7 +463,7 @@ def strip_prefixes(seg):
     i = 0
     while i < len(words):
         w = words[i]
-        if NAME_ASSIGN.fullmatch(w):
+        if NAME_ASSIGN.match(w):
             i += 1
             continue
         p = prog(w)
@@ -522,6 +547,14 @@ XCRUN_VALUE = ("--sdk", "-sdk", "--toolchain", "-toolchain")
 COVERAGE_VALUE = ("--source", "--rcfile", "--data-file", "--concurrency", "--include", "--omit", "--context")
 
 
+def skip_until_module(words, value_opts):
+    """Index of the first word that is `-m` or not an option, skipping option values."""
+    k = 0
+    while k < len(words) and words[k].startswith("-") and words[k] not in ("-m", "-"):
+        k += 2 if words[k] in value_opts else 1
+    return k
+
+
 def unwrap(words):
     """Removes runner wrappers until a program remains (3.4)."""
     for _ in range(8):
@@ -543,22 +576,11 @@ def unwrap(words):
                 and rest[:1] == ["run"]:
             words = rest[1:][drop_options(rest[1:], 0, UV_VALUE + CONDA_VALUE):]
             continue
-        if p == "python":
-            k = drop_options(rest, 0, PY_VALUE, stop_dashdash=False)
-            if k < len(rest) and rest[k] == "-m" and k + 1 < len(rest):
-                words = rest[k + 1:]
-                continue
-            k = 0
-            while k < len(rest) and rest[k].startswith("-") and rest[k] != "-m":
-                k += 2 if rest[k] in PY_VALUE else 1
-            if k + 1 < len(rest) and rest[k] == "-m":
-                words = rest[k + 1:]
-                continue
-            return words
-        if p == "coverage" and rest[:1] == ["run"]:
-            k = drop_options(rest[1:], 0, COVERAGE_VALUE, stop_dashdash=False) + 1
-            if k + 1 < len(rest) and rest[k] == "-m":
-                words = rest[k + 1:]
+        if p == "python" or (p == "coverage" and rest[:1] == ["run"]):
+            opts = rest if p == "python" else rest[1:]
+            k = skip_until_module(opts, PY_VALUE if p == "python" else COVERAGE_VALUE)
+            if k + 1 < len(opts) and opts[k] == "-m":
+                words = opts[k + 1:]
                 continue
             return words
         if p == "bundle" and rest[:1] == ["exec"]:
@@ -584,28 +606,26 @@ CLASS_RANK = {"other": 0, "check": 1, "build": 2, "test": 3}
 COSMETIC = ("-q", "-qq", "-v", "-vv", "-vvv", "--quiet", "--verbose", "--color", "--no-color", "--colors",
             "--no-colors", "--ansi", "--no-ansi", "--nocapture", "--no-capture", "--show-output", "--silent")
 COSMETIC_PREFIX = ("--color=", "--colour=", "--colors=", "--tb=")
-FILE_EXT = rx(r".*\.[A-Za-z0-9]{1,10}")
+
+
+def has_extension(word):
+    """The word ends with `.` and 1 to 10 ASCII letters or digits."""
+    dot = word.rfind(".")
+    ext = word[dot + 1:]
+    return dot >= 0 and 1 <= len(ext) <= 10 and all(ch in ASCII_ALNUM for ch in ext)
 
 
 def is_broad_path(arg, cwd=None):
     """`.`, `./`, or a directory path of at most one component (3.5)."""
-    a = arg.replace("\\", "/")
-    if cwd:
-        c = cwd.replace("\\", "/").rstrip("/")
-        if a == c:
-            return True
-        if a.startswith(c + "/"):
-            a = a[len(c) + 1:]
+    a, _ = cwd_relative(arg.replace("\\", "/"), cwd)
     while a.startswith("./"):
         a = a[2:]
     a = a.rstrip("/")
     if a in ("", "."):
         return True
-    if "*" in a or "?" in a:
+    if "*" in a or "?" in a or "::" in a or a.startswith("/") or re.match(r"[A-Za-z]:", a):
         return False
-    if a.startswith("/") or re.match(r"[A-Za-z]:", a):
-        return False
-    return "/" not in a and not FILE_EXT.fullmatch(a) and "::" not in a
+    return "/" not in a and not has_extension(a)
 
 
 def parse_opts(args, value_opts=(), stop_dashdash=True):
@@ -645,9 +665,12 @@ def path_targeted(pos, cwd):
 
 
 def name_targeted(pos, cwd):
-    """Runners whose positionals are name or path patterns: any positional but `.` narrows the run (3.5)."""
-    c = norm_cwd(cwd)
-    return any(p.rstrip("/") not in ("", ".") and p.replace("\\", "/").rstrip("/") != c for p in pos)
+    """Runners whose positionals are name or path patterns: any positional but `.` or cwd narrows the run (3.5)."""
+    for p in pos:
+        a, inside = cwd_relative(p.replace("\\", "/").rstrip("/"), cwd)
+        if a not in ("", ".") and not (inside and a == ""):
+            return True
+    return False
 
 
 RESULT_OTHER = ("other", None, False)
@@ -838,11 +861,11 @@ GRADLE_SUITES = {"test": "gradle test", "check": "gradle check", "build": "gradl
 def c_gradle(args, cwd):
     pos, opts, _ = parse_opts(args, GRADLE_VALUE)
     excluded = []
-    k = 0
-    while k < len(args):
-        if args[k] in ("-x", "--exclude-task") and k + 1 < len(args):
+    for k, w in enumerate(args):
+        if w in ("-x", "--exclude-task") and k + 1 < len(args):
             excluded.append(args[k + 1].split(":")[-1])
-        k += 1
+        elif w.startswith("--exclude-task="):
+            excluded.append(w.split("=", 1)[1].split(":")[-1])
     best = RESULT_OTHER
     for task in pos:
         base = task.split(":")[-1]
@@ -955,10 +978,10 @@ MOCHA_FILTERS = ("-g", "--grep", "-f", "--fgrep")
 
 
 def c_mocha(args, cwd):
-    pos, opts, _ = parse_opts(args, MOCHA_VALUE)
+    pos, opts, after = parse_opts(args, MOCHA_VALUE)
     if isinstance(opts.get("--spec"), str):
         pos.append(opts["--spec"])
-    return "test", "mocha", any_opt(opts, MOCHA_FILTERS) or path_targeted(pos, cwd)
+    return "test", "mocha", any_opt(opts, MOCHA_FILTERS) or path_targeted(pos + after, cwd)
 
 
 def c_path_tool(cls, suite, value_opts=(), filters=()):
@@ -987,17 +1010,18 @@ PHPUNIT_VALUE = ("--filter", "--group", "--exclude-group", "--testsuite", "-c", 
                  "--coverage-text", "--test-suffix", "--exclude-testsuite")
 
 
+RUFF_SUBCOMMANDS = ("check", "format", "rule", "config", "linter", "clean", "server", "analyze", "version")
+
+
 def c_ruff(args, cwd):
-    sub = args[0] if args and not args[0].startswith("-") and args[0] in ("check", "format", "rule", "config",
-                                                                          "linter", "clean", "server",
-                                                                          "analyze", "version") else None
+    sub = args[0] if args and args[0] in RUFF_SUBCOMMANDS else None
     rest = args[1:] if sub else args
     if sub in (None, "check"):
-        pos, opts, _ = parse_opts(rest, RUFF_VALUE)
-        return "check", "ruff", path_targeted(pos, cwd)
+        pos, _, after = parse_opts(rest, RUFF_VALUE)
+        return "check", "ruff", path_targeted(pos + after, cwd)
     if sub == "format" and ("--check" in rest or "--diff" in rest):
-        pos, opts, _ = parse_opts(rest, RUFF_VALUE)
-        return "check", "ruff format", path_targeted(pos, cwd)
+        pos, _, after = parse_opts(rest, RUFF_VALUE)
+        return "check", "ruff format", path_targeted(pos + after, cwd)
     return RESULT_OTHER
 
 
@@ -1005,8 +1029,8 @@ def c_check_flag(suite, flags, value_opts=()):
     def handler(args, cwd):
         if not any(a in flags for a in args):
             return RESULT_OTHER
-        pos, _, _ = parse_opts(args, value_opts)
-        return "check", suite, path_targeted(pos, cwd)
+        pos, _, after = parse_opts(args, value_opts)
+        return "check", suite, path_targeted(pos + after, cwd)
     handler.rule = ("flag", "check", suite, flags, value_opts)
     return handler
 
@@ -1015,10 +1039,10 @@ def c_tsc(name):
     def handler(args, cwd):
         if any(a in TSC_NOT_CHECK for a in args):
             return RESULT_OTHER
-        pos, _, _ = parse_opts(args, TSC_VALUE)
+        pos, _, after = parse_opts(args, TSC_VALUE)
         if "-b" in args or "--build" in args:
-            pos = []
-        return "check", name, path_targeted(pos, cwd)
+            return "check", name, False
+        return "check", name, path_targeted(pos + after, cwd)
     return handler
 
 
@@ -1055,6 +1079,7 @@ def c_meson(args, cwd):
 
 def c_python_script(args, cwd):
     """`python manage.py test`, `python setup.py test`; any other script is not a check."""
+    args = args[skip_until_module(args, PY_VALUE):]
     if len(args) >= 2 and args[0].replace("\\", "/").split("/")[-1] == "manage.py" and args[1] == "test":
         pos, opts, _ = parse_opts(args[2:], DJANGO_VALUE)
         return "test", "django test", bool(pos) or any_opt(opts, ("-k", "--tag"))
@@ -1065,8 +1090,9 @@ def c_python_script(args, cwd):
 
 def c_node(args, cwd):
     if "--test" in args:
-        pos, opts, _ = parse_opts([a for a in args if a != "--test"], NODE_TEST_VALUE)
-        return "test", "node --test", any_opt(opts, ("--test-name-pattern", "--test-only")) or path_targeted(pos, cwd)
+        pos, opts, after = parse_opts([a for a in args if a != "--test"], NODE_TEST_VALUE)
+        return "test", "node --test", any_opt(opts, ("--test-name-pattern", "--test-only")) or \
+            path_targeted(pos + after, cwd)
     return RESULT_OTHER
 
 
@@ -1227,8 +1253,8 @@ SCRIPT_LABEL = {"npm": ("npm test", "npm run "), "pnpm": ("pnpm test", "pnpm run
                 "ninja": ("ninja test", "ninja "), "just": ("just test", "just "), "task": ("task test", "task "),
                 "rake": ("rake test", "rake "), "mise": ("mise run test", "mise run "),
                 "turbo": ("turbo test", "turbo "), "nx": ("nx test", "nx ")}
-MAKE_FILTER_VAR = rx(r"(?i:TESTS?|T|TEST_?ARGS|TEST_?FILTER|FILTER|RUN|ONLY|K|PKG|PACKAGE|FILES?|SPEC|ARGS|"
-                     r"PYTEST_?ARGS|TESTNAME|CASE|TESTOPTS)")
+MAKE_FILTER_VAR = rx(r"TESTS?|T|TEST_?ARGS|TEST_?FILTER|FILTER|RUN|ONLY|K|PKG|PACKAGE|FILES?|SPEC|ARGS|PYTEST_?ARGS|"
+                     r"TESTNAME|CASE|TESTOPTS")
 
 
 def script_class(runner, name):
@@ -1318,7 +1344,7 @@ def c_package_manager(runner):
             if j >= len(rest):
                 return RESULT_OTHER
             name, fwd = rest[j], rest[j + 1:]
-        elif runner in ("pnpm", "yarn", "bun") and sub not in NPM_BUILTINS and not FILE_EXT.fullmatch(sub):
+        elif runner in ("pnpm", "yarn", "bun") and sub not in NPM_BUILTINS and not has_extension(sub):
             if prog(sub) in PROGRAMS and prog(sub) not in SCRIPT_LABEL:
                 return classify(rest, cwd)
             name, fwd = sub, rest[1:]
@@ -1331,6 +1357,7 @@ def c_package_manager(runner):
     return handler
 
 
+RUNNER_SUBCOMMANDS = {"mise": ("run", "r"), "deno": ("task",), "turbo": ("run",), "composer": ("run-script", "run")}
 COMPOSER_BUILTINS = ("install", "update", "require", "remove", "dump-autoload", "dumpautoload", "show", "outdated",
                      "validate", "create-project", "init", "config", "global", "exec", "search", "why", "why-not",
                      "licenses", "audit", "status", "archive", "diagnose", "self-update", "depends", "prohibits",
@@ -1341,7 +1368,7 @@ def c_runner(runner, value_opts, default=None):
     """make, ninja, just, task, rake, mise run, turbo, nx, composer, deno task: target names map like scripts."""
     def handler(args, cwd):
         rest = args
-        if runner in ("mise", "deno", "turbo") and rest[:1] and rest[0] in ("run", "r", "task"):
+        if rest[:1] and rest[0] in RUNNER_SUBCOMMANDS.get(runner, ()):
             rest = rest[1:]
         if runner == "nx" and rest[:1] and rest[0] in ("run-many", "affected"):
             _, opts, _ = parse_opts(rest[1:], NX_VALUE)
@@ -1354,8 +1381,6 @@ def c_runner(runner, value_opts, default=None):
         if runner == "nx" and rest[:1] == ["run"] and len(rest) >= 2 and ":" in rest[1]:
             cls, suite = script_class(runner, rest[1].split(":")[1])
             return (cls, suite, True) if cls != "other" else RESULT_OTHER
-        if runner == "composer" and rest[:1] and rest[0] in ("run-script", "run"):
-            rest = rest[1:]
         pos, assigns, k = [], [], 0
         while k < len(rest):
             w = rest[k]
@@ -1365,7 +1390,7 @@ def c_runner(runner, value_opts, default=None):
                     continue
                 k += 1
                 continue
-            if NAME_ASSIGN.fullmatch(w):
+            if NAME_ASSIGN.match(w):
                 assigns.append(w.split("=", 1)[0])
             else:
                 pos.append(w)
@@ -1383,7 +1408,7 @@ def c_runner(runner, value_opts, default=None):
                 if best is None or CLASS_RANK[cls] > CLASS_RANK[best[0]]:
                     best = (cls, suite)
             cls, suite = best
-            narrow = any(MAKE_FILTER_VAR.fullmatch(a) for a in assigns)
+            narrow = any(MAKE_FILTER_VAR.fullmatch(a.translate(ASCII_UPPER)) for a in assigns)
         else:
             cls, suite = script_class(runner, pos[0])
             narrow = len(pos) > 1 and (runner == "just" or forwarded_targeted(pos[1:], cwd))
@@ -1420,7 +1445,7 @@ def c_deno(args, cwd):
     sub, rest = args[0], args[1:]
     if sub == "test":
         pos, opts, after = parse_opts(rest, DENO_TEST_VALUE)
-        return "test", "deno test", "--filter" in opts or path_targeted(pos, cwd)
+        return "test", "deno test", "--filter" in opts or path_targeted(pos + after, cwd)
     if sub == "check":
         return "check", "deno check", False
     if sub == "lint":
@@ -1487,8 +1512,10 @@ SEARCH_PROGS = ("rg", "grep", "egrep", "fgrep", "ag", "ack", "find", "fd", "fdfi
 GIT_READ = ("status", "diff", "log", "show", "blame", "rev-parse", "ls-tree", "cat-file", "describe", "shortlog",
             "reflog", "branch", "remote", "tag", "config")
 GIT_SEARCH = ("grep", "ls-files")
+GIT_VALUE = ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env")
 FIND_ACTIONS = ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprintf", "-fls")
 PATCH_LINE = rx(r"[ \t]*\*\*\* Begin Patch[ \t]*")
+FD_TARGET = rx(r"[0-9-]+")
 WRITE_REDIRS = (">", ">>", ">|", "&>", "&>>", "<>")
 
 
@@ -1505,85 +1532,119 @@ def has_patch_line(text):
 
 
 def norm_dir(target, ctx, cwd):
+    """The directory context after `cd target` (3.3)."""
     t = target.replace("\\", "/")
-    if cwd:
-        c = cwd.replace("\\", "/").rstrip("/")
-        if t == c:
-            t = "."
-        elif t.startswith(c + "/"):
-            t = t[len(c) + 1:]
-    if t in ("", "~") or t.startswith("~/") or t.startswith("/") or re.match(r"[A-Za-z]:/", t) or t == "-":
-        joined = t if t else "~"
+    if t == "":
+        return ctx
+    rel, inside = cwd_relative(t, cwd)
+    if inside:
+        joined = rel
+    elif t == "~" or t.startswith("~/") or t.startswith("/") or DRIVE.match(t) or t == "-":
+        joined = t
     else:
         joined = (ctx + "/" + t) if ctx else t
+    absolute = joined.startswith("/")
     parts = []
     for part in joined.split("/"):
         if part in ("", "."):
-            if not parts and joined.startswith("/") and part == "":
-                parts.append("")
             continue
-        if part == ".." and parts and parts[-1] not in ("..", ""):
+        if part == ".." and parts and parts[-1] != "..":
             parts.pop()
             continue
         parts.append(part)
-    result = "/".join(parts)
-    if joined.startswith("/") and not result.startswith("/"):
-        result = "/" + result.lstrip("/")
-    return result if result not in ("", ".") else ""
+    result = ("/" if absolute else "") + "/".join(parts)
+    return "" if result in ("", ".") else result
 
 
-def parse_command(text, cwd=None, depth=0, parsed=None, ctx_in=""):
-    parsed = parsed if parsed is not None else Parsed()
-    if depth > 4:
-        return parsed
-    items = tokenize(text)
-    ctx = ctx_in
-    stack, paren = [], []
-    for seg in split_segments(items, depth):
-        if seg.op_before == "(":
-            paren.append(ctx)
+class ParseState:
+    def __init__(self, cwd):
+        self.cwd = cwd
+        self.ctx = ""
+        self.parens = []           # contexts saved by `(`
+        self.dirs = []             # contexts saved by `pushd`
+        self.carry = []            # operators of dropped segments, merged into the next kept one
+
+
+def apply_parens(ops, st):
+    for op in ops:
+        if op == "(":
+            st.parens.append(st.ctx)
+        elif op == ")" and st.parens:
+            st.ctx = st.parens.pop()
+
+
+PIPEFAIL_FLAG = rx(r"-[A-Za-z]*o")
+
+
+def parse_into(text, parsed, st, depth):
+    if depth > MAX_WRAPPER_DEPTH:
+        return
+    segments, tail = split_segments(tokenize(lf(text)))
+    for seg in segments:
+        apply_parens(seg.ops, st)
+        ops = st.carry + seg.ops
+        st.carry = []
         drop_keywords(seg)
         strip_prefixes(seg)
         drop_keywords(seg)
-        if seg.words and (seg.words[0] in CLOSING_KEYWORDS or seg.words[0] in CONSTRUCTS
-                          or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\(\)", seg.words[0])):
+        if seg.words and (seg.words[0] in CLOSING_KEYWORDS or seg.words[0] in CONSTRUCTS):
             seg.words = []
         script = shell_script(seg)
         parsed.patches.extend(h for h in seg.heredocs if has_patch_line(h))
-        if script is None:
-            parsed.patches.extend(w for w in seg.words if "\n" in w and has_patch_line(w))
         if script is not None:
+            st.carry = ops
             before = len(parsed.segments)
-            parse_command(script, cwd, depth + 1, parsed, ctx)
-            if len(parsed.segments) > before:
-                last = parsed.segments[-1]
-                last.op_after = seg.op_after
-                last.background = last.background or seg.background
-                parsed.segments[before].op_before = seg.op_before
-            if seg.op_after == ")" and paren:
-                ctx = paren.pop()
+            parse_into(script, parsed, st, depth + 1)
+            if seg.background and len(parsed.segments) > before:
+                parsed.segments[-1].background = True
             continue
+        parsed.patches.extend(w for w in seg.words if "\n" in w and has_patch_line(w))
         seg.words = unwrap(seg.words)
+        seg.ctx = st.ctx
         if seg.words:
             p = prog(seg.words[0])
             if p in ("apply_patch", "applypatch"):
                 parsed.apply_patch = True
-            if p == "set" and ("pipefail" in seg.words or any(re.fullmatch(r"-[a-z]*o", w) and k + 1 < len(seg.words)
-                                                              and seg.words[k + 1] == "pipefail"
-                                                              for k, w in enumerate(seg.words))):
+            if p == "set" and any(PIPEFAIL_FLAG.fullmatch(w) and k + 1 < len(seg.words) and seg.words[k + 1] == "pipefail"
+                                  for k, w in enumerate(seg.words)):
                 parsed.pipefail = True
             if p in ("cd", "pushd"):
                 if p == "pushd":
-                    stack.append(ctx)
+                    st.dirs.append(st.ctx)
                 target = next((w for w in seg.words[1:] if not w.startswith("-") or w == "-"), "~")
-                ctx = norm_dir(target, ctx, cwd)
+                st.ctx = norm_dir(target, st.ctx, st.cwd)
             elif p == "popd":
-                ctx = stack.pop() if stack else ctx
-        seg.ctx = ctx
+                st.ctx = st.dirs.pop() if st.dirs else st.ctx
         if seg.words or seg.heredocs:
+            seg.ops = ops
             parsed.segments.append(seg)
-        if seg.op_after == ")" and paren:
-            ctx = paren.pop()
+        else:
+            st.carry = ops
+    apply_parens(tail, st)
+    st.carry = st.carry + tail
+
+
+def last_operator(ops):
+    sig = [op for op in ops if op not in ("(", ")")]
+    return sig[-1] if sig else None
+
+
+def first_operator(ops):
+    sig = [op for op in ops if op not in ("(", ")")]
+    return sig[0] if sig else None
+
+
+def parse_command(text, cwd=None):
+    parsed = Parsed()
+    st = ParseState(cwd)
+    parse_into(scalars(text) if isinstance(text, str) else "", parsed, st, 0)
+    segs = parsed.segments
+    for k, seg in enumerate(segs):
+        seg.op_before = last_operator(seg.ops) if k > 0 else None
+        following = segs[k + 1].ops if k + 1 < len(segs) else st.carry
+        seg.op_after = last_operator(following)
+        if first_operator(following) == "&":
+            seg.background = True
     return parsed
 
 
@@ -1605,7 +1666,7 @@ def segment_tokens(seg, cwd):
         tokens = [p, "run", "test"] + tokens[2:]
     elif p in ("npm", "pnpm", "yarn", "bun") and len(tokens) > 1 and tokens[1] in ("run-script", "rum", "urn"):
         tokens = [p, "run"] + tokens[2:]
-    elif p in ("pnpm", "yarn") and len(tokens) > 1 and tokens[1] not in NPM_BUILTINS:
+    elif p in ("pnpm", "yarn") and len(tokens) > 1 and tokens[1] not in NPM_BUILTINS and not tokens[1].startswith("-"):
         tokens = [p, "run"] + tokens[1:]
     if seg.ctx:
         tokens = ["@" + seg.ctx] + tokens
@@ -1614,6 +1675,7 @@ def segment_tokens(seg, cwd):
 
 def command_info(text, cwd=None, parsed=None):
     parsed = parsed or parse_command(text, cwd)
+    cwd = cwd if isinstance(cwd, str) else None
     segs = parsed.segments
     best_index, best = None, RESULT_OTHER
     classes = []
@@ -1635,7 +1697,7 @@ def command_info(text, cwd=None, parsed=None):
     chosen = segs[best_index]
     later = segs[best_index + 1:]
     masked = bool(later) and ((chosen.op_after == "|" and not parsed.pipefail)
-                              or any(s.op_before in (";", "||", "&") for s in later))
+                              or any(x.op_before in (";", "||", "&") for x in later))
     return {"class": best[0], "suite": best[1], "targeted": bool(best[2]), "key": key, "masked": masked,
             "background": chosen.background}
 
@@ -1646,19 +1708,19 @@ def shell_kind(parsed, cwd=None):
     info = command_info("", cwd, parsed)
     if info["class"] != "other":
         return "command"
+    if any(op in WRITE_REDIRS and target not in ("/dev/null", "NUL", "nul") and not FD_TARGET.fullmatch(target)
+           for seg in parsed.segments for op, target in seg.redirs):
+        return "command"
     segs = [s for s in parsed.segments if not is_neutral(s)]
     if not segs:
         return "command"
     kinds = set()
     for seg in segs:
-        if any(op in WRITE_REDIRS and target not in ("/dev/null", "NUL", "nul") and not re.fullmatch(r"[0-9-]+", target)
-               for op, target in seg.redirs):
-            return "command"
         p = prog(seg.words[0])
         args = seg.words[1:]
         if p == "git":
-            pos = [a for a in args if not a.startswith("-")]
-            sub = pos[0] if pos else None
+            k = drop_options(args, 0, GIT_VALUE)
+            sub = args[k] if k < len(args) else None
             if sub in GIT_READ:
                 kinds.add("read")
             elif sub in GIT_SEARCH:
@@ -1701,7 +1763,8 @@ BASHOUTPUT_EXIT = rx(r"<exit_code>(-?[0-9]+)</exit_code>")
 
 
 def is_int(value):
-    return isinstance(value, int) and not isinstance(value, bool)
+    """A JSON integer: a number without fraction or exponent, in the signed 64-bit range; never a boolean."""
+    return isinstance(value, int) and not isinstance(value, bool) and -2 ** 63 <= value < 2 ** 63
 
 
 def blocks_text(content):
@@ -1714,28 +1777,76 @@ def blocks_text(content):
     return ""
 
 
-def codex_output(result):
-    """(full text, leading JSON object or None) of a Codex `*_output` payload or its `output` value."""
-    out = result.get("output") if isinstance(result, dict) and "output" in result and "type" in result else result
+def codex_status(result):
+    """Text, body, exit code, state, session and patch verdict of a Codex `*_output` payload or its `output` value."""
+    out = result.get("output") if isinstance(result, dict) and "type" in result and "output" in result else result
     if isinstance(out, dict) and isinstance(out.get("content"), (list, str)):
-        out = out.get("content")
+        out = out["content"]
     if isinstance(out, str) and out.lstrip(JSON_WS).startswith("["):
-        try:
-            decoded = json.loads(out)
-            if isinstance(decoded, list):
-                out = decoded
-        except ValueError:
-            pass
-    text = blocks_text(out)
-    head = None
+        decoded = parse_json(out)
+        if isinstance(decoded, list) and decoded and all(isinstance(x, dict) and isinstance(x.get("type"), str)
+                                                         for x in decoded):
+            out = decoded
+    text = lf(blocks_text(out))
+    status = {"text": text, "body": text, "exit": None, "state": "done", "session": None, "patch": None}
+    lines = text.split("\n")
+    head = leading_object(text)
+    if head is not None and isinstance(head.get("output"), str):
+        status["body"] = lf(head["output"])
+        meta = head.get("metadata") if isinstance(head.get("metadata"), dict) else {}
+        if is_int(head.get("exit_code")):
+            status["exit"] = head["exit_code"]
+        elif is_int(meta.get("exit_code")):
+            status["exit"] = meta["exit_code"]
+        elif is_int(head.get("session_id")):
+            status["state"], status["session"] = "running", "codex:" + str(head["session_id"])
+    else:
+        k = next((k for k, x in enumerate(lines[:8]) if x == "Output:"), None)
+        if k is not None and all(CODEX_HEADER.fullmatch(x) for x in lines[:k]):
+            status["body"] = "\n".join(lines[k + 1:])
+            for line in lines[:k]:
+                r = CODEX_EXIT.fullmatch(line) or CODEX_EXITED.fullmatch(line)
+                if r:
+                    status["exit"] = num(r.group(1))
+                r = CODEX_RUNNING.fullmatch(line)
+                if r:
+                    status["state"], status["session"] = "running", "codex:" + r.group(1)
+    body_first = status["body"].split("\n", 1)[0]
+    first = lines[0].strip(WS)
+    if first == "aborted" or first.startswith("aborted by user") or "rejected by user" in first:
+        status["state"] = "aborted"
+    elif CODEX_TIMEOUT.match(body_first):
+        status["state"] = "timeout"
+    if status["exit"] is None and status["state"] == "done":
+        if body_first.startswith("Success. Updated the following files"):
+            status["patch"] = False
+        elif body_first.startswith(("apply_patch verification failed", "Failed to apply patch")):
+            status["patch"] = True
+    return status
+
+
+def parse_json(text):
+    """An RFC 8259 JSON value, or None: NaN and Infinity are rejected, and so is nesting too deep to read."""
+    try:
+        return json.loads(text, parse_constant=reject_constant)
+    except (ValueError, RecursionError):
+        return None
+
+
+def reject_constant(name):
+    raise ValueError(name)
+
+
+def leading_object(text):
+    """The JSON object that starts the text (after JSON whitespace), ignoring what follows it; else None."""
     stripped = text.lstrip(JSON_WS)
-    if stripped.startswith("{"):
-        try:
-            obj, _ = json.JSONDecoder().raw_decode(stripped)
-            head = obj if isinstance(obj, dict) else None
-        except ValueError:
-            head = None
-    return text, head
+    if not stripped.startswith("{"):
+        return None
+    try:
+        obj, _ = json.JSONDecoder(parse_constant=reject_constant).raw_decode(stripped)
+    except (ValueError, RecursionError):
+        return None
+    return obj if isinstance(obj, dict) else None
 
 
 def lf(text):
@@ -1754,17 +1865,7 @@ def result_text(source, result):
             text = "\n".join(lines[1:])
         return text
     if family == "codex":
-        text, head = codex_output(result)
-        if head is not None:
-            body = head.get("output")
-            if isinstance(body, str):
-                return lf(body)
-        text = lf(text)
-        lines = text.split("\n")
-        for k, line in enumerate(lines[:8]):
-            if line == "Output:" and all(CODEX_HEADER.fullmatch(x) for x in lines[:k]):
-                return "\n".join(lines[k + 1:])
-        return text
+        return codex_status(result)["body"]
     if family in ("omp", "pi", "openclaw"):
         if not isinstance(result, dict):
             return ""
@@ -1778,7 +1879,7 @@ def result_text(source, result):
 
 
 def shell_call_state(source, tool, value, cwd=None):
-    """(background, masked) of a shell call: the input's own background flag or the command's (4.3)."""
+    """(background, masked) of a shell call: the input's own background flag or the command's (4.2)."""
     family = FAMILY.get(source)
     text = command_text(source, tool, value)
     if text is None:
@@ -1799,7 +1900,7 @@ def outcome(source, result, t=None, tool=None, value=None, cwd=None):
         first = text.split("\n", 1)[0]
         m = CLAUDE_EXIT.fullmatch(first)
         if m:
-            exit_code = int(m.group(1))
+            exit_code = num(m.group(1))
         if text.startswith(CLAUDE_ABORT):
             state = "aborted"
         elif CLAUDE_TIMEOUT.fullmatch(first):
@@ -1812,49 +1913,12 @@ def outcome(source, result, t=None, tool=None, value=None, cwd=None):
                 state = "running"
             mexit = BASHOUTPUT_EXIT.search(text)
             if mexit and exit_code is None and status:
-                exit_code = int(mexit.group(1))
+                exit_code = num(mexit.group(1))
         failed = (exit_code != 0) if exit_code is not None else (result.get("is_error") is True)
     elif family == "codex":
-        text, head = codex_output(result)
-        text = lf(text)
-        if head is not None:
-            meta = head.get("metadata") if isinstance(head.get("metadata"), dict) else {}
-            if is_int(head.get("exit_code")):
-                exit_code = head["exit_code"]
-            elif is_int(meta.get("exit_code")):
-                exit_code = meta["exit_code"]
-            elif is_int(head.get("session_id")):
-                state = "running"
-            body = head.get("output") if isinstance(head.get("output"), str) else ""
-            if CODEX_TIMEOUT.match(body):
-                state = "timeout"
-        else:
-            lines = text.split("\n")
-            header = []
-            for line in lines[:8]:
-                if line == "Output:":
-                    break
-                header.append(line)
-            body_start = len(header) + 1 if len(header) < len(lines) else len(header)
-            for line in header:
-                m = CODEX_EXIT.fullmatch(line) or CODEX_EXITED.fullmatch(line)
-                if m:
-                    exit_code = int(m.group(1))
-                elif CODEX_RUNNING.fullmatch(line):
-                    state = "running"
-            body_first = lines[body_start] if body_start < len(lines) else ""
-            if CODEX_TIMEOUT.match(body_first):
-                state = "timeout"
-            first = lines[0].strip(WS) if lines else ""
-            if first in ("aborted",) or first.startswith("aborted by user") or "rejected by user" in first:
-                state = "aborted"
-            if exit_code is None and state == "done":
-                if first.startswith("Success. Updated the following files"):
-                    failed = False
-                elif first.startswith("apply_patch verification failed") or first.startswith("Failed to apply patch"):
-                    failed = True
-        if exit_code is not None:
-            failed = exit_code != 0
+        status = codex_status(result)
+        exit_code, state = status["exit"], status["state"]
+        failed = (exit_code != 0) if exit_code is not None else status["patch"]
     elif family in ("omp", "pi", "openclaw") and isinstance(result, dict):
         lines = [x.strip(WS) for x in lf(blocks_text(result.get("content"))).split("\n")]
         nonempty = [x for x in lines if x]
@@ -1864,7 +1928,7 @@ def outcome(source, result, t=None, tool=None, value=None, cwd=None):
         elif is_int(details.get("exit_code")):
             exit_code = details["exit_code"]
         elif nonempty and PI_EXIT.fullmatch(nonempty[-1]):
-            exit_code = int(PI_EXIT.fullmatch(nonempty[-1]).group(1))
+            exit_code = num(PI_EXIT.fullmatch(nonempty[-1]).group(1))
         if details.get("status") == "running" or (nonempty and PI_RUNNING.match(nonempty[0])):
             state = "running"
         elif details.get("timedOut") is True or any(PI_TIMEOUT.fullmatch(x) for x in nonempty[-2:]):
@@ -1888,7 +1952,7 @@ def outcome(source, result, t=None, tool=None, value=None, cwd=None):
 
 
 def continuation(source, tool, value):
-    """The session a call continues (Codex `write_stdin`, Claude `BashOutput` / `TaskOutput`), or None (4.4)."""
+    """The session a call continues (Codex `write_stdin`, Claude `BashOutput` / `TaskOutput`), or None (4.3)."""
     family = FAMILY.get(source)
     args = decode_args(value) or {}
     if family == "codex" and tool == "write_stdin" and is_int(args.get("session_id")):
@@ -1901,19 +1965,10 @@ def continuation(source, tool, value):
 
 
 def running_session(source, result):
-    """The session a result leaves running, or None (4.4)."""
+    """The session a result leaves running, or None (4.3)."""
     family = FAMILY.get(source)
     if family == "codex":
-        text, head = codex_output(result)
-        if head is not None:
-            if is_int(head.get("session_id")) and not is_int(head.get("exit_code")):
-                return "codex:" + str(head["session_id"])
-            return None
-        for line in lf(text).split("\n")[:8]:
-            m = CODEX_RUNNING.fullmatch(line)
-            if m:
-                return "codex:" + m.group(1)
-        return None
+        return codex_status(result)["session"]
     if family == "claude" and isinstance(result, dict):
         first = lf(blocks_text(result.get("content"))).split("\n", 1)[0]
         m = CLAUDE_BACKGROUND.fullmatch(first)
@@ -1937,6 +1992,7 @@ CONTROL = rx(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 def budget(text):
     """Segments of the output: all of it, or a head and a tail cut on character and line boundaries (5.1)."""
+    text = scalars(text)
     data = text.encode("utf-8")
     if len(data) <= HEAD_BYTES + TAIL_BYTES:
         return [text]
@@ -1973,7 +2029,7 @@ def strip_workspace_prefixes(lines):
     out = []
     for line in lines:
         r = WORKSPACE_PREFIX.match(line)
-        if r and r.group(1) in common:
+        if r and r.group(1) in common and line[len(r.group(1)) + 1:len(r.group(1)) + 2] in (" ", ""):
             rest = line[len(r.group(1)) + 1:]
             out.append(rest[1:] if rest.startswith(" ") else rest)
         else:
@@ -1996,9 +2052,10 @@ def clean_lines(segment):
     return strip_workspace_prefixes(lines)
 
 
-TMP_PATH = rx(r"(?:/private)?/var/folders/[^ \t'\"()\[\]{}<>,;|`]*|(?:/private)?/tmp/[^ \t'\"()\[\]{}<>,;|`]*|"
-              r"[A-Za-z]:[\\/]Users[\\/][^\\/ \t]+[\\/]AppData[\\/]Local[\\/]Temp[\\/][^ \t'\"()\[\]{}<>,;|`]*")
-HOME_PATH = rx(r"/Users/[^/ \t'\"]+/|/home/[^/ \t'\"]+/|[A-Za-z]:[\\/]Users[\\/][^\\/ \t'\"]+[\\/]")
+NOT_IN_PATH = r"(?<![A-Za-z0-9._~/\\-])"
+TMP_PATH = rx(NOT_IN_PATH + r"(?:(?:/private)?/var/folders/|(?:/private)?/tmp/|[A-Za-z]:[\\/]Users[\\/][^\\/ \t]+[\\/]"
+              r"AppData[\\/]Local[\\/]Temp[\\/])[^ \t'\"()\[\]\{\}<>,;|`]*")
+HOME_PATH = rx(NOT_IN_PATH + r"(?:/Users/[^/ \t'\"]+/|/home/[^/ \t'\"]+/|[A-Za-z]:[\\/]Users[\\/][^\\/ \t'\"]+[\\/])")
 UUID = rx(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 ISO_TIME = rx(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:[.,][0-9]+)?)?(?:Z|[+-][0-9]{2}:?[0-9]{2})?")
 TIME_OF_DAY = rx(r"(?<![0-9])[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:[.,][0-9]+)?(?![0-9])")
@@ -2015,22 +2072,14 @@ PID_PORT = rx(r"(?<![A-Za-z0-9_])(pid|PID|port)([ =:#]+)[0-9]+")
 SPACES = rx(r"[ \t]+")
 
 
-def norm_cwd(cwd):
-    if not cwd:
-        return None
-    c = cwd.replace("\\", "/").rstrip("/")
-    return c or None
-
-
 def strip_cwd(text, cwd):
+    """Removes every `cwd/` that does not follow a path character (5.2)."""
     c = norm_cwd(cwd)
     if not c:
         return text
-    if re.match(r"[A-Za-z]:/", c):
-        pattern = re.compile(re.escape(c).replace("/", r"[\\/]") + r"[\\/]", re.IGNORECASE | re.ASCII)
-    else:
-        pattern = re.compile(re.escape(c) + "/")
-    return pattern.sub("", text)
+    body = re.escape(c).replace("/", r"[\\/]") + r"[\\/]"
+    flags = re.IGNORECASE | re.ASCII if DRIVE.match(c + "/") else 0
+    return re.compile(NOT_IN_PATH + body, flags).sub("", text)
 
 
 def mask(text, cwd=None):
@@ -2068,13 +2117,8 @@ def norm_file(path, cwd=None):
         p = p[len("file://"):]
     p = p.replace("\\", "/")
     p = TMP_PATH.sub("<tmp>", p)
-    c = norm_cwd(cwd)
-    if c:
-        if re.match(r"[A-Za-z]:/", c) and p.translate(ASCII_LOWER).startswith(c.translate(ASCII_LOWER) + "/"):
-            p = p[len(c) + 1:]
-        elif p.startswith(c + "/"):
-            p = p[len(c) + 1:]
-    p = HOME_PATH.sub("~/", p.replace("\\", "/"))
+    p, _ = cwd_relative(p, cwd)
+    p = HOME_PATH.sub("~/", p)
     while "//" in p:
         p = p.replace("//", "/")
     while p.startswith("./"):
@@ -2116,7 +2160,7 @@ def parse_counts(text, sep=","):
     for part in text.split(sep):
         mm = re.fullmatch(r"[ \t]*([0-9]+) ([A-Za-z][A-Za-z ]*?)[ \t]*", part)
         if mm:
-            counts[mm.group(2)] = counts.get(mm.group(2), 0) + int(mm.group(1))
+            counts[mm.group(2)] = counts.get(mm.group(2), 0) + num(mm.group(1))
     return counts
 
 
@@ -2182,7 +2226,7 @@ class Unittest(Recognizer):
             return 1
         r = UNITTEST_RAN(line)
         if r:
-            self.ran = int(r.group(1))
+            self.ran = num(r.group(1))
             return 1
         if self.ran is not None:
             r = UNITTEST_OK(line) or UNITTEST_FAILED(line)
@@ -2191,7 +2235,7 @@ class Unittest(Recognizer):
                 for part in (r.group(1) or "").split(","):
                     kv = re.fullmatch(r"[ \t]*([a-z ]+)=([0-9]+)[ \t]*", part)
                     if kv:
-                        c[kv.group(1)] = int(kv.group(2))
+                        c[kv.group(1)] = num(kv.group(2))
                 failed = c.get("failures", 0) + c.get("errors", 0) + c.get("unexpected successes", 0)
                 passed = max(0, self.ran - failed - c.get("skipped", 0) - c.get("expected failures", 0))
                 self.f.summary("unittest", "test", failed, passed)
@@ -2242,7 +2286,7 @@ class Cargo(Recognizer):
             return 1
         r = LIBTEST_RESULT(line)
         if r:
-            self.f.summary("cargo", "test", int(r.group(2)), int(r.group(1)), "sum")
+            self.f.summary("cargo", "test", num(r.group(2)), num(r.group(1)), "sum")
             return 1
         if LIBTEST_FAILURES(line) and i + 1 < len(lines) and LIBTEST_LISTED(lines[i + 1]):
             self.listing = True
@@ -2288,11 +2332,11 @@ class Rustc(Recognizer):
         line = lines[i]
         r = RUST_COULD_NOT(line)
         if r:
-            self.f.summary("rustc", "error", int(r.group(1) or 1), None, "sum")
+            self.f.summary("rustc", "error", num(r.group(1) or "1"), None, "sum")
             return 1
         r = RUST_ABORTING(line)
         if r:
-            self.f.summary("rustc", "error", int(r.group(1) or 1), None, "sum")
+            self.f.summary("rustc", "error", num(r.group(1) or "1"), None, "sum")
             return 1
         if RUST_STATUS(line):
             return 1
@@ -2310,7 +2354,7 @@ class Rustc(Recognizer):
 
 
 # ---- swift-testing, XCTest, xcodebuild, swiftc
-ST_MARK = r"[^ \tA-Za-z0-9]{1,4} "
+ST_MARK = r"[^ \tA-Za-z0-9]+ "
 ST_ISSUE = m(ST_MARK + r"Test (.+?) recorded an issue.*")
 ST_FAILED = m(ST_MARK + r"Test (.+?) failed after [0-9]+(?:\.[0-9]+)? seconds(?: with [0-9]+ issues?)?"
               r"(?: \(including [0-9]+ known issues?\))?\.")
@@ -2363,6 +2407,11 @@ class Swift(Recognizer):
                 return 1
             self.listing = False
         if self.commands:
+            r = XB_COUNT(line)
+            if r:
+                self.f.summary("xcodebuild", "error", num(r.group(1)), None)
+                self.commands = False
+                return 1
             if line.startswith((" ", "\t")):
                 return 1
             self.commands = False
@@ -2374,11 +2423,11 @@ class Swift(Recognizer):
             return 1
         r = ST_RUN(line)
         if r:
-            total = int(r.group(1))
+            total = num(r.group(1))
             if r.group(2) == "passed":
                 failed = 0
             else:
-                failed = len(self.st_failed) or int(r.group(3) or 1)
+                failed = len(self.st_failed) or num(r.group(3) or "1")
             self.f.summary("swift-testing", "test", failed, max(0, total - failed))
             return 1
         if ST_ISSUE(line) or ST_OTHER(line):
@@ -2400,7 +2449,7 @@ class Swift(Recognizer):
             return 1
         r = XC_EXECUTED(line)
         if r:
-            total, skipped, failures = int(r.group(1)), int(r.group(2) or 0), int(r.group(3))
+            total, skipped, failures = num(r.group(1)), num(r.group(2) or "0"), num(r.group(3))
             failed = len(self.xc_failed) if self.xc_failed else failures
             self.f.summary("xctest", "test", failed, max(0, total - failed - skipped))
             return 1
@@ -2411,10 +2460,6 @@ class Swift(Recognizer):
             return 1
         if XB_COMMANDS(line):
             self.commands = True
-            return 1
-        r = XB_COUNT(line)
-        if r:
-            self.f.summary("xcodebuild", "error", int(r.group(1)), None)
             return 1
         r = SWIFTC_ERROR(line)
         if r:
@@ -2570,11 +2615,11 @@ class Js(Recognizer):
             return 1
         r = MOCHA_PASSING(line)
         if r:
-            self.mocha_passing = int(r.group(1))
+            self.mocha_passing = num(r.group(1))
             return 1
         r = MOCHA_FAILING(line)
         if r:
-            self.mocha_failing = int(r.group(1))
+            self.mocha_failing = num(r.group(1))
             self.mocha_details = True
             return 1
         if MOCHA_PENDING(line):
@@ -2585,11 +2630,11 @@ class Js(Recognizer):
             return 1
         r = BUN_COUNT(line)
         if r:
-            self.bun[r.group(2)] = int(r.group(1))
+            self.bun[r.group(2)] = num(r.group(1))
             return 1
         r = DENO_SUMMARY(line)
         if r:
-            self.f.summary("deno", "test", int(r.group(2)), int(r.group(1)))
+            self.f.summary("deno", "test", num(r.group(2)), num(r.group(1)))
             return 1
         r = DENO_FAILURE(line)
         if r:
@@ -2671,15 +2716,15 @@ class Checkers(Recognizer):
             return 1
         r = MYPY_FOUND(line)
         if r:
-            self.f.summary("mypy", "error", int(r.group(1)), None)
+            self.f.summary("mypy", "error", num(r.group(1)), None)
             return 1
         r = TSC_FOUND(line)
         if r:
-            self.f.summary("tsc", "error", int(r.group(1)), None)
+            self.f.summary("tsc", "error", num(r.group(1)), None)
             return 1
         r = FOUND_ERRORS(line)
         if r:
-            failed = int(r.group(3)) if r.group(3) is not None else int(r.group(1))
+            failed = num(r.group(3)) if r.group(3) is not None else num(r.group(1))
             self.f.summary("found-errors", "error", failed, None)
             return 1
         if TSC_TABLE(line):
@@ -2701,7 +2746,7 @@ class Checkers(Recognizer):
                 return 1
         r = ESLINT_SUMMARY(line)
         if r:
-            self.f.summary("eslint", "error", int(r.group(2)), None)
+            self.f.summary("eslint", "error", num(r.group(2)), None)
             return 1
         if ESLINT_FIXABLE(line):
             return 1
@@ -2729,7 +2774,7 @@ class Checkers(Recognizer):
             return 1
         r = FORMAT_SUMMARY(line)
         if r:
-            self.f.summary("format", "error", int(r.group(1)), None)
+            self.f.summary("format", "error", num(r.group(1)), None)
             return 1
         r = MYPY_ERROR(line)
         if r:
@@ -2756,7 +2801,7 @@ class Checkers(Recognizer):
             return 1
         r = PYRIGHT_SUMMARY(line)
         if r:
-            self.f.summary("pyright", "error", int(r.group(1)), None)
+            self.f.summary("pyright", "error", num(r.group(1)), None)
             return 1
         return 0
 
@@ -2792,12 +2837,12 @@ class Dotnet(Recognizer):
             return 1
         r = MSB_COUNT(line)
         if r:
-            self.f.summary("msbuild", "error", int(r.group(1)), None)
+            self.f.summary("msbuild", "error", num(r.group(1)), None)
             return 1
         r = MSB_TERMINAL(line)
         if r:
             if r.group(1):
-                self.f.summary("msbuild", "error", int(r.group(1)), None)
+                self.f.summary("msbuild", "error", num(r.group(1)), None)
             return 1
         if MSB_NOISE(line):
             return 1
@@ -2809,11 +2854,11 @@ class Dotnet(Recognizer):
             return 1
         r = VSTEST_SUMMARY(line)
         if r:
-            self.f.summary("dotnet", "test", int(r.group(1)), int(r.group(2)), "sum")
+            self.f.summary("dotnet", "test", num(r.group(1)), num(r.group(2)), "sum")
             return 1
         r = MTP_SUMMARY(line)
         if r:
-            self.f.summary("dotnet-mtp", "test", int(r.group(2)), int(r.group(3)))
+            self.f.summary("dotnet-mtp", "test", num(r.group(2)), num(r.group(3)))
             return 1
         r = MTP_FAILED(line)
         if r:
@@ -2875,7 +2920,7 @@ class Jvm(Recognizer):
             return 1
         r = GRADLE_SUMMARY(line)
         if r:
-            total, failed, skipped = int(r.group(1)), int(r.group(2)), int(r.group(3) or 0)
+            total, failed, skipped = num(r.group(1)), num(r.group(2)), num(r.group(3) or "0")
             self.f.summary("gradle", "test", failed, max(0, total - failed - skipped), "sum")
             return 1
         if GRADLE_NOISE(line):
@@ -2894,7 +2939,7 @@ class Jvm(Recognizer):
         r = SUREFIRE_RUN(line)
         if r:
             if r.group(5).strip(WS) == "":
-                run, failures, errors, skipped = (int(r.group(k)) for k in (1, 2, 3, 4))
+                run, failures, errors, skipped = (num(r.group(k)) for k in (1, 2, 3, 4))
                 self.f.summary("maven", "test", failures + errors, max(0, run - failures - errors - skipped))
             return 1
         r = MAVEN_JAVAC(line)
@@ -2903,7 +2948,7 @@ class Jvm(Recognizer):
             return 1
         r = MAVEN_ERRORS(line)
         if r:
-            self.f.summary("javac", "error", int(r.group(1)), None)
+            self.f.summary("javac", "error", num(r.group(1)), None)
             return 1
         if MAVEN_NOISE(line):
             return 1
@@ -2915,7 +2960,7 @@ class Jvm(Recognizer):
             return 1
         r = JAVAC_COUNT(line)
         if r:
-            self.f.summary("javac", "error", int(r.group(1)), None)
+            self.f.summary("javac", "error", num(r.group(1)), None)
             return 1
         r = KOTLIN_ERROR(line) or KOTLIN_ERROR_OLD(line)
         if r:
@@ -2965,8 +3010,8 @@ class Misc(Recognizer):
             return 1
         r = RSPEC_SUMMARY(line)
         if r:
-            examples, failures = int(r.group(1)), int(r.group(2))
-            pending, outside = int(r.group(3) or 0), int(r.group(4) or 0)
+            examples, failures = num(r.group(1)), num(r.group(2))
+            pending, outside = num(r.group(3) or "0"), num(r.group(4) or "0")
             self.f.summary("rspec", "test", failures + outside, max(0, examples - failures - pending))
             return 1
         r = RSPEC_LOAD(line)
@@ -2989,14 +3034,14 @@ class Misc(Recognizer):
             for part in r.group(2).split(", "):
                 kv = re.fullmatch(r"([A-Za-z ]+): ([0-9]+)", part)
                 if kv:
-                    c[kv.group(1)] = int(kv.group(2))
+                    c[kv.group(1)] = num(kv.group(2))
             failed = c.get("Errors", 0) + c.get("Failures", 0)
-            passed = max(0, int(r.group(1)) - failed - c.get("Skipped", 0) - c.get("Incomplete", 0))
+            passed = max(0, num(r.group(1)) - failed - c.get("Skipped", 0) - c.get("Incomplete", 0))
             self.f.summary("phpunit", "test", failed, passed)
             return 1
         r = PHPUNIT_OK(line)
         if r:
-            self.f.summary("phpunit", "test", 0, int(r.group(1)))
+            self.f.summary("phpunit", "test", 0, num(r.group(1)))
             return 1
         if PHPUNIT_NOISE(line):
             return 1
@@ -3011,7 +3056,7 @@ class Misc(Recognizer):
             return 1
         r = CTEST_SUMMARY(line)
         if r:
-            failed, total = int(r.group(2)), int(r.group(3))
+            failed, total = num(r.group(2)), num(r.group(3))
             self.f.summary("ctest", "test", failed, max(0, total - failed))
             return 1
         if CTEST_NOISE(line):
@@ -3067,7 +3112,7 @@ class Cc(Recognizer):
             return 1
         r = CC_GENERATED(line)
         if r:
-            self.f.summary("cc", "error", int(r.group(1)), None, "sum")
+            self.f.summary("cc", "error", num(r.group(1)), None, "sum")
             return 1
         if LD_UNDEFINED_ARCH(line):
             self.symbols = True
@@ -3083,7 +3128,7 @@ class Cc(Recognizer):
 
 RECOGNIZERS = (Pytest, Unittest, Cargo, Rustc, Swift, Go, Js, Checkers, Dotnet, Jvm, Misc, Cc)
 
-# ---- generic fallback (5.4)
+# ---- generic fallback (5.6)
 GENERIC_FILE = m(r"(.+?\.[A-Za-z0-9]+):([0-9]+)(?::([0-9]+))?:? (?:fatal )?error(?:\[([^\]]+)\])?:? (.+)")
 GENERIC_PREFIX = m(r"(?:error|ERROR|Error|fatal|FATAL)(?:\[([^\]]+)\])?: (.+)")
 GENERIC_EXCEPTION = m(r"(?:Uncaught )?([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception)): (.*)")
@@ -3111,9 +3156,11 @@ SUPERSEDES = {"nextest": ("cargo",)}
 
 def failures_detail(info, output_text, cwd=None, failed=None):
     """failures() plus the canonical strings behind the fingerprints (fixtures only)."""
-    found = Found(cwd)
+    found = Found(cwd if isinstance(cwd, str) else None)
+    info = info if isinstance(info, dict) else {}
+    output_text = output_text if isinstance(output_text, str) else ""
     segments = []
-    for segment in budget(output_text or ""):
+    for segment in budget(output_text):
         lines = clean_lines(segment)
         claimed = set()
         recognizers = [cls(found) for cls in RECOGNIZERS]
@@ -3135,7 +3182,7 @@ def failures_detail(info, output_text, cwd=None, failed=None):
     if not found.fps and failed is True:
         for lines, claimed in segments:
             generic(found, lines, claimed)
-    suite = (info or {}).get("suite") or ""
+    suite = info.get("suite") if isinstance(info.get("suite"), str) else ""
     has_tsc = any(fp.startswith("tsc|") for fp in found.fps)
     summaries = []
     for fw, family, f_count, p_count, mode in found.summaries:
@@ -3206,17 +3253,13 @@ def norm_edit_path(path, cwd=None):
     p = path.replace("\\", "/")
     if p.startswith("file://"):
         p = p[len("file://"):]
-    c = norm_cwd(cwd)
-    if c:
-        if re.match(r"[A-Za-z]:/", c) and p.translate(ASCII_LOWER).startswith(c.translate(ASCII_LOWER) + "/"):
-            p = p[len(c) + 1:]
-        elif p.startswith(c + "/"):
-            p = p[len(c) + 1:]
+    p, _ = cwd_relative(p, cwd)
     while "//" in p:
         p = p.replace("//", "/")
     while p.startswith("./"):
         p = p[2:]
-    p = p.replace("/./", "/")
+    while "/./" in p:
+        p = p.replace("/./", "/")
     return p
 
 
@@ -3343,10 +3386,7 @@ def pi_edits(args):
     """Pi and OpenClaw `edit`: edits[] (an array, a JSON string or one object) plus legacy oldText / newText."""
     edits = args.get("edits")
     if isinstance(edits, str):
-        try:
-            edits = json.loads(edits)
-        except ValueError:
-            edits = None
+        edits = parse_json(edits)
     if isinstance(edits, dict):
         edits = [edits]
     pairs = []
@@ -3411,7 +3451,8 @@ def edit_hunks(source, tool, value, cwd=None):
     if family == "codex":
         if isinstance(value, str) and args is None:
             return codex_patch(value, cwd)
-        text = (args or {}).get("input") or (args or {}).get("patch")
+        args = args or {}
+        text = args.get("input") if isinstance(args.get("input"), str) else args.get("patch")
         return codex_patch(text, cwd) if isinstance(text, str) else []
     if args is None:
         return []
@@ -3421,7 +3462,8 @@ def edit_hunks(source, tool, value, cwd=None):
                                                                                                str):
             return [hunk(path, args["old_string"], args["new_string"], cwd)]
         if name == "MultiEdit" and path:
-            return [hunk(path, e["old_string"], e["new_string"], cwd) for e in args.get("edits") or []
+            edits = args.get("edits") if isinstance(args.get("edits"), list) else []
+            return [hunk(path, e["old_string"], e["new_string"], cwd) for e in edits
                     if isinstance(e, dict) and isinstance(e.get("old_string"), str)
                     and isinstance(e.get("new_string"), str)]
         if name == "Write" and path and isinstance(args.get("content"), str):
@@ -3516,7 +3558,18 @@ def spec_appendix():
             pattern = value.__self__.pattern
         if pattern is not None and name.isupper():
             out.append("%-18s %s" % (name, pattern))
-    out += ["```", "", APPENDIX_END]
+    out += ["```", "", "### A.5 Rule order within each recogniser", "",
+            "The patterns each recogniser tries, in the order its code first uses them (5.3).", ""]
+    import inspect
+    for cls in RECOGNIZERS:
+        names = []
+        for name in re.findall(r"\b([A-Z][A-Z0-9_]{2,})\b", inspect.getsource(cls)):
+            value = getattr(sys.modules[__name__], name, None)
+            is_pattern = isinstance(value, re.Pattern) or isinstance(getattr(value, "__self__", None), re.Pattern)
+            if is_pattern and name not in names:
+                names.append(name)
+        out.append("- %s: %s" % (cls.__name__, ", ".join("`%s`" % n for n in names)))
+    out += ["", APPENDIX_END]
     return "\n".join(out) + "\n"
 
 
@@ -3593,11 +3646,12 @@ def main():
         print("spec/TASK-PARSERS.md has no appendix markers")
         return 1
     if "--write" in sys.argv:
-        with open(FIXTURE, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, indent=1, ensure_ascii=False)
-            fh.write("\n")
-        with open(SPEC, "w", encoding="utf-8") as fh:
-            fh.write(spec_new)
+        fixture_bytes = (json.dumps(data, indent=1, ensure_ascii=False) + "\n").encode("utf-8")
+        spec_bytes = spec_new.encode("utf-8")
+        with open(FIXTURE, "wb") as fh:
+            fh.write(fixture_bytes)
+        with open(SPEC, "wb") as fh:
+            fh.write(spec_bytes)
         print("wrote %s: %d cases (%s) and the appendix of %s" % (
             os.path.normpath(FIXTURE), len(data["cases"]), summary, os.path.normpath(SPEC)))
         return 0

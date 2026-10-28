@@ -260,7 +260,65 @@
    "expect": "command"
   },
   {
-   "id": "kind-23-claudeCode-Task",
+   "id": "kind-23-claudeCode-Bash",
+   "group": "actionKind",
+   "source": "claudeCode",
+   "tool": "Bash",
+   "input": {
+    "command": [
+     "ls",
+     "-la"
+    ]
+   },
+   "cwd": "/Users/dev/work/orbit",
+   "expect": "command"
+  },
+  {
+   "id": "kind-24-claudeCode-Bash",
+   "group": "actionKind",
+   "source": "claudeCode",
+   "tool": "Bash",
+   "input": {
+    "command": "git -C packages/queue status"
+   },
+   "cwd": "/Users/dev/work/orbit",
+   "expect": "read"
+  },
+  {
+   "id": "kind-25-claudeCode-Bash",
+   "group": "actionKind",
+   "source": "claudeCode",
+   "tool": "Bash",
+   "input": {
+    "command": "git show grep"
+   },
+   "cwd": "/Users/dev/work/orbit",
+   "expect": "read"
+  },
+  {
+   "id": "kind-26-claudeCode-Bash",
+   "group": "actionKind",
+   "source": "claudeCode",
+   "tool": "Bash",
+   "input": {
+    "command": "echo hi > f.txt && cat f.txt"
+   },
+   "cwd": "/Users/dev/work/orbit",
+   "expect": "command"
+  },
+  {
+   "id": "kind-27-claudeCode-Bash",
+   "group": "actionKind",
+   "source": "claudeCode",
+   "tool": "Bash",
+   "input": {
+    "command": "cat a.txt > /dev/null 2>&1"
+   },
+   "cwd": "/Users/dev/work/orbit",
+   "expect": "read"
+  },
+  {
+   "id": "kind-28-claudeCode-Task",
    "group": "actionKind",
    "source": "claudeCode",
    "tool": "Task",
@@ -273,7 +331,7 @@
    "expect": "delegate"
   },
   {
-   "id": "kind-24-claudeCode-Agent",
+   "id": "kind-29-claudeCode-Agent",
    "group": "actionKind",
    "source": "claudeCode",
    "tool": "Agent",
@@ -285,7 +343,7 @@
    "expect": "delegate"
   },
   {
-   "id": "kind-25-claudeCode-SendMessage",
+   "id": "kind-30-claudeCode-SendMessage",
    "group": "actionKind",
    "source": "claudeCode",
    "tool": "SendMessage",
@@ -297,7 +355,7 @@
    "expect": "delegate"
   },
   {
-   "id": "kind-26-claudeCode-WebFetch",
+   "id": "kind-31-claudeCode-WebFetch",
    "group": "actionKind",
    "source": "claudeCode",
    "tool": "WebFetch",
@@ -309,7 +367,7 @@
    "expect": "web"
   },
   {
-   "id": "kind-27-claudeCode-WebSearch",
+   "id": "kind-32-claudeCode-WebSearch",
    "group": "actionKind",
    "source": "claudeCode",
    "tool": "WebSearch",
@@ -320,7 +378,7 @@
    "expect": "web"
   },
   {
-   "id": "kind-28-claudeCode-TodoWrite",
+   "id": "kind-33-claudeCode-TodoWrite",
    "group": "actionKind",
    "source": "claudeCode",
    "tool": "TodoWrite",
@@ -331,7 +389,7 @@
    "expect": "other"
   },
   {
-   "id": "kind-29-claudeCode-BashOutput",
+   "id": "kind-34-claudeCode-BashOutput",
    "group": "actionKind",
    "source": "claudeCode",
    "tool": "BashOutput",
@@ -342,7 +400,7 @@
    "expect": "other"
   },
   {
-   "id": "kind-30-claudeCode-mcp__github__create_issue",
+   "id": "kind-35-claudeCode-mcp__github__create_issue",
    "group": "actionKind",
    "source": "claudeCode",
    "tool": "mcp__github__create_issue",
@@ -353,7 +411,7 @@
    "expect": "other"
   },
   {
-   "id": "kind-31-claudeCode-bash",
+   "id": "kind-36-claudeCode-bash",
    "group": "actionKind",
    "source": "claudeCode",
    "tool": "bash",
@@ -364,7 +422,7 @@
    "expect": "other"
   },
   {
-   "id": "kind-32-codex-shell",
+   "id": "kind-37-codex-shell",
    "group": "actionKind",
    "source": "codex",
    "tool": "shell",
@@ -373,7 +431,7 @@
    "expect": "command"
   },
   {
-   "id": "kind-33-codex-shell",
+   "id": "kind-38-codex-shell",
    "group": "actionKind",
    "source": "codex",
    "tool": "shell",
@@ -382,7 +440,7 @@
    "expect": "read"
   },
   {
-   "id": "kind-34-codex-shell",
+   "id": "kind-39-codex-shell",
    "group": "actionKind",
    "source": "codex",
    "tool": "shell",
@@ -391,7 +449,7 @@
    "expect": "search"
   },
   {
-   "id": "kind-35-codex-shell",
+   "id": "kind-40-codex-shell",
    "group": "actionKind",
    "source": "codex",
    "tool": "shell",
@@ -400,7 +458,7 @@
    "expect": "edit"
   },
   {
-   "id": "kind-36-codex-shell_command",
+   "id": "kind-41-codex-shell_command",
    "group": "actionKind",
    "source": "codex",
    "tool": "shell_command",
@@ -409,7 +467,7 @@
    "expect": "command"
   },
   {
-   "id": "kind-37-codex-exec_command",
+   "id": "kind-42-codex-exec_command",
    "group": "actionKind",
    "source": "codex",
    "tool": "exec_command",
@@ -418,7 +476,7 @@
    "expect": "command"
   },
   {
-   "id": "kind-38-codex-exec_command",
+   "id": "kind-43-codex-exec_command",
    "group": "actionKind",
    "source": "codex",
    "tool": "exec_command",
@@ -427,7 +485,7 @@
    "expect": "read"
   },
   {
-   "id": "kind-39-codex-exec",
+   "id": "kind-44-codex-exec",
    "group": "actionKind",
    "source": "codex",
    "tool": "exec",
@@ -436,7 +494,7 @@
    "expect": "command"
   },
   {
-   "id": "kind-40-codex-exec",
+   "id": "kind-45-codex-exec",
    "group": "actionKind",
    "source": "codex",
    "tool": "exec",
@@ -445,7 +503,7 @@
    "expect": "read"
   },
   {
-   "id": "kind-41-codex-apply_patch",
+   "id": "kind-46-codex-apply_patch",
    "group": "actionKind",
    "source": "codex",
    "tool": "apply_patch",
@@ -454,7 +512,7 @@
    "expect": "edit"
   },
   {
-   "id": "kind-42-codex-write_stdin",
+   "id": "kind-47-codex-write_stdin",
    "group": "actionKind",
    "source": "codex",
    "tool": "write_stdin",
@@ -463,7 +521,7 @@
    "expect": "other"
   },
   {
-   "id": "kind-43-codex-update_plan",
+   "id": "kind-48-codex-update_plan",
    "group": "actionKind",
    "source": "codex",
    "tool": "update_plan",
@@ -472,7 +530,7 @@
    "expect": "other"
   },
   {
-   "id": "kind-44-codex-view_image",
+   "id": "kind-49-codex-view_image",
    "group": "actionKind",
    "source": "codex",
    "tool": "view_image",
@@ -481,7 +539,7 @@
    "expect": "read"
   },
   {
-   "id": "kind-45-codex-spawn_agent",
+   "id": "kind-50-codex-spawn_agent",
    "group": "actionKind",
    "source": "codex",
    "tool": "spawn_agent",
@@ -490,7 +548,7 @@
    "expect": "delegate"
   },
   {
-   "id": "kind-46-codex-wait_agent",
+   "id": "kind-51-codex-wait_agent",
    "group": "actionKind",
    "source": "codex",
    "tool": "wait_agent",
@@ -499,7 +557,7 @@
    "expect": "other"
   },
   {
-   "id": "kind-47-codex-web_search",
+   "id": "kind-52-codex-web_search",
    "group": "actionKind",
    "source": "codex",
    "tool": "web_search",
@@ -508,7 +566,7 @@
    "expect": "web"
   },
   {
-   "id": "kind-48-codex-shell",
+   "id": "kind-53-codex-shell",
    "group": "actionKind",
    "source": "codex",
    "tool": "shell",
@@ -517,7 +575,25 @@
    "expect": "command"
   },
   {
-   "id": "kind-49-omp-read",
+   "id": "kind-54-codex-exec",
+   "group": "actionKind",
+   "source": "codex",
+   "tool": "exec",
+   "input": "{\"foo\":1}",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": "command"
+  },
+  {
+   "id": "kind-55-codex-shell",
+   "group": "actionKind",
+   "source": "codex",
+   "tool": "shell",
+   "input": "{\"command\":[]}",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": "command"
+  },
+  {
+   "id": "kind-56-omp-read",
    "group": "actionKind",
    "source": "omp",
    "tool": "read",
@@ -528,7 +604,7 @@
    "expect": "read"
   },
   {
-   "id": "kind-50-omp-grep",
+   "id": "kind-57-omp-grep",
    "group": "actionKind",
    "source": "omp",
    "tool": "grep",
@@ -539,7 +615,7 @@
    "expect": "search"
   },
   {
-   "id": "kind-51-omp-search",
+   "id": "kind-58-omp-search",
    "group": "actionKind",
    "source": "omp",
    "tool": "search",
@@ -550,7 +626,7 @@
    "expect": "search"
   },
   {
-   "id": "kind-52-omp-find",
+   "id": "kind-59-omp-find",
    "group": "actionKind",
    "source": "omp",
    "tool": "find",
@@ -561,7 +637,7 @@
    "expect": "search"
   },
   {
-   "id": "kind-53-omp-edit",
+   "id": "kind-60-omp-edit",
    "group": "actionKind",
    "source": "omp",
    "tool": "edit",
@@ -572,7 +648,7 @@
    "expect": "edit"
   },
   {
-   "id": "kind-54-omp-write",
+   "id": "kind-61-omp-write",
    "group": "actionKind",
    "source": "omp",
    "tool": "write",
@@ -584,7 +660,7 @@
    "expect": "edit"
   },
   {
-   "id": "kind-55-omp-bash",
+   "id": "kind-62-omp-bash",
    "group": "actionKind",
    "source": "omp",
    "tool": "bash",
@@ -595,7 +671,7 @@
    "expect": "command"
   },
   {
-   "id": "kind-56-omp-task",
+   "id": "kind-63-omp-task",
    "group": "actionKind",
    "source": "omp",
    "tool": "task",
@@ -606,7 +682,7 @@
    "expect": "delegate"
   },
   {
-   "id": "kind-57-omp-yield",
+   "id": "kind-64-omp-yield",
    "group": "actionKind",
    "source": "omp",
    "tool": "yield",
@@ -617,7 +693,7 @@
    "expect": "other"
   },
   {
-   "id": "kind-58-omp-web_search",
+   "id": "kind-65-omp-web_search",
    "group": "actionKind",
    "source": "omp",
    "tool": "web_search",
@@ -628,7 +704,7 @@
    "expect": "web"
   },
   {
-   "id": "kind-59-omp-Bash",
+   "id": "kind-66-omp-Bash",
    "group": "actionKind",
    "source": "omp",
    "tool": "Bash",
@@ -639,7 +715,7 @@
    "expect": "read"
   },
   {
-   "id": "kind-60-pi-read",
+   "id": "kind-67-pi-read",
    "group": "actionKind",
    "source": "pi",
    "tool": "read",
@@ -650,7 +726,7 @@
    "expect": "read"
   },
   {
-   "id": "kind-61-pi-ls",
+   "id": "kind-68-pi-ls",
    "group": "actionKind",
    "source": "pi",
    "tool": "ls",
@@ -661,7 +737,7 @@
    "expect": "read"
   },
   {
-   "id": "kind-62-pi-find",
+   "id": "kind-69-pi-find",
    "group": "actionKind",
    "source": "pi",
    "tool": "find",
@@ -672,7 +748,7 @@
    "expect": "search"
   },
   {
-   "id": "kind-63-pi-edit",
+   "id": "kind-70-pi-edit",
    "group": "actionKind",
    "source": "pi",
    "tool": "edit",
@@ -684,7 +760,7 @@
    "expect": "edit"
   },
   {
-   "id": "kind-64-pi-bash",
+   "id": "kind-71-pi-bash",
    "group": "actionKind",
    "source": "pi",
    "tool": "bash",
@@ -695,7 +771,7 @@
    "expect": "command"
   },
   {
-   "id": "kind-65-pi-powershell",
+   "id": "kind-72-pi-powershell",
    "group": "actionKind",
    "source": "pi",
    "tool": "powershell",
@@ -706,7 +782,7 @@
    "expect": "command"
   },
   {
-   "id": "kind-66-openclaw-exec",
+   "id": "kind-73-openclaw-exec",
    "group": "actionKind",
    "source": "openclaw",
    "tool": "exec",
@@ -717,7 +793,7 @@
    "expect": "command"
   },
   {
-   "id": "kind-67-openclaw-exec",
+   "id": "kind-74-openclaw-exec",
    "group": "actionKind",
    "source": "openclaw",
    "tool": "exec",
@@ -728,7 +804,7 @@
    "expect": "read"
   },
   {
-   "id": "kind-68-openclaw-apply_patch",
+   "id": "kind-75-openclaw-apply_patch",
    "group": "actionKind",
    "source": "openclaw",
    "tool": "apply_patch",
@@ -739,7 +815,7 @@
    "expect": "edit"
   },
   {
-   "id": "kind-69-openclaw-edit",
+   "id": "kind-76-openclaw-edit",
    "group": "actionKind",
    "source": "openclaw",
    "tool": "edit",
@@ -751,7 +827,7 @@
    "expect": "edit"
   },
   {
-   "id": "kind-70-openclaw-process",
+   "id": "kind-77-openclaw-process",
    "group": "actionKind",
    "source": "openclaw",
    "tool": "process",
@@ -763,7 +839,7 @@
    "expect": "other"
   },
   {
-   "id": "kind-71-openclaw-sessions_spawn",
+   "id": "kind-78-openclaw-sessions_spawn",
    "group": "actionKind",
    "source": "openclaw",
    "tool": "sessions_spawn",
@@ -774,7 +850,7 @@
    "expect": "delegate"
   },
   {
-   "id": "kind-72-openclaw-web_fetch",
+   "id": "kind-79-openclaw-web_fetch",
    "group": "actionKind",
    "source": "openclaw",
    "tool": "web_fetch",
@@ -785,7 +861,7 @@
    "expect": "web"
   },
   {
-   "id": "kind-73-openclaw-memory_search",
+   "id": "kind-80-openclaw-memory_search",
    "group": "actionKind",
    "source": "openclaw",
    "tool": "memory_search",
@@ -796,7 +872,7 @@
    "expect": "other"
   },
   {
-   "id": "kind-74-gemini-run_shell_command",
+   "id": "kind-81-gemini-run_shell_command",
    "group": "actionKind",
    "source": "gemini",
    "tool": "run_shell_command",
@@ -807,7 +883,7 @@
    "expect": "other"
   },
   {
-   "id": "kind-75-codex-None",
+   "id": "kind-82-codex-None",
    "group": "actionKind",
    "source": "codex",
    "tool": null,
@@ -1840,7 +1916,7 @@
     "class": "test",
     "suite": "pnpm test",
     "targeted": true,
-    "key": "05f9905edfa59708",
+    "key": "98acfdad0151fb44",
     "masked": false,
     "background": false
    }
@@ -2901,6 +2977,332 @@
    }
   },
   {
+   "id": "cmd-coverage-pytest",
+   "group": "command",
+   "text": "coverage run -m pytest tests/test_queue.py",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "pytest",
+    "targeted": true,
+    "key": "cdcc7a535dc3e1dd",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-python-opts-module",
+   "group": "command",
+   "text": "python -X dev -W error -m pytest",
+   "cwd": "/Users/dev/work/orbit",
+   "sameKeyAs": "cmd-pytest",
+   "expect": {
+    "class": "test",
+    "suite": "pytest",
+    "targeted": false,
+    "key": "2b01214d32c382db",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-django-python-opts",
+   "group": "command",
+   "text": "python -u manage.py test",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "django test",
+    "targeted": false,
+    "key": "d3f6dcb15e7b7599",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-cd-abs-back-into-cwd",
+   "group": "command",
+   "text": "cd /Users/dev/work/orbit/web; cd /Users/dev/work/orbit/core && cargo test",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "58daf25354f5a56b",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-cd-sub-then-cwd",
+   "group": "command",
+   "text": "cd web && cd /Users/dev/work/orbit && cargo test",
+   "cwd": "/Users/dev/work/orbit",
+   "sameKeyAs": "cmd-cargo",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fc8a9993470f42f5",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-cd-empty-arg",
+   "group": "command",
+   "text": "cd '' && cargo test",
+   "cwd": "/Users/dev/work/orbit",
+   "sameKeyAs": "cmd-cargo",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fc8a9993470f42f5",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-cd-only",
+   "group": "command",
+   "text": "cd src",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "other",
+    "suite": null,
+    "targeted": false,
+    "key": "9cbf3c2add52c7fa",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-masked-subshell-after",
+   "group": "command",
+   "text": "cargo test; (echo hi)",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fc8a9993470f42f5",
+    "masked": true,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-masked-newline-subshell",
+   "group": "command",
+   "text": "cargo test\n(cd a && ls)",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fc8a9993470f42f5",
+    "masked": true,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-masked-paren-pipe",
+   "group": "command",
+   "text": "(cargo test) | tee log",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fc8a9993470f42f5",
+    "masked": true,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-masked-brace-pipe",
+   "group": "command",
+   "text": "{ cargo test; } | tee log",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fc8a9993470f42f5",
+    "masked": true,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-subshell-semicolon-close",
+   "group": "command",
+   "text": "(cd sub; cargo build;) && cargo test",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "8c0c373394902a0e",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-bg-subshell",
+   "group": "command",
+   "text": "(cargo test) &",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fc8a9993470f42f5",
+    "masked": false,
+    "background": true
+   }
+  },
+  {
+   "id": "cmd-assign-with-newline",
+   "group": "command",
+   "text": "FOO='a\nb' cargo test",
+   "cwd": "/Users/dev/work/orbit",
+   "sameKeyAs": "cmd-cargo",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fc8a9993470f42f5",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-pipefail-plus-o",
+   "group": "command",
+   "text": "set +o pipefail; cargo test | tail",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fc8a9993470f42f5",
+    "masked": true,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-pipefail-eo",
+   "group": "command",
+   "text": "set -eo pipefail; cargo test | tail",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fc8a9993470f42f5",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-gradle-exclude-eq",
+   "group": "command",
+   "text": "./gradlew build --exclude-task=test",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "build",
+    "suite": "gradle build",
+    "targeted": false,
+    "key": "ddf2ba161807c7cb",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-npm-run-w-before-script",
+   "group": "command",
+   "text": "npm run -w web test",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "npm test",
+    "targeted": true,
+    "key": "306e895e482cf0e0",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-pnpm-filter-key",
+   "group": "command",
+   "text": "pnpm --filter web test",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "pnpm test",
+    "targeted": true,
+    "key": "b2e138856ba4d909",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-prettier-dashdash",
+   "group": "command",
+   "text": "npx prettier --check -- src/a.ts",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "check",
+    "suite": "prettier",
+    "targeted": true,
+    "key": "3088e3eabb8550da",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-function-definition",
+   "group": "command",
+   "text": "t() { cargo test; }",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fc8a9993470f42f5",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-crlf-command",
+   "group": "command",
+   "text": "cargo build\r\ncargo test\r\n",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "cargo test",
+    "targeted": false,
+    "key": "fd410ac402248c0f",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
+   "id": "cmd-windows-cwd-case",
+   "group": "command",
+   "text": "cd c:\\users\\dev\\work\\orbit\\pkg && dotnet test",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "class": "test",
+    "suite": "dotnet test",
+    "targeted": false,
+    "key": "81f55cd1ec0affe9",
+    "masked": false,
+    "background": false
+   }
+  },
+  {
    "id": "out-claude-ok",
    "group": "outcome",
    "source": "claudeCode",
@@ -3902,6 +4304,142 @@
    }
   },
   {
+   "id": "out-claude-huge-exit",
+   "group": "outcome",
+   "source": "claudeCode",
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_01",
+    "content": "Exit code 99999999999999999999\nboom",
+    "is_error": true
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "Bash",
+   "input": {
+    "command": "make"
+   },
+   "expect": {
+    "exitCode": 999999999999999999,
+    "failed": true,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-codex-no-output-line",
+   "group": "outcome",
+   "source": "codex",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "line 0\nline 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\ncommand timed out after 10 milliseconds\n"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "shell_command",
+   "input": "{\"command\":\"make\"}",
+   "expect": {
+    "exitCode": null,
+    "failed": null,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-codex-jq-array",
+   "group": "outcome",
+   "source": "codex",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "[1,2]"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "shell_command",
+   "input": "{\"command\":\"jq .a x.json\"}",
+   "expect": {
+    "exitCode": null,
+    "failed": null,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-codex-jq-object",
+   "group": "outcome",
+   "source": "codex",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "{\"session_id\":3}"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "shell_command",
+   "input": "{\"command\":\"jq . s.json\"}",
+   "expect": {
+    "exitCode": null,
+    "failed": null,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-codex-running-in-body",
+   "group": "outcome",
+   "source": "codex",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "Exit code: 0\nWall time: 0.2 seconds\nOutput:\nProcess running with session ID 7\n"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "shell_command",
+   "input": "{\"command\":\"cat log\"}",
+   "expect": {
+    "exitCode": 0,
+    "failed": false,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-codex-nan",
+   "group": "outcome",
+   "source": "codex",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "[NaN]"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "shell_command",
+   "input": "{\"command\":\"echo\"}",
+   "expect": {
+    "exitCode": null,
+    "failed": null,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-codex-meta-not-running",
+   "group": "outcome",
+   "source": "codex",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "{\"output\":\"\",\"metadata\":{\"exit_code\":0},\"session_id\":4}"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "exec",
+   "input": "{\"cmd\":\"true\"}",
+   "expect": {
+    "exitCode": 0,
+    "failed": false,
+    "t": 1792500000000
+   }
+  },
+  {
    "id": "text-claude-exit-line",
    "group": "resultText",
    "source": "claudeCode",
@@ -3990,6 +4528,28 @@
     "output": "plain text"
    },
    "expect": "plain text"
+  },
+  {
+   "id": "text-codex-jq-array",
+   "group": "resultText",
+   "source": "codex",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "[1,2]"
+   },
+   "expect": "[1,2]"
+  },
+  {
+   "id": "text-codex-header-needs-known-lines",
+   "group": "resultText",
+   "source": "codex",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "note: x\nOutput:\nrest"
+   },
+   "expect": "note: x\nOutput:\nrest"
   },
   {
    "id": "text-pi-trailing-status",
@@ -4152,6 +4712,38 @@
    }
   },
   {
+   "id": "session-codex-running-in-body",
+   "group": "session",
+   "source": "codex",
+   "tool": "shell_command",
+   "input": "{\"command\":\"cat log\"}",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "Exit code: 0\nWall time: 0.2 seconds\nOutput:\nProcess running with session ID 7\n"
+   },
+   "expect": {
+    "continuation": null,
+    "running": null
+   }
+  },
+  {
+   "id": "session-codex-meta-exit-session",
+   "group": "session",
+   "source": "codex",
+   "tool": "exec",
+   "input": "{\"cmd\":\"true\"}",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "{\"output\":\"\",\"metadata\":{\"exit_code\":0},\"session_id\":4}"
+   },
+   "expect": {
+    "continuation": null,
+    "running": null
+   }
+  },
+  {
    "id": "edit-claude-edit",
    "group": "edits",
    "source": "claudeCode",
@@ -4288,6 +4880,18 @@
    "input": {
     "file_path": "src/queue.py",
     "edits": []
+   },
+   "cwd": "/Users/dev/work/orbit",
+   "expect": []
+  },
+  {
+   "id": "edit-claude-multiedit-not-list",
+   "group": "edits",
+   "source": "claudeCode",
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "src/queue.py",
+    "edits": 5
    },
    "cwd": "/Users/dev/work/orbit",
    "expect": []
@@ -4601,6 +5205,30 @@
    "expect": []
   },
   {
+   "id": "edit-codex-exec-crlf-heredoc",
+   "group": "edits",
+   "source": "codex",
+   "tool": "exec_command",
+   "input": "{\"cmd\": \"apply_patch <<'EOF'\\r\\n*** Begin Patch\\r\\n*** Delete File: src/old.py\\r\\n*** End Patch\\r\\nEOF\\r\\n\"}",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": [
+    {
+     "file": "68b31b7df7e806ee",
+     "old": null,
+     "new": "e3b0c44298fc1c14"
+    }
+   ]
+  },
+  {
+   "id": "edit-codex-patch-empty-input-uses-patch",
+   "group": "edits",
+   "source": "codex",
+   "tool": "apply_patch",
+   "input": "{\"input\": \"\", \"patch\": \"*** Begin Patch\\n*** Delete File: a.txt\\n*** End Patch\"}",
+   "cwd": "/Users/dev/work/orbit",
+   "expect": []
+  },
+  {
    "id": "edit-pi-edit",
    "group": "edits",
    "source": "pi",
@@ -4718,6 +5346,24 @@
    },
    "cwd": "/Users/dev/work/orbit",
    "expect": []
+  },
+  {
+   "id": "edit-pi-write-dot-segments",
+   "group": "edits",
+   "source": "pi",
+   "tool": "write",
+   "input": {
+    "path": "./src/././a.ts",
+    "content": "a"
+   },
+   "cwd": "/Users/dev/work/orbit",
+   "expect": [
+    {
+     "file": "072fc23b941d05af",
+     "old": null,
+     "new": "ca978112ca1bbdca"
+    }
+   ]
   },
   {
    "id": "edit-omp-edit-replace",
@@ -7049,6 +7695,55 @@
     "canonical": [
      "msbuild|error|tests/QueueTests.cs|CS0246|The type or namespace name 'Queu' could not be found (are you missing a using directive or an assembly reference?)"
     ]
+   }
+  },
+  {
+   "id": "fail-x-cwd-not-mid-path",
+   "group": "failures",
+   "command": "make",
+   "output": "src/io.c:3:1: error: cannot open /opt/mirror/Users/dev/work/orbit/data.txt or /usr/tmp/x\n",
+   "failed": true,
+   "cwd": "/Users/dev/work/orbit",
+   "expect": {
+    "fingerprints": [
+     "3128412f87defe9a"
+    ],
+    "failedCount": 1,
+    "passedCount": null,
+    "framework": "cc",
+    "canonical": [
+     "cc|error|src/io.c||cannot open /opt/mirror/Users/dev/work/orbit/data.txt or /usr/tmp/x"
+    ]
+   }
+  },
+  {
+   "id": "fail-x-xcodebuild-count-needs-header",
+   "group": "failures",
+   "command": "xcodebuild build",
+   "output": "(3 failures)\n",
+   "failed": true,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": null,
+    "passedCount": null,
+    "framework": null,
+    "canonical": []
+   }
+  },
+  {
+   "id": "fail-x-workspace-prefix-needs-space",
+   "group": "failures",
+   "command": "pnpm -r test",
+   "output": "a/b test:zz 1\na/b test:zz 2\na/b test:zz 3\n=== 1 failed in 0.1s ===\n",
+   "failed": true,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": 1,
+    "passedCount": 0,
+    "framework": "pytest",
+    "canonical": []
    }
   },
   {

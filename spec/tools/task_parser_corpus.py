@@ -57,6 +57,11 @@ def kinds():
         ("claudeCode", "Bash", {"command": "apply_patch <<'EOF'\n*** Begin Patch\n*** Delete File: a.txt\n*** End Patch\nEOF"},
          "edit"),
         ("claudeCode", "Bash", {}, "command"),
+        ("claudeCode", "Bash", {"command": ["ls", "-la"]}, "command"),
+        ("claudeCode", "Bash", {"command": "git -C packages/queue status"}, "read"),
+        ("claudeCode", "Bash", {"command": "git show grep"}, "read"),
+        ("claudeCode", "Bash", {"command": "echo hi > f.txt && cat f.txt"}, "command"),
+        ("claudeCode", "Bash", {"command": "cat a.txt > /dev/null 2>&1"}, "read"),
         ("claudeCode", "Task", {"description": "Explore", "prompt": "find", "subagent_type": "Explore"}, "delegate"),
         ("claudeCode", "Agent", {"description": "Explore", "prompt": "find"}, "delegate"),
         ("claudeCode", "SendMessage", {"to": "a1", "message": "go on"}, "delegate"),
@@ -85,6 +90,8 @@ def kinds():
         ("codex", "wait_agent", '{"ids":["a"]}', "other"),
         ("codex", "web_search", '{"query":"x"}', "web"),
         ("codex", "shell", "not json", "command"),
+        ("codex", "exec", '{"foo":1}', "command"),
+        ("codex", "shell", '{"command":[]}', "command"),
         # omp
         ("omp", "read", {"path": "src/queue.ts"}, "read"),
         ("omp", "grep", {"pattern": "dispatch("}, "search"),
@@ -289,6 +296,35 @@ COMMANDS = [
     ("crlf-free-text", "echo hi", C("other"), {"key": key(["echo", "hi"])}),
     ("cat-only", "cat README.md", C("other"), {"key": key(["cat", "README.md"])}),
     ("empty", "", C("other"), {"key": sha16("")}),
+    # review fixes
+    ("coverage-pytest", "coverage run -m pytest tests/test_queue.py", C("test", "pytest", True), {}),
+    ("python-opts-module", "python -X dev -W error -m pytest", C("test", "pytest"), {"sameKey": "pytest"}),
+    ("django-python-opts", "python -u manage.py test", C("test", "django test"), {}),
+    ("cd-abs-back-into-cwd", "cd /Users/dev/work/orbit/web; cd /Users/dev/work/orbit/core && cargo test",
+     C("test", "cargo test"), {"key": key(["@core", "cargo", "test"])}),
+    ("cd-sub-then-cwd", "cd web && cd /Users/dev/work/orbit && cargo test", C("test", "cargo test"),
+     {"sameKey": "cargo"}),
+    ("cd-empty-arg", "cd '' && cargo test", C("test", "cargo test"), {"sameKey": "cargo"}),
+    ("cd-only", "cd src", C("other"), {"key": key(["cd", "src"])}),
+    ("masked-subshell-after", "cargo test; (echo hi)", C("test", "cargo test", masked=True), {}),
+    ("masked-newline-subshell", "cargo test\n(cd a && ls)", C("test", "cargo test", masked=True), {}),
+    ("masked-paren-pipe", "(cargo test) | tee log", C("test", "cargo test", masked=True), {}),
+    ("masked-brace-pipe", "{ cargo test; } | tee log", C("test", "cargo test", masked=True), {}),
+    ("subshell-semicolon-close", "(cd sub; cargo build;) && cargo test", C("test", "cargo test"),
+     {"key": key(["@sub", "cargo", "build"], ["cargo", "test"])}),
+    ("bg-subshell", "(cargo test) &", C("test", "cargo test", background=True), {}),
+    ("assign-with-newline", "FOO='a\nb' cargo test", C("test", "cargo test"), {"sameKey": "cargo"}),
+    ("pipefail-plus-o", "set +o pipefail; cargo test | tail", C("test", "cargo test", masked=True), {}),
+    ("pipefail-eo", "set -eo pipefail; cargo test | tail", C("test", "cargo test"), {}),
+    ("gradle-exclude-eq", "./gradlew build --exclude-task=test", C("build", "gradle build"), {}),
+    ("npm-run-w-before-script", "npm run -w web test", C("test", "npm test", True), {}),
+    ("pnpm-filter-key", "pnpm --filter web test", C("test", "pnpm test", True),
+     {"key": key(["pnpm", "--filter", "web", "test"])}),
+    ("prettier-dashdash", "npx prettier --check -- src/a.ts", C("check", "prettier", True), {}),
+    ("function-definition", "t() { cargo test; }", C("test", "cargo test"), {}),
+    ("crlf-command", "cargo build\r\ncargo test\r\n", C("test", "cargo test", masked=False),
+     {"key": key(["cargo", "build"], ["cargo", "test"])}),
+    ("windows-cwd-case", "cd c:\\users\\dev\\work\\orbit\\pkg && dotnet test", C("test", "dotnet test"), {}),
 ]
 
 # `negated`: `!` inverts the exit status; the parser drops it as a leading keyword, so it is not marked masked.
@@ -432,6 +468,20 @@ OUTCOMES = [
     ("openclaw-terminated", "openclaw", pi("Command was terminated by SIGTERM", True, None, "exec"), "exec",
      {"command": "pytest"}, O(None, None)),
     ("unknown-source", "gemini", {"output": "x"}, None, None, O(None, None)),
+    ("claude-huge-exit", "claudeCode", claude("Exit code 99999999999999999999\nboom", True), "Bash",
+     {"command": "make"}, O(999_999_999_999_999_999, True)),
+    ("codex-no-output-line", "codex", codex("".join("line %d\n" % n for n in range(9)) + "command timed out after 10 "
+                                                                                     "milliseconds\n"),
+     "shell_command", '{"command":"make"}', O(None, None)),
+    ("codex-jq-array", "codex", codex("[1,2]"), "shell_command", '{"command":"jq .a x.json"}', O(None, None)),
+    ("codex-jq-object", "codex", codex('{"session_id":3}'), "shell_command", '{"command":"jq . s.json"}',
+     O(None, None)),
+    ("codex-running-in-body", "codex", codex("Exit code: 0\nWall time: 0.2 seconds\nOutput:\nProcess running with "
+                                             "session ID 7\n"), "shell_command", '{"command":"cat log"}',
+     O(0, False)),
+    ("codex-nan", "codex", codex("[NaN]"), "shell_command", '{"command":"echo"}', O(None, None)),
+    ("codex-meta-not-running", "codex", codex('{"output":"","metadata":{"exit_code":0},"session_id":4}'),
+     "exec", '{"cmd":"true"}', O(0, False)),
 ]
 
 
@@ -456,6 +506,8 @@ RESULT_TEXTS = [
     ("codex-json", "codex", codex('{"output":"ok\\nfine","metadata":{"exit_code":0}}'), "ok\nfine"),
     ("codex-no-header", "codex", codex("Output:\nnot a header block"), "not a header block"),
     ("codex-plain", "codex", codex("plain text"), "plain text"),
+    ("codex-jq-array", "codex", codex("[1,2]"), "[1,2]"),
+    ("codex-header-needs-known-lines", "codex", codex("note: x\nOutput:\nrest"), "note: x\nOutput:\nrest"),
     ("pi-trailing-status", "pi", pi("FAIL x\n\nCommand exited with code 1\n", True), "FAIL x\n"),
     ("openclaw-paren-status", "openclaw", pi("1 failed\n\n(Command exited with code 1)", False, None, "exec"),
      "1 failed\n"),
@@ -478,6 +530,10 @@ SESSIONS = [
     ("claude-background", "claudeCode", "Bash", {"command": "cargo test", "run_in_background": True},
      claude("Command running in background with ID: bash_3"), None, "claude:bash_3"),
     ("claude-read", "claudeCode", "Read", {"file_path": "a"}, claude("text"), None, None),
+    ("codex-running-in-body", "codex", "shell_command", '{"command":"cat log"}',
+     codex("Exit code: 0\nWall time: 0.2 seconds\nOutput:\nProcess running with session ID 7\n"), None, None),
+    ("codex-meta-exit-session", "codex", "exec", '{"cmd":"true"}',
+     codex('{"output":"","metadata":{"exit_code":0},"session_id":4}'), None, None),
 ]
 
 
@@ -554,6 +610,7 @@ EDITS = [
          {"old_string": "MAX = 10", "new_string": "MAX = 20", "replace_all": True}]},
      [H("src/queue.py", "import os", ""), H("src/queue.py", "MAX = 10", "MAX = 20")]),
     ("claude-multiedit-empty", "claudeCode", "MultiEdit", {"file_path": "src/queue.py", "edits": []}, []),
+    ("claude-multiedit-not-list", "claudeCode", "MultiEdit", {"file_path": "src/queue.py", "edits": 5}, []),
     ("claude-multiedit-bad-entry", "claudeCode", "MultiEdit",
      {"file_path": "src/queue.py", "edits": [{"old_string": "a"}, {"old_string": "b", "new_string": "c"}]},
      [H("src/queue.py", "b", "c")]),
@@ -595,6 +652,11 @@ EDITS = [
      json.dumps({"cmd": "cd /Users/dev/work/orbit && apply_patch <<'PATCH'\n*** Begin Patch\n*** Add File: "
                         "docs/a.md\n+# A\n*** End Patch\nPATCH"}), [H("docs/a.md", None, "# A")]),
     ("codex-shell-not-patch", "codex", "shell", '{"command":["cargo","test"]}', []),
+    ("codex-exec-crlf-heredoc", "codex", "exec_command",
+     json.dumps({"cmd": "apply_patch <<'EOF'\r\n*** Begin Patch\r\n*** Delete File: src/old.py\r\n*** End Patch"
+                        "\r\nEOF\r\n"}), [H("src/old.py", None, "")]),
+    ("codex-patch-empty-input-uses-patch", "codex", "apply_patch",
+     json.dumps({"input": "", "patch": "*** Begin Patch\n*** Delete File: a.txt\n*** End Patch"}), []),
     # Pi
     ("pi-edit", "pi", "edit",
      {"path": "src/queue.ts", "edits": [{"oldText": "items.push(x);", "newText": "items.unshift(x);"},
@@ -611,6 +673,7 @@ EDITS = [
     ("pi-write", "pi", "write", {"path": "src/new.ts", "content": "export {};\n"},
      [H("src/new.ts", None, "export {};")]),
     ("pi-bash-not-edit", "pi", "bash", {"command": "npm test"}, []),
+    ("pi-write-dot-segments", "pi", "write", {"path": "./src/././a.ts", "content": "a"}, [H("src/a.ts", None, "a")]),
     # omp
     ("omp-edit-replace", "omp", "edit",
      {"path": "src/queue.ts", "old_string": "items.unshift(x);", "new_string": "items.push(x);"},
@@ -758,6 +821,14 @@ EXTRA_FAILURES = [
      CWD, {"failedCount": 1, "passedCount": None, "framework": "msbuild",
            "canonical": ["msbuild|error|tests/QueueTests.cs|CS0246|The type or namespace name 'Queu' could not be "
                          "found (are you missing a using directive or an assembly reference?)"]}),
+    ("cwd-not-mid-path", "make",
+     "src/io.c:3:1: error: cannot open /opt/mirror/Users/dev/work/orbit/data.txt or /usr/tmp/x\n", True, CWD,
+     {"canonical": ["cc|error|src/io.c||cannot open /opt/mirror/Users/dev/work/orbit/data.txt or /usr/tmp/x"]}),
+    ("xcodebuild-count-needs-header", "xcodebuild build", "(3 failures)\n", True, None,
+     {"fingerprints": [], "failedCount": None}),
+    ("workspace-prefix-needs-space", "pnpm -r test",
+     "a/b test:zz 1\na/b test:zz 2\na/b test:zz 3\n=== 1 failed in 0.1s ===\n", True, None,
+     {"failedCount": 1, "passedCount": 0, "framework": "pytest"}),
     ("cap-256", "cargo test",
      "".join("test t%03d ... FAILED\n" % n for n in range(300)) + "test result: FAILED. 0 passed; 300 failed; 0 "
      "ignored; 0 measured; 0 filtered out; finished in 0.01s\n", True, None,

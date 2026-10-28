@@ -693,6 +693,7 @@ The reference writes this appendix; do not edit it by hand.
 ### A.2 Lists
 
 - `CASE_FOLDED`: `omp`, `pi`, `openclaw`
+- `ARGV_TOOLS`: `shell`, `container.exec`, `local_shell`
 - `SHELLS`: `bash`, `sh`, `zsh`, `dash`, `ksh`, `fish`
 - `POWERSHELLS`: `pwsh`, `powershell`
 - `LEADING_KEYWORDS`: `!`, `if`, `then`, `else`, `elif`, `do`, `while`, `until`, `{`
@@ -763,6 +764,7 @@ The reference writes this appendix; do not edit it by hand.
 - `ESLINT_VALUE`: `-c`, `--config`, `--ext`, `-f`, `--format`, `-o`, `--output-file`, `--rule`, `--parser`, `--resolve-plugins-relative-to`, `--max-warnings`, `--ignore-path`, `--ignore-pattern`, `--cache-location`, `--env`, `--global`, `--plugin`, `--rulesdir`, `--parser-options`, `--report-unused-disable-directives-severity`, `--cache-strategy`
 - `RSPEC_VALUE`: `-e`, `--example`, `-E`, `--example-matches`, `-t`, `--tag`, `-f`, `--format`, `-o`, `--out`, `-r`, `--require`, `-I`, `--seed`, `--order`, `-P`, `--pattern`, `--exclude-pattern`, `--default-path`
 - `PHPUNIT_VALUE`: `--filter`, `--group`, `--exclude-group`, `--testsuite`, `-c`, `--configuration`, `--bootstrap`, `--log-junit`, `--order-by`, `--cache-directory`, `--coverage-html`, `--coverage-clover`, `--coverage-text`, `--test-suffix`, `--exclude-testsuite`
+- `RUFF_SUBCOMMANDS`: `check`, `format`, `rule`, `config`, `linter`, `clean`, `server`, `analyze`, `version`
 - `TEST_WORDS`: `test`, `tests`, `spec`, `specs`, `unit`, `e2e`, `integration`, `coverage`, `cov`, `jest`, `vitest`, `mocha`, `pytest`, `ctest`, `playwright`, `cypress`
 - `BUILD_WORDS`: `build`, `compile`, `bundle`, `dist`, `all`
 - `CHECK_WORDS`: `lint`, `typecheck`, `types`, `tsc`, `check`, `eslint`, `ruff`, `mypy`, `pyright`, `clippy`, `vet`, `analyze`, `analyse`, `verify`, `validate`
@@ -776,6 +778,7 @@ The reference writes this appendix; do not edit it by hand.
 - `SEARCH_PROGS`: `rg`, `grep`, `egrep`, `fgrep`, `ag`, `ack`, `find`, `fd`, `fdfind`, `locate`, `mdfind`
 - `GIT_READ`: `status`, `diff`, `log`, `show`, `blame`, `rev-parse`, `ls-tree`, `cat-file`, `describe`, `shortlog`, `reflog`, `branch`, `remote`, `tag`, `config`
 - `GIT_SEARCH`: `grep`, `ls-files`
+- `GIT_VALUE`: `-C`, `-c`, `--git-dir`, `--work-tree`, `--namespace`, `--exec-path`, `--config-env`
 - `FIND_ACTIONS`: `-delete`, `-exec`, `-execdir`, `-ok`, `-okdir`, `-fprint`, `-fprintf`, `-fls`
 - `WRITE_REDIRS`: `>`, `>>`, `>|`, `&>`, `&>>`, `<>`
 - `CLAUDE_ABORT`: `[Request interrupted by user`, `The user doesn't want to proceed with this tool use`, `The user doesn't want to take this action`, `Permission to use `, `Claude requested permissions to use`, `User rejected`, `The tool use was rejected`
@@ -854,13 +857,16 @@ The reference writes this appendix; do not edit it by hand.
 Full-line patterns unless the text says *search*.
 
 ```text
+LONE_SURROGATE     [\ud800-\udfff]
+DRIVE              [A-Za-z]:/
 SAFE_ARG           [A-Za-z0-9_@%+=:,./-]+
 REDIR              ([0-9]*)(<<<|<<-|<<|>>|>&|<&|>\||<>|&>>|&>|>|<)
-NAME_ASSIGN        [A-Za-z_][A-Za-z0-9_]*=.*
+NAME_ASSIGN        [A-Za-z_][A-Za-z0-9_]*=
 SHELL_C_FLAG       -[A-Za-z]*c[A-Za-z]*
-FILE_EXT           .*\.[A-Za-z0-9]{1,10}
-MAKE_FILTER_VAR    (?i:TESTS?|T|TEST_?ARGS|TEST_?FILTER|FILTER|RUN|ONLY|K|PKG|PACKAGE|FILES?|SPEC|ARGS|PYTEST_?ARGS|TESTNAME|CASE|TESTOPTS)
+MAKE_FILTER_VAR    TESTS?|T|TEST_?ARGS|TEST_?FILTER|FILTER|RUN|ONLY|K|PKG|PACKAGE|FILES?|SPEC|ARGS|PYTEST_?ARGS|TESTNAME|CASE|TESTOPTS
 PATCH_LINE         [ \t]*\*\*\* Begin Patch[ \t]*
+FD_TARGET          [0-9-]+
+PIPEFAIL_FLAG      -[A-Za-z]*o
 CLAUDE_EXIT        Exit code (-?[0-9]+)
 CLAUDE_TIMEOUT     Command timed out after .*
 CLAUDE_BACKGROUND  Command running in background with ID: ?([A-Za-z0-9_.:-]+).*
@@ -880,8 +886,8 @@ ANSI_CSI           \x1b\[[0-?]*[ -/]*[@-~]
 ANSI_FE            \x1b[@-Z\\-_]
 CONTROL            [\x00-\x08\x0b\x0c\x0e-\x1f\x7f]
 WORKSPACE_PREFIX   ((?:@[A-Za-z0-9._-]+/|[A-Za-z0-9._-]*/)[A-Za-z0-9._/-]* [A-Za-z][A-Za-z0-9:._-]*|@?[A-Za-z0-9._/-]+:[A-Za-z][A-Za-z0-9._-]*): ?
-TMP_PATH           (?:/private)?/var/folders/[^ \t'\"()\[\]{}<>,;|`]*|(?:/private)?/tmp/[^ \t'\"()\[\]{}<>,;|`]*|[A-Za-z]:[\\/]Users[\\/][^\\/ \t]+[\\/]AppData[\\/]Local[\\/]Temp[\\/][^ \t'\"()\[\]{}<>,;|`]*
-HOME_PATH          /Users/[^/ \t'\"]+/|/home/[^/ \t'\"]+/|[A-Za-z]:[\\/]Users[\\/][^\\/ \t'\"]+[\\/]
+TMP_PATH           (?<![A-Za-z0-9._~/\\-])(?:(?:/private)?/var/folders/|(?:/private)?/tmp/|[A-Za-z]:[\\/]Users[\\/][^\\/ \t]+[\\/]AppData[\\/]Local[\\/]Temp[\\/])[^ \t'\"()\[\]\{\}<>,;|`]*
+HOME_PATH          (?<![A-Za-z0-9._~/\\-])(?:/Users/[^/ \t'\"]+/|/home/[^/ \t'\"]+/|[A-Za-z]:[\\/]Users[\\/][^\\/ \t'\"]+[\\/])
 UUID               [0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}
 ISO_TIME           [0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:[.,][0-9]+)?)?(?:Z|[+-][0-9]{2}:?[0-9]{2})?
 TIME_OF_DAY        (?<![0-9])[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:[.,][0-9]+)?(?![0-9])
@@ -918,10 +924,10 @@ RUST_LOC            *--> (.+?):([0-9]+):([0-9]+)
 RUST_COULD_NOT     error: could not compile `[^`]+`(?: \([^)]*\))?(?:;.*)?(?: due to ([0-9]+) previous errors?| due to previous error)?(?:;.*)?
 RUST_ABORTING      error: aborting due to (?:([0-9]+) )?previous errors?(?:;.*)?
 RUST_STATUS        error: (?:test failed|build failed|failed to run|[0-9]+ targets? failed|process didn't exit successfully|Recipe ).*
-ST_ISSUE           [^ \tA-Za-z0-9]{1,4} Test (.+?) recorded an issue.*
-ST_FAILED          [^ \tA-Za-z0-9]{1,4} Test (.+?) failed after [0-9]+(?:\.[0-9]+)? seconds(?: with [0-9]+ issues?)?(?: \(including [0-9]+ known issues?\))?\.
-ST_OTHER           [^ \tA-Za-z0-9]{1,4} (?:Test .+? (?:passed after .*|started\.|skipped.*)|Suite .+? (?:passed|failed|started).*|Test run started\.|Testing Library Version: .*|Target Platform: .*)
-ST_RUN             [^ \tA-Za-z0-9]{1,4} Test run with ([0-9]+) tests?(?: in [0-9]+ suites?)? (passed|failed) after [0-9]+(?:\.[0-9]+)? seconds(?: with ([0-9]+) issues?)?(?: \(including [0-9]+ known issues?\))?\.
+ST_ISSUE           [^ \tA-Za-z0-9]+ Test (.+?) recorded an issue.*
+ST_FAILED          [^ \tA-Za-z0-9]+ Test (.+?) failed after [0-9]+(?:\.[0-9]+)? seconds(?: with [0-9]+ issues?)?(?: \(including [0-9]+ known issues?\))?\.
+ST_OTHER           [^ \tA-Za-z0-9]+ (?:Test .+? (?:passed after .*|started\.|skipped.*)|Suite .+? (?:passed|failed|started).*|Test run started\.|Testing Library Version: .*|Target Platform: .*)
+ST_RUN             [^ \tA-Za-z0-9]+ Test run with ([0-9]+) tests?(?: in [0-9]+ suites?)? (passed|failed) after [0-9]+(?:\.[0-9]+)? seconds(?: with ([0-9]+) issues?)?(?: \(including [0-9]+ known issues?\))?\.
 ST_CASES            with [0-9]+ test cases?$
 XC_CASE            Test [Cc]ase '(-\[[^\]]+\]|[^']+)' (failed|passed|started|skipped)(?: on '[^']*')?(?: \([0-9.]+ seconds\))?\.?
 XC_ERROR           (.+?):([0-9]+): error: (-\[[^\]]+\]|[A-Za-z0-9_.()/]+) : .*
@@ -1045,5 +1051,22 @@ HASHLINE_HEADER    \[(.+)#([0-9A-Za-z]{4})\]
 HASHLINE_INSERT    PUT (?:<[0-9]+|>[0-9]+\*?|>\$):
 HASHLINE_MOVE      MV (.+)
 ```
+
+### A.5 Rule order within each recogniser
+
+The patterns each recogniser tries, in the order its code first uses them (5.3).
+
+- Pytest: `PYTEST_FAIL`, `PYTEST_VERBOSE`, `PYTEST_SUMMARY`, `PYTEST_NONE`
+- Unittest: `UNITTEST_FAIL`, `UNITTEST_RAN`, `UNITTEST_OK`, `UNITTEST_FAILED`
+- Cargo: `LIBTEST_LISTED`, `LIBTEST_LINE`, `LIBTEST_STDOUT`, `LIBTEST_RESULT`, `LIBTEST_FAILURES`, `NEXTEST_FAIL`, `NEXTEST_OTHER`, `NEXTEST_SUMMARY`
+- Rustc: `RUST_COULD_NOT`, `RUST_ABORTING`, `RUST_STATUS`, `RUST_HEADER`, `RUST_LOC`, `RUST_WARN`
+- Swift: `XB_LISTED`, `XB_COUNT`, `ST_FAILED`, `ST_CASES`, `ST_RUN`, `ST_ISSUE`, `ST_OTHER`, `XC_CASE`, `XC_ERROR`, `XC_SUITE`, `XC_EXECUTED`, `XB_FAILING`, `XB_RESULT`, `XB_COMMANDS`, `SWIFTC_ERROR`, `SWIFTC_WARN`, `SWIFT_NOISE`
+- Go: `GO_FAIL`, `GO_PASS`, `GO_RUN`, `GO_BARE`, `GO_HEADER`, `GO_PKG`, `GO_ERROR`
+- Js: `MOCHA_ITEM`, `VITEST_LOAD`, `VITEST_FAIL`, `JEST_FILE`, `JEST_BULLET`, `JEST_SUITES`, `JEST_TESTS`, `JEST_NOISE`, `VITEST_FILE`, `VITEST_X`, `VITEST_FILES`, `VITEST_TESTS`, `MOCHA_PASSING`, `MOCHA_FAILING`, `MOCHA_PENDING`, `BUN_FAIL`, `BUN_COUNT`, `DENO_SUMMARY`, `DENO_FAILURE`
+- Checkers: `TSC_ROW`, `TSC_PAREN`, `TSC_PRETTY`, `MYPY_FOUND`, `TSC_FOUND`, `FOUND_ERRORS`, `TSC_TABLE`, `ESLINT_UNIX`, `ESLINT_FILE`, `ESLINT_MSG`, `ESLINT_SUMMARY`, `ESLINT_FIXABLE`, `RUFF_CONCISE`, `RUFF_HEADER`, `RUFF_LOC`, `RUFF_PASSED`, `RUFF_WOULD`, `BLACK_WOULD`, `FORMAT_SUMMARY`, `MYPY_ERROR`, `MYPY_NOTE`, `MYPY_SUCCESS`, `PYRIGHT_ERROR`, `PYRIGHT_OTHER`, `PYRIGHT_RULE`, `PYRIGHT_SUMMARY`
+- Dotnet: `MSB_ERROR`, `MSB_TOOL_ERROR`, `MSB_WARNING`, `MSB_COUNT`, `MSB_TERMINAL`, `MSB_NOISE`, `VSTEST_FAILED`, `VSTEST_PASSED`, `VSTEST_SUMMARY`, `MTP_SUMMARY`, `MTP_FAILED`
+- Jvm: `SUREFIRE_RUN`, `SUREFIRE_LISTED`, `GRADLE_TEST`, `GRADLE_SUMMARY`, `GRADLE_NOISE`, `SUREFIRE_TEST`, `SUREFIRE_OLD`, `SUREFIRE_HEADER`, `MAVEN_JAVAC`, `MAVEN_ERRORS`, `MAVEN_NOISE`, `JAVAC_ERROR`, `JAVAC_WARNING`, `JAVAC_COUNT`, `KOTLIN_ERROR`, `KOTLIN_ERROR_OLD`, `KOTLIN_WARNING`
+- Misc: `CTEST_LISTED`, `RSPEC_FAILED`, `RSPEC_SUMMARY`, `RSPEC_LOAD`, `PHPUNIT_SECTION`, `PHPUNIT_ITEM`, `PHPUNIT_TESTS`, `PHPUNIT_OK`, `PHPUNIT_NOISE`, `CTEST_LINE`, `CTEST_LIST_HEADER`, `CTEST_SUMMARY`, `CTEST_NOISE`
+- Cc: `LD_SYMBOL`, `CC_ERROR`, `CC_WARNING`, `CC_CONTEXT`, `CC_GENERATED`, `LD_UNDEFINED_ARCH`, `LD_REFERENCE`, `LD_NOISE`, `MAKE_NOISE`
 
 <!-- appendix end -->
