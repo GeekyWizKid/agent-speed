@@ -259,6 +259,11 @@ internal sealed partial class ReportController
                     UpdateIdentity(service.Origin, i => i with { Discovery = fetched.Discovery, DiscoveryFetchedAt = DateTimeOffset.UtcNow });
                 }
 
+                if (!fetched.Discovery.SupportsThisClient && Identity?.IsRegistered == true)
+                {
+                    Problem = ReportProblem.Upgrade;
+                }
+
                 if (FollowEffectiveTransport())
                 {
                     // The document added or dropped the WebSocket capability: the run starts over on the other transport.
@@ -268,11 +273,6 @@ internal sealed partial class ReportController
                 {
                     _run?.Scheduler.Update(fetched.Discovery.Limits);
                     StreamDiscovery(fetched.Discovery);
-                }
-
-                if (!fetched.Discovery.SupportsThisClient && Identity?.IsRegistered == true)
-                {
-                    Problem = ReportProblem.Upgrade;
                 }
 
                 ScheduleRefresh(RefreshInterval);
