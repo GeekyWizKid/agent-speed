@@ -246,6 +246,8 @@ struct CopyDiagnosticsButton: View {
     }
 
     static let shownFor: TimeInterval = 1.6
+    /// Long translations of a state shrink a little, then truncate, so the hint beside the button keeps its room.
+    static let maxLabelWidth: CGFloat = 190
 
     let l10n: Localizer
     var preview: Outcome?
@@ -263,11 +265,13 @@ struct CopyDiagnosticsButton: View {
                 label("checkmark", "history.unpricedModels.copied").opacity(shown == .copied ? 1 : 0)
                 label("exclamationmark.triangle", "history.unpricedModels.copyFailed").opacity(shown == .failed ? 1 : 0)
             }
+            .frame(maxWidth: Self.maxLabelWidth)
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
         .fixedSize()
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: shown)
+        .help(shown == .failed ? l10n("history.unpricedModels.copyFailed") : "")
         .accessibilityLabel(l10n("history.unpricedModels.copy"))
         .accessibilityValue(shown.map { $0 == .copied ? l10n("history.unpricedModels.copied") : l10n("history.unpricedModels.copyFailed") } ?? "")
     }
@@ -276,6 +280,8 @@ struct CopyDiagnosticsButton: View {
         Label(l10n(key), systemImage: symbol)
             .font(.system(size: 11.5))
             .lineLimit(1)
+            .truncationMode(.tail)
+            .minimumScaleFactor(0.85)
             .accessibilityHidden(true)
     }
 

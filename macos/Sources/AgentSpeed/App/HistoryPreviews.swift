@@ -165,8 +165,7 @@ enum HistoryPreviews {
             let viewModel = prepare(Case(name: "unpriced-popover", range: .days90, language: language, currency: currency), model: model,
                                     unpriced: true)
             let view = viewModel.content.unpriced
-            let states: [(String, CopyDiagnosticsButton.Outcome?)] = language == .zhHant || language == .en
-                ? [("", nil), ("-copied", .copied), ("-failed", .failed)] : [("", nil)]
+            let states: [(String, CopyDiagnosticsButton.Outcome?)] = [("", nil), ("-copied", .copied), ("-failed", .failed)]
             for dark in [false, true] {
                 for (suffix, state) in states {
                     PreviewSnapshot.writeHosted(
