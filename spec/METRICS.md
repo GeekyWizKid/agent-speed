@@ -2666,6 +2666,9 @@ stored):
      step 1 and within a task in row order, `x` with a leading 1;
    - solve `H·δ = g` by Cholesky (`H = L·Lᵀ`, column by column; forward then back substitution) and set `β ← β − δ`.
      `H` is positive definite because `λ > 0`.
+   Every sum in 6.9 – 6.11 (dimensions, information gain, the fit, the comparison) is plain left-to-right IEEE 754
+   double addition in the stated order, never compensated or pairwise summation. The reference uses
+   `live_thinking.seq_sum` for this, because Python 3.12's `sum` compensates float rounding.
 5. Python, Swift and C# agree within 10⁻⁶ on every coefficient and probability; the fixture checks 10⁻⁹ in the
    reference and, independently of the fitting path, that the gradient vanishes (below 10⁻⁹) at the stored
    coefficients.
