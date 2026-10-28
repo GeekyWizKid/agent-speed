@@ -75,6 +75,10 @@ public final class LiveMonitor {
     /// (a configured folder or database replaces all of them).
     public nonisolated static var defaultOpenclawRoots: [URL] { TranscriptLocations.defaultOpenclawRoots }
 
+    /// The Hermes Agent home: `$HERMES_HOME` (the home of the profile it names), else `~/.hermes` (a configured home or
+    /// log folder replaces it).
+    public nonisolated static var defaultHermesHome: URL { TranscriptLocations.defaultHermesHome }
+
     /// The agent databases a configured OpenClaw folder or file names (empty when it names none).
     public nonisolated static func openclawDatabases(in url: URL) -> [String] {
         OpenClawHome.databases(in: TranscriptDiscovery.normalizedRoot(url.path))

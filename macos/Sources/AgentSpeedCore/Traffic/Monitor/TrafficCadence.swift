@@ -41,11 +41,11 @@ struct TrafficCadence: Equatable {
 
 extension TrafficAgent {
     /// The traffic view of one 6.7 row: its transcript when the id is a path (OpenCode ids are not), an OpenClaw
-    /// window's agent database.
+    /// window's agent database; none for a Hermes Agent session, whose log every session of its folder shares.
     init(_ status: AgentStatus) {
         let lastLineMs = Int64((status.lastActivity.timeIntervalSince1970 * 1000).rounded(.down))
         let transcript = status.source == .openclaw ? OpenClawSource.databasePath(ofAgent: status.id)
-            : status.id.hasPrefix("/") ? status.id : nil
+            : status.source != .hermes && status.id.hasPrefix("/") ? status.id : nil
         self.init(
             id: status.id, source: status.source, parentId: status.parentId, cwdPath: status.cwdPath,
             transcript: transcript,

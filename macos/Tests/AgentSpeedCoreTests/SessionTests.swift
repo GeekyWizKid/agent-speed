@@ -22,7 +22,8 @@ struct SessionTests {
             ompRoot: directory.file("missing-omp"),
             antigravityRoot: directory.file("missing-antigravity"),
             piRoot: directory.file("missing-pi"),
-            openclawRoot: directory.file("missing-openclaw")
+            openclawRoot: directory.file("missing-openclaw"),
+            hermesRoot: directory.file("missing-hermes")
         )
         return (directory, configuration)
     }

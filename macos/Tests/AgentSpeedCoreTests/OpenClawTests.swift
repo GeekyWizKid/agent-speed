@@ -228,7 +228,7 @@ struct OpenClawTests {
     }
 
     @Test func sourceOrderAndProcessRow() {
-        #expect(SourceKind.allCases.last == .openclaw)
+        #expect(SourceKind.allCases.firstIndex(of: .openclaw) == 14)
         #expect(SourceSet(.openclaw).rawValue == 1 << 14)
         #expect(TranscriptFamily(.openclaw) == nil)
         let mac = AgentProcessRules(platform: TrafficPlatform(kind: .macos, home: "/Users/dev"))

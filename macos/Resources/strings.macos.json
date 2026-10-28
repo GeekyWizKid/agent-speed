@@ -551,5 +551,11 @@
     "zh-Hans": "选择 OpenClaw 的状态文件夹、agent 文件夹或 openclaw-agent.sqlite",
     "en": "Choose OpenClaw's state folder, an agent folder or openclaw-agent.sqlite",
     "ja": "OpenClaw の状態フォルダ、エージェントのフォルダ、または openclaw-agent.sqlite を選択"
+  },
+  "mac.settings.sources.chooseHermes": {
+    "zh-Hant": "選擇 Hermes Agent 的主資料夾或 logs 資料夾",
+    "zh-Hans": "选择 Hermes Agent 的主文件夹或 logs 文件夹",
+    "en": "Choose Hermes Agent's home folder or a logs folder",
+    "ja": "Hermes Agent のホームフォルダまたは logs フォルダを選択"
   }
 }

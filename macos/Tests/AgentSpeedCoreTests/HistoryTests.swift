@@ -10,9 +10,10 @@ struct HistoryTests {
     /// plays `~/.pi` and `openclaw` plays `~` of OpenClaw, so their automatic roots (every profile, the three stores,
     /// Pi's custom session folder, OpenClaw's state folders) are used; `workbuddy` plays `~` of both WorkBuddy
     /// editions. `codex/sessions` is the automatic Codex root, so OpenClaw's agent-scoped Codex homes join it.
+    /// `hermes/home` is the Hermes home (`$HERMES_HOME`), whose wall times are read in the fixture's zone.
     static func configuration(fixtures root: URL) -> MonitorConfiguration {
         var configuration = MonitorConfiguration(
-            enabledSources: Set(SourceKind.allCases.prefix(10)).union([.pi, .openclaw]),
+            enabledSources: Set(SourceKind.allCases.prefix(10)).union([.pi, .openclaw, .hermes]),
             claudeRoot: root.appendingPathComponent("claude/projects", isDirectory: true),
             dshRoot: root.appendingPathComponent("dsh/sessions", isDirectory: true),
             opencodeRoot: root.appendingPathComponent("opencode/opencode.db"),
@@ -29,6 +30,9 @@ struct HistoryTests {
         ]
         configuration.piHome = ParserFixtureTests.piHome(fixtures: root)
         configuration.openclawHome = OpenClawTests.home(fixtures: root)
+        configuration.hermesHome = HermesHome(environment: ["HERMES_HOME": root.appendingPathComponent("hermes/home").path],
+                                              home: root)
+        configuration.hermesTimeZone = HermesTests.losAngeles
         return configuration
     }
 
@@ -91,7 +95,8 @@ struct HistoryTests {
         let parserExpected = try Fixtures.json("parser-expected.json")
         let files = try #require(parserExpected["order"] as? [String]).count
         let databases = try #require((parserExpected["antigravity"] as? [String: Any])?["order"] as? [String]).count
-        #expect(report.filesAnalyzed == files + databases)
+        let hermes = try #require((parserExpected["hermes"] as? [String: Any])?["discover"] as? [String]).count
+        #expect(report.filesAnalyzed == files + databases + hermes)
         let openclaw = try #require(parserExpected["openclaw"] as? [String: Any])
         let windows = try #require(openclaw["databases"] as? [String: [String: Any]]).values.filter { $0["unsupported"] == nil }
             .reduce(0) { $0 + $1.count }

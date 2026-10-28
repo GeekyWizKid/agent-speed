@@ -84,6 +84,8 @@ final class AppSettings {
     var piRoot: URL? { didSet { store(piRoot?.path, .piRoot) } }
     /// One OpenClaw state folder, agent folder or `openclaw-agent.sqlite`, replacing every automatic state folder.
     var openclawRoot: URL? { didSet { store(openclawRoot?.path, .openclawRoot) } }
+    /// One Hermes Agent home or `logs` folder, replacing the automatic home.
+    var hermesRoot: URL? { didSet { store(hermesRoot?.path, .hermesRoot) } }
 
     /// UPDATES section 3: check GitHub at launch and every 6 h.
     var autoCheckUpdates: Bool { didSet { store(autoCheckUpdates, .autoCheckUpdates) } }
@@ -166,6 +168,7 @@ final class AppSettings {
         grokBuildRoot = Self.url(defaults.string(forKey: Key.grokBuildRoot.rawValue))
         piRoot = Self.url(defaults.string(forKey: Key.piRoot.rawValue))
         openclawRoot = Self.location(defaults.string(forKey: Key.openclawRoot.rawValue))
+        hermesRoot = Self.url(defaults.string(forKey: Key.hermesRoot.rawValue))
         autoCheckUpdates = defaults.object(forKey: Key.autoCheckUpdates.rawValue) as? Bool ?? true
         networkEnabled = defaults.object(forKey: Key.networkEnabled.rawValue) as? Bool ?? true
         syncPrices = defaults.object(forKey: Key.syncPrices.rawValue) as? Bool ?? true
@@ -199,7 +202,8 @@ final class AppSettings {
             kimiRoot: kimiRoot,
             grokBuildRoot: grokBuildRoot,
             piRoot: piRoot,
-            openclawRoot: openclawRoot
+            openclawRoot: openclawRoot,
+            hermesRoot: hermesRoot
         )
     }
 
@@ -270,7 +274,7 @@ final class AppSettings {
         case effects, celebratePeaks, responsePulses
         case enabledSources, knownSources
         case codexRoot, claudeRoot, dshRoot, opencodeRoot, geminiRoot, ompRoot, antigravityRoot, workbuddyRoot, workbuddyAiRoot
-        case zcodeRoot, kimiRoot, grokBuildRoot, piRoot, openclawRoot
+        case zcodeRoot, kimiRoot, grokBuildRoot, piRoot, openclawRoot, hermesRoot
         case autoCheckUpdates
         case networkEnabled, syncPrices, currency, liveUnit, subscriptionSources, includeSubscriptions
         case heroLastTitle

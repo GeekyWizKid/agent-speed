@@ -19,6 +19,7 @@ extension SourceKind {
         case .grokBuild: RGBColor(hex: 0x8290A6)
         case .pi: RGBColor(hex: 0xA855F7)
         case .openclaw: RGBColor(hex: 0xDE2E1F)
+        case .hermes: RGBColor(hex: 0xB8860B)
         }
     }
 
