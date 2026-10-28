@@ -46,7 +46,7 @@ public static class OrbLinesText
             new OrbLine(localizer["intel.thinking.glyph"], thinking, localizer["unit.tokS"]),
             false,
             localizer.Format("a11y.orb.intel", shown, thinking),
-            localizer.Format("intel.tooltip", shown, HistoryText.Percent(sums.ThinkingShare)) + "\n" + localizer["intel.disclaimer"])
+            localizer["intel.disclaimer"])
         {
             ThinkingZero = ThinkingZeroHold.ReadsZero(sums.LiveThinking),
             SpokenAlone = localizer.Format("a11y.orb.intel.only", shown),

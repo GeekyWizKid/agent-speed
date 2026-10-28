@@ -93,7 +93,7 @@ public sealed class BoardGauge
         }
 
         var lit = readouts.Shown is { } index
-            ? Math.Clamp((int)Math.Floor((index - BoardGaugeSpec.IndexFloor) / 8.0 + 0.5), 0, BoardGaugeSpec.Segments)
+            ? Math.Clamp((int)Math.Floor((index - BoardGaugeSpec.IndexFloor) / (BoardGaugeSpec.IndexSpan / BoardGaugeSpec.Segments) + 0.5), 0, BoardGaugeSpec.Segments)
             : 0;
         if (lit != _litTo)
         {

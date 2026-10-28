@@ -586,10 +586,10 @@ internal sealed class SpeedEngine
             var live = new Rate((m.Output + e.Output) / seconds, (m.Total + e.Total) / seconds);
             double? recentSpeed = recent.TryGetValue(agent.Id, out var own) ? own.Output : null;
             var task = agent.Task?.Value(phase == AgentPhase.Idle) ?? TaskValue.None;
+            var score = TaskSetValue.Of(agent.Id, agent.LastLineMs ?? 0, task);
             return new AgentFrame(agent, phase, live, recentSpeed)
             {
-                Intelligence = new AgentIntelligence(
-                    intelligence.GetValueOrDefault(agent.Id), TaskSetValue.Of(agent.Id, agent.LastLineMs ?? 0, task), task.State),
+                Intelligence = new AgentIntelligence(intelligence.GetValueOrDefault(agent.Id) with { Score = score }, score, task.State),
                 Work = WorkSignals.Of(agent.Work, nowMs),
             };
         });

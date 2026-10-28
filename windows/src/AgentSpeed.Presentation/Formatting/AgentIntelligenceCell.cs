@@ -32,11 +32,11 @@ public static class AgentIntelligenceColumn
 }
 
 /// <summary>
-/// One agent row's intelligence (DESIGN 4, Intelligence column; METRICS 6.9, Agent intelligence): the live index in the
-/// live value's number color, the resting grade in the tertiary color, or the tertiary <c>–</c> without a model.
+/// One agent row's 智力 (DESIGN 4, Intelligence column; METRICS 6.9 <i>Values</i>): the live task score in the live
+/// value's number color, the resting score in the tertiary color, or the tertiary <c>–</c> without a score.
 /// </summary>
-/// <param name="Spoken">Added to the row's label after the live value: <c>a11y.agent.intel</c> or <c>a11y.agent.grade</c>; empty for none.</param>
-/// <param name="TooltipLines">The row tooltip's lines after effort and speed: <c>intel.tooltip</c> while live, then <c>intel.grade</c> with a grade.</param>
+/// <param name="Spoken">Added to the row's label after the live value: <c>a11y.agent.intel</c> (resting: inside <c>a11y.task.idle</c>); empty for none.</param>
+/// <param name="TooltipLines">The row tooltip's lines after effort and speed: the task's state.</param>
 public sealed record AgentIntelligenceCell(AgentIntelligenceForm Form, string Text, string Spoken, IReadOnlyList<string> TooltipLines)
 {
     public const string Dash = "–";
@@ -54,19 +54,12 @@ public sealed record AgentIntelligenceCell(AgentIntelligenceForm Form, string Te
 
         var text = shown.ToString(localizer.Culture);
         var live = intelligence.Form == AgentIntelligenceForm.Live;
-        if (live)
+        if (intelligence.State is { } state)
         {
-            // A source that reports reasoning inside its output has no share of its own (METRICS 4.3).
-            var share = IntelligenceSums.RecordsReasoning(agent.Source) ? HistoryText.Percent(intelligence.ThinkingShare) : Dash;
-            lines.Add(localizer.Format("intel.tooltip", text, share));
+            lines.Add(localizer["task.state." + Core.Tasks.TaskStateNames.Name(state)]);
         }
 
-        if (intelligence.Grade is { } grade)
-        {
-            lines.Add(IntelligenceText.Grade(grade, localizer));
-        }
-
-        return new AgentIntelligenceCell(intelligence.Form, text,
-            localizer.Format(live ? "a11y.agent.intel" : "a11y.agent.grade", text), lines);
+        var spoken = localizer.Format("a11y.agent.intel", text);
+        return new AgentIntelligenceCell(intelligence.Form, text, live ? spoken : localizer.Format("a11y.task.idle", spoken), lines);
     }
 }

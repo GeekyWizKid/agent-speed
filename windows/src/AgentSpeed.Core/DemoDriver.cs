@@ -200,7 +200,8 @@ public sealed class DemoDriver : IDisposable
             return new AgentStatus(agent.Id, agent.Source, agent.Project, agent.Model, phase, agent.IsSubagent,
                 new Rate(share, share * 24), active ? share : null, now, agent.IsSubagent ? "demo-nova" : null)
             {
-                Intelligence = new Intelligence.AgentIntelligence(DemoIntelligence(share), Tasks.TaskSetValue.Of(agent.Id, 0, task), task.State),
+                Intelligence = new Intelligence.AgentIntelligence(
+                    DemoIntelligence(share) with { Score = Tasks.TaskSetValue.Of(agent.Id, 0, task) }, Tasks.TaskSetValue.Of(agent.Id, 0, task), task.State),
             };
         }).ToList();
 

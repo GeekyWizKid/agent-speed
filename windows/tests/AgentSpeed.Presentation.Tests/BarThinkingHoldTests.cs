@@ -14,10 +14,10 @@ public class BarThinkingHoldTests
     private static readonly AppSettings Chosen = AppSettings.Default with { Traffic = TrafficSettings.Default with { Bar = BarTraffic.Intelligence } };
 
     /// <summary>125 over 0 tok/s.</summary>
-    private static readonly IntelligenceSums Unthinking = new(300, 300 * 125, 0, 300);
+    private static readonly IntelligenceSums Unthinking = TestSums.Of(300, 125, 0, 300);
 
     /// <summary>125 over 10 tok/s.</summary>
-    private static readonly IntelligenceSums Thinking = new(300, 300 * 123, 30, 300);
+    private static readonly IntelligenceSums Thinking = TestSums.Of(300, 125, 30, 300);
 
     [Fact]
     public void TheHoldHidesARateThatReadsZeroForThreeSeconds()

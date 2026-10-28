@@ -20,7 +20,8 @@ public enum AgentIntelligenceForm
 /// or none — and its own live thinking sums. A sub-agent's never count for its parent; a group takes the highest member
 /// score.
 /// </summary>
-/// <param name="Sums">The agent's own window sums of the thinking line (a group: its members' added).</param>
+/// <param name="Sums">The agent's own window sums of the thinking line (a group: its members' added); their
+/// <see cref="IntelligenceSums.Score"/> is <paramref name="Score"/>, so adding agents' sums gives the highest score.</param>
 /// <param name="Score">Its value, with the agent that supplied it (itself, or a group's member).</param>
 /// <param name="State">The supplying agent's task state (unverified and pending numbers are not final); null for none.</param>
 public readonly record struct AgentIntelligence(IntelligenceSums Sums, TaskSetValue Score, TaskState? State = null)

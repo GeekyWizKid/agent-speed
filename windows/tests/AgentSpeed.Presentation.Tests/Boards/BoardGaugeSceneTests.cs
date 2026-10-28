@@ -136,7 +136,8 @@ public class BoardGaugeSceneTests
     {
         var (_, _, list, tick, _) = Run(BoardStyle.Neon, BoardSize.M, BoardReadouts.All);
         var segments = list.Instances.ToArray().Where(i => (OrbShape)(int)i.A.W == OrbShape.RoundedRect && Math.Abs(i.B.Y - 1.5) < 1e-3).ToArray();
-        var lit = Math.Clamp((int)Math.Floor((tick.Gauge.Shown!.Value - 60) / 8.0 + 0.5), 0, 12);
+        // The 0–100 task score over 12 segments.
+        var lit = Math.Clamp((int)Math.Floor(tick.Gauge.Shown!.Value / (100 / 12.0) + 0.5), 0, 12);
         Assert.True(lit > 0);
         // Every segment's unlit shape (transparent once lit) and a lit one over each of the first `lit`.
         Assert.Equal(12 + lit, segments.Length);
