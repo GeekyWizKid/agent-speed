@@ -23,8 +23,10 @@ internal enum DroidSidecarStatus : byte
 /// <summary>One read of a sidecar (METRICS 4.16 Sidecar).</summary>
 /// <param name="Counters">The <c>tokenUsage</c> counters; null when it is not an object (droid before 0.123).</param>
 /// <param name="Model">The session model: the router's pick, else <c>model</c> unless <c>auto</c>; trimmed; null when neither.</param>
+/// <param name="Link">The path is a link (never followed); its time does not count as the session's.</param>
 internal readonly record struct DroidSidecarRead(
-    DroidSidecarStatus Status, DroidSidecarSignature? Signature = null, DroidCounters? Counters = null, string? Model = null);
+    DroidSidecarStatus Status, DroidSidecarSignature? Signature = null, DroidCounters? Counters = null, string? Model = null,
+    bool Link = false);
 
 /// <summary>Reads Factory Droid's per-session settings files: whole, at most 1 MiB, opened only for the read.</summary>
 internal static class DroidSidecar
@@ -34,20 +36,30 @@ internal static class DroidSidecar
     /// <summary>
     /// Reads the sidecar at <paramref name="path"/> unless its signature equals <paramref name="known"/>. The file is opened
     /// with read, write and delete sharing (droid replaces it and keeps a <c>.bak</c>) and closed right after reading.
+    /// Every result but <see cref="DroidSidecarStatus.Missing"/> has a signature: one that cannot be opened (a link, a
+    /// sharing violation) is signed by its size and time alone, so a parent sidecar that stays unreadable is recognized.
     /// </summary>
     public static DroidSidecarRead Read(string path, DroidSidecarSignature? known = null)
     {
+        FileInfo info;
         try
         {
-            var info = new FileInfo(path);
+            info = new FileInfo(path);
             if (!info.Exists)
             {
                 return new DroidSidecarRead(DroidSidecarStatus.Missing);
             }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return new DroidSidecarRead(DroidSidecarStatus.Missing);
+        }
 
+        try
+        {
             if ((info.Attributes & FileAttributes.ReparsePoint) != 0)
             {
-                return new DroidSidecarRead(DroidSidecarStatus.Unreadable);
+                return new DroidSidecarRead(DroidSidecarStatus.Unreadable, StatSignature(info), Link: true);
             }
 
             using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
@@ -79,7 +91,20 @@ internal static class DroidSidecar
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            return new DroidSidecarRead(DroidSidecarStatus.Unreadable);
+            return new DroidSidecarRead(DroidSidecarStatus.Unreadable, StatSignature(info));
+        }
+    }
+
+    private static DroidSidecarSignature? StatSignature(FileInfo info)
+    {
+        try
+        {
+            info.Refresh();
+            return info.Exists ? new DroidSidecarSignature(info.Length, info.LastWriteTimeUtc.Ticks, null) : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 

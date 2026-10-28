@@ -23,6 +23,7 @@ internal sealed class DroidParser : TranscriptParser
     private bool _readStarted;
     private bool _headerSeen;
     private bool _baselinePending;
+    private DroidSidecarSignature? _sidecar;
 
     public DroidParser(string agentId, IDeduper deduper)
         : base(agentId, deduper, SourceKind.Droid)
@@ -47,7 +48,22 @@ internal sealed class DroidParser : TranscriptParser
 
     public int OpenCallCount => _open.Count;
 
-    /// <summary>The session's transcript starts at its end: its first sidecar read only sets <c>H</c> (METRICS 4.16).</summary>
+    /// <summary>The signature of the sidecar version last applied; null until one is, and after an unreadable read or unknown own counters.</summary>
+    public DroidSidecarSignature? KnownSidecar => _sidecar;
+
+    /// <summary>
+    /// The signature of the parent sidecar the last attempt found unreadable: found again unchanged, the parent gives 0
+    /// (METRICS 4.16 Own counters). The history analysis carries it from one analysis to the next.
+    /// </summary>
+    public DroidSidecarSignature? UnreadableParent { get; set; }
+
+    /// <summary>The last sidecar read left the own counters unknown (the parent sidecar was unreadable).</summary>
+    public bool CountersUnknown { get; private set; }
+
+    /// <summary>
+    /// The session's transcript starts at its end: the first sidecar read with known own counters only sets <c>H</c>;
+    /// a missing sidecar leaves it 0 (METRICS 4.16).
+    /// </summary>
     public void StartAtEnd() => _baselinePending = true;
 
     public override ILineBatch NewBatch() => new DroidBatch(this);
@@ -75,6 +91,9 @@ internal sealed class DroidParser : TranscriptParser
         _readStarted = true;
         _headerSeen = false;
         _baselinePending = false;
+        _sidecar = null;
+        UnreadableParent = null;
+        CountersUnknown = false;
         ParentSessionId = null;
         CallingSessionId = null;
         Mark = default;
@@ -101,11 +120,9 @@ internal sealed class DroidParser : TranscriptParser
             Feed(in line);
         }
 
-        var baseline = _baselinePending;
-        _baselinePending = false;
         if (sidecar is { } read)
         {
-            ApplySidecar(in read, baseline);
+            ApplySidecar(in read);
         }
 
         Allocate(sink);
@@ -231,41 +248,88 @@ internal sealed class DroidParser : TranscriptParser
         SetPhase(line.HasToolUse ? AgentPhase.Tools : AgentPhase.Idle, ts, null);
     }
 
-    /// <summary>Step 2: a readable sidecar sets the session model; its counters' growth above <c>H</c> waits in <c>P</c>.</summary>
-    private void ApplySidecar(in DroidSidecarRead read, bool baseline)
+    /// <summary>
+    /// Step 2: a readable sidecar with known own counters sets the session model and its growth above <c>H</c> waits in
+    /// <c>P</c>. An unreadable sidecar, or unknown own counters, changes nothing and is read again next cycle.
+    /// </summary>
+    private void ApplySidecar(in DroidSidecarRead read)
     {
-        if (read.Status != DroidSidecarStatus.Readable)
+        CountersUnknown = false;
+        switch (read.Status)
         {
-            return;
+            case DroidSidecarStatus.Missing:
+                _baselinePending = false;
+                return;
+            case DroidSidecarStatus.Unreadable:
+                _sidecar = null;
+                return;
+            case DroidSidecarStatus.Unchanged:
+                return;
         }
 
+        DroidCounters? own = null;
+        if (read.Counters is { } counters)
+        {
+            own = Own(counters);
+            if (own is null)
+            {
+                _sidecar = null;
+                CountersUnknown = true;
+                return;
+            }
+        }
+
+        _sidecar = read.Signature;
         _sessionModel = read.Model;
         SetAgentModel(_callModel ?? _sessionModel);
-        if (read.Counters is not { } counters)
+        var baseline = _baselinePending;
+        _baselinePending = false;
+        if (own is not { } known)
         {
             return;
         }
 
-        var own = Own(counters);
         if (!baseline)
         {
-            Pending = DroidCounters.Add(Pending, DroidCounters.Minus(own, Mark));
+            Pending = DroidCounters.Add(Pending, DroidCounters.Minus(known, Mark));
         }
 
-        Mark = DroidCounters.Max(Mark, own);
+        Mark = DroidCounters.Max(Mark, known);
     }
 
     /// <summary>
-    /// A fork or successor starts from its parent's counters, read from <c>&lt;parent&gt;.settings.json</c> in the same folder
-    /// (no counters: 0); thinking is capped at the output.
+    /// A fork or successor starts from its parent's counters, read from <c>&lt;parent&gt;.settings.json</c> in the same folder:
+    /// none, or no counters, gives 0; an unreadable one leaves the own counters unknown (null) unless the last attempt
+    /// found it unreadable with the same signature (then 0). Thinking is capped at the output.
     /// </summary>
-    private DroidCounters Own(in DroidCounters counters)
+    private DroidCounters? Own(in DroidCounters counters)
     {
         var own = counters;
-        if (ParentSessionId is { } parent
-            && DroidSidecar.Read(DroidPaths.SiblingSidecar(AgentId, parent)) is { Status: DroidSidecarStatus.Readable, Counters: { } inherited })
+        if (ParentSessionId is { } parent)
         {
-            own = DroidCounters.Minus(counters, inherited);
+            var read = DroidSidecar.Read(DroidPaths.SiblingSidecar(AgentId, parent));
+            switch (read.Status)
+            {
+                case DroidSidecarStatus.Missing:
+                    UnreadableParent = null;
+                    break;
+                case DroidSidecarStatus.Readable:
+                    UnreadableParent = null;
+                    if (read.Counters is { } inherited)
+                    {
+                        own = DroidCounters.Minus(counters, inherited);
+                    }
+
+                    break;
+                default:
+                    if (read.Signature is not { } signature || signature != UnreadableParent)
+                    {
+                        UnreadableParent = read.Signature;
+                        return null;
+                    }
+
+                    break;
+            }
         }
 
         return own with { Thinking = Math.Min(own.Thinking, own.Output) };
@@ -352,6 +416,9 @@ internal sealed class DroidBatch(DroidParser owner) : ILineBatch, IPositionedLin
 
     /// <summary>The sidecar read after the lines; null when it was not read.</summary>
     public DroidSidecarRead? Sidecar { get; set; }
+
+    /// <summary>The sidecar version the parser last applied, which the tailer does not read again.</summary>
+    public DroidSidecarSignature? KnownSidecar => owner.KnownSidecar;
 
     public int Count => _lines.Count;
 

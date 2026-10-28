@@ -100,6 +100,9 @@ internal sealed partial class HistoryAnalyzer
 
     public PriceBook Pricing { get; }
 
+    /// <summary>Tests: called with a transcript's responses when it is stored, with null when it is skipped (METRICS 4.16).</summary>
+    internal Action<string, IReadOnlyCollection<ParsedResponse>?>? FileAnalyzed { get; set; }
+
     /// <summary>Stores the dates bound since the last save, with a copy of each referenced table.</summary>
     public void SaveBindings()
     {
@@ -477,8 +480,15 @@ internal sealed partial class HistoryAnalyzer
             {
                 try
                 {
-                    batch.ApplyTo(sink);
-                    (prepared.Parser as Droid.DroidParser)?.FinishHistory(sink);
+                    if (prepared.Parser is Droid.DroidParser droid)
+                    {
+                        ApplyDroid(file.Path, droid, batch, sink);
+                    }
+                    else
+                    {
+                        batch.ApplyTo(sink);
+                    }
+
                     applied = true;
                 }
                 catch (Exception e) when (e is not OutOfMemoryException)
@@ -501,6 +511,14 @@ internal sealed partial class HistoryAnalyzer
                 continue;
             }
 
+            if (prepared.Parser is Droid.DroidParser { CountersUnknown: true })
+            {
+                SkipDroid(ledger, file.Previous);
+                FileAnalyzed?.Invoke(file.Path, null);
+                progress?.Invoke(state);
+                continue;
+            }
+
             var owned = ledger.FinishFile();
             var result = prepared.Result;
             var entry = new StoredFile
@@ -515,6 +533,7 @@ internal sealed partial class HistoryAnalyzer
             };
             _entries[file.Path] = entry;
             pending.Add((entry, owned));
+            FileAnalyzed?.Invoke(file.Path, sink.Items.Values);
             analyzed++;
             bytes += result.Length;
             flush(false);

@@ -47,6 +47,8 @@ public sealed class DroidLiveTests : IDisposable
     private const string Worker = "6b2e8d4f-1a5c-4f3b-9d7e-0c1f2a3b4c5d";
     private const string Fork = "7c3f9e50-2b6d-4a4c-8e8f-1d2a3b4c5d6e";
 
+    private const string CutOff = "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":4";
+
     private readonly TempDirectory _temp = new();
     private readonly long _now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000 * 1000;
     private int _stamp;
@@ -195,6 +197,83 @@ public sealed class DroidLiveTests : IDisposable
 
         // main 1000/100, worker 300/30, the fork its own 250/20 (its copy of m1 belongs to main).
         Assert.Equal((3L, 1550L, 150L), Today(core));
+    }
+
+    [Fact]
+    public void AForkWaitsWhileItsParentsSidecarIsCaughtMidWrite()
+    {
+        var t = _now - 300_000;
+        var main = Transcript(Main);
+        var fork = Transcript(Fork);
+        DroidLines.Append(main, DroidLines.Start(Main, "/Users/dev/p"), DroidLines.User("u1", t), DroidLines.Assistant("m1", t + 3000));
+        WriteSidecar(Main, CutOff);
+        DroidLines.Append(fork, DroidLines.Start(Fork, "/Users/dev/p", parent: Main), DroidLines.User("f1", t + 20_000),
+            DroidLines.Assistant("f-m1", t + 22_000));
+        WriteSidecar(Fork, DroidLines.Sidecar(1250, 0, 120));
+        using var core = Core();
+        core.Seed(_now, TodayStart, CancellationToken.None);
+        Assert.Equal((0L, 0L, 0L), Today(core));
+
+        WriteSidecar(Main, DroidLines.Sidecar(1000, 0, 100));
+        core.ProcessPaths([DroidPaths.SidecarOf(main)], _now, TodayStart);
+        Assert.Equal((1L, 1000L, 100L), Today(core));
+        Assert.True(core.ProcessPaths([fork], _now, TodayStart));
+        Assert.Equal((2L, 1250L, 120L), Today(core));
+    }
+
+    [Fact]
+    public void AnOldForkTakesItsMarkOnceItsParentsSidecarReads()
+    {
+        var t = TodayStart - 7_200_000;
+        var main = Transcript(Main);
+        var fork = Transcript(Fork);
+        DroidLines.Append(main, DroidLines.Start(Main, "/Users/dev/p"), DroidLines.User("u1", t), DroidLines.Assistant("m1", t + 3000));
+        WriteSidecar(Main, CutOff);
+        DroidLines.Append(fork, DroidLines.Start(Fork, "/Users/dev/p", parent: Main), DroidLines.User("f1", t + 20_000),
+            DroidLines.Assistant("f-m1", t + 22_000), DroidLines.Outcome("f1"));
+        WriteSidecar(Fork, DroidLines.Sidecar(1250, 0, 120));
+        foreach (var path in new[] { main, DroidPaths.SidecarOf(main), fork, DroidPaths.SidecarOf(fork) })
+        {
+            File.SetLastWriteTimeUtc(path, DateTime.UnixEpoch.AddMilliseconds(t + 30_000));
+        }
+
+        using var core = Core();
+        core.Seed(_now, TodayStart, CancellationToken.None);
+        WriteSidecar(Main, DroidLines.Sidecar(1000, 0, 100));
+        core.ProcessPaths([DroidPaths.SidecarOf(main), fork], _now, TodayStart);
+        Assert.Equal((0L, 0L, 0L), Today(core));
+
+        DroidLines.Append(fork, DroidLines.User("f2", _now - 10_000), DroidLines.Assistant("f-m2", _now - 8000));
+        WriteSidecar(Fork, DroidLines.Sidecar(1400, 0, 150));
+        Assert.True(core.ProcessPaths([fork], _now, TodayStart));
+        Assert.Equal((1L, 150L, 30L), Today(core));
+    }
+
+    [Fact]
+    public void HistorySkipsAForkWhoseParentSidecarIsUnreadableUntilItReadsOrStaysTheSame()
+    {
+        var t = Ts.Ms("2026-10-20T12:00:00Z");
+        DroidLines.Append(Transcript(Main), DroidLines.Start(Main, "/Users/dev/p"), DroidLines.User("u1", t), DroidLines.Assistant("m1", t + 3000));
+        WriteSidecar(Main, CutOff);
+        DroidLines.Append(Transcript(Fork), DroidLines.Start(Fork, "/Users/dev/p", parent: Main), DroidLines.User("f1", t + 20_000),
+            DroidLines.Assistant("f-m1", t + 22_000));
+        WriteSidecar(Fork, DroidLines.Sidecar(1250, 0, 120));
+        using var store = HistoryStore.Open(_temp.Combine("store", "history.sqlite"));
+        var analyzer = new HistoryAnalyzer(store);
+        var locations = new SourceLocations(string.Empty, string.Empty, string.Empty, string.Empty, [], DroidRoot: Root);
+        var enabled = new HashSet<SourceKind> { SourceKind.Droid };
+
+        // The fork is left out and read again by the next analysis, whose parent is unreadable with the same signature: 0.
+        Assert.Equal(1, analyzer.Run(locations, enabled, TimeZoneInfo.Utc, CancellationToken.None).FilesAnalyzed);
+        Assert.DoesNotContain(Transcript(Fork), analyzer.Entries.Keys);
+        Assert.Equal(1, analyzer.Run(locations, enabled, TimeZoneInfo.Utc, CancellationToken.None).FilesAnalyzed);
+        Assert.Equal((1L, 1250L, 120L), Day(analyzer));
+
+        // A new analyzer (a relaunch) starts without the memory: a readable parent is subtracted again.
+        WriteSidecar(Main, DroidLines.Sidecar(1000, 0, 100));
+        var fresh = new HistoryAnalyzer(store);
+        Assert.Equal(2, fresh.Run(locations, enabled, TimeZoneInfo.Utc, CancellationToken.None).FilesAnalyzed);
+        Assert.Equal((2L, 1250L, 120L), Day(fresh));
     }
 
     [Fact]

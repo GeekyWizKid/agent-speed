@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using AgentSpeed.Core.Droid;
+using AgentSpeed.Core.History;
 using AgentSpeed.Core.IO;
 using AgentSpeed.Core.Monitoring;
 using AgentSpeed.Core.Parsing;
@@ -263,7 +264,7 @@ public sealed class DroidFixtureTests : IDisposable
             else if (step.TryGetProperty("sidecar", out var sidecar))
             {
                 var path = DroidPaths.SidecarOf(Scratch(sidecar.GetString()!));
-                File.WriteAllText(path, step.GetProperty("doc").GetRawText());
+                File.WriteAllText(path, step.TryGetProperty("text", out var text) ? text.GetString() : step.GetProperty("doc").GetRawText());
                 File.SetLastWriteTimeUtc(path, DateTime.UnixEpoch.AddMilliseconds(step.GetProperty("mtime").GetInt64()));
             }
             else if (step.TryGetProperty("open", out var open))
@@ -298,7 +299,72 @@ public sealed class DroidFixtureTests : IDisposable
             }
         }
 
-        Assert.Equal(2, sessions.Count);
+        Assert.Equal(5, sessions.Count);
+    }
+
+    /// <summary>
+    /// The reference's <c>check_droid_history</c>: analyses of a scratch home whose parent sidecars are unreadable. A
+    /// skipped session is not stored, so the next analysis reads it again; stored ones keep their responses while their
+    /// files and their parents' sidecars stay the same.
+    /// </summary>
+    [Fact]
+    public void ScriptedHistoryAnalysesMatchTheReference()
+    {
+        var home = _temp.Combine("history-home");
+        Directory.CreateDirectory(home);
+        using var store = HistoryStore.Open(_temp.Combine("store", "history.sqlite"));
+        var analyzer = new HistoryAnalyzer(store);
+        var current = new Dictionary<string, List<ParsedResponse>>(StringComparer.Ordinal);
+        var skipped = new List<string>();
+        analyzer.FileAnalyzed = (path, responses) =>
+        {
+            var relative = Path.GetRelativePath(home, path).Replace(Path.DirectorySeparatorChar, '/');
+            current.Remove(relative);
+            if (responses is null)
+            {
+                skipped.Add(relative);
+            }
+            else if (responses.Count > 0)
+            {
+                current[relative] = [.. responses];
+            }
+        };
+        var locations = new SourceLocations(string.Empty, string.Empty, string.Empty, string.Empty, [], DroidRoot: DroidPaths.DefaultRoot(home));
+        var number = 0;
+        var analyses = 0;
+        foreach (var step in DroidFixture.Expected.GetProperty("history").GetProperty("steps").EnumerateArray())
+        {
+            number++;
+            if (step.TryGetProperty("write", out var write))
+            {
+                var path = Path.Combine([home, .. write.GetString()!.Split('/')]);
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllBytes(path, Encoding.UTF8.GetBytes(step.GetProperty("text").GetString()!));
+                File.SetLastWriteTimeUtc(path, DateTime.UnixEpoch.AddMilliseconds(step.GetProperty("mtime").GetInt64()));
+                continue;
+            }
+
+            analyses++;
+            skipped.Clear();
+            var report = analyzer.Run(locations, new HashSet<SourceKind> { SourceKind.Droid }, TimeZoneInfo.Utc, CancellationToken.None);
+            Assert.False(report.Cancelled);
+            var label = $"step {number}";
+            var expected = step.GetProperty("responses").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.EnumerateArray().ToList());
+            Assert.True(expected.Keys.Order(StringComparer.Ordinal).SequenceEqual(current.Keys.Order(StringComparer.Ordinal)),
+                $"{label}: sessions {string.Join(",", current.Keys)}");
+            foreach (var (file, responses) in expected)
+            {
+                Assert.True(responses.Select(r => r.GetProperty("key").GetString()).SequenceEqual(current[file].Select(r => r.Key)), $"{label} {file}");
+                for (var i = 0; i < responses.Count; i++)
+                {
+                    AssertResponse(responses[i], current[file][i], $"{label} {file}");
+                }
+            }
+
+            Assert.Equal(step.GetProperty("skipped").EnumerateArray().Select(e => e.GetString()!), skipped.Order(StringComparer.Ordinal));
+        }
+
+        Assert.Equal(3, analyses);
     }
 
     internal static DroidCounters Counters(JsonElement element) =>
