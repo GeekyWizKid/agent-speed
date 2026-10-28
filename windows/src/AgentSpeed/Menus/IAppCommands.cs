@@ -102,6 +102,8 @@ internal interface IAppCommands
 
     void SetBoardSize(string boardId, BoardSize size) => UpdateBoards(d => BoardEditing.SetSize(d, boardId, size));
 
+    void SetBoardReadout(string boardId, BoardReadout readout, bool on) => UpdateBoards(d => BoardEditing.SetReadout(d, boardId, readout, on));
+
     void SetBoardAlwaysOnTop(string boardId, bool on) => UpdateBoards(d => BoardEditing.SetAlwaysOnTop(d, boardId, on));
 
     void SetBoardClickThrough(string boardId, bool on) => UpdateBoards(d => BoardEditing.SetClickThrough(d, boardId, on));

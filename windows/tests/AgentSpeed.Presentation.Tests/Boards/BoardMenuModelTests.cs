@@ -29,13 +29,27 @@ public class BoardMenuModelTests
         Assert.Equal(
             [
                 En["boards.style.neon"] + " · " + En["orbs.sources.all"], Separator,
-                En["boards.style"], En["orbs.sources"], En["menu.size"], En["menu.effects"], Separator,
+                En["boards.style"], En["orbs.sources"], En["boards.readouts"], En["menu.size"], En["menu.effects"], Separator,
                 En["menu.alwaysOnTop"], En["menu.clickThrough"], Separator,
                 En["boards.add"], En["boards.remove"], Separator,
                 En["menu.dashboard"], En["boards.settings"],
             ],
             Outline(menu));
         Assert.True(menu.Rows.First().IsHeader);
+    }
+
+    [Fact]
+    public void TheReadoutsSubmenuChecksEachSwitchAndTogglesIt()
+    {
+        var board = new BoardDefinition("b0") { Readouts = BoardReadouts.All with { Thinking = false } };
+        var items = Row(Menu(With(board)), "boards.readouts").Submenu!.Rows.ToArray();
+        Assert.Equal(
+            [En["boards.readouts.intel"], En["boards.readouts.thinking"], En["boards.readouts.cost"], En["boards.readouts.rowCost"]],
+            items.Select(r => r.Label));
+        Assert.Equal([true, false, true, true], items.Select(r => r.IsChecked));
+        Assert.Equal(new MenuAction.SetBoardReadout("b0", BoardReadout.Intelligence, false), items[0].Action);
+        Assert.Equal(new MenuAction.SetBoardReadout("b0", BoardReadout.Thinking, true), items[1].Action);
+        Assert.Equal(new MenuAction.SetBoardReadout("b0", BoardReadout.RowCost, false), items[3].Action);
     }
 
     [Fact]

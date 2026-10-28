@@ -7,7 +7,9 @@ namespace AgentSpeed.Settings.BoardsPane;
 /// <summary>
 /// A still miniature of a board style for the Boards list and the style cards (DESIGN 2c Styles; colors from the
 /// prototypes in spec/prototypes/board): glass's frosted panel with its aurora and sparkline, timing's slab with the heat
-/// rail and position blocks, neon's deck with its tube edge and LED bar; light or dark with the app. Drawn once per change.
+/// rail and position blocks, neon's deck with its tube edge and LED bar; light or dark with the app; with the live metrics on,
+/// the hero's sub-gauge (glass's pearl arc, timing's data box, neon's LED digits and meter) and the rows' 智力 column. Drawn
+/// once per change.
 /// </summary>
 internal sealed class BoardThumbnail : FrameworkElement
 {
@@ -16,6 +18,9 @@ internal sealed class BoardThumbnail : FrameworkElement
 
     public static readonly DependencyProperty DarkProperty = DependencyProperty.Register(nameof(Dark), typeof(bool), typeof(BoardThumbnail),
         new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty ReadoutsProperty = DependencyProperty.Register(nameof(Readouts), typeof(BoardReadouts), typeof(BoardThumbnail),
+        new FrameworkPropertyMetadata(BoardReadouts.All, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty SideProperty = DependencyProperty.Register(nameof(Side), typeof(double), typeof(BoardThumbnail),
         new FrameworkPropertyMetadata(38.0, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
@@ -32,6 +37,9 @@ internal sealed class BoardThumbnail : FrameworkElement
     public bool Dark { get => (bool)GetValue(DarkProperty); set => SetValue(DarkProperty, value); }
 
     public double Side { get => (double)GetValue(SideProperty); set => SetValue(SideProperty, value); }
+
+    /// <summary>The live metrics switches (DESIGN 2c): the hero's sub-gauge and the rows' 智力 column show as switched.</summary>
+    public BoardReadouts Readouts { get => (BoardReadouts)GetValue(ReadoutsProperty); set => SetValue(ReadoutsProperty, value); }
 
     protected override Size MeasureOverride(Size availableSize) => new(Side, Side);
 
@@ -77,20 +85,29 @@ internal sealed class BoardThumbnail : FrameworkElement
         teal.Freeze();
         dc.DrawRectangle(teal, null, box);
         dc.DrawRoundedRectangle(Frozen(glass), null, box, radius, radius);
+        var readouts = Readouts;
         var spark = new StreamGeometry();
         using (var g = spark.Open())
         {
             double[] ys = [0.62, 0.55, 0.58, 0.44, 0.48, 0.36, 0.40, 0.30];
-            g.BeginFigure(new Point(box.X + 8 * u, box.Y + 26 * u * ys[0] + 4 * u), false, false);
+            // With the sub-gauge the sparkline becomes a flat strip across the board under the hero.
+            var (top, height, step) = readouts.Hero ? (21.0, 4.5, 6.857) : (4.0, 26.0, 6.8);
+            g.BeginFigure(new Point(box.X + 8 * u, box.Y + height * u * ys[0] + top * u), false, false);
             for (var i = 1; i < ys.Length; i++)
             {
-                g.LineTo(new Point(box.X + (8 + i * 6.8) * u, box.Y + 26 * u * ys[i] + 4 * u), true, true);
+                g.LineTo(new Point(box.X + (8 + i * step) * u, box.Y + height * u * ys[i] + top * u), true, true);
             }
         }
 
         spark.Freeze();
-        dc.DrawGeometry(null, Pen(Amber, 1.4 * u), spark);
-        Rows(dc, box, u, Dark ? Argb(0.9, 244, 246, 252) : Argb(0.85, 17, 20, 30), Mint, 0.09);
+        dc.DrawGeometry(null, Pen(Amber, (readouts.Hero ? 1.1 : 1.4) * u), spark);
+        var ink = Dark ? Argb(0.9, 244, 246, 252) : Argb(0.85, 17, 20, 30);
+        if (readouts.Hero)
+        {
+            GlassDial(dc, new Point(box.Right - 13 * u, box.Y + 9.5 * u), u, ink, readouts.Intelligence);
+        }
+
+        Rows(dc, box, u, ink, Mint, 0.09, readouts.Intelligence);
         dc.Pop();
         dc.DrawRoundedRectangle(null, Pen(edge, 1), box, radius, radius);
     }
@@ -109,14 +126,28 @@ internal sealed class BoardThumbnail : FrameworkElement
         }, 0);
         rail.Freeze();
         dc.DrawRectangle(rail, null, new Rect(box.X, box.Y, box.Width * 0.72, 2.2 * u));
-        dc.DrawEllipse(Frozen(Red), null, new Point(box.Right - 9 * u, box.Y + 9 * u), 2 * u, 2 * u);
-        dc.DrawRoundedRectangle(Frozen(ink), null, new Rect(box.X + 8 * u, box.Y + 9 * u, 24 * u, 7 * u), 1.5 * u, 1.5 * u);
+        var readouts = Readouts;
+        if (readouts.Hero)
+        {
+            TimingBox(dc, new Rect(box.Right - 25 * u, box.Y + 6 * u, 18 * u, 14 * u), u, ink, block, Dark ? Rgb(0x12, 0x15, 0x1D) : Rgb(0xF1, 0xF3, 0xF7),
+                readouts);
+        }
+        else
+        {
+            dc.DrawEllipse(Frozen(Red), null, new Point(box.Right - 9 * u, box.Y + 9 * u), 2 * u, 2 * u);
+        }
+
+        dc.DrawRoundedRectangle(Frozen(ink), null, new Rect(box.X + 8 * u, box.Y + 9 * u, readouts.Hero ? 20 * u : 24 * u, 7 * u), 1.5 * u, 1.5 * u);
         for (var i = 0; i < 3; i++)
         {
             var y = box.Y + (28 + i * 11) * u;
             dc.DrawRoundedRectangle(Frozen(i == 0 ? Gold : block), null, new Rect(box.X + 7 * u, y, 7 * u, 7 * u), 1.2 * u, 1.2 * u);
             dc.DrawRoundedRectangle(Frozen(Fade(ink, 0.7 - i * 0.15)), null, new Rect(box.X + 17 * u, y + 1.5 * u, (26 - i * 4) * u, 4 * u), 2 * u, 2 * u);
             dc.DrawRoundedRectangle(Frozen(Fade(ink, 0.45)), null, new Rect(box.Right - 15 * u, y + 1.5 * u, 8 * u, 4 * u), 2 * u, 2 * u);
+            if (readouts.Intelligence)
+            {
+                dc.DrawRoundedRectangle(Frozen(Fade(ink, 0.25)), null, new Rect(box.Right - 22 * u, y + 2 * u, 5 * u, 3 * u), 1.5 * u, 1.5 * u);
+            }
         }
 
         dc.Pop();
@@ -139,7 +170,13 @@ internal sealed class BoardThumbnail : FrameworkElement
         }
 
         dc.DrawRoundedRectangle(Frozen(ink), null, new Rect(box.X + 8 * u, box.Y + 9 * u, 22 * u, 7 * u), 1.5 * u, 1.5 * u);
-        Rows(dc, box, u, ink, Mint, 0.06);
+        var readouts = Readouts;
+        if (readouts.Hero)
+        {
+            NeonGauge(dc, new Point(box.Right - 13 * u, box.Y + 6 * u), u, ink, unlit, readouts.Intelligence);
+        }
+
+        Rows(dc, box, u, ink, Mint, 0.06, readouts.Intelligence);
         dc.Pop();
         var tube = new LinearGradientBrush(Cyan, Magenta, new Point(0, 0), new Point(1, 1));
         tube.Freeze();
@@ -151,8 +188,11 @@ internal sealed class BoardThumbnail : FrameworkElement
         dc.DrawRoundedRectangle(null, new Pen(tube, 1.3 * u), box, radius, radius);
     }
 
-    /// <summary>Three ranking rows: the leader's gold rank dot, names fading down the list and a share underline.</summary>
-    private static void Rows(DrawingContext dc, Rect box, double u, Color ink, Color share, double fill)
+    /// <summary>
+    /// Three ranking rows: the leader's gold rank dot, names fading down the list and a share underline; with 智力 on, a quiet
+    /// 智力 cell before each row's value.
+    /// </summary>
+    private static void Rows(DrawingContext dc, Rect box, double u, Color ink, Color share, double fill, bool intelligence)
     {
         for (var i = 0; i < 3; i++)
         {
@@ -161,6 +201,86 @@ internal sealed class BoardThumbnail : FrameworkElement
             dc.DrawEllipse(Frozen(i == 0 ? Gold : Fade(ink, 0.35)), null, new Point(box.X + 10 * u, y + 1.7 * u), 1.8 * u, 1.8 * u);
             dc.DrawRoundedRectangle(Frozen(Fade(ink, 0.75 - i * 0.18)), null, new Rect(box.X + 15 * u, y, (24 - i * 5) * u, 3.4 * u), 1.7 * u, 1.7 * u);
             dc.DrawRectangle(Frozen(Fade(share, 0.8 - i * 0.2)), null, new Rect(box.X + 15 * u, y + 4.6 * u, (30 - i * 9) * u, 0.9 * u));
+            dc.DrawRoundedRectangle(Frozen(Fade(ink, 0.55)), null, new Rect(box.Right - 12 * u, y, 6 * u, 3.4 * u), 1.7 * u, 1.7 * u);
+            if (intelligence)
+            {
+                dc.DrawRoundedRectangle(Frozen(Fade(ink, 0.28)), null, new Rect(box.Right - 20 * u, y + 0.4 * u, 5 * u, 2.6 * u), 1.3 * u, 1.3 * u);
+            }
+        }
+    }
+
+    // Glass's pearl arc around 智力 (240° from the lower left over the top), its number a soft bar.
+    private void GlassDial(DrawingContext dc, Point center, double u, Color ink, bool intelligence)
+    {
+        var radius = 6.2 * u;
+        Point At(double degrees) => new(center.X + radius * Math.Cos(degrees * Math.PI / 180), center.Y + radius * Math.Sin(degrees * Math.PI / 180));
+        var track = new StreamGeometry();
+        using (var g = track.Open())
+        {
+            g.BeginFigure(At(150), false, false);
+            g.ArcTo(At(30), new Size(radius, radius), 0, true, SweepDirection.Clockwise, true, true);
+        }
+
+        track.Freeze();
+        dc.DrawGeometry(null, Pen(Fade(ink, 0.16), 1.1 * u), track);
+        if (intelligence)
+        {
+            var value = new StreamGeometry();
+            using (var g = value.Open())
+            {
+                g.BeginFigure(At(150), false, false);
+                g.ArcTo(At(300), new Size(radius, radius), 0, true, SweepDirection.Clockwise, true, true);
+            }
+
+            value.Freeze();
+            var pearl = new LinearGradientBrush(Dark ? Rgb(0xA5, 0xF3, 0xFC) : Rgb(0x1A, 0xA3, 0xC4), Dark ? Rgb(0xF5, 0xD0, 0xFE) : Rgb(0xC0, 0x5B, 0xD9),
+                new Point(0, 1), new Point(1, 0));
+            pearl.Freeze();
+            var pen = new Pen(pearl, 1.3 * u) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+            pen.Freeze();
+            dc.DrawGeometry(null, pen, value);
+            dc.DrawRoundedRectangle(Frozen(Fade(ink, 0.8)), null, new Rect(center.X - 3.4 * u, center.Y - 1.4 * u, 6.8 * u, 3 * u), 1.4 * u, 1.4 * u);
+        }
+
+        for (var i = 0; i < 2; i++)
+        {
+            dc.DrawRoundedRectangle(Frozen(Fade(ink, 0.45)), null, new Rect(center.X - 5 * u, center.Y + (5.4 + i * 2.6) * u, 10 * u, 1.4 * u), 0.7 * u, 0.7 * u);
+        }
+    }
+
+    // Timing's data box: label tabs on the left, values on one right edge.
+    private static void TimingBox(DrawingContext dc, Rect rect, double u, Color ink, Color block, Color slab, BoardReadouts readouts)
+    {
+        dc.DrawRoundedRectangle(Frozen(slab), Pen(Fade(ink, 0.12), 0.6 * u), rect, 1.6 * u, 1.6 * u);
+        dc.DrawRoundedRectangle(Frozen(block), null, new Rect(rect.X, rect.Y, 5 * u, rect.Height), 1.6 * u, 1.6 * u);
+        var rows = (readouts.Intelligence ? 1 : 0) + (readouts.Thinking ? 1 : 0) + (readouts.Cost ? 1 : 0);
+        var pitch = rect.Height / Math.Max(1, rows);
+        for (var i = 0; i < rows; i++)
+        {
+            var main = i == 0 && readouts.Intelligence;
+            var width = main ? 7 * u : 5 * u;
+            var height = main ? 2.6 * u : 1.8 * u;
+            dc.DrawRoundedRectangle(Frozen(Fade(ink, main ? 0.9 : 0.6)), null,
+                new Rect(rect.Right - 1.6 * u - width, rect.Y + pitch * (i + 0.5) - height / 2, width, height), height / 2, height / 2);
+        }
+    }
+
+    // Neon's LED sub-gauge: lit digits over a 12-segment meter, the table under it.
+    private static void NeonGauge(DrawingContext dc, Point top, double u, Color ink, Color unlit, bool intelligence)
+    {
+        if (intelligence)
+        {
+            dc.DrawRoundedRectangle(Frozen(Fade(ink, 0.9)), null, new Rect(top.X - 5 * u, top.Y, 10 * u, 3.6 * u), 1 * u, 1 * u);
+            for (var i = 0; i < 6; i++)
+            {
+                dc.DrawRectangle(Frozen(i < 4 ? Fade(ink, 0.8) : unlit), null, new Rect(top.X - 5.5 * u + i * 1.9 * u, top.Y + 5 * u, 1.4 * u, 0.9 * u));
+            }
+        }
+
+        for (var i = 0; i < 2; i++)
+        {
+            dc.DrawRoundedRectangle(Frozen(Fade(ink, 0.45)), null, new Rect(top.X - 5 * u, top.Y + (intelligence ? 7.4 : 2) * u + i * 2.8 * u, 10 * u, 1.5 * u),
+                0.75 * u, 0.75 * u);
         }
     }
 

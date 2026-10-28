@@ -27,6 +27,21 @@ public class BoardEditingTests
     }
 
     [Fact]
+    public void ReadoutSwitchesAreIndependent()
+    {
+        var document = Two();
+        var noCost = BoardEditing.SetReadout(document, "a", BoardReadout.Cost, false);
+        // 每列費用 does not follow 費用 (DESIGN 2c, Switches).
+        Assert.Equal(BoardReadouts.All with { Cost = false }, noCost.Find("a")!.Readouts);
+        Assert.Equal(BoardReadouts.All, noCost.Find("b")!.Readouts);
+        var none = BoardReadouts.Order.Aggregate(document, (d, r) => BoardEditing.SetReadout(d, "a", r, false));
+        Assert.True(none.Find("a")!.Readouts.IsNone);
+        Assert.False(none.Find("a")!.Readouts.Hero);
+        Assert.True(BoardEditing.SetReadout(none, "a", BoardReadout.Thinking, true).Find("a")!.Readouts.Hero);
+        Assert.Same(document, BoardEditing.SetReadout(document, "zzz", BoardReadout.Cost, false));
+    }
+
+    [Fact]
     public void OpacityIsClampedToTheOrbsRange()
     {
         var document = Two();

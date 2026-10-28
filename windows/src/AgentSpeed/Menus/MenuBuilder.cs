@@ -125,6 +125,9 @@ internal static class MenuBuilder
             case MenuAction.SetBoardSize a:
                 commands.SetBoardSize(a.BoardId, a.Size);
                 break;
+            case MenuAction.SetBoardReadout a:
+                commands.SetBoardReadout(a.BoardId, a.Readout, a.On);
+                break;
             case MenuAction.SetBoardAlwaysOnTop a:
                 commands.SetBoardAlwaysOnTop(a.BoardId, a.On);
                 break;
