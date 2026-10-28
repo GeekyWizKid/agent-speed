@@ -3222,11 +3222,13 @@ Top to bottom:
    `report.service.review` (opens the consent sheet). Switching services pauses the old one (its identity is kept,
    `report.others`) and opens the consent sheet for the new one.
 2b. **Transport** (`report.transport`) — under the service card, a two-segment control `report.transport.http` /
-   `report.transport.websocket` (default HTTP; also for identities stored by earlier builds; never switched
-   automatically by an upgrade, a document that adds the capability or a relaunch) with the caption
-   `report.transport.hint`. With WebSocket chosen the caption becomes `report.transport.source` (the data comes from
-   watching local logs, METRICS 11.9 `realtime`) and, when the document lacks a valid WebSocket capability, the amber
-   note `report.status.wsUnsupported` replaces it (nothing is sent, the choice stays; HTTP is never used instead).
+   `report.transport.websocket` (default WebSocket, also for services set up by earlier builds; only the user's
+   choice of HTTP is stored, per service origin, Storage below) with the caption `report.transport.hint`. With
+   WebSocket chosen the caption becomes `report.transport.source` (the data comes from watching local logs, METRICS
+   11.9 `realtime`) and, when the document lacks a valid WebSocket capability, the secondary note
+   `report.status.wsUnsupported` replaces it, led by an information glyph (SF Symbol `info.circle`, Segoe Fluent
+   `Info`) in the caption's color: reports go over HTTP meanwhile (METRICS 11.9, effective transport), the choice
+   stays selected, and the status line (item 6) is HTTP's.
    When the service's `minIntervalMs` is above 50 the amber note `report.transport.throttled` (with the interval)
    says the connection is slower than the real-time level. Switching applies at once: the old transport stops (its
    unanswered reports are dropped, METRICS 11.9) and a new run starts on the new one.
@@ -3274,13 +3276,13 @@ Top to bottom:
    `report.status.keyMismatch`, `report.status.rejected` (three malformed or invalid reports in a row),
    `report.status.forbidden` (the service refuses this device by its own policy), `report.status.upgrade`,
    `report.status.gone`. While an accepted invitation cannot fetch the document, the line is the fetch's sentence of
-   item 2, red or amber as its symbol. With WebSocket chosen (item 2b): green `report.status.streaming` (with the
+   item 2, red or amber as its symbol. With WebSocket effective (item 2b): green `report.status.streaming` (with the
    last acknowledged report's time) instead of `report.status.reporting`; amber `report.status.wsReconnecting` with
-   the last success (`report.status.wsReconnectingNever` before any), `report.status.wsUnsupported`; red
+   the last success (`report.status.wsReconnectingNever` before any); red
    `report.status.wsMismatch` and `report.status.wsReplaced`, both with the push button `report.service.retry`
    (METRICS 11.9 *Try Again*), `report.status.wsIncompatible`, `report.status.wsNonce`, `report.status.wsClientState`.
    A connected socket or a Pong is never shown as reporting: only an acknowledged report is. Under the line, while
-   WebSocket is chosen and the run delivered or lost anything, one 11 pt secondary line `report.ws.stats` (latency
+   WebSocket is effective and the run delivered or lost anything, one 11 pt secondary line `report.ws.stats` (latency
    p50 and p95 of METRICS 11.9, delivered and not delivered counts) with every counter in its tooltip
    (`report.ws.counters`); `report.ws.noLatency` stands for the latency while no sample exists. When the service returns a rank: `report.status.rank` after the line. Actions
    on the right: `report.pause` as a pull-down with `report.pause.hour` and `report.pause.indefinite`, or
@@ -3333,7 +3335,7 @@ read-only text area labelled `report.preview.title`; switches and fields have th
 preview: the request line and headers on top — `X-AgentSpeed-Signature` shown as `…` with `report.preview.hint`,
 `Authorization: Bearer ••••` when a key is set — then the body, `report.preview.next` (seconds until the next
 report) and `report.preview.copy`. While reporting is off or quiet it shows the report that would be built now. With
-WebSocket chosen the request line is the connection's (`GET wss://…/v1/reports/ws` and its handshake headers), the
+WebSocket effective the request line is the connection's (`GET wss://…/v1/reports/ws` and its handshake headers), the
 body is the `report` message's body including `realtime`, and `report.preview.onChange` replaces
 `report.preview.next`. It can also be opened from the dashboard invitation (`report.invite.preview`). Before the service's document is known it
 shows the body only — no request line or headers, whose API URL comes from the document — built with the default
@@ -3428,7 +3430,9 @@ find the setting.
 
 - Settings (plain, in the settings store): `report.enabled`, the selected service URL and preset, the section switches,
   the pause end (or indefinite), the invitation's answer (`report.invite`: unanswered, accepted or declined), the
-  username for the next registration when the user typed one (absent: the computer-name default), and per service
+  username for the next registration when the user typed one (absent: the computer-name default), the origins whose
+  transport the user set to HTTP (latest choice last, at most 16; every other service uses WebSocket, item 2b — the
+  list of WebSocket origins kept by earlier builds is ignored), and per service
   origin: the confirmed discovery fields (REPORTING 3.3), `deviceId`,
   the registered username, `profileUrl`, the API origin, the key's creation date and the pending-key flag (REPORTING
   4.5). At most 8 service identities; the oldest unused one is forgotten locally first.

@@ -4657,10 +4657,10 @@
     "ja": "WebSocket ライブ"
   },
   "report.transport.hint": {
-    "zh-Hant": "HTTP 每幾秒送一次；WebSocket 即時在資料一有變化就送出，需要服務支援。",
-    "zh-Hans": "HTTP 每几秒发送一次；WebSocket 实时在数据一有变化就发送，需要服务支持。",
-    "en": "HTTP sends every few seconds; WebSocket Live sends as soon as the data changes and needs the service's support.",
-    "ja": "HTTP は数秒ごとに送信します。WebSocket ライブはデータが変わるとすぐに送信し、サービスの対応が必要です。"
+    "zh-Hant": "WebSocket 即時在資料一有變化就送出；服務不支援時自動改用 HTTP，每幾秒送一次。",
+    "zh-Hans": "WebSocket 实时在数据一有变化就发送；服务不支持时自动改用 HTTP，每几秒发送一次。",
+    "en": "WebSocket Live sends as soon as the data changes; when the service doesn't support it, HTTP sends every few seconds instead.",
+    "ja": "WebSocket ライブはデータが変わるとすぐに送信します。サービスが対応していない場合は、代わりに HTTP で数秒ごとに送信します。"
   },
   "report.transport.source": {
     "zh-Hant": "資料來自監看本機紀錄檔，從寫入到讀取最慢約 1 秒，並非逐 token 的即時量測。",
@@ -4693,10 +4693,10 @@
     "ja": "WebSocket に再接続しています"
   },
   "report.status.wsUnsupported": {
-    "zh-Hant": "此服務尚未支援 WebSocket",
-    "zh-Hans": "此服务尚未支持 WebSocket",
-    "en": "This service doesn't support WebSocket yet",
-    "ja": "このサービスはまだ WebSocket に対応していません"
+    "zh-Hant": "此服務尚未支援 WebSocket，目前改用 HTTP 上報",
+    "zh-Hans": "此服务尚未支持 WebSocket，目前改用 HTTP 上报",
+    "en": "This service doesn't support WebSocket yet, so reports go over HTTP for now",
+    "ja": "このサービスはまだ WebSocket に対応していないため、いまは HTTP で送信しています"
   },
   "report.status.wsMismatch": {
     "zh-Hant": "服務連線設定不一致",
