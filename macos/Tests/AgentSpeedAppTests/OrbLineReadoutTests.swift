@@ -5,7 +5,8 @@ import Testing
 @testable import AgentSpeed
 
 /// DESIGN 10, Intelligence readout: a larger intelligence line over a smaller thinking line, each centred on the orb on
-/// its own; the network readout keeps its fixed cells.
+/// its own, the score in its form's color, dotted while unproven and moving as DESIGN 12 says; the network readout keeps
+/// its fixed cells.
 @Suite("Orb line readout")
 @MainActor
 struct OrbLineReadoutTests {
@@ -225,39 +226,58 @@ struct OrbLineReadoutTests {
 
     // MARK: Drawing
 
-    private struct Piece {
+    struct Piece {
         var x: CGFloat
         var right: CGFloat
         var baseline: CGFloat
         var height: CGFloat
         var alpha: CGFloat
+        var color: SIMD4<Float>
+        var texture: OrbTextTexture
     }
 
-    private static func frame(_ style: OrbStyleKind, diameter s: CGFloat, language: AppLanguage, format: OrbLineFormat,
-                              _ content: OrbLineContent, thinking: OrbThinkingLine = OrbThinkingLine()) -> OrbFrame {
+    static func score(_ form: TaskValueForm, _ shown: Int?, _ state: TaskState? = .passing, count: Int = 1) -> TaskSetReading {
+        TaskSetReading(form: form, shown: shown, state: state, count: count, agentId: form == .none ? nil : "nova")
+    }
+
+    static func live(_ shown: Int) -> TaskSetReading { score(.live, shown) }
+
+    static func frame(_ style: OrbStyleKind, diameter s: CGFloat, language: AppLanguage, format: OrbLineFormat,
+                              _ content: OrbLineContent, thinking: OrbThinkingLine = OrbThinkingLine(),
+                              scoreMotion: OrbScoreMotion? = nil, reduceMotion: Bool = false,
+                              increaseContrast: Bool = false) -> OrbFrame {
         var c = OrbContent.placeholder(diameter: s)
         c.style = style
         c.language = language
+        c.increaseContrast = increaseContrast
         c.lines = OrbLines(format: format, reading: OrbLineReading(content: content, shownAt: -.infinity, quietAt: 1e9,
-                                                                   thinking: thinking))
+                                                                   thinking: thinking, scoreMotion: scoreMotion))
         let geometry = OrbGeometry(diameter: s, canvasSide: s * 1.5)
         return OrbFrame(time: 100, dt: 0, geometry: geometry, content: c,
-                        effects: OrbEffects(level: .standard, reduceMotion: false, surface: .floating), heat: 0, overdrive: 0,
+                        effects: OrbEffects(level: .standard, reduceMotion: reduceMotion, surface: .floating), heat: 0, overdrive: 0,
                         rawHeat: 0, rawOverdrive: 0, displayHeat: 0, tier: .idle, redline: 400, tierChangedAt: -.infinity,
                         titleChangedAt: -.infinity, flash: 0, breath: 1, breathPhase: 0, redlineAmount: 0, activity: 0,
                         signOfLife: nil, peakAge: .infinity, alpha: 1)
     }
 
-    /// The readout's text pieces, grouped by baseline from top to bottom.
-    private static func lines(_ frame: OrbFrame, placement: OrbLinePlacement) -> [[Piece]] {
+    /// The readout's text pieces and proof marks (quads a few points tall), in drawing order.
+    static func pieces(_ frame: OrbFrame, placement: OrbLinePlacement) -> (text: [Piece], marks: [Piece]) {
         var scene = OrbScene(capacity: 32)
-        OrbLineReadout().add(into: &scene, frame, placement: placement, palette: .standard(dark: true, increaseContrast: false))
+        let palette = OrbLineReadout.Palette.standard(dark: true, increaseContrast: frame.content.increaseContrast)
+        OrbLineReadout().add(into: &scene, frame, placement: placement, palette: palette)
         let pieces = scene.texts.map { draw in
             let rect = draw.instance.rect
             let x = CGFloat(rect.x) + draw.texture.padding
             return Piece(x: x, right: x + draw.texture.advance, baseline: CGFloat(rect.y) + draw.texture.baseline,
-                         height: draw.texture.size.height, alpha: CGFloat(draw.instance.color.w))
+                         height: draw.texture.size.height, alpha: CGFloat(draw.instance.color.w), color: draw.instance.color,
+                         texture: draw.texture)
         }
+        return (pieces.filter { $0.height >= 5 }, pieces.filter { $0.height < 5 })
+    }
+
+    /// The readout's text pieces, grouped by baseline from top to bottom (proof marks left out).
+    static func lines(_ frame: OrbFrame, placement: OrbLinePlacement) -> [[Piece]] {
+        let pieces = pieces(frame, placement: placement).text
         var lines: [[Piece]] = []
         for piece in pieces.sorted(by: { $0.baseline < $1.baseline }) {
             if let last = lines.last?.first, abs(last.baseline - piece.baseline) < 0.01 {
@@ -272,14 +292,14 @@ struct OrbLineReadoutTests {
     @Test(.enabled(if: OrbGPU.shared != nil))
     func eachIntelligenceLineIsCentredOnItsOwnOnDevicePixels() throws {
         let cases: [(OrbStyleKind, AppLanguage, Int, String)] = [
-            (.led, .zhHant, 133, "412"), (.liquid, .zhHant, 88, "9.8"), (.reactor, .en, 125, "10"),
-            (.minimal, .ja, 125, "0"), (.needle, .zhHant, 133, "412"), (.needle, .en, 88, "0"),
+            (.led, .zhHant, 86, "412"), (.liquid, .zhHant, 9, "9.8"), (.reactor, .en, 100, "10"),
+            (.minimal, .ja, 72, "0"), (.needle, .zhHant, 86, "412"), (.needle, .en, 34, "0"),
         ]
         for (style, language, index, thinking) in cases {
             for s in [148, 196] as [CGFloat] {
                 let placement = OrbLinePlacement.of(style)
                 let frame = Self.frame(style, diameter: s, language: language, format: .intelligence,
-                                       .intelligence(index: index, thinking: thinking))
+                                       .intelligence(score: Self.live(index), thinking: thinking))
                 let lines = Self.lines(frame, placement: placement)
                 try #require(lines.count == 2)
                 let (intelligence, thinkingLine) = (lines[0], lines[1])
@@ -308,14 +328,15 @@ struct OrbLineReadoutTests {
     func aLineMovesOnlyWhenItsDigitCountChanges() throws {
         func left(_ index: Int, _ thinking: String) throws -> (CGFloat, CGFloat) {
             let frame = Self.frame(.led, diameter: 148, language: .zhHant, format: .intelligence,
-                                   .intelligence(index: index, thinking: thinking))
+                                   .intelligence(score: Self.live(index), thinking: thinking))
             let lines = Self.lines(frame, placement: .led)
             try #require(lines.count == 2)
             return (lines[0][0].x, lines[1][0].x)
         }
-        #expect(try left(125, "412") == left(133, "987"))
-        #expect(try left(88, "412").0 > left(125, "412").0)
-        #expect(try left(125, "9.8").1 > left(125, "412").1)
+        #expect(try left(86, "412") == left(34, "987"))
+        #expect(try left(9, "412").0 > left(86, "412").0)
+        #expect(try left(100, "412").0 < left(86, "412").0)
+        #expect(try left(86, "9.8").1 > left(86, "412").1)
     }
 
     /// A thinking line at `0` since `zeroAt`, seen at the frame's time (100).
@@ -331,7 +352,7 @@ struct OrbLineReadoutTests {
             for language in [AppLanguage.zhHant, .en] {
                 for s in [148, 196] as [CGFloat] {
                     let placement = OrbLinePlacement.of(style)
-                    let content = OrbLineContent.intelligence(index: 125, thinking: "0")
+                    let content = OrbLineContent.intelligence(score: Self.score(.resting, 100), thinking: "0")
                     // Within the hold both lines show, the zero included.
                     let holding = Self.lines(Self.frame(style, diameter: s, language: language, format: .intelligence, content,
                                                         thinking: Self.zero(since: 97.5)), placement: placement)
@@ -355,9 +376,9 @@ struct OrbLineReadoutTests {
         let placement = OrbLinePlacement.led
         // 0.1 s into the fade and the glide: thinking at 60 % of its ink, the glide at smoothstep(1/3).
         let frame = Self.frame(.led, diameter: 148, language: .zhHant, format: .intelligence,
-                               .intelligence(index: 125, thinking: "0"), thinking: Self.zero(since: 96.9))
+                               .intelligence(score: Self.live(86), thinking: "0"), thinking: Self.zero(since: 96.9))
         let steady = Self.frame(.led, diameter: 148, language: .zhHant, format: .intelligence,
-                                .intelligence(index: 125, thinking: "0"))
+                                .intelligence(score: Self.live(86), thinking: "0"))
         let lines = Self.lines(frame, placement: placement)
         let full = Self.lines(steady, placement: placement)
         try #require(lines.count == 2 && full.count == 2)
@@ -373,7 +394,7 @@ struct OrbLineReadoutTests {
     func hidingTheThinkingLineNeverChangesWhetherTheReadoutFits() {
         for style in [OrbStyleKind.reactor, .needle] {
             let frame = Self.frame(style, diameter: 112, language: .zhHant, format: .intelligence,
-                                   .intelligence(index: 125, thinking: "0"), thinking: Self.zero(since: 0))
+                                   .intelligence(score: Self.score(.resting, 72), thinking: "0"), thinking: Self.zero(since: 0))
             #expect(Self.lines(frame, placement: .of(style)).isEmpty)
         }
     }
@@ -382,7 +403,7 @@ struct OrbLineReadoutTests {
     func nothingIsDrawnWhereTheLinesDoNotFit() {
         for style in [OrbStyleKind.reactor, .needle] {
             let frame = Self.frame(style, diameter: 112, language: .zhHant, format: .intelligence,
-                                   .intelligence(index: 133, thinking: "412"))
+                                   .intelligence(score: Self.score(.live, 9, .unverified), thinking: "412"))
             #expect(Self.lines(frame, placement: .of(style)).isEmpty)
         }
     }
