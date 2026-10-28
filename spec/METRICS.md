@@ -8,8 +8,8 @@ shared fixtures in `spec/fixtures/`.
 
 | Term | Meaning |
 | --- | --- |
-| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build), `pi` (Pi Coding Agent). This is the append-only *source order*. |
-| Agent | One transcript file. Agent id = absolute file path. Sub-agents have their own files and are separate agents. (OpenCode: one per session row, 4.5; Antigravity: one per conversation database, 4.8.) |
+| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build), `pi` (Pi Coding Agent), `hermes` (Hermes Agent, Nous Research). This is the append-only *source order*. |
+| Agent | One transcript file. Agent id = absolute file path. Sub-agents have their own files and are separate agents. (OpenCode: one per session row, 4.5; Antigravity: one per conversation database, 4.8; Hermes Agent: one per session id of a log folder, 4.15.) |
 | Response | One model API call that produced a usage record. |
 | Phase | `generating` (a request is in flight), `tools` (model finished, waiting for tool results), `idle` |
 
@@ -33,6 +33,7 @@ responses (4.12); the speed engine still processes its normalized tokens and dur
 | Kimi Code CLI (TypeScript v2) | `$KIMI_CODE_HOME/sessions`, else `~/.kimi-code/sessions` | user setting (data directory or its `sessions` folder) |
 | Grok Build | `$GROK_HOME/sessions`, else `~/.grok/sessions` | user setting (data directory or its `sessions` folder) |
 | Pi (Pi Coding Agent: TUI, `-p`, RPC) | `<agent dir>/sessions` with `<agent dir>` = `$PI_CODING_AGENT_DIR`, else `~/.pi/agent`; plus Pi's own custom session folder when one is set: `sessionDir` of `<agent dir>/settings.json` and `$PI_CODING_AGENT_SESSION_DIR` (4.13) | user setting (one folder; replaces every automatic root) |
+| Hermes Agent (CLI, TUI, desktop app, messaging gateway, cron, ACP) | the log folders of the Hermes home: `<home>/logs` and `<home>/profiles/<name>/logs`, with `<home>` from `$HERMES_HOME` (4.15), else macOS `~/.hermes`, Windows `%LOCALAPPDATA%\hermes` | user setting (a Hermes home or one `logs` folder; replaces the automatic home) |
 
 `~` is `HOME` on macOS and `%USERPROFILE%` on Windows. Claude Code and Claude Desktop share one root; each file is
 assigned to a source by its `entrypoint` field (section 4.1). Ordinary Claude Desktop chat conversations are not stored
@@ -40,12 +41,12 @@ locally and are out of scope.
 
 Discovery: recursive enumeration of `*.jsonl` (Codex also `*.jsonl.zst`, 5.3; DeepSeek: `session.v<N>.jsonl.zstd` or `session.v<N>.jsonl`; Gemini CLI:
 fixed depths, see 4.6; omp and Pi: see 4.7 and 4.13; Antigravity: conversation databases, see 4.8; WorkBuddy: fixed
-depths, see 4.9),
+depths, see 4.9; Hermes Agent: `agent.log` and its rotated files, see 4.15),
 maximum depth 6, never follow symlinks, at most 20 000 files per root.
 A source is *detected* when its root (Antigravity: any store; WorkBuddy: the data folder) exists or it has data today;
 what an undetected source shows is DESIGN 2b (unavailable sources), 4 and 5.
 The app never writes inside these folders.
-For ZCode, Kimi Code CLI and Grok Build, the source's session count includes today's main sessions only;
+For ZCode, Kimi Code CLI, Grok Build and Hermes Agent, the source's session count includes today's main sessions only;
 subagents remain visible in the agent tree and ordinary forks remain separate sessions, as with WorkBuddy.
 
 ## 3. Common rules
@@ -96,6 +97,7 @@ Every response also carries `provider` (string or null): the API provider the ag
 `custom`). DeepSeek Harness: `data.message.source.provider`, else the latest `request/header` `config.provider`.
 OpenCode: `data.model.providerID`. omp: `message.provider` (assistant) or the entry's `provider` (`model_usage`).
 Pi: `message.provider` (assistant) or the entry's `provider` (`usage` entries).
+Hermes Agent: the `provider=` field of the API-call line (4.15; `unknown` counts as null).
 WorkBuddy: `custom` for a model of the user's own provider (`custom:` / `custom-local:` ids, 4.9). Every other
 source: null. Empty strings count as null.
 
@@ -1195,6 +1197,178 @@ history, known approximations — with the differences below. Evidence: `spec/re
 Approximations beyond omp's: side usage has no timing and, apart from `usage` entries, no model (it is unpriced);
 `responseModel` (the concrete model the provider reports) is not used, like omp's.
 
+### 4.15 Hermes Agent
+
+Hermes Agent (`NousResearch/hermes-agent`, MIT; Python, the AI agent, not the JavaScript engine of the same name) runs
+as a CLI and TUI, a desktop app, a messaging gateway, cron jobs and an ACP agent. It keeps no transcript with usage:
+its sessions database (`state.db`) has only cumulative per-session counters, and Agent Speed never opens it (a foreign
+reader defers Hermes's database maintenance). The source is Hermes's log, `logs/agent.log`, which has one line per
+model API call of the agent loop with that call's tokens and duration, tagged with the session id. Evidence:
+`spec/research/hermes.md`; fixtures: `spec/tools/hermes_fixtures.py` (`spec/fixtures/hermes`). Out of scope: Hermes on
+another computer (remote gateways, SSH backends), inside WSL, and homes inside containers that this computer does not
+see as folders.
+
+#### Roots and discovery
+
+- **Home** (section 2): `$HERMES_HOME` when it is set and not blank (a leading `~` is the home folder), else macOS
+  `~/.hermes`, Windows `%LOCALAPPDATA%\hermes` (`%USERPROFILE%\AppData\Local\hermes` without `LOCALAPPDATA`). Hermes
+  points `$HERMES_HOME` at a profile when it runs one, so a value that is the default home or lies inside it means the
+  default home, a value whose parent folder is named `profiles` means that parent's parent, and any other value is a
+  home of its own. The data-folder suffix of desktop channel builds (`$HERMES_DATA_DIR_SUFFIX`, baked into their bundle)
+  is not used.
+- **Log folders**: `<home>/logs` (the default profile), then `<home>/profiles/<name>/logs` for every folder `<name>`
+  of `<home>/profiles` that does not start with `.`, in ordinal order. Folders that do not exist are skipped; a path
+  listed twice is read once. The user setting names a Hermes home (a folder that has a `logs` folder: that home's log
+  folders as above) or one log folder (any other folder), and replaces the automatic home.
+- **Files**: regular files (never symlinks) directly in a log folder named exactly `agent.log` or `agent.log.<n>`
+  (`<n>` one or more ASCII digits): the live log and its rotated copies. Nothing else is read: `errors.log` repeats
+  the warnings, `gateway.log` and `gui.log` exclude the agent loop, `install.log`, lock files and compressed copies do
+  not match.
+- **Log sets**: each log folder is one *log set* with one parser state, shared by its files, in which every session
+  id is one agent: agent id = the log folder's absolute path + `#` + the session id (empty for lines without one).
+
+#### Lines
+
+Files are UTF-8 (an invalid byte sequence reads as U+FFFD), split at `\n` with one trailing `\r` removed; the line
+limit of section 4 applies. A *record line* is
+
+```
+YYYY-MM-DD HH:MM:SS,mmm LEVEL[ [<session id>]] <logger>: <message>
+```
+
+a 23-character timestamp (ASCII digits, the calendar and clock ranges of 3.1), a space, a level (`DEBUG`, `INFO`,
+`WARNING`, `ERROR`, `CRITICAL`), an optional session tag, a space, the logger name, `: ` and the message. Hermes writes
+the tag ` [<id>]` when the writing thread has a session context. For the loggers below, the text after the level is
+either ` <logger>: <message>` (no session; the id is empty) or ` [<id>] <logger>: <message>`, where `<id>` is the
+non-empty text up to the first occurrence of `] <logger>: `. Every other line (other loggers and messages, the
+continuation lines of multi-line messages, foreign text) is ignored and is not malformed.
+
+Only four kinds of record line are read:
+
+| Kind | Logger, level | Message |
+| --- | --- | --- |
+| turn start | `agent.turn_context`, `INFO` | matches `^conversation turn: session=[^ ]* model=(.*?) provider=[^ ]* platform=([^ ]*) history=-?[0-9]+ msg=` |
+| API call | `agent.conversation_loop`, `INFO` | starts with `API call #` (grammar below) |
+| turn end | `agent.conversation_loop`, `INFO` or `WARNING` | starts with `Turn ended: ` or `Turn ended with pending tool result` |
+| turn failed | `agent.conversation_loop`, `ERROR` | after an optional leading `[…]` group (the agent's log prefix, such as `[subagent-0]`) and spaces, starts with `API call failed after ` or `Non-retryable client error: ` |
+
+The turn-start message continues with a preview of the user's message (`msg=` and a Python `repr`); only the two
+groups of the pattern are read and nothing after `msg=` is ever looked at or kept. No other part of any line is kept
+either: tool lines, which quote tool output, are not read.
+
+**Time.** The timestamp is the wall clock of the writing process (Python's `time.localtime`, milliseconds truncated),
+without a zone. It is converted with the time-zone rules of this computer at the time of reading: a wall time that
+occurs once is that instant; one that occurs twice (the hour repeated when clocks go back) is the earlier instant; one
+that does not occur (the hour skipped when clocks go forward) is converted with the offset in force before the change,
+so `02:30` in a skip from `02:00` to `03:00` is `03:30` after it. This is Python's `datetime.timestamp()` of a naive
+local time with `fold = 0`. Fixtures name the zone they use (`timeZone`); implementations take the zone as a parameter
+so the fixtures can be checked anywhere.
+
+#### API-call lines
+
+The message must match, as a whole:
+
+```
+^API call #([0-9]+): model=(.*?) provider=([^ ]*) in=(-?[0-9]+|\?) out=(-?[0-9]+|\?) total=(-?[0-9]+|\?) latency=(-?[0-9]+(?:\.[0-9]+)?)s(?: cache=(-?[0-9]+)/-?[0-9]+ \(-?[0-9]+%\))?(?: write=(-?[0-9]+))?(?: .*)?$
+```
+
+(N, model, provider, in, out, total, latency, cache read, cache write). A message that starts with `API call #` and
+does not match is counted as malformed and otherwise ignored. Hermes appends ` id=…` and ` upstream=…` (which may
+contain spaces) and, for a response without usage, ` usage=unavailable`; these are not read.
+
+1. `key = "hermes:" + <session id> + ":" + N + ":" + <the 23-character timestamp text>` (N as written). The local
+   timestamp text keeps the key independent of the time zone; the session id, N and the time together identify one
+   call (N alone restarts when a gateway builds a new agent for a message). A key that was already seen, in any file,
+   is a copy (a failed tool can quote `agent.log`): the line is ignored — no response, no phase change — except for
+   `lastLineMs`. Repeats in the same file are ignored the same way.
+2. When `in` or `out` is `?` (the provider returned no usage), or input and output below are both 0 (ACP-backed
+   providers report zeros), there is no response.
+3. Otherwise emit a response: `endMs` = the line's time; `startMs = endMs − d`, where `d` = latency × 1000 computed
+   exactly from its decimal digits and truncated to whole milliseconds, when latency does not start with `-`, else
+   `startMs = null` (a wall-clock step); `final = true`; `model` = the model group (empty → null); `provider` = the
+   provider group (empty or `unknown` → null); tokens:
+
+   | Field | Value |
+   | --- | --- |
+   | `input` | `in` (Hermes's `prompt_tokens`: uncached input + cache read + cache write) |
+   | `cachedInput` | the cache read of ` cache=<read>/<prompt> (<p>%)`, else 0 |
+   | `cacheWriteInput` | ` write=<n>`, else 0 |
+   | `output` | `out` |
+   | `reasoning`, `cacheWrite1hInput` | 0 (not on the line) |
+
+   Values follow 3.2 (integers exact, negatives 0, capped at 10^12). `total` and the prompt and percentage of `cache=`
+   are not used.
+
+**Timing.** Hermes takes the request start once per loop iteration, before it builds the request and before its own
+retries, and computes `latency` when the response has been received and checked; the line is written a few
+milliseconds later. So the interval includes request building, time to first token, streaming and Hermes's in-call
+retries with their back-off, and `startMs` is exact to about ±50 ms (latency has one decimal). The valid-interval and
+minimum-duration rules of 3.3 apply as usual.
+
+#### Agents and phase
+
+State per agent: `phase` (starts `idle`), `inFlightStartMs`, `model`, `isSubagent`, `lastLineMs`. An agent exists
+from its first record line of the four kinds.
+
+| Line | Action |
+| --- | --- |
+| any of the four kinds | `lastLineMs` = the latest line time of the agent |
+| turn start | phase `generating`, `inFlightStartMs = ts`; `model` = the model group when not empty; `isSubagent` = the platform group is `subagent` |
+| API call (accepted, also without usage) | `model` = its model when not empty; when phase is `generating`, `inFlightStartMs = ts` (the next request, or the turn's end, follows) |
+| turn end, turn failed | phase `idle` |
+
+- An API call outside a turn (a plugin side question or `/btw`, which runs one request without a turn) changes no
+  phase. Background review and side-question turns reuse their session's id and count as its turns.
+- There is no `tools` phase: Hermes logs a tool only when it ends, and concurrent tools log from threads without a
+  session tag. Tool time therefore shows as `generating`.
+- `project` and `cwdPath` are null (the log names no working directory). `isSubagent` comes from the turn line
+  (`delegate_task` children run with platform `subagent`); `parentId` is null, since the log does not link a child to
+  its parent.
+- Effort and speed facts (EXECUTION-MODES): none; the log records neither.
+
+#### Reading and rotation
+
+- Startup reading order and the startup rule of section 5 apply per file; all files of a log set feed its one parser
+  state, so a turn that started in `agent.log.1` continues in `agent.log`.
+- Rotation renames files (`agent.log.2` → `agent.log.3`, `agent.log.1` → `agent.log.2`, `agent.log` →
+  `agent.log.1`, deleting the oldest) and starts a new `agent.log`. Files are therefore followed by identity (macOS:
+  device and inode; Windows: volume serial number and file index): a file whose identity was being read under
+  another path of the log set continues under its new path from the same offset — no reset, nothing read again — and
+  lines appended to it after the rename (another process that had not reopened yet) are read normally. The new
+  `agent.log` is a new identity and is read from offset 0. A file that shrinks keeps the rule of section 5 (read again
+  from offset 0); the dedupe set discards the responses already counted and the replayed lines end in the same phase.
+- Windows: Hermes renames the live log while other processes write to it, so a reader opens it with read, write and
+  delete sharing and does not keep it open between reads.
+- Settings (DESIGN 5) count today's main sessions: distinct session ids with a turn-start line today whose platform
+  is not `subagent`.
+
+#### Known approximations
+
+- No reasoning split: `reasoning` is 0, and `output` includes reasoning only where the provider counts it there (the
+  line carries Hermes's normalized output, as Hermes bills it).
+- Tool runs show as `generating`, and the in-flight estimate (6.3) runs during them; the first request of a turn is in
+  flight from the turn start.
+- Turns that end without an end line stay `generating` until the staleness rule (300 s): turns of the opt-in Codex
+  app-server runtime (`model.openai_runtime: codex_app_server`), whose model calls are Codex's own (counted under
+  `codex` from its rollouts; Hermes writes no API-call line for them), so the Hermes agent's in-flight estimate can
+  overlap the Codex agent's; preflight-compression timeouts; killed processes.
+- A side question counts for the session of the thread that ran it (another session, or the empty id).
+- Context compression gives a session a new id inside a turn; Hermes keeps logging the rest of the turn under the old
+  id, and the next turn appears as a new agent.
+- Calls Hermes does not log are not counted: auxiliary calls (titles, compression summaries, vision, web extraction,
+  memory), responses refused by a content filter, and truncated or invalid responses that Hermes retries. Hermes's own
+  totals miss the auxiliary calls too.
+- Mixture-of-agents presets fold their advisors' tokens into the aggregator's line; the model is the preset's name and
+  the provider `moa`, so these responses are unpriced (9.2).
+- Rotation deletes old lines (default 5 MB × 3 backups): daily history keeps what was read before (section 8), and
+  lines rotated away before the first read are lost. With `logging.level` above `INFO` nothing is logged.
+- A log written in another time zone (a container with `TZ=UTC` writing into this computer's Hermes home) is
+  misplaced by the difference.
+- Derived from the Hermes source (main `9b904dcc22c2`, after v0.22.5; evidence in `spec/research/hermes.md`); not yet
+  verified against real logs. Verification target: per session, the sums of `input` and `output` equal `state.db`'s
+  `sessions` counters (`input_tokens + cache_read_tokens + cache_write_tokens`, `output_tokens`) for sessions without
+  Codex-runtime turns, and each response's `endMs − startMs` equals Hermes's own `latency`.
+
 ## 5. Reading files
 
 - Startup reading order (it decides which file owns a duplicated key): files sorted by modification time ascending,
@@ -1209,6 +1383,7 @@ Approximations beyond omp's: side usage has no timing and, apart from `usage` en
   skips the bytes before the first newline it reads only when the byte just before its start offset is not a newline
   (so a complete line appended later is never dropped). The 256 MiB tail rule always skips to the next newline.
 - If a file shrinks or its identity changes, reset its offset and its parser state (keep the global dedupe set).
+  Hermes Agent logs follow a renamed file instead and share one parser state per log folder (4.15).
 - Reading never blocks the UI thread. Steady-state CPU target: < 1% on an idle machine.
 
 Responses produced while reading the startup backlog are *seeded*: they count toward totals, peaks and agent speed
@@ -1502,7 +1677,7 @@ plain text, prompts or content.
 
 Scope: every discovered file of every enabled source with no date filter and no file-count limit (Codex `.jsonl.zst`,
 all Gemini roots with legacy `.json`, every omp root including profiles, every Antigravity conversation database
-of every store and both WorkBuddy roots included), plus Codex `archived_sessions` (the sibling of the sessions root) and the whole OpenCode
+of every store, both WorkBuddy roots and the rotated logs of every Hermes Agent profile included), plus Codex `archived_sessions` (the sibling of the sessions root) and the whole OpenCode
 database. Parsing uses exactly the rules of section 4 (same state machines, dedupe, copied-history rules) over whole
 files and complete database reads, in startup order (5; an Antigravity database's time is the newer of its `.db` and
 `-wal`, 5.4).
@@ -1523,8 +1698,10 @@ Incremental cache: for each file keep its identity (path, size, modification tim
 the size and modification time of its `-wal`), the 64-bit FNV-1a hashes of the
 response keys it owns, and its per-day contributions. On launch and periodically (every 10 minutes and at midnight),
 unchanged files reuse their contributions; new or changed files are re-parsed completely, skipping keys owned by any
-other file (ownership follows startup order); files that no longer exist keep their contributions. Daily totals are
-the sums over files. The history store is versioned: a parser change bumps the version and triggers a full
+other file (ownership follows startup order); files that no longer exist keep their contributions. Hermes Agent
+logs (4.15) are cached by file identity instead of path: a rotation renames a log without changing it, so it keeps its
+contributions and keys under its new name, and the oldest log, which rotation deletes, keeps its contributions like any
+deleted file. Daily totals are the sums over files. The history store is versioned: a parser change bumps the version and triggers a full
 recomputation that keeps previously stored days for which no logs exist any more (analysis version 6: the Codex
 ordinal rule of 3.5). "Clear history" (settings) deletes
 the store and recomputes from the current logs.
@@ -1861,8 +2038,10 @@ date is needed.
 
 The app keeps a **process table** of the current user's processes (on Windows: of the app's session), refreshed on the
 ticks 10.10 gives: pid, parent pid, start time,
-executable path and, only for script hosts (`node`, `bun`, `deno`, with or without `.exe`) and WorkBuddy's
-executables (below), the argument list; on macOS, for WorkBuddy, also the bundle id of the app whose `Contents/MacOS`
+executable path and, only for script hosts (`node`, `bun`, `deno`, with or without `.exe`), Python hosts (`python`,
+`pythonw`, or `python` followed by digits and dots such as `python3` and `python3.14`, compared case-insensitively on
+both platforms because macOS framework builds run `Python`; with or without `.exe`) and WorkBuddy's executables
+(below), the argument list; on macOS, for WorkBuddy, also the bundle id of the app whose `Contents/MacOS`
 holds the executable (`CFBundleIdentifier` of its `Contents/Info.plist`, read once per app path).
 macOS: `proc_listallpids`, `proc_pidinfo(PROC_PIDTBSDINFO)`, `proc_pidpath`, `sysctl(KERN_PROCARGS2)`. Windows: one
 `NtQuerySystemInformation(SystemSessionProcessInformation)` listing of the session (pid, parent pid, create time; no
@@ -1893,6 +2072,7 @@ desktop app that runs its agent on its own executable, so its row needs the argu
 | `antigravity` | `name == agy`, or `name` starts with `language_server_` (the Antigravity language server, started by the CLI, the desktop app and the IDE with `--app_data_dir`). |
 | `workbuddy`, `workbuddyAi` | The embedded CodeBuddy Code CLI, which makes the model calls itself: an executable of the edition — macOS: in the app with bundle id `com.tencent.workbuddy.mac` (WorkBuddy) or `com.workbuddy.workbuddy-ai` (WorkBuddy AI), whose main executable is named `Electron`; Windows: `name` `WorkBuddy` or `WorkBuddyAI` — whose arguments after the first contain a path with `/app.asar.unpacked/cli/` (the CLI entry `…/app.asar.unpacked/cli/bin/codebuddy`, run with `ELECTRON_RUN_AS_NODE`). Observed in the 5.8 code: pooled `--prewarm` processes that later serve one conversation each (`--serve --session-id <id>`; the command line does not change when one is taken from the pool), cold `--serve` starts, and the fallback `--acp` with first argument `wb-acp:<id>`. Not verified with a running app; the Windows install folder is unknown, so only the name is used. |
 | `pi` | `name == pi` (release binaries), or a script host whose arguments contain `/@earendil-works/pi-coding-agent/` or `/@mariozechner/pi-coding-agent/` (npm, and the installers' `<agent dir>/install/releases/<version>/node_modules/…`, started by the `<agent dir>/bin/pi` launcher). |
+| `hermes` | A Python host whose arguments after the first contain `hermes_bootstrap`, `hermes_cli` or `acp_adapter` (Hermes's launchers run `python -I -c "…import hermes_bootstrap…"`; the desktop app, the TUI's local gateway and the gateway services run `-m hermes_cli.main` or the same bootstrap; source checkouts `hermes_cli/main.py`), or one with an argument whose file name without `.exe` is `hermes`, `hermes-agent` or `hermes-acp` (pip and uv console scripts `bin/hermes`, `Scripts\hermes.exe`, and Hermes's Windows launcher `.hermes\bin\hermes.exe`, which runs Python on its own path). The Python process sends Hermes's model requests; a launcher process sends nothing and is not a row, since `hermes` is also the name of the Hermes JavaScript engine's command-line tool. Not verified with a running Hermes. |
 
 The desktop apps' own processes are **not** agent processes, nor are their Electron or Tauri helpers: macOS
 `/Applications/{Claude,ChatGPT,Codex,OpenCode,Antigravity}.app/Contents/MacOS/<name>`; Windows executables directly in

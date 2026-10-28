@@ -295,12 +295,20 @@ White-hot core for highlights: `#FFF7D6`. With overdrive `o > 0`, highlights ble
 | Kimi Code CLI | `#E16F8A` rose |
 | Grok Build | `#8290A6` steel |
 | Pi | `#A855F7` violet |
+| Hermes Agent | `#B8860B` dark goldenrod |
 
 Pink is `#EC4899`, not the lighter `#F472B6` (too close to coral and lilac); lime is `#84CC16`, not the lighter `#A3E635`, which nearly vanishes on light backgrounds.
 
 Pi takes violet `#A855F7`: Pi's own mark is monochrome, and violet is at least 0.13 (OKLab) from every other source
 color (closest: DeepSeek blue 0.139, ZCode cobalt 0.146, lilac 0.18), while the colors near omp's lime, its fork, are
 taken by Codex, WorkBuddy and omp itself.
+
+Hermes Agent takes dark goldenrod `#B8860B`, a darker member of the gold of Nous Research's Hermes site (`#FFD700`,
+light theme `#8B6508`). The bright gold is 0.10 (OKLab) from OpenCode's amber; dark goldenrod is at least 0.14 from
+every other source color, including OpenClaw's `#DE2E1F` (0.18), and from the slate `#7C8798` (closest: Claude Code
+coral 0.148, amber 0.153, slate 0.164) and reads on both appearances (contrast against `#1E1E1E`: 5.1; against white:
+3.3). Like every source it has no icon and no short name: its dot and `source.hermes` "Hermes Agent", in source order
+(METRICS 1) after Pi (after OpenClaw once both are merged).
 
 The two WorkBuddy editions share one app icon, teal-green (`#0EC8A8` → `#05C890`), which is nearly Codex mint (OKLab
 distance about 0.04; the closest existing pair, coral and amber, is 0.11 apart). So both take a darker member of that teal family,
@@ -1595,6 +1603,7 @@ rows, section 10); the file name is `agent-speed-history-<code>-<first date>-<la
 | `kimi` | `kimi` |
 | `grokBuild` | `grokBuild` |
 | `pi` | `pi` |
+| `hermes` | `hermes` |
 
 Empty state (the range has neither token usage nor agent traffic, section 10): centered muted gauge glyph,
 `history.empty` and `history.empty.hint`. First launch after upgrading:
@@ -2013,6 +2022,11 @@ with Mica). Sections:
     session files of every automatic root (`source.sessions`; sub-agent files are not sessions), Change… picks one
     folder and replaces the automatic roots (`mac.settings.sources.choosePi` on macOS), Reset returns to them.
     Caption `settings.sources.piHint`. An omp folder that is Pi's (METRICS 4.7) is counted under Pi only.
+  - Hermes Agent: one row after Pi. The path is the Hermes home (`~/.hermes`, Windows `%LOCALAPPDATA%\hermes`; METRICS 2,
+    4.15); the status counts today's main sessions (`source.sessions`; sub-agent sessions are not counted). Change…
+    picks a Hermes home or one `logs` folder and replaces the automatic home (`mac.settings.sources.chooseHermes` on
+    macOS); Reset returns to it. A home without logs (installed, never run) shows `source.sessions` with 0. Caption
+    `settings.sources.hermesHint`, which also says that turns of Hermes's Codex runtime count under Codex.
   - Antigravity: one row. The path lists the stores found (`~/.gemini/antigravity-cli`, `antigravity`,
     `antigravity-ide`); the status counts conversation databases (`source.sessions`). Change… picks one store folder
     (or its `conversations` folder) and replaces all three; Reset returns to them. A chosen `*-backup` store is never

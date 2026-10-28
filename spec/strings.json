@@ -4806,6 +4806,12 @@
     "en": "Pi",
     "ja": "Pi"
   },
+  "source.hermes": {
+    "zh-Hant": "Hermes Agent",
+    "zh-Hans": "Hermes Agent",
+    "en": "Hermes Agent",
+    "ja": "Hermes Agent"
+  },
   "settings.sources.zcodeHint": {
     "zh-Hant": "讀取 ZCode 的本機工作階段資料庫；可選擇資料目錄或包含 db.sqlite 的資料夾。",
     "zh-Hans": "读取 ZCode 的本地会话数据库；可选择数据目录或包含 db.sqlite 的文件夹。",
@@ -4829,6 +4835,12 @@
     "zh-Hans": "Pi（Pi Coding Agent）的 sessions 文件夹，通常是 ~/.pi/agent/sessions。未选择文件夹时，也会读取 Pi 设置里的自定义会话文件夹。",
     "en": "The sessions folder of Pi (Pi Coding Agent), usually ~/.pi/agent/sessions. Unless you choose a folder, the custom session folder in Pi's settings is included too.",
     "ja": "Pi（Pi Coding Agent）の sessions フォルダです。通常は ~/.pi/agent/sessions です。フォルダを選ばない場合は、Pi の設定にあるカスタムのセッションフォルダも読み込みます。"
+  },
+  "settings.sources.hermesHint": {
+    "zh-Hant": "讀取 Hermes Agent 的 logs/agent.log 裡每次模型呼叫的紀錄，包含輪替後的舊檔與每個設定檔（profile），通常位於 ~/.hermes（Windows 為 %LOCALAPPDATA%\\hermes）。交給 Codex 執行環境的對話回合計入 Codex。",
+    "zh-Hans": "读取 Hermes Agent 的 logs/agent.log 中每次模型调用的记录，包括轮转后的旧文件和每个配置文件（profile），通常位于 ~/.hermes（Windows 为 %LOCALAPPDATA%\\hermes）。交给 Codex 运行时的对话轮次计入 Codex。",
+    "en": "Reads the model-call records in Hermes Agent's logs/agent.log, including rotated files and every profile, usually under ~/.hermes (Windows: %LOCALAPPDATA%\\hermes). Turns Hermes hands to its Codex runtime count under Codex.",
+    "ja": "Hermes Agent の logs/agent.log にあるモデル呼び出しの記録を読み取ります。ローテーション済みのファイルとすべてのプロファイルを含み、通常は ~/.hermes（Windows では %LOCALAPPDATA%\\hermes）にあります。Codex ランタイムに渡したターンは Codex に計上されます。"
   },
   "mode.label": {
     "zh-Hant": "執行模式",
