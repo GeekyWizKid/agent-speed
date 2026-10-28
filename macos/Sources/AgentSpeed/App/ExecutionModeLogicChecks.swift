@@ -11,12 +11,10 @@ enum ExecutionModeLogicChecks {
         let fastXhigh = capsule("xhigh", tier: "fast")
         let ultracode = capsule("ultracode")
         let future = capsule("warp-2")
-        let mixed = SharedEffortCapsule(agents: [agent("a", .generating, "xhigh"), agent("b", .generating, "max"), agent("c", .idle, nil)])
-        let generatingOnly = SharedEffortCapsule(agents: [agent("a", .generating, "max"), agent("b", .idle, "low")])
         let column = AgentCapsuleColumn(rows: [(ultracode, 2), (fastXhigh, 0)], rowWidth: 328, intelligence: 24)
         let narrow = AgentCapsuleColumn(rows: [(ultracode, 2), (fastXhigh, 0)], rowWidth: 200, intelligence: 24)
         return [
-            ("modes: missing shows no capsule", !EffortCapsule(.empty).isVisible && SharedEffortCapsule(agents: [agent("a", .idle, nil)]) == nil),
+            ("modes: missing shows no capsule", !EffortCapsule(.empty).isVisible),
             ("modes: configured is not a task mode", EffortCapsule(ExecutionModes([configured])) == EffortCapsule(effort: nil, speed: nil)),
             ("modes: a standard speed draws nothing", !EffortCapsule(ExecutionModes([standard])).isVisible),
             ("modes: xhigh lights four bars with one bolt", fastXhigh.level == 4 && fastXhigh.bolts == 1 && fastXhigh.isVisible),
@@ -27,8 +25,6 @@ enum ExecutionModeLogicChecks {
             ("modes: tooltip spells speed through speed.value",
              fastXhigh.tooltipLines(l10n).prefix(2) == [l10n("effort.tooltip", "xhigh"), l10n("speed.tooltip", l10n("speed.value.fast"))]),
             ("modes: unknown values read as unrecorded", capsule(nil, tier: "fast").tooltipLines(l10n).first == l10n("effort.tooltip", l10n("modes.unrecorded"))),
-            ("modes: differing agents are mixed", mixed == .mixed),
-            ("modes: generating agents decide the orb row", generatingOnly == .capsule(EffortCapsule(effort: "max", speed: nil))),
             ("modes: the column fits the widest capsule", !column.compact && column.width == ultracode.width(compact: false)),
             ("modes: a narrow list drops every word", narrow.compact && narrow.width < column.width && !ultracode.showsWord(compact: true)),
             ("modes: no capsule takes no column", AgentCapsuleColumn(rows: [(EffortCapsule(.empty), 0)], rowWidth: 328, intelligence: 24).width == 0),
@@ -48,12 +44,5 @@ enum ExecutionModeLogicChecks {
 
     private static func capsule(_ effort: String?, tier: String? = nil) -> EffortCapsule {
         EffortCapsule(modes(effort, tier: tier))
-    }
-
-    private static func agent(_ id: String, _ phase: AgentPhase, _ effort: String?) -> AgentStatus {
-        var agent = AgentStatus(id: id, source: .claudeCode, project: id, model: nil, phase: phase, isSubagent: false,
-                                live: Rate(output: 0, total: 0), recentSpeed: nil, lastActivity: Date(), parentId: nil)
-        agent.modes = modes(effort)
-        return agent
     }
 }

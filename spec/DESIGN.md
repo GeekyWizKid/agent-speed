@@ -1195,10 +1195,9 @@ edge. Windows (this menu and the tray quick menu): every label starts in one tex
 icon (icons sit in a fixed leading column), and toggle items show their check mark trailing, right-aligned in the same
 column as submenu chevrons, so checked and unchecked items never shift the text:
 
-1. Header (disabled): the orb's colour dots and name. Under it, when known, a disabled row with the effort capsule
-   (section 4, Agents) of the orb's agents that are generating (all its agents when none is): their shared effort and
-   speed when they agree, `mode.mixed` in secondary text when they differ; the row is omitted when nothing is known.
-   The orb's hover info line never mentions modes.
+1. Header (disabled): the orb's colour dots and name, followed directly by the separator. The menu shows no effort
+   capsule or mode row (user's choice, 2026-10-28); agents' effort and speed stay on the dashboard's agent rows
+   (section 4, Agents), boards and history. The orb's hover info line never mentions modes either.
 2. `orbs.style` ▸ the five style names, check on the current one.
 3. `orbs.sources` ▸ `orbs.sources.all`, separator, every source in source order with its colour dot and a check when
    tracked; unavailable ones show their status in secondary text and stay selectable. Unchecking the last tracked source

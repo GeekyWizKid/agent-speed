@@ -376,7 +376,6 @@ enum StringTable {
         "mode.kind.serviceTier": Entry("服務加速", "服务加速", "Service tier", "サービス階層"),
         "mode.kind.workflow": Entry("工作流程", "工作流程", "Workflow", "ワークフロー"),
         "mode.label": Entry("執行模式", "执行模式", "Execution mode", "実行モード"),
-        "mode.mixed": Entry("多種模式", "多种模式", "Mixed modes", "複数のモード"),
         "mode.unknown": Entry("未提供", "未提供", "Not provided", "未提供"),
         "mode.value.auto": Entry("自動", "自动", "Auto", "自動"),
         "mode.value.balanced": Entry("均衡", "均衡", "Balanced", "バランス"),

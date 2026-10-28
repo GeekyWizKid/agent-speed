@@ -19,7 +19,6 @@ enum OrbMenus {
         header.image = dotsImage(orbs.dots(of: id))
         header.isEnabled = false
         menu.addItem(header)
-        if let capsule = capsuleItem(model: model, orb: orb) { menu.addItem(capsule) }
         menu.addItem(.separator())
         menu.addItem(styleItem(model: model, orb: orb))
         menu.addItem(sourcesItem(model: model, orb: orb))
@@ -75,19 +74,6 @@ enum OrbMenus {
         menu.addItem(ActionMenuItem(l10n("menu.dashboard")) { [weak model] in model?.commands?.showDashboard() })
         menu.addItem(MenuFactory.quitItem(model: model))
         return menu
-    }
-
-    /// The effort capsule of the orb's agents under the header; none when nothing is known.
-    private static func capsuleItem(model: AppModel, orb: OrbConfig) -> NSMenuItem? {
-        guard let shared = SharedEffortCapsule(agents: model.snapshot.agents.filter { orb.sources.tracks($0.source) }) else {
-            return nil
-        }
-        return EffortCapsuleMenuRow.menuItem(
-            shared,
-            l10n: model.l10n,
-            reduceMotion: model.accessibility.reduceMotion,
-            shimmers: model.effectsLevel != .off
-        )
     }
 
     private static func styleItem(model: AppModel, orb: OrbConfig) -> NSMenuItem {

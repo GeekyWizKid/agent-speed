@@ -62,7 +62,7 @@ public sealed class ExecutionModePresentationTests
             var loc = new Localizer(Localizer.LoadEmbeddedTable(), language);
             foreach (var key in new[]
                      {
-                         "mode.exportCsv", "mode.mixed", "effort.label", "effort.tooltip", "effort.ultra.detail", "effort.ultracode.detail",
+                         "mode.exportCsv", "effort.label", "effort.tooltip", "effort.ultra.detail", "effort.ultracode.detail",
                          "speed.label", "speed.tooltip", "speed.value.standard", "modes.unrecorded", "modes.history.title",
                          "modes.history.empty", "profile.title",
                      })

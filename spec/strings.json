@@ -5058,12 +5058,6 @@
     "en": "Not provided",
     "ja": "未提供"
   },
-  "mode.mixed": {
-    "zh-Hant": "多種模式",
-    "zh-Hans": "多种模式",
-    "en": "Mixed modes",
-    "ja": "複数のモード"
-  },
   "mode.evidence.configured": {
     "zh-Hant": "設定預設",
     "zh-Hans": "配置默认",
