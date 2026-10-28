@@ -14,6 +14,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import antigravity_fixtures  # noqa: E402
 import gemini_fixtures  # noqa: E402
+import hermes_fixtures  # noqa: E402
 import omp_fixtures  # noqa: E402
 import pi_fixtures  # noqa: E402
 import workbuddy_fixtures  # noqa: E402
@@ -665,6 +666,11 @@ order += pi["order"]
 files.update(pi["files"])
 mtimes.update(pi["mtimes"])
 
+# --- Hermes Agent: log folders, one parser state per folder ------------------------
+hermes = hermes_fixtures.write_fixtures(ROOT)
+assert min(hermes["mtimes"].values()) > max(mtimes.values())
+mtimes.update(hermes["mtimes"])
+
 with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the "
                            "Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this "
@@ -681,7 +687,9 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                            "discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the "
                            "folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom "
                            "session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both "
-                           "roots; its `traces` work like the omp ones.",
+                           "roots; its `traces` work like the omp ones. Hermes Agent: see `hermes._comment`; its log "
+                           "files are not in `order` (one parser state per log folder) but their modification times "
+                           "are in `mtimes`.",
                "order": order, "files": files, "mtimes": mtimes,
                "opencode": {"database": opencode_rel, "agents": opencode_expected},
                "gemini": {"discover": gemini["discover"], "traces": gemini["traces"]},
@@ -689,7 +697,8 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                "antigravity": {"order": antigravity["order"], "discover": antigravity["discover"],
                                "databases": antigravity["databases"]},
                "workbuddy": {"discover": workbuddy["discover"], "traces": workbuddy["traces"]},
-               "pi": {"discover": pi["discover"], "traces": pi["traces"]}},
+               "pi": {"discover": pi["discover"], "traces": pi["traces"]},
+               "hermes": hermes},
               f, indent=2, ensure_ascii=False)
     f.write("\n")
 

@@ -1210,7 +1210,8 @@ see as folders.
 
 #### Roots and discovery
 
-- **Home** (section 2): `$HERMES_HOME` when it is set and not blank (a leading `~` is the home folder), else macOS
+- **Home** (section 2): `$HERMES_HOME` when it is set, not blank and, after a leading `~` is replaced by the home
+  folder, an absolute path; else macOS
   `~/.hermes`, Windows `%LOCALAPPDATA%\hermes` (`%USERPROFILE%\AppData\Local\hermes` without `LOCALAPPDATA`). Hermes
   points `$HERMES_HOME` at a profile when it runs one, so a value that is the default home or lies inside it means the
   default home, a value whose parent folder is named `profiles` means that parent's parent, and any other value is a
@@ -1236,7 +1237,8 @@ limit of section 4 applies. A *record line* is
 YYYY-MM-DD HH:MM:SS,mmm LEVEL[ [<session id>]] <logger>: <message>
 ```
 
-a 23-character timestamp (ASCII digits, the calendar and clock ranges of 3.1), a space, a level (`DEBUG`, `INFO`,
+a 23-character timestamp (ASCII digits, the calendar and clock ranges of 3.1 with years 1970–9999; anything else
+is not a record line), a space, a level (`DEBUG`, `INFO`,
 `WARNING`, `ERROR`, `CRITICAL`), an optional session tag, a space, the logger name, `: ` and the message. Hermes writes
 the tag ` [<id>]` when the writing thread has a session context. For the loggers below, the text after the level is
 either ` <logger>: <message>` (no session; the id is empty) or ` [<id>] <logger>: <message>`, where `<id>` is the
