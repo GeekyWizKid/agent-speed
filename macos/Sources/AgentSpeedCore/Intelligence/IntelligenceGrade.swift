@@ -67,8 +67,14 @@ struct IntelligenceGrader {
         grade(model: record.model, provider: record.provider, effort: record.modes.effortToken)
     }
 
+    /// The weight of the agent's in-flight estimate: an unknown model weighs as the standard class.
     func grade(of agent: EngineAgent) -> IntelligenceGrade {
         grade(model: agent.model, provider: agentProviders[agent.id], effort: agent.modes.effortToken)
+    }
+
+    /// The agent's own grade, nil while its current model is unknown (METRICS 6.9, Agent intelligence).
+    func ownGrade(of agent: EngineAgent) -> IntelligenceGrade? {
+        agent.model?.isEmpty == false ? grade(of: agent) : nil
     }
 }
 

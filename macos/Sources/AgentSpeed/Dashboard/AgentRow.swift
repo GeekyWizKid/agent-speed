@@ -90,7 +90,7 @@ struct AgentRow: View {
         .padding(.leading, CGFloat(depth) * DashboardLayout.subagentIndent)
         .contentShape(Rectangle())
         .help(([looping, traffic.map { "\(project) · \(status)\n" + l10n("traffic.agent.tooltip", TrafficText(model: model).pair($0)) }
-            ?? "\(project) · \(status)"] + modeLines + [AgentSignalText.grade(agent.grade, l10n)]
+            ?? "\(project) · \(status)"] + modeLines + [agent.grade.map { AgentSignalText.grade($0, l10n) }]
             + AgentSignalText.closing(agent.signals, l10n)).compactMap { $0 }.joined(separator: "\n"))
         .accessibilityElement(children: .ignore)
         // The label ends with the capsule's effort and speed lines (DESIGN 4, Agents).

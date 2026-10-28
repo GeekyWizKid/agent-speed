@@ -143,6 +143,8 @@ struct LiveWindow: Sendable {
     /// METRICS 6.9, per second like the rates.
     private(set) var intelligence = IntelligenceSums.zero
     private(set) var intelligenceBySource: [SourceKind: IntelligenceSums] = [:]
+    /// Each agent's own contributions (METRICS 6.9, Agent intelligence); they add up to `intelligence`.
+    private(set) var intelligenceByAgent: [String: IntelligenceSums] = [:]
 
     /// `latestEnds` holds the latest end of any stored response per agent; an estimate starts no earlier, so a
     /// response that is still being written is never counted twice.
@@ -167,6 +169,12 @@ struct LiveWindow: Sendable {
         var sourceCost: [SourceKind: LiveCost] = [:]
         var agentCost: [String: LiveCost] = [:]
         var sourceIntelligence: [SourceKind: IntelligenceSums] = [:]
+        var agentIntelligence: [String: IntelligenceSums] = [:]
+
+        func addIntelligence(output: Double, reasoning: Double, grade: IntelligenceGrade, source: SourceKind, agentId: String) {
+            sourceIntelligence[source, default: .zero].add(output: output, reasoning: reasoning, grade: grade, from: source)
+            agentIntelligence[agentId, default: .zero].add(output: output, reasoning: reasoning, grade: grade, from: source)
+        }
 
         for response in measuredResponses {
             let overlap = ResponseTiming.overlap(windowStart, nowMs, response.startMs, response.endMs)
@@ -176,9 +184,9 @@ struct LiveWindow: Sendable {
             measured.add(tokens)
             sourceTokens[response.record.source, default: .zero].add(tokens)
             agentTokens[response.record.agentId, default: .zero].add(tokens)
-            sourceIntelligence[response.record.source, default: .zero].add(
+            addIntelligence(
                 output: tokens.output, reasoning: response.reasoning * share, grade: grader.grade(of: response.record),
-                from: response.record.source
+                source: response.record.source, agentId: response.record.agentId
             )
             if let microUsd = response.record.costMicroUsd {
                 let known = LiveCost(microUsdPerSecond: Double(microUsd) * share, knownOutput: tokens.output)
@@ -197,9 +205,9 @@ struct LiveWindow: Sendable {
             sourceTokens[estimate.source, default: .zero].add(tokens)
             estimatedSourceTokens[estimate.source, default: .zero].add(tokens)
             agentTokens[estimate.agentId, default: .zero].add(tokens)
-            sourceIntelligence[estimate.source, default: .zero].add(
+            addIntelligence(
                 output: tokens.output, reasoning: tokens.output * estimate.reference.reasoningShare, grade: estimate.grade,
-                from: estimate.source
+                source: estimate.source, agentId: estimate.agentId
             )
             if let costRate = estimate.reference.costRate {
                 let known = LiveCost(microUsdPerSecond: costRate * overlap, knownOutput: tokens.output)
@@ -243,6 +251,7 @@ struct LiveWindow: Sendable {
         }
         cost = perSecond(all)
         intelligenceBySource = sourceIntelligence.mapValues { $0.scaled(by: 1 / seconds) }
+        intelligenceByAgent = agentIntelligence.mapValues { $0.scaled(by: 1 / seconds) }
         for kind in SourceKind.allCases {
             if let value = intelligenceBySource[kind] { intelligence.add(value) }
         }

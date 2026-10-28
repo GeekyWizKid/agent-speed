@@ -116,8 +116,10 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
     public var liveCost: LiveCost
     /// The full working directory the transcript names (METRICS 10.6); nil when it names none.
     public var cwdPath: String?
-    /// The grade of its current model and effort (METRICS 6.9).
-    public var grade: IntelligenceGrade
+    /// The grade of its current model and effort (METRICS 6.9); nil while its model is unknown.
+    public var grade: IntelligenceGrade?
+    /// Its own live intelligence sums (METRICS 6.9, Agent intelligence).
+    public var intelligence: IntelligenceSums
     /// What its recent tool calls say (METRICS 6.10).
     public var signals: WorkSignals
 
@@ -135,7 +137,8 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
         liveCost: LiveCost = .zero,
         cwdPath: String? = nil,
         modes: ExecutionModes = .empty,
-        grade: IntelligenceGrade = .unknown,
+        grade: IntelligenceGrade? = nil,
+        intelligence: IntelligenceSums = .zero,
         signals: WorkSignals = .none
     ) {
         self.id = id
@@ -152,8 +155,12 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
         self.liveCost = liveCost
         self.cwdPath = cwdPath
         self.grade = grade
+        self.intelligence = intelligence
         self.signals = signals
     }
+
+    /// Live, resting or none (METRICS 6.9, Agent intelligence).
+    public var intelligenceForm: AgentIntelligence { AgentIntelligence(intelligence, grade: grade) }
 }
 
 public struct SourceStatus: Identifiable, Equatable, Sendable {
