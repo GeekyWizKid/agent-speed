@@ -2551,18 +2551,38 @@ bottom edge (pretty but unreadable without hovering).
 With `traffic` = `"intelligence"` the same two lines show the live intelligence of the orb's sources (METRICS 6.9)
 instead of network speed. It needs neither the traffic switch nor the Windows helper, so it is never unavailable.
 
-- **Form**: the network readout's table, unchanged in every style, size, placement, gap, centering, color and frame
-  rule. The line nearest the value (`↑` in `led`, `liquid`, `reactor`, `minimal`; `↓` in `needle`) is the
-  **intelligence** line, the other the **thinking** line:
+- **Form** (user's choice, 2026-10-28): two lines, each **centred on the orb on its own**, the intelligence line
+  on top and larger, the thinking line below it and smaller, like a gauge's main and sub reading. Order and sizes are
+  the same in every style; the network readout's placement, text size `t`, quiet rule, colors and frame rule apply.
 
-  | Line | Glyph cell | Number cell | Unit cell |
-  | --- | --- | --- | --- |
-  | intelligence | `intel.glyph` (智 / 智 / IQ / 知) | integer, `888` cell | — |
-  | thinking | `intel.thinking.glyph` (思 / 思 / TH / 思) | `liveThinking` formatted as METRICS 7, `8.88` cell | `tok/s` in the `MB/s` cell |
+  | Line | Size | Content (left to right) |
+  | --- | --- | --- |
+  | intelligence | `p = 1.25 t` | `intel.glyph` (智力 / 智力 / IQ / 知) · gap 0.20 p · integer |
+  | thinking | `t` | `intel.thinking.glyph` (思考 / 思考 / TH / 思考) · gap 0.16 t · `liveThinking` formatted as METRICS 7 · gap 0.16 t · `tok/s` (not in `needle`) |
 
-  The glyph is text (weight 600, 0.82 t, the unit token's color), centred in the arrow's cell and widened to its own
-  advance; the number keeps the network readout's weight, cell alignment and color, so switching modes moves nothing.
-  When `intelligence` has no value (nothing generated in the window) both lines are quiet (below).
+  - Glyphs: text, weight 600, 0.82 × the line's size, the unit token's color. Numbers: weight 600, tabular digits,
+    the line's size, the number color. `tok/s`: weight 500, 0.82 t, the unit token's color.
+  - Centring: each line is measured with its current text (advances only, no side bearings) and its left edge is
+    `center − width / 2`, rounded to the device pixel, so a line moves only when its width changes (digit count).
+    Every following piece starts at its advance, also rounded to the device pixel, so the glyphs stay sharp.
+  - Baselines: above the value (`led`, `liquid`, `reactor`, `minimal`) the thinking line sits on the placement's
+    nearest baseline and the intelligence line 1.32 t above it; `reactor` puts the thinking line at c − 0.155 S,
+    0.020 S lower than its nearest baseline, so the larger intelligence line clears the core's rim (tuned
+    2026-10-28: at c − 0.175 S its corners touched the rim at 148 pt). Below the value (`needle`) the intelligence
+    line's baseline is the nearest baseline + 0.70 (p − t), so its cap top stays where a `t` line's would be, and the
+    thinking line is 1.32 t below it.
+  - Fit: drawn when both lines fit in the placement's `fit × S` with their widest text: the intelligence line with
+    `888`, the thinking line with `8.88` (and `tok/s` where it carries it); otherwise neither line is drawn.
+  - **`needle`** (tuned 2026-10-28): the thinking line leaves out `tok/s`, which the dial's legend already shows while
+    the readout fits (the network readout's `needle` rule), and the lines must also stay inside the hub: with `w`
+    a line's widest width and `y` its baseline below the center, `√((w / 2)² + y²) ≤ 0.223 S` for both lines (0.012 S
+    inside the hub's 0.235 S radius). With `tok/s` the thinking line (≈ 6.5 t with 思考) never fit the hub, and at
+    the 7 pt floor the lower line sits relatively lower, which a width alone cannot catch.
+  - Smallest sizes that show the readout (macOS fonts, Chinese / English): `led` and `liquid` 104 / 98 pt,
+    `minimal` 92 / 86, `reactor` 143 / 134, `needle` 128 / 122.
+  - Recentering: the block's top for the stack shift is the nearest baseline − 1.32 t − 0.70 p (`led`, `liquid`,
+    `minimal`); everything else of the stack shift is the network readout's.
+  - When `intelligence` has no value (nothing generated in the window) both lines are quiet (below).
 - **Quiet rule**: visible while the orb has an agent in phase `generating` or `Σ w > 0` (METRICS 6.9); after 10 s
   without either it fades out (0.6 s) and fades in (0.25 s) when work resumes — the network readout's timings.
 - **Updates**: on every engine tick (METRICS 6, 500 ms), with the value; characters are replaced in their cells, no
