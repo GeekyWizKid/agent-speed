@@ -122,7 +122,7 @@ final class BoardRuntime {
             peakText: SpeedFormat.speed(frame.peak)
         )
         let readouts = config.readouts
-        guard readouts.hero || readouts.rowCost else { return tick }
+        guard readouts.hero else { return tick }
         let format = model.cost.boardMoney
         if readouts.cost, cost?.state == .subscriptionOnly {
             tick.costText = format.tag
@@ -130,15 +130,15 @@ final class BoardRuntime {
         }
         // The preview has no prices: its costs read `–`.
         let hero = cost.map(format.money) ?? BoardMoney(number: "–", unit: "", state: .unknown)
-        // Every group's cost: the second line draws it, the tooltip tells it while 費用 is on.
-        var rowCosts: [String: BoardMoney] = [:]
-        if readouts.twoLineRows(config.size) || readouts.cost {
+        // Every group's cost, which its tooltip tells while 費用 is on.
+        var groupCosts: [String: BoardMoney] = [:]
+        if readouts.cost {
             for group in frame.groups {
-                rowCosts[group.id] = cost == nil ? BoardMoney(number: "–", unit: "", state: .unknown) : format.money(group.sums)
+                groupCosts[group.id] = cost == nil ? BoardMoney(number: "–", unit: "", state: .unknown) : format.money(group.sums)
             }
         }
         tick.metrics = .make(readouts: readouts, intelligence: frame.intelligence, cost: hero, costUnit: format.unit,
-                             rowCosts: rowCosts, thinkingHidden: thinkingFold.hidden)
+                             groupCosts: groupCosts, thinkingHidden: thinkingFold.hidden)
         return tick
     }
 

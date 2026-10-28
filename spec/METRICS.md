@@ -2002,7 +2002,7 @@ contributes nothing (the orb shows it as unavailable).
 - The history store (8) is unaffected: its `peak` stays the all-sources `peakToday`.
 - **Boards** (DESIGN 2c) are evaluated exactly like orbs, each with its own `A`, `peakToday_A` and `newPeak_A`. A
   board's hero adds the 6.9 sums of `A` (live intelligence and thinking) and the cost above; its group rows use the
-  group forms of 6.9 (*Group intelligence*) and 9.5 (*Per group*).
+  group form of 6.9 (*Group intelligence*), and a group's tooltip the group form of 9.5 (*Per group*).
 
 ### 6.9 Live intelligence
 
@@ -2348,7 +2348,7 @@ intervals and estimates are those of 6.3.
 - Per source: the same formula restricted to the source's responses and agents. Both values are additive over
   sources, so an orb or a board (6.8) and the billable sum (9.4) add per-source values:
   `knownShare = Σ known tokens / Σ tokens`.
-- **Per agent** (a board's rows, DESIGN 2c): the sums above restricted to the contributions of agent `a` — its own
+- **Per agent** (a board's groups, DESIGN 2c): the sums above restricted to the contributions of agent `a` — its own
   measured and unmeasured responses (`agentId` = `a`) and its own in-flight estimate. As for 6.9's agent sums, only the
   contributions are restricted: `costRate`, the reference set and the tokens of every estimate are exactly those of
   the unrestricted value (a reference set may hold other agents' responses, 6.2), so the agents' sums add up to the
@@ -2358,8 +2358,9 @@ intervals and estimates are those of 6.3.
   intelligence*): `liveCost_G = Σ_{a ∈ G} liveCost_a` and `liveCostKnownShare_G = Σ known tokens_a / Σ tokens_a` over
   the members (1 when the tokens add up to 0) — never an average of the members' shares. Subscriptions (9.4) apply per
   member: a member whose source is excluded adds nothing, neither cost nor tokens; a group with no billable member has
-  no displayed cost (DESIGN 2c shows the subscription tag). Every 6.7 parent link stays within one source, so a group
-  is either billable or excluded as a whole.
+  no displayed cost (its DESIGN 2c tooltip names the subscription instead). Every 6.7 parent link stays within one
+  source, so a group is either billable or excluded as a whole. A board shows this value only in a group's tooltip:
+  its rows no longer carry a cost (DESIGN 2c, user's choice, 2026-10-28).
 - The money value never drives heat, tiers, titles, peaks or `newPeak`; those follow the token metric.
 
 Engine cases with `liveCost` in `spec/fixtures/engine-cases.json` give responses their `costMicroUsd` directly; their

@@ -79,17 +79,20 @@ public class BoardLiveMetricsTests
     [InlineData(BoardStyle.Glass)]
     [InlineData(BoardStyle.Timing)]
     [InlineData(BoardStyle.Neon)]
-    public void EveryReadoutOffIsTheBoardWithoutMetrics(BoardStyle style)
+    public void EveryReadoutOffKeepsTheOriginalHeroAndTheSecondLine(BoardStyle style)
     {
         foreach (var size in BoardSizes.All)
         {
             Assert.Equal(BoardMetrics.For(style, size), BoardMetrics.For(style, size, BoardReadouts.None));
             Assert.Equal(BoardHeroLayout.For(style, size), BoardHeroLayout.For(style, size, BoardReadouts.None));
-            // 每列費用 alone keeps the original hero and lists; only group rows grow at M and L.
-            var rows = BoardMetrics.For(style, size, BoardReadouts.None with { RowCost = true });
-            Assert.False(rows.Gauge);
-            Assert.Equal(BoardMetrics.For(style, size).ListTop, rows.ListTop, 6);
-            Assert.Equal(size != BoardSize.S, rows.TwoLineRows);
+            // The original hero and list; group rows keep their second line at M and L (8 taller), S stays one line.
+            var none = BoardMetrics.For(style, size, BoardReadouts.None);
+            var all = BoardMetrics.For(style, size, BoardReadouts.All);
+            Assert.False(none.Gauge);
+            Assert.False(none.IntelligenceColumn);
+            Assert.Equal(size != BoardSize.S, none.TwoLineRows);
+            Assert.Equal(size != BoardSize.S, all.TwoLineRows);
+            Assert.Equal(all.GroupHeight, none.GroupHeight, 6);
         }
     }
 
@@ -107,6 +110,23 @@ public class BoardLiveMetricsTests
         Assert.Equal(style == BoardStyle.Timing && size == BoardSize.S ? 44 : 46, plain.Value, 6);
         Assert.Equal(0, plain.Intelligence, 6);
         Assert.Equal(style == BoardStyle.Timing && size != BoardSize.S ? 38 : 0, plain.Interval, 6);
+    }
+
+    // The second line holds only the detail: it runs from under the name to the value's right edge, past the capsule and 智力 columns.
+    [Theory]
+    [InlineData(BoardStyle.Glass, BoardSize.M)]
+    [InlineData(BoardStyle.Timing, BoardSize.L)]
+    [InlineData(BoardStyle.Neon, BoardSize.M)]
+    public void TheDetailRunsToTheValuesRightEdge(BoardStyle style, BoardSize size)
+    {
+        var metrics = BoardMetrics.For(style, size, BoardReadouts.All);
+        foreach (var readouts in new[] { BoardReadouts.All, BoardReadouts.None })
+        {
+            var columns = BoardRowColumns.For(style, size, readouts);
+            var width = metrics.ListWidth;
+            Assert.Equal(width - columns.ValueRight, columns.DetailRight(width), 6);
+            Assert.True(columns.DetailRight(width) > width - columns.CapsuleRight);
+        }
     }
 
     // The per-style tables: heights with 思考 shown and hidden, and the baselines.
@@ -263,7 +283,7 @@ public class BoardLiveMetricsTests
     }
 
     [Fact]
-    public void GroupRowsCarryTheirIntelligenceCostAndTooltipLines()
+    public void GroupRowsCarryTheirIntelligenceAndTooltipLines()
     {
         var texts = new BoardTexts(En, TitleTheme.Vehicles, new CostDisplay(En));
         var root = Agent("r", 120) with
@@ -278,20 +298,26 @@ public class BoardLiveMetricsTests
         Assert.Equal("129", row.Intelligence);
         Assert.Equal(AgentIntelligenceForm.Live, row.Form);
         Assert.Equal(En.Format("a11y.agent.intel", "129"), row.Spoken);
-        Assert.Equal("0.006", row.Cost!.Number);
         Assert.Equal(
             [
                 En.Format("intel.tooltip", "129", "25%"), En.Format("intel.grade", "124", En["intel.class.flagship"]),
                 En.Format("boards.tooltip.cost", "0.006 " + En.Format("cost.unitPerSecond", "$")), En["intel.disclaimer"],
             ],
             row.TooltipLines);
+        // The row's label names no cost: it ends with the 智力 words.
+        Assert.Equal(En.Format("a11y.board.row", 1, root.Project, SpeedFormat.Speed(group.Live)) + ", " + row.Spoken,
+            BoardAccessibility.Row(entry with { Readout = row }, En));
 
         // An idle group: no cost line, its root's grade at rest.
         var idle = root with { Live = Rate.Zero, Intelligence = new AgentIntelligence(IntelligenceSums.Zero, root.Grade) };
         var resting = BoardGrouping.Group([idle], SpeedMetric.Output)[0];
         var quiet = texts.Row(new BoardEntry(BoardEntryKind.Group, "r", resting, idle, 1, 0, 38), BoardReadouts.All, 0)!;
         Assert.Equal(("124", AgentIntelligenceForm.Resting), (quiet.Intelligence, quiet.Form));
-        Assert.Null(quiet.Cost);
+        Assert.DoesNotContain(quiet.TooltipLines, l => l.StartsWith(En.Format("boards.tooltip.cost", string.Empty).TrimEnd(), StringComparison.Ordinal));
+
+        // 費用 off: the group's cost leaves the tooltip too.
+        Assert.DoesNotContain(En.Format("boards.tooltip.cost", "0.006 " + En.Format("cost.unitPerSecond", "$")),
+            texts.Row(entry, BoardReadouts.All with { Cost = false }, group.Live)!.TooltipLines);
 
         // 智力 off: no words, no intelligence tooltip lines.
         var off = texts.Row(entry, BoardReadouts.All with { Intelligence = false }, group.Live)!;
@@ -307,7 +333,6 @@ public class BoardLiveMetricsTests
         var group = BoardGrouping.Group([root], SpeedMetric.Output, SourceSet.Empty)[0];
         Assert.True(group.Cost.Excluded);
         var row = texts.Row(new BoardEntry(BoardEntryKind.Group, "r", group, root, 1, 0, 38), BoardReadouts.All, 120)!;
-        Assert.Equal(BoardMoneyState.Tag, row.Cost!.State);
         Assert.Contains(En.Format("boards.tooltip.subscription", "Claude Code"), row.TooltipLines);
     }
 
@@ -323,7 +348,7 @@ public class BoardLiveMetricsTests
         var tick = feed.Update(BoardLiveFeedTests.Snapshot(0, agent), 0, texts);
         Assert.Equal(En["cost.subscription.tag"], tick.CostText);
         Assert.Equal(BoardMoneyState.Tag, tick.Gauge.Cost.State);
-        Assert.Equal(BoardMoneyState.Tag, tick.Entries.First(e => e.Kind == BoardEntryKind.Group).Readout!.Cost!.State);
+        Assert.Contains(En.Format("boards.tooltip.subscription", "Claude Code"), tick.Entries.First(e => e.Kind == BoardEntryKind.Group).Readout!.TooltipLines);
 
         // Including subscriptions counts them again.
         display.Settings = display.Settings with { IncludeSubscriptions = true };
@@ -332,16 +357,16 @@ public class BoardLiveMetricsTests
 
     // Rows kept with the readouts on (the team story as the prototype shows it: five groups).
     [Theory]
-    [InlineData(BoardStyle.Glass, BoardSize.S, true, 3, true)]
-    [InlineData(BoardStyle.Glass, BoardSize.M, true, 4, true)]
-    [InlineData(BoardStyle.Glass, BoardSize.L, true, 5, false)]
-    [InlineData(BoardStyle.Glass, BoardSize.M, false, 5, false)]
-    [InlineData(BoardStyle.Timing, BoardSize.M, true, 4, true)]
-    [InlineData(BoardStyle.Neon, BoardSize.M, true, 4, true)]
-    [InlineData(BoardStyle.Neon, BoardSize.S, false, 3, true)]
-    public void TheRowsKeptFollowTheTable(BoardStyle style, BoardSize size, bool rowCost, int groups, bool more)
+    [InlineData(BoardStyle.Glass, BoardSize.S, 3, true, 0)]
+    [InlineData(BoardStyle.Glass, BoardSize.M, 4, true, 0)]
+    [InlineData(BoardStyle.Glass, BoardSize.L, 5, false, 0)]
+    [InlineData(BoardStyle.Timing, BoardSize.M, 4, true, 0)]
+    [InlineData(BoardStyle.Timing, BoardSize.L, 5, false, 1)]
+    [InlineData(BoardStyle.Neon, BoardSize.M, 4, true, 0)]
+    [InlineData(BoardStyle.Neon, BoardSize.S, 3, true, 0)]
+    public void TheRowsKeptFollowTheTable(BoardStyle style, BoardSize size, int groups, bool more, int subs)
     {
-        var feed = new BoardDemoFeed(BoardSimScenario.Team) { Localizer = Zh, Readouts = BoardReadouts.All with { RowCost = rowCost } };
+        var feed = new BoardDemoFeed(BoardSimScenario.Team) { Localizer = Zh, Readouts = BoardReadouts.All };
         BoardTick tick = null!;
         for (var i = 0; i < 40; i++)
         {
@@ -350,8 +375,9 @@ public class BoardLiveMetricsTests
 
         Assert.Equal(groups, tick.Entries.Count(e => e.Kind == BoardEntryKind.Group));
         Assert.Equal(more, tick.Entries.Any(e => e.Kind == BoardEntryKind.MoreGroups));
-        // S never draws the second line, whatever the switch.
-        Assert.All(tick.Entries.Where(e => e.Kind == BoardEntryKind.Group), e => Assert.Equal(rowCost && size != BoardSize.S, e.TwoLine));
+        Assert.Equal(subs, tick.Entries.Count(e => e.Kind == BoardEntryKind.Sub));
+        // Group rows have their second line at M and L; S never draws it.
+        Assert.All(tick.Entries.Where(e => e.Kind == BoardEntryKind.Group), e => Assert.Equal(size != BoardSize.S, e.TwoLine));
         Assert.All(tick.Entries.Where(e => e.Kind is BoardEntryKind.Group or BoardEntryKind.Sub), e => Assert.NotNull(e.Readout));
         var metrics = BoardMetrics.For(style, size, tick.Readouts);
         var last = tick.Entries[^1];

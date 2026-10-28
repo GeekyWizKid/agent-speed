@@ -8,15 +8,15 @@ import Testing
 struct BoardGeometryTests {
     static let sizes: [BoardSize] = [.small, .medium, .large]
 
-    @Test func withEverySwitchOffTheBoardIsAsBefore() {
+    @Test func withEverySwitchOffTheBoardIsAsBeforeButForTheSecondLine() {
         for style in BoardStyle.allCases {
             for size in Self.sizes {
                 let legacy = BoardGeometry(style, size, readouts: .none)
                 #expect(legacy.isLegacy && !legacy.hasStrip && legacy.captionsHeight == 0)
-                #expect(BoardLayoutMetrics(legacy) == BoardLayoutMetrics.of(style, size))
-                // 每列費用 alone shows nothing at S.
-                let rowCostOnly = BoardGeometry(style, .small, readouts: BoardReadouts(intelligence: false, thinking: false, cost: false, rowCost: true))
-                #expect(rowCostOnly.isLegacy)
+                // Group rows keep their second line at M and L (no 2 pt gap); S keeps one-line rows.
+                #expect(legacy.twoLine == (size != .small) && BoardGeometry(style, size, readouts: .all).twoLine == legacy.twoLine)
+                let oneLine = (size == .large ? 32.0 : 30) + (style == .timing ? 0 : 2)
+                #expect(legacy.groupRow + legacy.groupGap == (size == .small ? oneLine : size == .large ? 40 : 38), "\(style) \(size)")
             }
         }
         #expect(BoardGeometry(.neon, .medium).bandHeight == 92)
@@ -53,9 +53,9 @@ struct BoardGeometryTests {
         #expect(timing.intelligenceColumn == 26 && timing.valueColumn == 42 && timing.intervalColumn == 34 && timing.groupRow == 40)
         let small = BoardGeometry(.timing, .small, readouts: .all)
         #expect(small.valueColumn == 40 && small.intervalColumn == 0 && !small.twoLine && small.groupRow == 30)
-        let noIntelligence = BoardGeometry(.glass, .medium, readouts: BoardReadouts(intelligence: false, thinking: true, cost: true, rowCost: true))
+        let noIntelligence = BoardGeometry(.glass, .medium, readouts: BoardReadouts(intelligence: false, thinking: true, cost: true))
         #expect(noIntelligence.valueColumn == 46 && noIntelligence.intelligenceColumn == 0 && noIntelligence.firstRow == 6)
-        #expect(BoardGeometry(.timing, .medium, readouts: BoardReadouts(intelligence: false, thinking: true, cost: true, rowCost: false))
+        #expect(BoardGeometry(.timing, .medium, readouts: BoardReadouts(intelligence: false, thinking: true, cost: true))
             .intervalColumn == 38)
     }
 
@@ -64,9 +64,8 @@ struct BoardGeometryTests {
         BoardPlanGroup(id: id, live: 150, subs: (0..<subs).map { BoardPlanSub(id: "\(id)s\($0)", live: Double(100 - $0)) })
     }
 
-    static func kept(_ style: BoardStyle, _ size: BoardSize, rowCost: Bool) -> (groups: Int, subs: Int, more: Bool) {
-        let readouts = BoardReadouts(intelligence: true, thinking: true, cost: true, rowCost: rowCost)
-        let rows = BoardLayoutPlanner.plan(team, metrics: BoardLayoutMetrics(BoardGeometry(style, size, readouts: readouts)))
+    static func kept(_ style: BoardStyle, _ size: BoardSize) -> (groups: Int, subs: Int, more: Bool) {
+        let rows = BoardLayoutPlanner.plan(team, metrics: BoardLayoutMetrics(BoardGeometry(style, size, readouts: .all)))
         var groups = 0, subs = 0, more = false
         for row in rows {
             switch row.kind {
@@ -81,18 +80,12 @@ struct BoardGeometryTests {
 
     @Test func rowsKeptMatchTheTable() {
         for style in BoardStyle.allCases {
-            for rowCost in [true, false] {
-                let small = Self.kept(style, .small, rowCost: rowCost)
-                #expect(small.groups == 3 && small.subs == 0 && small.more, "\(style) S rowCost \(rowCost)")
-            }
-            let medium = Self.kept(style, .medium, rowCost: true)
+            let small = Self.kept(style, .small)
+            #expect(small.groups == 3 && small.subs == 0 && small.more, "\(style) S")
+            let medium = Self.kept(style, .medium)
             #expect(medium.groups == 4 && medium.subs == 0 && medium.more, "\(style) M")
-            let mediumOff = Self.kept(style, .medium, rowCost: false)
-            #expect(mediumOff.groups == 5 && mediumOff.subs == 0, "\(style) M without rowCost")
-            let large = Self.kept(style, .large, rowCost: true)
+            let large = Self.kept(style, .large)
             #expect(large.groups == 5 && large.subs == (style == .timing ? 1 : 0), "\(style) L")
-            let largeOff = Self.kept(style, .large, rowCost: false)
-            #expect(largeOff.groups == 5 && largeOff.subs == 2, "\(style) L without rowCost")
         }
     }
 

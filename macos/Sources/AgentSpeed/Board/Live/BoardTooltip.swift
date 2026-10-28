@@ -8,7 +8,7 @@ import SwiftUI
 enum BoardTooltip {
     static let delay: TimeInterval = 0.35
 
-    /// `money`: the group's cost as its second line would show it.
+    /// `money`: the group's cost per second, formatted as 費用 shows it.
     @MainActor
     static func lines(_ group: BoardGroup, metric: SpeedMetric, l10n: Localizer, readouts: BoardReadouts = .none,
                       money: BoardMoney? = nil) -> [String] {
@@ -25,8 +25,8 @@ enum BoardTooltip {
         return lines
     }
 
-    /// While 智力 is on: the group's live index and thinking share, the root's grade; while 費用 or 每列費用 is on and
-    /// the group is live: its cost as shown, then why part or all of it is missing. The disclaimer is the caption.
+    /// While 智力 is on: the group's live index and thinking share, the root's grade; while 費用 is on and the group is
+    /// live: its cost as shown, then why part or all of it is missing. The disclaimer is the caption.
     @MainActor
     static func metricLines(_ group: BoardGroup, l10n: Localizer, readouts: BoardReadouts, money: BoardMoney?) -> [String] {
         var lines: [String] = []
@@ -39,7 +39,7 @@ enum BoardTooltip {
             }
             if let grade = group.root.grade { lines.append(AgentSignalText.grade(grade, l10n)) }
         }
-        if readouts.cost || readouts.rowCost, live, let money {
+        if readouts.cost, live, let money {
             switch money.state {
             case .tag:
                 lines.append(l10n("boards.tooltip.subscription", l10n(group.root.source.titleKey)))

@@ -6,8 +6,8 @@ import SwiftUI
 /// a hero value with its heat title, and four ranked rows with source accents, in the style's own language — glass
 /// an aurora behind frosted rows and glowing share lines, timing position blocks under a heat rail, neon a lit tube
 /// and an LED bar. With the live metrics switched on (DESIGN 2c Live metrics) the hero's right side is the style's
-/// sub-gauge (glass a pearl arc over a strip, timing a data box over its bars, neon LED digits and a meter), the rows
-/// show their 智力 column and, with 每列費用, a cost line. Drawn once with Core Graphics paths; nothing animates.
+/// sub-gauge (glass a pearl arc over a strip, timing a data box over its bars, neon LED digits and a meter) and the
+/// rows show their 智力 column. Drawn once with Core Graphics paths; nothing animates.
 struct BoardStyleThumbnail: View {
     let style: BoardStyle
     var size: CGFloat = 38
@@ -215,10 +215,6 @@ struct BoardStyleThumbnail: View {
             if readouts.intelligence {
                 let intel = CGRect(x: value.minX - side * 0.11, y: mid - side * 0.02, width: side * 0.08, height: side * 0.04)
                 context.fill(Path(roundedRect: intel, cornerRadius: intel.height / 2), with: .color(ink(dark, 0.32)))
-            }
-            if readouts.rowCost {
-                let cost = CGRect(x: side - pad - side * 0.1, y: mid + side * 0.034, width: side * 0.1, height: max(0.6, side * 0.022))
-                context.fill(Path(roundedRect: cost, cornerRadius: cost.height / 2), with: .color(ink(dark, 0.28)))
             }
             if style != .timing {
                 let line = CGRect(x: nameX, y: y + rowHeight - side * 0.016, width: (side - pad - nameX) * row.share,

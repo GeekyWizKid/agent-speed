@@ -5460,17 +5460,11 @@
     "en": "Cost",
     "ja": "費用"
   },
-  "boards.readouts.rowCost": {
-    "zh-Hant": "每列費用",
-    "zh-Hans": "每行费用",
-    "en": "Cost per Row",
-    "ja": "行ごとの費用"
-  },
   "boards.readouts.hint": {
-    "zh-Hant": "智力是估算指數，不是測驗分數；費用按 API 公開價格估算（API 等值）。每列費用在 S 尺寸不顯示。",
-    "zh-Hans": "智力是估算指数，不是测验分数；费用按 API 公开价格估算（API 等值）。每行费用在 S 尺寸不显示。",
-    "en": "Intelligence is an estimated index, not a benchmark score. Costs are estimated at API list prices (API-equivalent). Cost per row is not shown at size S.",
-    "ja": "知能は推定の指数で、ベンチマークのスコアではありません。費用は API の公開価格で推定しています（API 換算）。行ごとの費用は S サイズでは表示されません。"
+    "zh-Hant": "智力是估算指數，不是測驗分數；費用按 API 公開價格估算（API 等值）。",
+    "zh-Hans": "智力是估算指数，不是测验分数；费用按 API 公开价格估算（API 等值）。",
+    "en": "Intelligence is an estimated index, not a benchmark score. Costs are estimated at API list prices (API-equivalent).",
+    "ja": "知能は推定の指数で、ベンチマークのスコアではありません。費用は API の公開価格で推定しています（API 換算）。"
   },
   "boards.gap": {
     "zh-Hant": "間隔",
@@ -5507,12 +5501,6 @@
     "zh-Hans": "费用：价格未知",
     "en": "cost: price unknown",
     "ja": "費用：価格不明"
-  },
-  "a11y.board.rowCost": {
-    "zh-Hant": "費用每秒 %@ %@",
-    "zh-Hans": "费用每秒 %@ %@",
-    "en": "cost %@ %@ per second",
-    "ja": "費用 毎秒 %@ %@"
   },
   "profile.title": {
     "zh-Hant": "個人資料",

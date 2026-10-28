@@ -51,7 +51,7 @@
 
   function create(host, options) {
     const o = Object.assign({ style: "glass", option: "B", size: "M", metrics: { intel: true, think: true, cost: true },
-                              rowCost: true, subscriptionOnly: false, noReasoning: false, currency: "USD", lang: "zh-Hant",
+                              subscriptionOnly: false, noReasoning: false, currency: "USD", lang: "zh-Hant",
                               reduceMotion: false, effects: true, tip: null }, options);
     const st = STYLES[o.style], id = ++uid;
     const L = F.LABELS[o.lang];
@@ -59,9 +59,10 @@
     const anyMetric = () => KEYS.some(on);
     const optB = () => o.option === "B" && anyMetric();
     const unitTok = o.style === "timing" ? "TOK/S" : "tok/s";
-    // Two-line rows (model · the group's cost per second): the 每列費用 switch, independent of the hero's 費用 (always on
-    // in C while its cost shows); S keeps single-line rows.
-    const rows2 = o.option === "C" ? on("cost") || o.rowCost : o.rowCost;
+    // Two-line rows (the model under the project) at M and L in every option; S keeps single-line rows. Only C, an
+    // alternative that was not chosen, puts the group's cost per second on that line (DESIGN 2c: rows carry no cost).
+    const rows2 = true;
+    const rowCost = o.option === "C" && on("cost");
 
     // ── Build ─────────────────────────────────────────────────────────────────────────
     const panel = el("section", `mb ${o.style} opt${o.option}`);
@@ -70,6 +71,7 @@
     panel.setAttribute("aria-label", "排行看板");
     if (on("intel")) panel.classList.add("cap-on");
     if (rows2) panel.classList.add("rows2");
+    if (rowCost) panel.classList.add("rowcost");
     if (o.style === "glass") panel.appendChild(el("div", "aurora", "<i></i><i></i>"));
     if (o.style === "timing") panel.appendChild(el("div", "rail", "<i></i>"));
 
@@ -276,7 +278,7 @@
     }
 
     function costLine(node, live, rate, share) {
-      if (!rows2 || !(live > 0.05)) { node.textContent = ""; return; }
+      if (!rowCost || !(live > 0.05)) { node.textContent = ""; return; }
       if (o.subscriptionOnly) { node.innerHTML = `<span class="tagword">${L.subscription}</span>`; node.classList.remove("partial"); node.classList.add("dim"); return; }
       const r = F.rate(rate, share, o.currency, o.lang);
       const unit = r.unknown ? "" : `<span class="u">${o.style === "timing" ? r.unit.toUpperCase() : r.unit}</span>`;
@@ -322,7 +324,7 @@
       const iqWords = !on("intel") ? "" : p.intelligence !== null && p.intelligence !== undefined ? `，智力 ${Math.round(p.intelligence)}`
         : p.grade !== null && p.grade !== undefined ? `，等級 ${p.grade}` : "";
       let costWords = "";
-      if (p.rank && rows2 && o.size !== "S" && live) {
+      if (p.rank && rowCost && o.size !== "S" && live) {
         const r = F.rate(p.costRate, p.costKnownShare, o.currency, o.lang);
         costWords = o.subscriptionOnly ? "，訂閱" : r.unknown ? "，價格未知" : `，費用每秒 ${r.partial ? "至少 " : ""}${r.number} ${F.currencyName(o.currency)}`;
       }
@@ -594,11 +596,11 @@
       const r = g.root, e = r.effort, cls = S.classOf(r.model);
       const klass = cls === 100 ? "旗艦" : cls === 80 ? "標準" : "輕量";
       const rate = F.rate(g.costRate, g.costKnownShare, o.currency, o.lang);
-      // DESIGN 2c Live metrics, Tooltip: the intelligence lines follow 智力, the cost lines 費用 or 每列費用.
+      // DESIGN 2c Live metrics, Tooltip: the intelligence lines follow 智力, the cost lines 費用.
       const iq = !on("intel") ? "" : (g.intelligence === null ? ""
         : `<br>智力 ${Math.round(plain(g.intelligence, g.thinkingShare))} · 思考 ${o.noReasoning ? "–" : Math.round(g.thinkingShare * 100) + "%"}`) +
         (r.grade !== null && r.grade !== undefined ? `<br>等級 ${r.grade} · ${klass}` : "");
-      const cost = !(on("cost") || rows2) || !(g.live > 0.05) ? "" : o.subscriptionOnly ? `<br>${r.sourceName} 標記為訂閱，不計入費用`
+      const cost = !on("cost") || !(g.live > 0.05) ? "" : o.subscriptionOnly ? `<br>${r.sourceName} 標記為訂閱，不計入費用`
         : `<br>費用 ${rate.unknown ? "價格未知" : (rate.partial ? "≥" : "") + rate.number + " " + rate.unit}（API 等值）` + (rate.partial ? "<br>部分模型價格未知，未計入" : "");
       return `<b>${r.project}</b> · ${r.sourceName}<br>${r.model}<br>推理強度：${e ? e.value : "未記錄"}` +
         `<br>速度 <b>${S.formatSpeed(g.live)}</b> tok/s${iq}${cost}` + (on("intel") ? `<span class="cap-note">估算指數，不是測驗分數</span>` : "");

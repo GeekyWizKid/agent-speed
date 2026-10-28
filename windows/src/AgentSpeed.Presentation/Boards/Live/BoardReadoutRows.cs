@@ -2,7 +2,7 @@ using AgentSpeed.Core;
 
 namespace AgentSpeed.Presentation.Boards.Live;
 
-/// <summary>Puts each row's live metrics (its 智力 cell, a group's cost and tooltip lines) on the entries of a layout plan.</summary>
+/// <summary>Puts each row's live metrics (its 智力 cell, a group's tooltip lines) on the entries of a layout plan.</summary>
 public static class BoardReadoutRows
 {
     public static IReadOnlyList<BoardEntry> Word(IReadOnlyList<BoardEntry> entries, BoardReadouts readouts, SpeedMetric metric, BoardTexts texts)

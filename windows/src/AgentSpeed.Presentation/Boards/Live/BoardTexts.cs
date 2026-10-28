@@ -72,8 +72,8 @@ public sealed class BoardTexts
     }
 
     /// <summary>
-    /// A row's 智力 cell and, for a live group row at M or L with its second line, its cost; with the tooltip lines of a group
-    /// row for the switched-on readouts (DESIGN 2c, Ranking rows and Tooltip).
+    /// A row's 智力 cell, with the tooltip lines of a group row for the switched-on readouts (DESIGN 2c, Ranking rows and Tooltip):
+    /// a live group's cost per second shows only there, while 費用 is on.
     /// </summary>
     public BoardRowReadout? Row(BoardEntry entry, BoardReadouts readouts, double live)
     {
@@ -95,8 +95,6 @@ public sealed class BoardTexts
             _ => string.Empty,
         };
 
-        var busy = live > 0.05;
-        var cost = group && busy ? GroupMoney(entry.Group.Cost) : null;
         var lines = new List<string>(4);
         if (group && readouts.Intelligence)
         {
@@ -112,8 +110,9 @@ public sealed class BoardTexts
             }
         }
 
-        if (group && (readouts.Cost || readouts.RowCost) && cost is { } money)
+        if (group && readouts.Cost && live > 0.05)
         {
+            var money = GroupMoney(entry.Group.Cost);
             switch (money.State)
             {
                 case BoardMoneyState.Tag:
@@ -138,7 +137,7 @@ public sealed class BoardTexts
             lines.Add(Localizer["intel.disclaimer"]);
         }
 
-        return new BoardRowReadout(text, intelligence.Form, spoken, cost, lines);
+        return new BoardRowReadout(text, intelligence.Form, spoken, lines);
     }
 
     private BoardMoney GroupMoney(GroupCost cost) => cost.State switch

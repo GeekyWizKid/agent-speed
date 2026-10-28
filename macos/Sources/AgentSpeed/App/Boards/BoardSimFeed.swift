@@ -16,7 +16,7 @@ final class BoardSimFeed {
         /// Every source marked as a subscription (`AGENT_SPEED_BOARD_SUBS=1`, the prototypes' `subs=all`).
         var subscriptions = false
 
-        /// `AGENT_SPEED_BOARD_READOUTS` (`all`, `none`, or a list of intel, think, cost, rowcost), the currency and the
+        /// `AGENT_SPEED_BOARD_READOUTS` (`all`, `none`, or a list of intel, think, cost), the currency and the
         /// subscriptions from the environment.
         static func environment() -> Metrics {
             let environment = ProcessInfo.processInfo.environment
@@ -24,7 +24,7 @@ final class BoardSimFeed {
             if let raw = environment["AGENT_SPEED_BOARD_READOUTS"], raw != "all" {
                 let keys = Set(raw.split(separator: ",").map(String.init))
                 metrics.readouts = BoardReadouts(intelligence: keys.contains("intel"), thinking: keys.contains("think"),
-                                                 cost: keys.contains("cost"), rowCost: keys.contains("rowcost"))
+                                                 cost: keys.contains("cost"))
             }
             if let currency = environment["AGENT_SPEED_BOARD_CURRENCY"] { metrics.currency = currency }
             metrics.subscriptions = environment["AGENT_SPEED_BOARD_SUBS"] == "1"
@@ -185,7 +185,7 @@ enum BoardSimTick {
             todayText: SpeedFormat.tokens(Int(snapshot.today)), costText: metrics.subscriptions ? nil : today,
             peakText: SpeedFormat.speed(snapshot.peak), peak: snapshot.peak)
         let readouts = metrics.readouts
-        guard readouts.hero || readouts.rowCost else { return tick }
+        guard readouts.hero else { return tick }
         // The board's sums: every agent's, as the engine adds the per-source sums (METRICS 6.8, 6.9, 9.5).
         var sums = AgentGroupSums()
         for agent in agents { sums.add(agent, billable: !metrics.subscriptions) }
@@ -196,15 +196,15 @@ enum BoardSimTick {
             tick.costText = format.tag
             tick.costIsTag = true
         }
-        var rowCosts: [String: BoardMoney] = [:]
-        if readouts.twoLineRows(size) {
-            for group in groups { rowCosts[group.id] = format.money(group.sums) }
+        var groupCosts: [String: BoardMoney] = [:]
+        if readouts.cost {
+            for group in groups { groupCosts[group.id] = format.money(group.sums) }
         }
         fold.update(eligible: readouts.thinkingMayHide, quiet: sums.intelligence.shownIndex == nil,
                     shown: SpeedFormat.speed(sums.intelligence.thinking), at: snapshot.time)
         tick.metrics = .make(readouts: readouts, intelligence: sums.intelligence,
                              cost: format.money(sums.cost.microUsdPerSecond, state: state), costUnit: format.unit,
-                             rowCosts: rowCosts, thinkingHidden: fold.hidden)
+                             groupCosts: groupCosts, thinkingHidden: fold.hidden)
         return tick
     }
 

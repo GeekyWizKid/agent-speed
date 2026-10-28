@@ -1,8 +1,8 @@
 import Foundation
 
 /// Where a board's parts sit for its style, size and live metrics switches (DESIGN 2c Layout per size; Live metrics
-/// *Hero* and *Ranking rows*). Points from the board's top-left corner, y down. With every switch off (or only
-/// 每列費用 at S, where it shows nothing) the board keeps the geometry it had before the live metrics.
+/// *Hero* and *Ranking rows*). Points from the board's top-left corner, y down. With every switch off the board keeps
+/// the geometry it had before the live metrics, except that group rows at M and L keep their second line.
 public struct BoardGeometry: Equatable, Sendable {
     public let style: BoardStyle
     public let size: BoardSize
@@ -28,10 +28,10 @@ public struct BoardGeometry: Equatable, Sendable {
     public var hasGauge: Bool { readouts.hero }
     /// The rows' 智力 column and its captions line.
     public var hasIntelligence: Bool { readouts.intelligence }
-    /// Group rows draw their second line.
-    public var twoLine: Bool { readouts.twoLineRows(size) }
-    /// Nothing of the live metrics shows: the board as before.
-    public var isLegacy: Bool { !hasGauge && !hasIntelligence && !twoLine }
+    /// Group rows draw their second line (the model): at M and L whatever the switches, never at S.
+    public var twoLine: Bool { size != .small }
+    /// No readout shows: the hero and the row columns as before the live metrics.
+    public var isLegacy: Bool { !hasGauge && !hasIntelligence }
 
     // MARK: Hero
 

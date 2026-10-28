@@ -214,18 +214,15 @@
             <TextBlock Text="{loc:Loc boards.readouts}" Style="{StaticResource SectionHeaderText}" Margin="2,22,0,8" AutomationProperties.HeadingLevel="Level3" />
             <Border Style="{StaticResource GroupBorder}" Padding="14,8,14,12">
                 <StackPanel>
-                    <UniformGrid Columns="2">
+                    <UniformGrid Columns="3">
                         <CheckBox IsChecked="{Binding ReadoutIntelligence, Mode=TwoWay}" Margin="0,4,12,4" AutomationProperties.Name="{loc:Loc boards.readouts.intel}">
                             <TextBlock Text="{loc:Loc boards.readouts.intel}" FontSize="13" Margin="4,0,0,0" TextTrimming="CharacterEllipsis" />
                         </CheckBox>
-                        <CheckBox IsChecked="{Binding ReadoutThinking, Mode=TwoWay}" Margin="0,4,0,4" AutomationProperties.Name="{loc:Loc boards.readouts.thinking}">
+                        <CheckBox IsChecked="{Binding ReadoutThinking, Mode=TwoWay}" Margin="0,4,12,4" AutomationProperties.Name="{loc:Loc boards.readouts.thinking}">
                             <TextBlock Text="{loc:Loc boards.readouts.thinking}" FontSize="13" Margin="4,0,0,0" TextTrimming="CharacterEllipsis" />
                         </CheckBox>
-                        <CheckBox IsChecked="{Binding ReadoutCost, Mode=TwoWay}" Margin="0,4,12,4" AutomationProperties.Name="{loc:Loc boards.readouts.cost}">
+                        <CheckBox IsChecked="{Binding ReadoutCost, Mode=TwoWay}" Margin="0,4,0,4" AutomationProperties.Name="{loc:Loc boards.readouts.cost}">
                             <TextBlock Text="{loc:Loc boards.readouts.cost}" FontSize="13" Margin="4,0,0,0" TextTrimming="CharacterEllipsis" />
-                        </CheckBox>
-                        <CheckBox IsChecked="{Binding ReadoutRowCost, Mode=TwoWay}" Margin="0,4,0,4" AutomationProperties.Name="{loc:Loc boards.readouts.rowCost}">
-                            <TextBlock Text="{loc:Loc boards.readouts.rowCost}" FontSize="13" Margin="4,0,0,0" TextTrimming="CharacterEllipsis" />
                         </CheckBox>
                     </UniformGrid>
                     <TextBlock Text="{loc:Loc boards.readouts.hint}" Style="{StaticResource CaptionText}" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0" />
