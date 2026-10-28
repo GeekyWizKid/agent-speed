@@ -885,9 +885,8 @@ def hand_check(case, got):
 
 
 def check_relations(cases, outputs):
-    """Cross-case expectations: equal keys, and Claude / Codex / Pi edits of one change give equal digests."""
+    """Cross-case expectations: commands that must share a key."""
     problems = []
-    by_id = {c["id"]: c for c in cases}
     for case in cases:
         other = case.get("sameKeyAs")
         if other and outputs[case["id"]]["key"] != outputs[other]["key"]:

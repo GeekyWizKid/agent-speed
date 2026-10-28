@@ -24,24 +24,32 @@ reference.
 ## 1. Conventions
 
 - **Sources.** The functions apply to `claudeCode` and `claudeDesktop` (family `claude`), `codex`, `omp`, `pi` and
-  `openclaw`, the sources that record tool calls (METRICS 6.10). For any other source every function returns its empty
-  value: kind `other`, a null outcome, no hunks.
+  `openclaw`, the sources that record tool calls (METRICS 6.10). For any other source: kind `other`, the outcome
+  `{exitCode: null, failed: null, t}`, empty text, no session, no hunks.
 - **Inputs as stored.** `tool` is the call's name; `input` is the call's input as the line stores it (METRICS 6.10): an
   object for Claude, omp, Pi and OpenClaw; a string for Codex (`arguments` of a `function_call`, `input` of a
-  `custom_tool_call`). *The input as an object*: an object as is; a string whose first character after JSON
-  whitespace (space, tab, CR, LF) is `{` and that parses as an RFC 8259 JSON object (duplicate keys: the last wins);
-  otherwise none. `result` is the Claude `tool_result` block, the Codex `…_output` payload, or the omp, Pi and
-  OpenClaw `toolResult` message. `cwd` is the agent's working directory (METRICS 4: `cwdPath`), or null.
-- **Text.** Strings are sequences of Unicode scalar values. A *character* is one scalar value: every length and cut in
-  this document counts scalars, never UTF-16 units or grapheme clusters, and byte budgets count UTF-8 bytes. *Trim*
-  removes ASCII spaces and tabs only. Case folding is ASCII only (`A`–`Z` to `a`–`z`). *LF-normalised*: CR LF, then any
-  remaining CR, replaced by LF.
+  `custom_tool_call`). `result` is the Claude `tool_result` block, the Codex `…_output` payload, or the omp, Pi and
+  OpenClaw `toolResult` message. `cwd` is the agent's working directory (METRICS 4: `cwdPath`), or null. Any input of
+  an unexpected type is treated as absent; no function ever fails.
+- **JSON.** *Parsing* follows RFC 8259: `NaN`, `Infinity` and `-Infinity` are rejected, duplicate keys keep the last
+  value, and a document nested too deeply for the parser fails; a failed parse means *none*. *The input as an object*:
+  an object as is; a string whose first character after JSON whitespace (space, tab, CR, LF) is `{` and that parses
+  as a JSON object; otherwise none. *The leading JSON object* of a text: the first JSON value after JSON whitespace,
+  when it is an object, ignoring any text after it. A *JSON integer* is a number written without fraction or exponent,
+  in the signed 64-bit range; `true` and `false` are never numbers, and *`== true`* means the literal `true`.
+- **Text.** Strings are sequences of Unicode scalar values; an unpaired surrogate (possible only through a JSON escape)
+  is read as U+FFFD. A *character* is one scalar value: every length and cut counts scalars, never UTF-16 units or
+  grapheme clusters, and byte budgets count UTF-8 bytes. Equality, prefixes, searches, sets and sorting are ordinal
+  over scalar values (no normalisation, no culture rules). *Trim* removes ASCII spaces and tabs only. Case folding is
+  ASCII only. *LF-normalised*: CR LF, then any remaining CR, replaced by LF. A *number read from text* is a run of
+  digits (with the pattern's sign); more than 18 significant digits read as 999 999 999 999 999 999.
 - **Patterns.** Regular expressions use explicit ASCII classes (`[0-9]`, `[A-Za-z]`, `[ \t]`); `\s`, `\d`, `\w` and
-  `\b` are never used, and ports must not add them. A pattern matches the **whole** line unless the text says it is a
-  *search*. Lines never contain LF. `.` matches any character. Lookbehind is fixed-width (one character). A class such
-  as `[^ \tA-Za-z0-9]{1,4}` may meet a supplementary-plane character, which counts as one character here and two
-  units in UTF-16 engines; the patterns are written so both readings match the same lines. Matching is
-  case-sensitive unless stated.
+  `\b` are never used, and ports must not add them. Unless the text says otherwise a pattern must match the **whole**
+  string, as `\A(?:P)\z` (never `^P$`: `$` also matches before a final line break in .NET and ICU, and several
+  patterns have a top-level `|`). A *prefix match* is anchored at the start only (`\A(?:P)`); a *search* finds the
+  first match anywhere; a match *at* a position is anchored there (`\G` in .NET, `anchored` in NSRegularExpression).
+  `.` matches any character except LF (ICU needs `dotMatchesLineSeparators` and `.` written as `[^\n]`). Lookbehind is
+  one character wide. Matching is case-sensitive unless stated.
 - **Digests.** `sha16(text)` = the first 16 lowercase hex digits of SHA-256 over the UTF-8 bytes of `text`.
   `sha16("") = e3b0c44298fc1c14`.
 - **Null.** A null `failed`, count or suite means *unknown*, never a failure or zero.
@@ -91,23 +99,26 @@ nothing. METRICS 6.9 consumes `class`, `suite`, `targeted` and `key`.
 | Source and tool | Text |
 | --- | --- |
 | Claude `Bash`, `PowerShell`; omp, Pi `bash`, `powershell`; OpenClaw `exec`, `bash`; Codex `shell_command` | `command` (a string) |
-| Codex `shell`, `container.exec`, `local_shell` | `command`: a string as is; an array of strings joined (below) |
-| Codex `exec_command` | `cmd` |
-| Codex `exec` (custom tool) | the input as an object's `cmd`, else its `command`; when the input is not an object, the raw input string |
+| Codex `shell`, `container.exec`, `local_shell` (`ARGV_TOOLS`) | `command`: a string as is; a non-empty array of strings joined (below) |
+| Codex `exec_command` | `cmd` (a string) |
+| Codex `exec` (custom tool) | when the input is an object: its string `cmd`, else its string `command`, else no text; otherwise the raw input string |
 
-Anything else (a missing field, another type, an array with a non-string) has no text. An array is joined with single
-spaces after quoting each element: an element matching `SAFE_ARG` stays as is; any other element (the empty string
-included) becomes `'` + the element with every `'` replaced by `'"'"'` + `'`. Tokenising the joined text (3.2) gives
-back the array exactly.
+Anything else (a missing field, another type, an empty array or one with a non-string) has no text. An array is joined
+with single spaces after quoting each element: an element matching `SAFE_ARG` stays as is; any other element (the empty
+string included) becomes `'` + the element with every `'` replaced by `'"'"'` + `'`. Tokenising the joined text (3.2)
+gives back the array exactly. Before tokenising, the text is LF-normalised.
 
 ### 3.2 Tokens
 
-The text is read left to right into words, operators, redirections and here-documents:
+The text is read left to right into words, operators, redirections and here-documents. At each token start the
+checks run in this order: space or tab, backslash-LF, LF, `#`, a two-character operator, a redirection, a
+one-character operator, else a word.
 
 - Spaces and tabs separate tokens. A backslash followed by LF is removed (line continuation). An unquoted LF is the
   operator `;`; right after it, the bodies of the here-documents opened on that line are read (below).
 - `#` at the start of a token begins a comment that runs to the end of the line.
-- Operators: `&&`, `||`, `|&` (read as `|`), `;;` (read as `;`), then the single characters `;`, `&`, `|`, `(`, `)`.
+- Two-character operators: `&&`, `||`, `|&` (read as `|`), `;;` (read as `;`). One-character operators: `;`, `&`,
+  `|`, `(`, `)`. So `&>log` is a redirection and `&&` is never two `&`.
 - A redirection is `REDIR` matched at the token start: optional digits, then one of `<<<`, `<<-`, `<<`, `>>`, `>&`,
   `<&`, `>|`, `<>`, `&>>`, `&>`, `>`, `<`. Spaces and tabs after it are skipped and the next word is its target.
   `<<` and `<<-` open a here-document whose delimiter is that word (quotes removed); every other redirection keeps
@@ -118,34 +129,51 @@ The text is read left to right into words, operators, redirections and here-docu
 - A word runs until an unquoted space, tab, LF, `;`, `&`, `|`, `(`, `)`, `<` or `>`. Inside it: `'…'` is literal (an
   unterminated quote runs to the end); `"…"` is literal except that a backslash before `"`, `\`, `$`, `` ` `` or LF
   escapes it (backslash-LF is removed); `$'…'` is literal except that a backslash makes the next character literal;
-  `$(…)` and `${…}` are kept verbatim up to the matching bracket (nesting counted, quotes not); `` `…` `` is kept
-  verbatim; outside quotes a backslash makes the next character literal.
+  `$(…)` and `${…}` are kept verbatim up to the matching bracket (only that bracket's own nesting is counted, quotes
+  are not); `` `…` `` is kept verbatim; outside quotes a backslash makes the next character literal. Every
+  unterminated form (`'`, `"`, `$'`, `$(`, `${`, `` ` ``) runs to the end of the text.
 
 ### 3.3 Segments
 
-Operators split the tokens into segments. A segment has its words, redirections, here-document bodies, the operator
-before it and the operator after it; a segment with neither words nor bodies is dropped (its operator still counts as
-the next segment's `before`). The operator `&` after a segment marks it background. Then, for each segment in order:
+Operators split the tokens into segments: a segment is the words, redirections and here-document bodies between
+operators, and it carries `ops`, every operator read since the previous segment (in order, parentheses included). A
+segment with neither words nor bodies does not exist; its operators stay in the next segment's `ops`. The operators
+after the last segment are the *tail*. Then, for each segment in order:
 
-1. Leading words in `LEADING_KEYWORDS` are dropped, and a trailing `}`.
-2. Prefixes are removed (3.4), then step 1 again.
-3. A segment whose first word is in `CLOSING_KEYWORDS` or `CONSTRUCTS`, or matches `[A-Za-z_][A-Za-z0-9_]*\(\)`
-   (a function definition), loses all its words.
-4. A shell wrapper (3.4) is replaced by the segments of its script, parsed the same way with the same directory
-   context (at most 4 levels deep): the first spliced segment takes the wrapper's operator before, the last its
-   operator after and its background mark.
-5. Runners are removed (3.4).
-6. *Directory context*: `cd` and `pushd` set it to their first argument that does not start with `-` (or is `-`; none
-   → `~`), normalised (below); `pushd` first saves the current context, `popd` restores the last saved one. A segment
-   after an operator `(` saves the context, and the segment before the matching `)` restores it after itself. Each
-   segment records the context it runs in. `set` with `pipefail` (`set -o pipefail`, `set -eo pipefail`) marks the
-   command `pipefail`.
+1. Its own `(` and `)` in `ops` are applied to the directory context, in order: `(` saves it, `)` restores the last
+   saved one. Its `ops` are prefixed with the operators carried from dropped segments (step 7).
+2. Leading words in `LEADING_KEYWORDS` are dropped, and a trailing `}`.
+3. Prefixes are removed (3.4), then step 2 again.
+4. A segment whose first word is in `CLOSING_KEYWORDS` or `CONSTRUCTS` loses all its words. (Function definitions are
+   not recognised: `t() { cargo test; }` classifies its body as if it ran.)
+5. A shell wrapper (3.4) is replaced by the segments of its script, parsed the same way with the same state; its `ops`
+   are carried into the script's first segment, and a `nohup` / `setsid` prefix on the wrapper marks the script's last
+   segment background. Scripts nest at most `MAX_WRAPPER_DEPTH` = 4 levels; a deeper script contributes nothing (no
+   segments, no patch texts).
+6. Runners are removed (3.4). The segment records the current directory context. Then `cd` and `pushd` set the context
+   to their first argument that does not start with `-` (or is `-`; none → `~`), normalised (below); `pushd` first
+   saves the current context; `popd` restores the last one `pushd` saved. `set` with a word matching `PIPEFAIL_FLAG`
+   followed by `pipefail` (`set -o pipefail`, `set -eo pipefail`; not `set +o`) marks the whole command `pipefail`,
+   wherever it appears, wrapper scripts included.
+7. A segment left with neither words nor bodies is dropped and its `ops` carry to the next segment.
 
-Context normalisation of a target `t` (with the current context `ctx`): `\` → `/`; when `cwd` is given (`\` → `/`,
-trailing `/` removed), `t == cwd` becomes `.` and a `t` starting with `cwd/` loses that prefix; an empty `t`, `~`, a
-target starting with `~/`, `/`, a drive (`[A-Za-z]:/`) or `-` stands alone, any other is joined as `ctx/t` (or `t`
-when `ctx` is empty); then `.` and empty components are removed and `x/..` pairs collapse (a leading `/` is kept). A
-result of `.` or empty is the empty context (the starting directory).
+After the last segment the tail's parentheses are applied and the tail joins the carried operators. Then, for each
+kept segment `k`: the *operator between* it and the next kept segment is the last operator other than `(` and `)` in
+the next segment's `ops` (for the last segment, in the remaining carried operators); `op_after(k)` is that operator,
+`op_before(k+1)` the same one. The segment is background when the first operator other than `(` and `)` after it is
+`&`, or a `nohup` / `setsid` prefix marked it. So `(cargo test) | tee log` has `|` after `cargo test`, `{ cargo test; }
+| tee log` too (the `;` and `|` merge, the last wins), and in `(cd sub; cargo build;) && cargo test` the subshell's
+context ends before `cargo test`.
+
+Context normalisation of a target `t` with the current context `ctx`: `\` → `/`; an empty `t` leaves `ctx` unchanged;
+when `t` is `cwd` or inside it (*cwd-relative*, below) the result is the part below `cwd`, counted from the starting
+directory; else `~`, a target starting with `~/`, `/`, a drive (`DRIVE`) or `-` stands alone, and any other is joined
+as `ctx/t` (or `t` when `ctx` is empty); then `.` and empty components are removed and `x/..` pairs collapse (a
+leading `/` is kept). A result of `.` or empty is the empty context (the starting directory).
+
+*cwd-relative*: `cwd` with `\` → `/` and trailing `/` removed (an empty result — the root — counts as no `cwd`); a
+`/`-separated path equal to it is the empty path inside it, and one starting with `cwd/` is the rest inside it; for a
+drive `cwd` both compare ASCII case-insensitively. The same rule serves 3.5, 5.2 and 6.1.
 
 A segment is *neutral* when it has no words or its program (3.4) is in `NEUTRAL` (navigation, variables, `echo`,
 `printf`, `true`, `sleep`, …). Neutral segments never classify.
@@ -158,9 +186,14 @@ A segment is *neutral* when it has no words or its program (3.4) is in `NEUTRAL`
 `mvn`; `py.test` → `pytest`; `nodejs` → `node`; `gmake` → `make`; `bazelisk` → `bazel`.
 
 *Options*: a word starting with `-` (but not `-` alone). A list of *value options* (A.2, named per program) says which
-options take the next word as their value; `--name=value` never does. `--` ends the options where stated.
+options take the next word as their value. When reading positionals and options (`parse_opts`): `--` ends the options
+(the rest are *words after `--`*); `--name=value` sets `--name` without taking the next word; a word in the value list
+takes the next word as its value (a value option that is the last word is still present, without a value); a word
+that starts with a two-character value option and is longer carries its value attached (`-kpush`, `-n4`); any other
+option is a flag; single-dash `-x=v` is not split (except for `go`, 3.5).
 
-**Prefixes**, removed from the front repeatedly: environment assignments (`NAME_ASSIGN`); `env` with its options
+**Prefixes**, removed from the front repeatedly: environment assignments (a *prefix match* of `NAME_ASSIGN`, so a
+value may hold any text, line breaks included); `env` with its options
 (`ENV_VALUE`) and assignments; `sudo` / `doas` (`SUDO_VALUE`); `time`; `nice` (`NICE_VALUE`); `nohup`, `setsid`
 (both mark the segment background); `exec`, `command`, `builtin`, `noglob`, `unbuffer`, `chronic`; `stdbuf`
 (`STDBUF_VALUE`); `caffeinate` (`CAFFEINATE_VALUE`); `xvfb-run` (`XVFB_VALUE`); `timeout`, `gtimeout`
@@ -181,38 +214,42 @@ remaining words joined by spaces. `cmd` with `/c` (any case): the remaining word
 | `uv`, `poetry`, `pipenv`, `pdm`, `rye`, `pixi`, `conda`, `mamba`, `micromamba`, `hatch` followed by `run` | both words and the options after them (`UV_VALUE` + `CONDA_VALUE`) |
 | `python` with `-m MODULE` after its options (`PY_VALUE`) | everything up to `MODULE`, which becomes the program |
 | `coverage run` with `-m MODULE` after its options (`COVERAGE_VALUE`) | everything up to `MODULE` |
+
+For `python` and `coverage run`, the options are skipped one by one (a value option takes the next word) until `-m`,
+`-` or a non-option word; `-m` is then followed by the module.
 | `bundle exec` | both words |
 | `xcrun` | the runner and its options (`XCRUN_VALUE`) |
 | `dotnet tool run` | the three words |
 | `php` followed by a script whose program name is `phpunit`, `pest`, `phpstan` or `psalm` | `php` |
 
-`python` without `-m` stays a program (3.5: `manage.py test`, `setup.py test`, else other).
+`python` without `-m` stays a program (3.5: after its options, `manage.py test`, `setup.py test`, else other).
 
 ### 3.5 Classification
 
 A non-neutral segment's words after 3.3–3.4 classify by their program name into `(class, suite, targeted)`; a program
-without a rule is `other`. *Positionals* are the words that are not options or option values; *after `--`* are the
-words after a `--`. Two rules decide `targeted` from positionals:
+without a rule is `other`. *Positionals* are the words that are not options or option values (3.4). Two rules decide
+`targeted`; wherever this section applies them, they read the positionals **and** the words after `--`:
 
-- **Path rule** (runners given files or directories): targeted when some positional is not *broad*. Broad: after `\` →
-  `/`, removing a `cwd/` prefix (or equal to `cwd`), leading `./` pairs and trailing `/`: empty, `.`, or one path
-  component without `*`, `?`, `::`, a leading `/`, a drive, or a file extension (`FILE_EXT`). So `tests/` and `src` are
-  broad; `tests/unit`, `tests/test_q.py` and `tests/test_q.py::test_a` narrow the run.
-- **Name rule** (runners whose positionals are name or path patterns): targeted when some positional is not empty,
-  `.`, `./` or `cwd`.
+- **Path rule** (runners given files or directories): targeted when some word is not *broad*. Broad: after `\` → `/`,
+  made cwd-relative (3.3) when inside `cwd`, then without leading `./` pairs and trailing `/`: empty, `.`, or one path
+  component containing none of `*`, `?`, `::`, not starting with `/` or with a letter and `:`, and without a file
+  extension. A word *has a file extension* when it ends with `.` followed by 1 to 10 ASCII letters or digits. So
+  `tests/` and `src` are broad; `tests/unit`, `tests/test_q.py` and `tests/test_q.py::test_a` narrow the run.
+- **Name rule** (runners whose positionals are name or path patterns): targeted when some word, without trailing `/`,
+  is not empty, not `.` and not `cwd` itself.
 
 Programs with their own rule:
 
 | Program | Class and suite | Targeted |
 | --- | --- | --- |
-| `pytest` | test `pytest` | an option in `PYTEST_FILTERS`, or the path rule over positionals and words after `--` (`PYTEST_VALUE`) |
+| `pytest` | test `pytest` | an option in `PYTEST_FILTERS`, or the path rule (`PYTEST_VALUE`) |
 | `unittest` (`python -m unittest`) | test `unittest` | a positional other than `discover`, or `-k` (`UNITTEST_VALUE`) |
-| `python manage.py test` | test `django test` | a positional label, `-k` or `--tag` (`DJANGO_VALUE`) |
+| `python manage.py test` (after python's options, skipped as in 3.4) | test `django test` | a positional label, `-k` or `--tag` (`DJANGO_VALUE`) |
 | `python setup.py test` | test `setup.py test` | never |
 | `cargo` | after global options (`CARGO_GLOBAL_VALUE`; words starting with `+` are toolchains): `test`/`t` → test `cargo test`; `nextest run`/`nextest r` → test `cargo nextest`; `build`/`b`/`rustc` → build `cargo build`; `check`/`c` → check `cargo check`; `clippy` → check `cargo clippy`; `fmt` with `--check` → check `cargo fmt`; else other | `test`: an option in `CARGO_NARROW`, a positional (a test filter), or after `--` a positional or `--exact` / `--skip` (`CARGO_VALUE`, `LIBTEST_VALUE`); `nextest`: a positional, or `-E`, `--filterset`, `--filter-expr`, `-p`, `--package`, `--test`, `--lib`, `--bin` (`NEXTEST_VALUE`); `build`, `check`, `clippy`: an option in `CARGO_NARROW`; `fmt`: never |
 | `swift` | `test` → test `swift test`; `build` → build `swift build`; else other | `test`: an option in `SWIFT_TEST_FILTERS` (`SWIFT_TEST_VALUE`); `build`: in `SWIFT_BUILD_NARROW` (`SWIFT_BUILD_VALUE`) |
 | `xcodebuild` | an option in `XCODE_INFO` → other. Actions are the positionals in `XCODE_ACTIONS` (options take a value unless in `XCODE_FLAGS` or written with `:` or `=`; `NAME=value` build settings are positionals that are not actions): `test` or `test-without-building` → test `xcodebuild test`; else `analyze` → check `xcodebuild analyze`; only `clean` → other; otherwise (no action, `build`, `archive`, …) → build `xcodebuild build` | `-only-testing…` or `-skip-testing…` (with `:` attached or a separate value), test only |
-| `go` | `test` → test `go test`; `build`, `install` → build `go build`; `vet` → check `go vet`; else other. Flags may use one or two dashes and `=`; words from `-args` on are ignored (`GO_TEST_VALUE`) | a package positional not in `GO_BROAD`; for `test` also `-run`, `-skip` or `-fuzz` |
+| `go` | `test` → test `go test`; `build`, `install` → build `go build`; `vet` → check `go vet`; else other. Words from `-args` on are ignored; `--` does not end the options; a leading `--` is read as `-`, and `-name=value` sets `-name` (`GO_TEST_VALUE`) | a package positional not in `GO_BROAD`; for `test` also `-run`, `-skip` or `-fuzz` |
 | `dotnet` | `test` → test `dotnet test`; `build`, `publish`, `pack`, `msbuild` → build `dotnet <sub>`; `format --verify-no-changes` → check `dotnet format`; else other (`DOTNET_VALUE`) | `test`: `--filter` |
 | `gradle` | each task positional (`GRADLE_VALUE`) classifies by its name after the last `:` (below); the strongest task wins, the first on ties; suite `gradle <name>` when the name is `test`, `check`, `build`, `assemble` or `lint`, else null | `--tests`, or the winning task has a module prefix (`:app:test`; `:test` alone has none) |
 | `mvn` | each goal positional (`MVN_VALUE`): in `MVN_TEST` or `surefire:test` → test (build with an option in `MVN_SKIP`); in `MVN_BUILD` → build; ending `:check` → check; the strongest wins, the first on ties; suite `mvn <goal>` for goals in `MVN_TEST` or `MVN_BUILD`, else null | `-pl` / `--projects`, or a word starting with `-Dtest=` or `-Dit.test=` |
@@ -224,7 +261,7 @@ Programs with their own rule:
 | `mocha` | test `mocha` (`MOCHA_VALUE`; a `--spec` value counts as a positional) | an option in `MOCHA_FILTERS`, or the path rule |
 | `node` | with `--test` → test `node --test` (`NODE_TEST_VALUE`); else other | `--test-name-pattern`, `--test-only`, or the path rule |
 | `tsc`, `vue-tsc` | an option in `TSC_NOT_CHECK` → other; else check `tsc` / `vue-tsc` (`TSC_VALUE`) | the path rule, except with `-b` / `--build` (never) |
-| `ruff` | first word `check` or none (legacy) → check `ruff`; `format` with `--check` or `--diff` → check `ruff format`; any other subcommand → other (`RUFF_VALUE`) | the path rule |
+| `ruff` | a first word in `RUFF_SUBCOMMANDS` is the subcommand: `check`, or no subcommand (legacy), → check `ruff`; `format` with `--check` or `--diff` → check `ruff format`; any other subcommand → other (`RUFF_VALUE`) | the path rule |
 | `swiftlint` | first word `autocorrect` or `analyze`, or `--fix` anywhere → other; else check `swiftlint` | never |
 | `bazel` | `test` → test `bazel test`; `build` → build `bazel build`; else other (`BAZEL_VALUE`) | a positional other than `//...`, `...`, `//:all`, or a `--test_filter…` word |
 | `meson` | `test` → test `meson test` (`MESON_VALUE`); `compile` → build `meson compile`; else other | test: a positional or `--suite` |
@@ -237,7 +274,8 @@ path runner (`eslint`, `mypy`, `rspec`, `phpunit`, …), a check flag (`prettier
 subcommand table (`dart test`, `mix test`, `ng build`, …).
 
 Gradle task names: `test`, a name matching `test[A-Z0-9].*`, or ending in `Test` or `Tests` → test; `check` or `build`
-→ test (they run the tests), or build when `-x test` / `--exclude-task test` is given; `assemble…`, `compile…`, `jar`,
+→ test (they run the tests), or build when `-x test`, `--exclude-task test` or `--exclude-task=test` excludes the
+`test` task (by its name after the last `:`); `assemble…`, `compile…`, `jar`,
 `classes`, `installDist`, `bootJar`, `shadowJar` → build; `lint…`, `detekt`, `ktlintCheck`, `spotlessCheck`,
 `checkstyle…`, `pmd…`, `spotbugs…` → check; anything else → other.
 
@@ -266,34 +304,39 @@ from its first part (split at `:`, `.`, `_`, `/`, `-`): in `TEST_WORDS` → test
 `CHECK_WORDS` → check, else other; its suite is null (so `npm run test:unit` is test with no suite, and each such
 command is a check of its own in METRICS 6.9).
 
-**npm, pnpm, yarn, bun.** Leading options are skipped (`PM_VALUE` take a value); `-w`, `--workspace`, `--filter`, `-F`
-(`PM_NARROW`, also as `--workspace=` / `--filter=`) narrow the run, wherever they appear before `--`. Then the first
-word:
+**npm, pnpm, yarn, bun.** Leading options are skipped (`PM_VALUE` take a value; those in `PM_NARROW` narrow the run).
+Then, among the words after the first one and before any `--`, the options in `PM_NARROW` with their values, and
+`--workspace=…` / `--filter=…`, are removed and narrow the run (`npm run -w web test` runs the script `test` of one
+workspace). Then the first word:
 
-- `yarn workspace NAME …`: the rest classifies the same way and is always targeted.
+- `yarn workspace NAME …`: the words after `NAME` classify the same way and are always targeted.
 - `bun test` → test `bun test` (`BUN_TEST_VALUE`), targeted by `-t`, `--test-name-pattern` or the name rule;
   `bun build` → build `bun build`.
-- `test`, `t`, `tst` → the script `test`; `run`, `run-script`, `rum`, `urn` → the next non-option word is the script.
+- `test`, `t`, `tst` → the script `test`; `run`, `run-script`, `rum`, `urn` → the next word after any options is the
+  script (none → other).
 - For pnpm, yarn and bun only, a first word that is not in `NPM_BUILTINS` and has no file extension: when its program
-  name has a rule of its own (3.5) and is not a runner of this section, the words classify as that program (`pnpm
-  vitest run` is `vitest`); otherwise it is the script name.
+  name has a rule of its own (3.5) and is not one of the runners of `SCRIPT_LABEL`, the words classify as that
+  program (`pnpm vitest run` is `vitest`; `python` has no such rule here); otherwise it is the script name.
 - Anything else → other.
 
 A script's class and suite come from its name; a script of class other makes the segment other. *Forwarded words* are
 the words after the script name with `--` removed: the run is targeted when narrowed above or when a forwarded word is
-in `FORWARD_FILTERS` (or `--filter=…` style for its `--` options), or is a non-option word not preceded by an option in
-`FORWARD_VALUE` and not empty, `.`, `./` or `cwd` (the name rule).
+in `FORWARD_FILTERS` (or written `--name=…` for one of its `--` options), or is a non-option word not preceded by an
+option in `FORWARD_VALUE` that the name rule counts.
 
-**make, ninja, just, task, rake, mise, turbo, nx, composer, deno task.** `mise run`/`mise r`, `deno task`, `turbo run`,
-and `composer run-script`/`composer run` drop their subcommand word. `nx run-many` / `nx affected` take their target
-from `-t`/`--target`/`--targets` (the first of a comma list; targeted when `-p`/`--projects` is given); `nx run
-PROJECT:TARGET` uses `TARGET` and is targeted. Otherwise, options are skipped (A.3 lists each runner's value options;
-`just --set` takes two values), words matching `NAME_ASSIGN` are assignments and the remaining words are positionals.
-A composer positional in `COMPOSER_BUILTINS` → other. No positional: `make` → build `make`, `ninja` → build `ninja`,
-other runners → other. `make`, `ninja`, `rake`: every positional is a target, the strongest wins (the first on ties),
-targeted when an assignment's name matches `MAKE_FILTER_VAR` (`TEST=queue`, `ARGS=…`). Other runners: the first
-positional is the task; targeted when further positionals exist and, for `just`, always (recipe parameters); for the
-others when the further words pass the forwarded-words rule above; for `nx` always.
+**make, ninja, just, task, rake, mise, turbo, nx, composer, deno task.** A first word in the runner's
+`RUNNER_SUBCOMMANDS` (`mise run` / `mise r`, `deno task`, `turbo run`, `composer run-script` / `composer run`) is
+dropped. `nx run-many` / `nx affected` take their target from `-t` / `--target` / `--targets` (the first of a comma
+list; targeted when `-p` / `--projects` is given); `nx run PROJECT:TARGET` uses `TARGET` and is targeted. Otherwise,
+options are skipped (A.3 lists each runner's value options; `just --set` takes two values), words that are a prefix
+match of `NAME_ASSIGN` are assignments and the remaining words are positionals (`--` is skipped like
+an option).
+A composer whose first positional is in `COMPOSER_BUILTINS` → other. No positional: `make` → build `make`, `ninja` →
+build `ninja`, other runners → other. `make`, `ninja`, `rake`: every positional is a target, the strongest wins (the
+first on ties), targeted when an assignment's name, ASCII upper-cased, matches `MAKE_FILTER_VAR` (`TEST=queue`,
+`args=…`). Other runners: the first positional is the task; with further positionals the run is targeted for `just`
+(recipe parameters) and `nx` always, and for the others when the further positionals pass the forwarded-words rule
+(options having been skipped, only its name-rule part can apply).
 
 ### 3.7 Result fields
 
@@ -301,15 +344,14 @@ Every non-neutral segment classifies; the **chosen segment** is the first with t
 `suite` and `targeted` are the chosen segment's; with no classifying segment the class is `other`, the suite null and
 `targeted` false.
 
-**masked** (chosen segment only): true when a segment follows it and either the operator after it is `|` (and the
-command is not `pipefail`), or some later segment's operator before it is `;`, `||` or `&` (an LF counts as `;`).
-`&&` never masks: a failure stops the list and becomes its status. So `cargo test | tail`, `cargo test || true`,
-`cargo test; echo $?` and `if cargo test; then …; fi` are masked; `cargo build && cargo test` and `set -o pipefail;
-cargo test | tee log` are not. `!` is dropped as a keyword and does not mask (an approximation). For class other,
-`masked` is false.
+**masked** (chosen segment only, with the operators between segments of 3.3): true when a segment follows it and
+either the operator after it is `|` (and the command is not `pipefail`), or some later segment's operator before it is
+`;`, `||` or `&` (an LF counts as `;`). `&&` never masks: a failure stops the list and becomes its status. So `cargo
+test | tail`, `cargo test || true`, `cargo test; echo $?`, `(cargo test) | tee log`, `{ cargo test; } | tee log` and
+`if cargo test; then …; fi` are masked; `cargo build && cargo test` and `set -o pipefail; cargo test | tee log` are
+not. `!` is dropped as a keyword and a loop's status is not seen (approximations). For class other, `masked` is false.
 
-**background**: the chosen segment is followed by `&` or was prefixed by `nohup` / `setsid`; for class other, any
-segment is.
+**background**: the chosen segment is background (3.3); for class other, when any segment is.
 
 **key**: the *kept* segments are the classifying segments of class test, build or check; when there are none, the
 non-neutral segments; when there are none, every segment with words. Each kept segment gives a token list:
@@ -317,8 +359,8 @@ non-neutral segments; when there are none, every segment with words. Each kept s
 1. its program name, then its other words in order except those in `COSMETIC` or starting with `COSMETIC_PREFIX`,
    and for `pytest` also `-s`, `--capture=no` and words matching `-r[A-Za-z]+`;
 2. `npm|pnpm|yarn test|t|tst …` → `<pm> run test …`; `npm|pnpm|yarn|bun run-script|rum|urn …` → `<pm> run …`;
-   `pnpm|yarn NAME …` with `NAME` not in `NPM_BUILTINS` → `<pm> run NAME …`;
-3. preceded by `@<context>` when its directory context is not empty.
+   `pnpm|yarn NAME …` with `NAME` not in `NPM_BUILTINS` and not starting with `-` → `<pm> run NAME …`;
+3. preceded by `@<context>` when the context it records (3.3 step 6, before its own `cd`) is not empty.
 
 `key = sha16(lists joined by U+001E, each list's tokens joined by U+001F)`; no kept segment → `sha16("")`. Output
 filters (`| tail`), redirections, environment, prefixes, runners, colour and verbosity flags and a `cd` into `cwd`
@@ -334,15 +376,17 @@ strings: `python -m pytest`, `uv run pytest` and `pytest -q` are all `pytest`; `
 
 `shell_kind(text)` for `action_kind` (2):
 
-1. `edit` when a segment's program is `apply_patch` or `applypatch`, or the command holds a patch text (6.3: a
-   here-document body, or a word containing LF, with a line matching `PATCH_LINE`). A shell wrapper's script is
-   searched, not the wrapper's word itself.
+1. `edit` when a segment's program is `apply_patch` or `applypatch`, or the command holds a patch text: a
+   here-document body, or a word containing LF, with a line matching `PATCH_LINE` (the words of a shell wrapper are
+   not searched; its script is, as segments).
 2. `command` when `command_info` gives a class other than `other`.
-3. Over the non-neutral segments (none → `command`): `command` as soon as one has an output redirection (`WRITE_REDIRS`)
-   whose target is not `/dev/null`, `NUL`, `nul` or a file descriptor (`[0-9-]+`), or is `sed` with an option starting
-   `-i` or `--in-place`, or is `find` with an option in `FIND_ACTIONS`, or is `git` with a first positional outside
-   `GIT_READ` and `GIT_SEARCH`, or has a program outside `READ_PROGS` and `SEARCH_PROGS`. Otherwise `search` when some
-   segment is a search (`SEARCH_PROGS`, `git` with a positional in `GIT_SEARCH`), else `read`.
+3. `command` when any segment, neutral ones included, has an output redirection (`WRITE_REDIRS`) whose target is not
+   `/dev/null`, `NUL`, `nul` or a file descriptor (`FD_TARGET`).
+4. Over the non-neutral segments (none → `command`): `command` as soon as one is `sed` with an option starting `-i`
+   or `--in-place`, or `find` with an option in `FIND_ACTIONS`, or `git` whose subcommand (its first word after git's
+   own options, `GIT_VALUE` taking a value) is outside `GIT_READ` and `GIT_SEARCH`, or has a program outside
+   `READ_PROGS` and `SEARCH_PROGS`. Otherwise `search` when some segment is a search (`SEARCH_PROGS`, or `git` with a
+   subcommand in `GIT_SEARCH`), else `read`.
 
 So Codex reading files through `sed -n` or `rg` counts like Claude's `Read` and `Grep`, which keeps the two comparable
 in METRICS 6.11. Shell edits other than `apply_patch` (`sed -i`, `cat > file`) stay `command`, as METRICS 6.9 assumes.
@@ -353,16 +397,33 @@ in METRICS 6.11. Shell edits other than `apply_patch` (`sed -i`, `cat > file`) s
 
 The text `failures` reads, LF-normalised:
 
-- **Claude**: the block's `content` (a string, or the `text` of its `text` blocks joined by LF); a first line matching
-  `CLAUDE_EXIT` is removed.
-- **Codex**: the `output` value (*Codex output*: a string that starts, after JSON whitespace, with `[` and parses as
-  an array is that array; an array gives the `text` of its `input_text`, `output_text` and `text` items joined by LF;
-  an object with `content` uses `content`). When the text starts (after JSON whitespace) with a JSON object (the first
-  JSON value of the text; trailing text is ignored) that has a string `output`, that string. Otherwise, when one of the
-  first 8 lines is exactly `Output:` and every line before it matches `CODEX_HEADER`, the lines after it; else the
-  whole text.
-- **omp, Pi, OpenClaw**: the `text` of the message's `text` content blocks joined by LF; trailing lines that are empty
-  after trimming are dropped, then a last line that matches `PI_EXIT` after trimming.
+*Blocks text* of a content value: a string as is; an array gives the `text` of its items of type `text`,
+`input_text` or `output_text` that have a string `text`, joined by LF; anything else gives the empty text.
+
+- **Claude**: the blocks text of the block's `content`; a first line matching `CLAUDE_EXIT` is removed.
+- **Codex**: the *body* of the Codex status (below).
+- **omp, Pi, OpenClaw**: the blocks text of the message's `content`; trailing lines that are empty after trimming are
+  dropped, then a last line that, trimmed, matches `PI_EXIT`.
+
+**Codex status** of a result:
+
+1. *Output value*: the result's `output` when the result is an object with both `type` and `output`; else the result
+   itself. An object with a `content` array or string gives that `content`. A string that starts, after JSON
+   whitespace, with `[` and parses as a non-empty array whose items are all objects with a string `type` is read as
+   that array (so a plain `[1,2]` printed by a command stays text).
+2. *Text*: the blocks text of the output value, LF-normalised. *Body*: the text, unless step 3 or 4 sets it.
+3. When the text has a leading JSON object (1) with a string `output` (Codex's JSON forms always carry one): the body
+   is that `output`, LF-normalised; the exit code is its JSON-integer `exit_code`, else its `metadata.exit_code`;
+   with neither, a JSON-integer `session_id` means *running* in session `codex:<id>`.
+4. Otherwise, when one of the first 8 lines is exactly `Output:` and every line before it matches `CODEX_HEADER`
+   (`Exit code: …`, `Wall time: …`, `Chunk ID: …`, …), those lines are the *header* and the body is everything after
+   the `Output:` line. A header line matching `CODEX_EXIT` or `CODEX_EXITED` gives the exit code; one matching
+   `CODEX_RUNNING` means *running* in session `codex:<N>`. Without such a header there is no exit code.
+5. State, the first that applies: *aborted* when the text's first line, trimmed, is `aborted`, starts with `aborted by
+   user` or contains `rejected by user`; *timeout* when the body's first line is a prefix match of `CODEX_TIMEOUT`;
+   *running* as found above; else *done*.
+6. *Patch verdict*, only without an exit code in state done: the body's first line starting with `Success. Updated the
+   following files` → not failed; starting with `apply_patch verification failed` or `Failed to apply patch` → failed.
 
 ### 4.2 `outcome`
 
@@ -372,25 +433,16 @@ The text `failures` reads, LF-normalised:
 
 **Claude** (`text` = the content as in 4.1 before removing the exit line; `first` = its first line):
 
-- `exitCode` = the number of `first` when it matches `CLAUDE_EXIT`.
+- `exitCode` = the number of `first` when it matches `CLAUDE_EXIT` (`text` here is the blocks text, LF-normalised).
 - State: `aborted` when `text` starts with one of `CLAUDE_ABORT`; else `timeout` when `first` matches
-  `CLAUDE_TIMEOUT`; else `running` when `first` matches `CLAUDE_BACKGROUND`; else, for a `BashOutput` /
-  `TaskOutput` result, `running` when `<status>running</status>` occurs (*search* `BASHOUTPUT_STATUS`), and an exit
+  `CLAUDE_TIMEOUT`; else `running` when `first` matches `CLAUDE_BACKGROUND`; else, when `tool` is `BashOutput` or
+  `TaskOutput`, `running` when `<status>running</status>` occurs (*search* `BASHOUTPUT_STATUS`), and an exit
   code from `<exit_code>N</exit_code>` (*search* `BASHOUTPUT_EXIT`) when the status tag is present and no exit line
   was found.
 - `failed` = `exitCode ≠ 0` when an exit code is known, else `is_error == true` (absent → false, as METRICS 6.10).
 
-**Codex** (the Codex output of 4.1; `head` = its leading JSON object, if any):
-
-- With `head`: `exitCode` = its integer `exit_code`, else its `metadata.exit_code`; with neither, an integer
-  `session_id` means `running`. A string `output` starting with a `CODEX_TIMEOUT` match means `timeout`.
-- Without `head`: the *header* is the lines before the first `Output:` line, at most the first 8 lines. A header line
-  matching `CODEX_EXIT` or `CODEX_EXITED` gives the exit code; `CODEX_RUNNING` means `running`. The first line after
-  `Output:` starting with a `CODEX_TIMEOUT` match means `timeout`. The first line, trimmed, equal to `aborted`,
-  starting with `aborted by user`, or containing `rejected by user` means `aborted`. Without an exit code in state
-  `done`: a first line starting `Success. Updated the following files` → `failed` false; starting `apply_patch
-  verification failed` or `Failed to apply patch` → `failed` true.
-- `failed` = `exitCode ≠ 0` when known; otherwise as above, or null.
+**Codex**: the Codex status (4.1) gives the exit code and the state; `failed` = `exitCode ≠ 0` when an exit code is
+known, else the patch verdict, else null.
 
 **omp, Pi, OpenClaw** (lines of the text, each trimmed; `last` / `first` = the last / first non-empty one;
 `details` = the message's `details` object):
@@ -398,7 +450,7 @@ The text `failures` reads, LF-normalised:
 - `exitCode` = integer `details.exitCode`, else integer `details.exit_code`, else the number of `last` when it matches
   `PI_EXIT` (Pi and omp write `Command exited with code N`; OpenClaw writes `(Command exited with code N)`, with
   `isError` false for a normal non-zero exit).
-- State: `running` when `details.status == "running"` or `first` matches `PI_RUNNING`; else `timeout` when
+- State: `running` when `details.status == "running"` or `first` is a prefix match of `PI_RUNNING`; else `timeout` when
   `details.timedOut == true` or one of the last two non-empty lines matches `PI_TIMEOUT`; else `aborted` when `last`
   or `first` matches `PI_ABORT`.
 - `failed` = `exitCode ≠ 0` when known, else `isError == true`.
@@ -421,9 +473,8 @@ Codex's unified exec returns after `yield_time_ms` (10 s by default) while the c
 `write_stdin` call (often with empty `chars`) receives the rest of the output and the exit code; Claude's background
 `Bash` is read later with `BashOutput` / `TaskOutput`. To give the original command its outcome:
 
-- `running_session(source, result)`: Codex — a leading JSON object with an integer `session_id` and no integer
-  `exit_code` → `codex:<id>`; else a header line (first 8) matching `CODEX_RUNNING` → `codex:<N>`. Claude — a first
-  line matching `CLAUDE_BACKGROUND` → `claude:<id>`. Otherwise null.
+- `running_session(source, result)`: Codex — the session of the Codex status (4.1 steps 3–4), whatever its final
+  state. Claude — a first line matching `CLAUDE_BACKGROUND` → `claude:<id>`. Otherwise null.
 - `continuation(source, tool, input)`: Codex `write_stdin` with an integer `session_id` → `codex:<id>`; Claude
   `BashOutput` / `TaskOutput` with a non-empty string `bash_id`, `shell_id` or `task_id` (in that order) →
   `claude:<id>`. Otherwise null.
@@ -453,26 +504,29 @@ command's `command_info` (only its suite is read), `outputText` its `result_text
   LF; right-trim each line and keep at most its first `MAX_LINE` = 2 000 characters.
 - **Workspace prefixes**: pnpm, yarn and turbo prefix interleaved lines with `<package> <script>: ` or
   `<package>:<script>: `. A line *has* the prefix `p` when `WORKSPACE_PREFIX` matches at its start, `p` is the match's
-  first group, and the character after `p:` is a space or the end of the line. Prefixes found on at least
-  `WORKSPACE_MIN` = 3 lines of the segment are removed from those lines (with the colon and one following space).
+  first group, and the character after `p:` is a space or the end of the line. Prefixes that lines have at least
+  `WORKSPACE_MIN` = 3 times in the segment are removed from the lines that have them (with the colon and one
+  following space).
 
 ### 5.2 Masking
 
 A fingerprint never carries a volatile part, so the same failure gives the same digest across runs.
 
-- **Message** (`mask`), in this order: temporary paths (`TMP_PATH`) → `<tmp>`; the `cwd/` prefix removed (`cwd` with
-  `\` → `/` and no trailing `/`; for a drive path, `/` and `\` both match and letters compare ASCII
-  case-insensitively); home prefixes (`HOME_PATH`) → `~/`; `UUID` → `<uuid>`; `ISO_TIME` → `<time>`; `TIME_OF_DAY` →
+- **Message** (`mask`), in this order: temporary paths (`TMP_PATH`) → `<tmp>`; every `cwd/` removed (`cwd` as in 3.3;
+  `/` and `\` both match its separators, letters compare ASCII case-insensitively for a drive `cwd`); home prefixes
+  (`HOME_PATH`) → `~/`; `UUID` → `<uuid>`; `ISO_TIME` → `<time>`; `TIME_OF_DAY` →
   `<time>`; `DATE` → `<date>`; `HEX_ADDR` → `0x?`; `FILE_POS_BRACKET` → `\1:[N]`; `FILE_POS` → `\1:N`;
   `FILE_POS_PAREN` → `\1(N)`; `LINE_WORD` → `\1\2N`; `DURATION` → `<dur>`; `LONG_HEX` → `<hex>`; `PID_PORT` → `\1 N`;
   runs of spaces and tabs → one space; trimmed; cut to `MAX_MESSAGE` = 200 characters. File names and error codes
-  survive; line and column numbers, durations, times, addresses and temporary directories do not.
+  survive; line and column numbers, durations, times, addresses and temporary directories do not. `TMP_PATH`,
+  `HOME_PATH` and the `cwd/` removal only match where a path starts: not right after a letter, digit, `.`, `_`, `~`,
+  `/`, `\` or `-` (`NOT_IN_PATH`), so `/opt/mirror/Users/dev/x` and `/usr/tmp/x` keep their text.
 - **Test name** (`mask_name`): temporary paths, the `cwd/` prefix and home prefixes as above; space runs collapsed;
   trimmed; cut to 200 characters. Nothing else changes: a test's name is its identity (cargo doc-test names get
   `(line N)` from their recogniser).
-- **File** (`norm_file`): trimmed, then surrounding `'`, `"`, `` ` `` removed; a `file://` prefix removed; `\` → `/`;
-  `TMP_PATH` → `<tmp>`; a `cwd/` prefix removed (ASCII case-insensitive for a drive path); `HOME_PATH` → `~/`; `//` →
-  `/` repeatedly; leading `./` removed repeatedly.
+- **File** (`norm_file`): trimmed, then every `'`, `"` and `` ` `` at either end removed (paired or not); a `file://`
+  prefix removed; `\` → `/`; `TMP_PATH` → `<tmp>`; made cwd-relative (3.3) when inside `cwd`; `HOME_PATH` → `~/`;
+  `//` → `/` repeatedly; leading `./` removed repeatedly.
 
 ### 5.3 Recognisers
 
@@ -482,13 +536,35 @@ bun, deno), checkers (tsc, eslint, ruff, black, mypy, pyright), .NET (MSBuild, V
 JVM (JUnit through Gradle and Surefire, javac, kotlinc, Maven), misc (rspec, phpunit, ctest), C and C++ (gcc, clang,
 linkers, make). At line `i` the first recogniser that *claims* it consumes one or more lines (lookahead included) and
 the reader continues after them; a line no one claims is left for the fallback (5.6). Claiming a line (warnings, notes,
-progress, noise) without emitting anything keeps it from other recognisers. When a segment ends, each recogniser
-emits what its state still holds.
+progress, noise) without emitting anything keeps it from other recognisers, which never see it: a state that waits for
+such a line (a listing mode) simply continues. Within a recogniser, rules are tried in the order of A.5; a rule guarded
+by a state (a listing that is open) is tried first while the state holds, and a state change made while trying rules
+persists even when the line ends up unclaimed. When a segment ends, the recognisers emit what their state still holds,
+in recogniser order, after everything emitted while reading.
 
 A recogniser emits **failures** — `test(framework, name, file)` or `error(framework, file, code, message)` — and
 **summaries** `(framework, family, failed, passed, mode)` with family `test` or `error` and mode `last` (only the last
 one counts) or `sum` (all of them add up). Failures describe failing tests and errors only: passing tests, warnings,
-notes and skipped tests are never failures.
+notes and skipped tests are never failures. The framework names below are part of the output (`framework`) and of
+every canonical string (5.7); synthetic texts are given in quotes.
+
+| Recogniser | Failure frameworks | Summary frameworks |
+| --- | --- | --- |
+| pytest, unittest | `pytest`, `unittest` | `pytest`, `unittest` |
+| cargo, rustc | `cargo` (libtest and nextest failures alike), `rustc` | `cargo` (sum), `nextest`, `rustc` (sum) |
+| Swift | `swift-testing`, `xctest`, `swiftc` | `swift-testing`, `xctest`, `xcodebuild` |
+| Go | `go` | `go` |
+| JavaScript | `jest`, `vitest`, `mocha`, `bun`, `deno` | `jest` (sum), `vitest` (sum), `mocha`, `bun`, `deno` |
+| checkers | `tsc`, `eslint`, `ruff`, `black`, `mypy`, `pyright` | `tsc`, `found-errors` (5.4), `eslint`, `ruff`, `format`, `mypy`, `pyright` |
+| .NET | `msbuild`, `dotnet` (VSTest and MTP failures) | `msbuild`, `dotnet` (VSTest, sum), `dotnet-mtp` |
+| JVM | `junit`, `javac`, `kotlinc` | `gradle` (sum), `maven`, `javac` |
+| misc | `rspec`, `phpunit`, `ctest` | `rspec`, `phpunit`, `ctest` |
+| C, C++ | `cc` (linker errors: code `ld`, message "undefined symbol " + symbol or "undefined reference to " + symbol) | `cc` (sum) |
+
+*Counts in a summary line* (`parse_counts`): the text is split at `,` (vitest: at `|`); each part that matches
+`[ \t]*([0-9]+) ([A-Za-z][A-Za-z ]*?)[ \t]*` adds its number to its label (equal labels add up); a missing label is
+0. unittest reads `name=N` pairs (a later pair replaces an earlier one), phpunit `Label: N` pairs; nextest first
+removes parenthesised notes ` (…)`. Passed counts computed by subtraction never go below 0.
 
 | Recogniser | Failures | Summaries |
 | --- | --- | --- |
@@ -519,7 +595,14 @@ notes and skipped tests are never failures.
 | **ctest** | `CTEST_LINE` with `Failed`, `Exception` or `Timeout`; the list after `The following tests FAILED:` (`CTEST_LISTED`) | `CTEST_SUMMARY`: failed, passed = total − failed |
 | **C, C++** | `CC_ERROR` for C-family files (`CC_EXT`): code = the bracketed flag with `-Werror,` removed and `-Werror=` → `-W`; linker: symbols after `LD_UNDEFINED_ARCH` (`LD_SYMBOL`) and *search* `LD_REFERENCE`, code `ld` | `CC_GENERATED` (`N errors generated.`), family error, mode sum |
 
-Only a line's first matching rule within a recogniser applies, in the order the reference lists them.
+Details the table leaves out: a jest bullet takes the file of the last `FAIL` header, and a `PASS` header empties it;
+a `Tests:` line emits a summary even without a `Test Suites:` line, and a `Test Suites:` line followed by no `Tests:`
+line emits one at the next `Test Suites:` line or the segment's end, with failed = failed suites and passed = 0 (vitest
+alike with `Test Files`). bun's `N pass` / `N fail` lines replace earlier ones. mocha's passed count is 0 without a
+`passing` line, and its block indentation counts spaces only. A pyright message is its first line only (continuation
+lines only supply the rule). The Surefire list skips lines starting exactly `[ERROR]   Run ` and ends at the aggregate
+`Tests run:` line, an `[INFO]` line, or a bare `[ERROR]`. `XB_COUNT` counts only right after `The following build
+commands failed:` and its indented lines.
 
 ### 5.4 Counts and framework
 
@@ -575,8 +658,8 @@ edit or whose input cannot be split.
 
 ### 6.1 Normalisation
 
-- **file** = `sha16` of the path with `\` → `/`, a `file://` prefix removed, a `cwd/` prefix removed (ASCII
-  case-insensitive for a drive path), `//` → `/` repeatedly, leading `./` removed repeatedly and `/./` → `/`.
+- **file** = `sha16` of the path with `\` → `/`, a `file://` prefix removed, made cwd-relative (3.3) when inside
+  `cwd`, then `//` → `/` repeatedly, leading `./` removed repeatedly and `/./` → `/` repeatedly, in that order.
   Absolute paths outside `cwd` stay absolute.
 - **Text lines** of a string: LF-normalised, split at LF, each line right-trimmed, empty lines removed from both ends.
 - **Hunk** of an old and a new text: their text lines, minus the lines common to the start of both and then the lines
@@ -597,24 +680,25 @@ edit or whose input cannot be split.
 | Claude `MultiEdit` | one hunk per entry of `edits` with string `old_string` and `new_string`, same file |
 | Claude `Write` | whole-file write of `content` |
 | Claude `NotebookEdit` | the cell is a file of its own, `notebook_path#cell` (`cell` = `cell_id`, else the decimal `cell_number`, else empty): `edit_mode` `replace` (default) → whole-file write of `new_source`; `delete` → deletion; `insert` → a hunk `""` → `new_source` in `notebook_path` |
-| Codex `apply_patch` | the patch (6.3): a custom tool's input string; a function's `input` (else `patch`) |
+| Codex `apply_patch` | the patch (6.3): a custom tool's input string (one that is not a JSON object); a function's string `input`, else its string `patch` |
 | Codex shell tools; any shell tool | every patch text in the command (3.9): heredoc bodies of `apply_patch <<'EOF'`, `bash -lc` scripts and argv elements (`["apply_patch", "*** Begin Patch…"]`) |
-| Pi, OpenClaw `edit` | one hunk per `{oldText, newText}` in `edits` (an array; a string holding a JSON array; a single object), then the legacy top-level `oldText` / `newText` when not already listed, in `path` |
+| Pi, OpenClaw, omp `edit` | an `input` string is read by its shape (6.4) for every family. Otherwise (omp's other shapes first, 6.4): one hunk per `{oldText, newText}` with string values in `edits` (an array; a single object; a string holding a JSON array or object), then the legacy top-level `oldText` / `newText` when that pair is not already listed, in `path` |
 | Pi, omp, OpenClaw `write` | whole-file write of `content` at `path` |
 | OpenClaw `apply_patch` | the patch in `input` |
-| omp `edit` | by the input's shape (6.4) |
 | omp `ast_edit` | `[]` (a structural rewrite; its effect is not in the input) |
 
 ### 6.3 Codex patches
 
-The envelope starts after the first line equal to `*** Begin Patch` after trimming (from the first line when there is
-none) and ends at a line equal to `*** End Patch` after trimming. Lines matching `PATCH_HEADER` (right-trimmed) open
-sections: `*** Add File: P`, `*** Delete File: P`, `*** Update File: P` with an optional `*** Move to: Q` right after
-it. Other lines belong to the open section.
+The text is LF-normalised. The envelope starts after the first line equal to `*** Begin Patch` after trimming (from the
+first line when there is none) and ends at a line equal to `*** End Patch` after trimming. Lines that, right-trimmed,
+match `PATCH_HEADER` open sections: `*** Add File: P`, `*** Delete File: P`, `*** Update File: P`; paths are
+trimmed. A `*** Move to: Q` line inside an Update section (anywhere; the last one wins) sets its destination; outside
+one it is an ordinary line. Lines before the first section are ignored; other lines belong to the open section.
 
 - **Add**: a whole-file write of the section's lines that start with `+`, without the `+`.
 - **Delete**: a deletion.
-- **Update**: chunks start at lines beginning `@@` (the first may have none); `*** End of File` is skipped; a line
+- **Update**: chunks start at lines beginning `@@` (the first may have none); a line exactly `*** End of File` is
+  skipped; a line
   starting `-` is old only, `+` new only, ` ` or anything else (an empty line included) context for both (one leading
   space removed). Each chunk with at least one `-` or `+` line gives a hunk of its old lines → new lines. With `Move
   to`, a deletion of `P` first and the hunks under `Q`.
@@ -668,10 +752,13 @@ compare the outputs exactly.
 - The class of a package script, `make` target or task comes from its name, not its body; a script named `ci` that
   runs the tests is `other`.
 - `masked` follows the operators, not the commands: `cargo test | tee log` is masked unless `pipefail` is set, and a
-  loop's status is not recognised as masking.
+  loop's status is not recognised as masking. Function definitions are not recognised (their bodies classify as if
+  they ran), and wrapper scripts nested more than 4 deep are ignored.
 - A recogniser that misses a format leaves the fallback to a generic pattern only for failed runs; an unrecognised
   passing run has no counts and relies on its exit code.
 - Fingerprints of compiler errors drop line numbers, so two identical messages in one file count once.
+- A Codex command whose own output starts with a JSON object holding a string `output` is read as Codex's JSON
+  form (4.1).
 - Not verified against real logs (none were read): Claude `BashOutput` / `TaskOutput` tags, omp's hashline, sloppy
   and patch shapes, Codex's `exec` custom tool input, the exact wording of every runner across versions (the corpus
   notes the uncertain details per case).

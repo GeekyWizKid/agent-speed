@@ -200,11 +200,6 @@ REDIR = rx(r"([0-9]*)(<<<|<<-|<<|>>|>&|<&|>\||<>|&>>|&>|>|<)")
 NAME_ASSIGN = rx(r"[A-Za-z_][A-Za-z0-9_]*=")
 
 
-class Tokens:
-    def __init__(self):
-        self.items = []      # ("word", text) | ("op", op) | ("redir", op, target) | ("heredoc", body)
-
-
 def read_heredoc(text, i, delim, strip_tabs):
     lines = []
     n = len(text)
@@ -290,10 +285,10 @@ def read_word(text, i):
 
 
 def tokenize(text):
+    """Tokens: ("word", text), ("op", op), ("redir", op, target) and ("heredoc", body)."""
     items = []
     pending = []                     # (delimiter, strip tabs, index in items)
     i, n = 0, len(text)
-    at_word_start = True
     while i < n:
         c = text[i]
         if c in " \t":
@@ -1605,7 +1600,7 @@ def parse_into(text, parsed, st, depth):
             p = prog(seg.words[0])
             if p in ("apply_patch", "applypatch"):
                 parsed.apply_patch = True
-            if p == "set" and any(PIPEFAIL_FLAG.fullmatch(w) and k + 1 < len(seg.words) and seg.words[k + 1] == "pipefail"
+            if p == "set" and any(PIPEFAIL_FLAG.fullmatch(w) and seg.words[k + 1:k + 2] == ["pipefail"]
                                   for k, w in enumerate(seg.words)):
                 parsed.pipefail = True
             if p in ("cd", "pushd"):
@@ -1744,8 +1739,8 @@ def shell_kind(parsed, cwd=None):
 
 CLAUDE_EXIT = rx(r"Exit code (-?[0-9]+)")
 CLAUDE_ABORT = ("[Request interrupted by user", "The user doesn't want to proceed with this tool use",
-                "The user doesn't want to take this action", "Permission to use ", "Claude requested permissions to use",
-                "User rejected", "The tool use was rejected")
+                "The user doesn't want to take this action", "Permission to use ",
+                "Claude requested permissions to use", "User rejected", "The tool use was rejected")
 CLAUDE_TIMEOUT = rx(r"Command timed out after .*")
 CLAUDE_BACKGROUND = rx(r"Command running in background with ID: ?([A-Za-z0-9_.:-]+).*")
 CODEX_EXIT = rx(r"Exit code: (-?[0-9]+)")
@@ -2057,7 +2052,8 @@ TMP_PATH = rx(NOT_IN_PATH + r"(?:(?:/private)?/var/folders/|(?:/private)?/tmp/|[
               r"AppData[\\/]Local[\\/]Temp[\\/])[^ \t'\"()\[\]\{\}<>,;|`]*")
 HOME_PATH = rx(NOT_IN_PATH + r"(?:/Users/[^/ \t'\"]+/|/home/[^/ \t'\"]+/|[A-Za-z]:[\\/]Users[\\/][^\\/ \t'\"]+[\\/])")
 UUID = rx(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
-ISO_TIME = rx(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:[.,][0-9]+)?)?(?:Z|[+-][0-9]{2}:?[0-9]{2})?")
+ISO_TIME = rx(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:[.,][0-9]+)?)?(?:Z|[+-][0-9]{2}:?[0-9]{2}"
+              r")?")
 TIME_OF_DAY = rx(r"(?<![0-9])[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:[.,][0-9]+)?(?![0-9])")
 DATE = rx(r"(?<![0-9])[0-9]{4}-[0-9]{2}-[0-9]{2}(?![0-9])")
 HEX_ADDR = rx(r"0x[0-9A-Fa-f]+")
@@ -2247,11 +2243,13 @@ class Unittest(Recognizer):
 # ---- cargo test (libtest) and nextest
 LIBTEST_LINE = m(r"test (.+) \.\.\. (FAILED|ok|ignored(?:, .*)?|bench: .*)")
 LIBTEST_STDOUT = m(r"---- (.+) (?:stdout|stderr) ----")
-LIBTEST_RESULT = m(r"test result: (?:ok|FAILED)\. ([0-9]+) passed; ([0-9]+) failed; ([0-9]+) ignored; ([0-9]+) measured; "
+LIBTEST_RESULT = m(r"test result: (?:ok|FAILED)\. ([0-9]+) passed; ([0-9]+) failed; ([0-9]+) ignored; ([0-9]+) measured"
+                   r"; "
                    r"([0-9]+) filtered out(?:; finished in .*)?")
 LIBTEST_FAILURES = m(r"failures:")
 LIBTEST_LISTED = m(r"    ([^ ].*)")
-NEXTEST_FAIL = m(r" *(?:FAIL|SIGSEGV|SIGABRT|SIGKILL|SIGBUS|TIMEOUT|LEAK-FAIL|ABORT) \[ *[0-9.]+m?s\] (?:\( *[0-9]+/[0-9]+\) )?"
+NEXTEST_FAIL = m(r" *(?:FAIL|SIGSEGV|SIGABRT|SIGKILL|SIGBUS|TIMEOUT|LEAK-FAIL|ABORT) \[ *[0-9.]+m?s\] (?:\( *[0-9]+/[0-"
+                 r"9]+\) )?"
                  r"([^ ]+) (.+)")
 NEXTEST_OTHER = m(r" *(?:PASS|SKIP|LEAK|SLOW|FLAKY|START|RETRY|TRY [0-9]+ [A-Z-]+) \[.*")
 NEXTEST_SUMMARY = m(r" *Summary \[[^\]]*\] +([0-9]+) tests? run: (.*)")
@@ -2363,7 +2361,8 @@ ST_OTHER = m(ST_MARK + r"(?:Test .+? (?:passed after .*|started\.|skipped.*)|Sui
 ST_RUN = m(ST_MARK + r"Test run with ([0-9]+) tests?(?: in [0-9]+ suites?)? (passed|failed) after [0-9]+(?:\.[0-9]+)? "
            r"seconds(?: with ([0-9]+) issues?)?(?: \(including [0-9]+ known issues?\))?\.")
 ST_CASES = rx(r" with [0-9]+ test cases?$")
-XC_CASE = m(r"Test [Cc]ase '(-\[[^\]]+\]|[^']+)' (failed|passed|started|skipped)(?: on '[^']*')?(?: \([0-9.]+ seconds\))?\.?")
+XC_CASE = m(r"Test [Cc]ase '(-\[[^\]]+\]|[^']+)' (failed|passed|started|skipped)(?: on '[^']*')?(?: \([0-9.]+ seconds\)"
+            r")?\.?")
 XC_ERROR = m(r"(.+?):([0-9]+): error: (-\[[^\]]+\]|[A-Za-z0-9_.()/]+) : .*")
 XC_SUITE = m(r"Test [Ss]uite '.+' (?:started|passed|failed).*")
 XC_EXECUTED = m(r"[ \t]*Executed ([0-9]+) tests?, with (?:([0-9]+) tests? skipped and )?([0-9]+) failures? \(([0-9]+) "
@@ -2679,13 +2678,15 @@ ESLINT_MSG = m(r"[ \t]+([0-9]+):([0-9]+)[ \t]+(error|warning)[ \t]+(.+?)(?:[ \t]
 ESLINT_UNIX = m(r"(.+?):([0-9]+):([0-9]+): (.+) \[(Error|Warning)/(.+)\]")
 ESLINT_SUMMARY = m(r"✖ ([0-9]+) problems? \(([0-9]+) errors?, ([0-9]+) warnings?\)")
 ESLINT_FIXABLE = m(r"[ \t]+[0-9]+ errors? and [0-9]+ warnings? potentially fixable.*")
-RUFF_CONCISE = m(r"(.+?\.(?:py|pyi|ipynb)):([0-9]+):([0-9]+): ([A-Z]+[0-9]+|SyntaxError|invalid-syntax):? (?:\[\*\] )?(.*)")
+RUFF_CONCISE = m(r"(.+?\.(?:py|pyi|ipynb)):([0-9]+):([0-9]+): ([A-Z]+[0-9]+|SyntaxError|invalid-syntax):? (?:\[\*\] )?("
+                 r".*)")
 RUFF_HEADER = m(r"([A-Z]{1,4}[0-9]{1,4}|invalid-syntax|SyntaxError):? (?:\[\*\] )?(.+)")
 RUFF_LOC = m(r" *--> (.+?):([0-9]+):([0-9]+)")
 RUFF_PASSED = m(r"All checks passed!")
 RUFF_WOULD = m(r"Would reformat: (.+)")
 BLACK_WOULD = m(r"would reformat (.+)")
-FORMAT_SUMMARY = m(r"(?:Oh no! .*)?([0-9]+) files? would be reformatted(?:, [0-9]+ files? (?:already formatted|would be "
+FORMAT_SUMMARY = m(r"(?:Oh no! .*)?([0-9]+) files? would be reformatted(?:, [0-9]+ files? (?:already formatted|would be"
+                   r" "
                    r"left unchanged))?\.?")
 MYPY_ERROR = m(r"(.+?\.pyi?):([0-9]+)(?::([0-9]+))?: error: (.+?)(?:  \[([a-z0-9-]+)\])?")
 MYPY_NOTE = m(r"(.+?\.pyi?):([0-9]+)(?::([0-9]+))?: note: .*")
@@ -2807,16 +2808,19 @@ class Checkers(Recognizer):
 
 
 # ---- .NET
-MSB_ERROR = m(r"[ \t]*(.+?)\(([0-9]+)(?:,([0-9]+))?(?:,[0-9]+,[0-9]+)?\): error ([A-Za-z]+[0-9]+): (.*?)(?: \[([^\]]+)\])?")
+MSB_ERROR = m(r"[ \t]*(.+?)\(([0-9]+)(?:,([0-9]+))?(?:,[0-9]+,[0-9]+)?\): error ([A-Za-z]+[0-9]+): (.*?)(?: \[([^\]]+)"
+              r"\])?")
 MSB_TOOL_ERROR = m(r"[ \t]*([A-Za-z][A-Za-z0-9_.-]*) : error ([A-Za-z]+[0-9]+): (.*?)(?: \[([^\]]+)\])?")
-MSB_WARNING = m(r"[ \t]*.+?(?:\([0-9,]+\))? : warning [A-Za-z]+[0-9]+: .*|[ \t]*.+?\([0-9,]+\): warning [A-Za-z]+[0-9]+: .*")
+MSB_WARNING = m(r"[ \t]*.+?(?:\([0-9,]+\))? : warning [A-Za-z]+[0-9]+: .*|[ \t]*.+?\([0-9,]+\): warning [A-Za-z]+[0-9]+"
+                r": .*")
 MSB_COUNT = m(r"[ \t]*([0-9]+) Error\(s\)")
 MSB_NOISE = m(r"[ \t]*[0-9]+ Warning\(s\)|Build FAILED\.|Build succeeded\.|Time Elapsed .*")
 MSB_TERMINAL = m(r"Build (?:failed|succeeded)(?: with ([0-9]+) error\(s\)(?: and [0-9]+ warning\(s\))?)?"
                  r"(?: and [0-9]+ warning\(s\))? in [0-9.]+s")
 VSTEST_FAILED = m(r"[ \t]*Failed ([^ ]+) \[[^\]]*\]")
 VSTEST_PASSED = m(r"[ \t]*(?:Passed|Skipped) ([^ ]+) \[[^\]]*\]")
-VSTEST_SUMMARY = m(r"(?:Failed|Passed)![ \t]*-[ \t]*Failed:[ \t]*([0-9]+),[ \t]*Passed:[ \t]*([0-9]+),[ \t]*Skipped:[ \t]*"
+VSTEST_SUMMARY = m(r"(?:Failed|Passed)![ \t]*-[ \t]*Failed:[ \t]*([0-9]+),[ \t]*Passed:[ \t]*([0-9]+),[ \t]*Skipped:[ "
+                   r"\t]*"
                    r"([0-9]+),[ \t]*Total:[ \t]*([0-9]+).*")
 MTP_SUMMARY = m(r"[ \t]*Test summary: total: ([0-9]+), failed: ([0-9]+), succeeded: ([0-9]+), skipped: ([0-9]+).*")
 MTP_FAILED = m(r"[ \t]*failed (.+?) \([0-9.]+m?s\)")
@@ -2870,9 +2874,11 @@ class Dotnet(Recognizer):
 # ---- JVM: JUnit via Gradle and Surefire, javac, kotlinc
 GRADLE_TEST = m(r"([^ ]+) > (.+?) (FAILED|PASSED|SKIPPED)")
 GRADLE_SUMMARY = m(r"([0-9]+) tests? completed, ([0-9]+) failed(?:, ([0-9]+) skipped)?")
-GRADLE_NOISE = m(r"> Task [^ ]+(?: [A-Z-]+)?|FAILURE: Build failed with an exception\.|BUILD (?:SUCCESSFUL|FAILED) in .*|"
+GRADLE_NOISE = m(r"> Task [^ ]+(?: [A-Z-]+)?|FAILURE: Build failed with an exception\.|BUILD (?:SUCCESSFUL|FAILED) in ."
+                 r"*|"
                  r"\* What went wrong:|\* Try:")
-SUREFIRE_TEST = m(r"\[ERROR\] ([A-Za-z0-9_.$]+)\.([A-Za-z0-9_$\[\]]+)(?:\(.*\))? -- Time elapsed: .* <<< (?:FAILURE|ERROR)!")
+SUREFIRE_TEST = m(r"\[ERROR\] ([A-Za-z0-9_.$]+)\.([A-Za-z0-9_$\[\]]+)(?:\(.*\))? -- Time elapsed: .* <<< (?:FAILURE|ERR"
+                  r"OR)!")
 SUREFIRE_OLD = m(r"(?:\[ERROR\] )?([A-Za-z0-9_$]+)\(([A-Za-z0-9_.$]+)\)[ \t]+Time elapsed: .* <<< (?:FAILURE|ERROR)!")
 SUREFIRE_HEADER = m(r"\[ERROR\] (?:Failures|Errors): ?")
 SUREFIRE_LISTED = m(r"\[ERROR\][ \t]+([A-Za-z0-9_$]+)\.([A-Za-z0-9_$\[\]]+)(?::[0-9]+)?(?:[ \t].*)?")
@@ -2973,7 +2979,8 @@ class Jvm(Recognizer):
 
 # ---- rspec, phpunit, ctest
 RSPEC_FAILED = m(r"rspec (?:\./)?(.+?)(?::[0-9]+|\[[0-9:]+\]) # (.*)")
-RSPEC_SUMMARY = m(r"([0-9]+) examples?, ([0-9]+) failures?(?:, ([0-9]+) pending)?(?:, ([0-9]+) errors? occurred outside of "
+RSPEC_SUMMARY = m(r"([0-9]+) examples?, ([0-9]+) failures?(?:, ([0-9]+) pending)?(?:, ([0-9]+) errors? occurred outside"
+                  r" of "
                   r"examples)?")
 RSPEC_LOAD = m(r"An error occurred while loading (?:\./)?(.+?)\.?")
 PHPUNIT_SECTION = m(r"There (?:was|were) [0-9]+ ([a-z][a-z ]*?):")
@@ -3074,7 +3081,8 @@ CC_GENERATED = m(r"([0-9]+) errors? generated\.")
 LD_UNDEFINED_ARCH = m(r"Undefined symbols for architecture [^ ]+:")
 LD_SYMBOL = m(r"[ \t]+\"(.+)\", referenced from:")
 LD_REFERENCE = rx(r"undefined reference to [`'\u2018](.+?)['\u2019]")
-LD_NOISE = m(r"(?:[^ ]*/)?ld(?:\.[a-z]+)?: .*|collect2: error: ld returned [0-9]+ exit status|clang(?:\+\+)?: error: linker "
+LD_NOISE = m(r"(?:[^ ]*/)?ld(?:\.[a-z]+)?: .*|collect2: error: ld returned [0-9]+ exit status|clang(?:\+\+)?: error: li"
+             r"nker "
              r"command failed.*|[ \t]+(?:_?[A-Za-z0-9_]+(?:\(.*\))? in .+\.o|in function .*)")
 MAKE_NOISE = m(r"g?make(?:\[[0-9]+\])?: \*\*\* .*|g?make(?:\[[0-9]+\])?: (?:Entering|Leaving) directory .*")
 
