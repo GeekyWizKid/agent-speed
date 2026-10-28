@@ -34,6 +34,11 @@ def rx(pattern):
     return re.compile(pattern)
 
 
+WS = " \t"                                   # trimming removes ASCII spaces and tabs only
+JSON_WS = " \t\r\n"
+ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+
 # ============================================================================ sources and tool tables (1, 2)
 
 FAMILY = {"claudeCode": "claude", "claudeDesktop": "claude", "codex": "codex", "omp": "omp", "pi": "pi",
@@ -86,14 +91,14 @@ CASE_FOLDED = ("omp", "pi", "openclaw")
 
 
 def tool_name(family, tool):
-    return tool.lower() if family in CASE_FOLDED else tool
+    return tool.translate(ASCII_LOWER) if family in CASE_FOLDED else tool
 
 
 def decode_args(value):
     """The input as an object: an object as is, a string holding a JSON object parsed, anything else None."""
     if isinstance(value, dict):
         return value
-    if isinstance(value, str) and value.lstrip().startswith("{"):
+    if isinstance(value, str) and value.lstrip(JSON_WS).startswith("{"):
         try:
             parsed = json.loads(value)
         except ValueError:
@@ -324,7 +329,7 @@ SHELL_C_FLAG = rx(r"-[A-Za-z]*c[A-Za-z]*")
 
 def prog(word):
     """Normalised program name: basename, lower case, Windows extensions removed, aliases folded (3.4)."""
-    base = re.split(r"[/\\]", word)[-1].lower()
+    base = re.split(r"[/\\]", word)[-1].translate(ASCII_LOWER)
     for ext in (".exe", ".cmd", ".bat", ".ps1"):
         if base.endswith(ext):
             base = base[:-len(ext)]
@@ -389,6 +394,40 @@ def drop_options(words, i, with_value=(), stop_dashdash=True):
     return i
 
 
+NICE_VALUE = ("-n", "--adjustment")
+STDBUF_VALUE = ("-i", "-o", "-e")
+CAFFEINATE_VALUE = ("-t", "-w")
+XVFB_VALUE = ("-s", "--server-args", "-n", "--server-num", "-e", "--error-file", "-f", "--auth-file", "-p",
+              "--xauth-protocol")
+TIMEOUT_VALUE = ("-s", "--signal", "-k", "--kill-after")
+UNITTEST_VALUE = ("-s", "-t", "-p", "-k", "--start-directory", "--top-level-directory", "--pattern")
+SWIFT_TEST_VALUE = ("--filter", "--skip", "-s", "--specifier", "-c", "--configuration", "--package-path",
+                    "--scratch-path", "-j", "--jobs", "--num-workers", "--xunit-output", "--test-product", "--sanitize",
+                    "--triple", "--sdk")
+SWIFT_TEST_FILTERS = ("--filter", "--skip", "-s", "--specifier")
+SWIFT_BUILD_NARROW = ("--target", "--product")
+SWIFT_BUILD_VALUE = ("--target", "--product", "-c", "--configuration", "--package-path", "--scratch-path", "-j",
+                     "--jobs", "--triple", "--sdk", "--arch")
+DOTNET_VALUE = ("--filter", "-c", "--configuration", "-f", "--framework", "-r", "--runtime", "-o", "--output", "-v",
+                "--verbosity", "-s", "--settings", "-l", "--logger", "--results-directory", "-a", "--test-adapter-path",
+                "--collect", "-p", "--property")
+CMAKE_VALUE = ("--build", "--target", "-t", "-j", "--parallel", "--config")
+TSC_NOT_CHECK = ("--watch", "-w", "--version", "-v", "--init", "--help", "-h", "--showConfig")
+TSC_VALUE = ("-p", "--project", "--outDir", "--target", "--module", "--lib", "--jsx", "--moduleResolution", "--rootDir",
+             "--declarationDir", "--tsBuildInfoFile")
+BAZEL_VALUE = ("--config", "--test_filter", "--test_output", "--jobs", "-j")
+MESON_VALUE = ("-C", "--suite", "--no-suite", "--num-processes", "--repeat", "--timeout-multiplier", "--setup",
+               "--wrapper")
+DJANGO_VALUE = ("-k", "--settings", "--parallel", "--tag", "--exclude-tag", "--pattern", "-p", "-v", "--verbosity")
+NODE_TEST_VALUE = ("--test-name-pattern", "--test-reporter", "--test-reporter-destination", "--test-concurrency",
+                   "--require", "-r", "--import", "--loader")
+BUN_TEST_VALUE = ("-t", "--test-name-pattern", "--timeout", "--preload", "--coverage-reporter", "--reporter",
+                  "--rerun-each")
+PM_NARROW = ("-w", "--workspace", "--filter", "-F")
+PM_VALUE = ("-w", "--workspace", "--filter", "-F", "--prefix", "-C", "--dir", "--cwd")
+NX_VALUE = ("-t", "--target", "--targets", "-p", "--projects")
+DENO_TEST_VALUE = ("--filter", "--allow-read", "--allow-net", "--allow-env", "--config", "-c", "--reporter",
+                   "--coverage", "--jobs", "--shuffle", "--seed")
 ENV_VALUE = ("-u", "--unset", "-C", "--chdir", "-S", "--split-string")
 SUDO_VALUE = ("-u", "-g", "-h", "-p", "-C", "-D", "-r", "-t", "-U", "--user", "--group")
 
@@ -413,7 +452,7 @@ def strip_prefixes(seg):
             i = drop_options(words, i + 1)
             continue
         if p == "nice":
-            i = drop_options(words, i + 1, ("-n", "--adjustment"))
+            i = drop_options(words, i + 1, NICE_VALUE)
             continue
         if p in ("nohup", "setsid"):
             seg.background = True
@@ -423,17 +462,16 @@ def strip_prefixes(seg):
             i = drop_options(words, i + 1)
             continue
         if p == "stdbuf":
-            i = drop_options(words, i + 1, ("-i", "-o", "-e"))
+            i = drop_options(words, i + 1, STDBUF_VALUE)
             continue
         if p == "caffeinate":
-            i = drop_options(words, i + 1, ("-t", "-w"))
+            i = drop_options(words, i + 1, CAFFEINATE_VALUE)
             continue
         if p == "xvfb-run":
-            i = drop_options(words, i + 1, ("-s", "--server-args", "-n", "--server-num", "-e", "--error-file", "-f",
-                                            "--auth-file", "-p", "--xauth-protocol"))
+            i = drop_options(words, i + 1, XVFB_VALUE)
             continue
         if p in ("timeout", "gtimeout"):
-            i = drop_options(words, i + 1, ("-s", "--signal", "-k", "--kill-after"))
+            i = drop_options(words, i + 1, TIMEOUT_VALUE)
             i += 1                                   # the duration
             continue
         break
@@ -464,12 +502,12 @@ def shell_script(seg):
         return None
     if p in POWERSHELLS:
         for k, w in enumerate(rest):
-            if w.lower() in ("-command", "-c") and k + 1 < len(rest):
+            if w.translate(ASCII_LOWER) in ("-command", "-c") and k + 1 < len(rest):
                 return " ".join(rest[k + 1:])
         return None
     if p == "cmd":
         for k, w in enumerate(rest):
-            if w.lower() == "/c" and k + 1 < len(rest):
+            if w.translate(ASCII_LOWER) == "/c" and k + 1 < len(rest):
                 return " ".join(rest[k + 1:])
     return None
 
@@ -628,8 +666,7 @@ def c_pytest(args, cwd):
 
 
 def c_unittest(args, cwd):
-    pos, opts, _ = parse_opts(args, ("-s", "-t", "-p", "-k", "--start-directory", "--top-level-directory",
-                                     "--pattern"))
+    pos, opts, _ = parse_opts(args, UNITTEST_VALUE)
     pos = [p for p in pos if p != "discover"]
     return "test", "unittest", bool(pos) or "-k" in opts
 
@@ -680,14 +717,11 @@ def c_swift(args, cwd):
         return RESULT_OTHER
     sub, rest = args[0], args[1:]
     if sub == "test":
-        _, opts, _ = parse_opts(rest, ("--filter", "--skip", "-s", "--specifier", "-c", "--configuration",
-                                       "--package-path", "--scratch-path", "-j", "--jobs", "--num-workers",
-                                       "--xunit-output", "--test-product", "--sanitize", "--triple", "--sdk"))
-        return "test", "swift test", any_opt(opts, ("--filter", "--skip", "-s", "--specifier"))
+        _, opts, _ = parse_opts(rest, SWIFT_TEST_VALUE)
+        return "test", "swift test", any_opt(opts, SWIFT_TEST_FILTERS)
     if sub == "build":
-        _, opts, _ = parse_opts(rest, ("--target", "--product", "-c", "--configuration", "--package-path",
-                                       "--scratch-path", "-j", "--jobs", "--triple", "--sdk", "--arch"))
-        return "build", "swift build", any_opt(opts, ("--target", "--product"))
+        _, opts, _ = parse_opts(rest, SWIFT_BUILD_VALUE)
+        return "build", "swift build", any_opt(opts, SWIFT_BUILD_NARROW)
     return RESULT_OTHER
 
 
@@ -768,10 +802,7 @@ def c_dotnet(args, cwd):
     if not args:
         return RESULT_OTHER
     sub, rest = args[0], args[1:]
-    _, opts, _ = parse_opts(rest, ("--filter", "-c", "--configuration", "-f", "--framework", "-r", "--runtime",
-                                   "-o", "--output", "-v", "--verbosity", "-s", "--settings", "-l", "--logger",
-                                   "--results-directory", "-a", "--test-adapter-path", "--collect", "-p",
-                                   "--property"))
+    _, opts, _ = parse_opts(rest, DOTNET_VALUE)
     if sub == "test":
         return "test", "dotnet test", "--filter" in opts
     if sub in ("build", "publish", "pack", "msbuild"):
@@ -826,13 +857,14 @@ def c_gradle(args, cwd):
 
 MVN_TEST = ("test", "integration-test", "verify", "install", "deploy", "package")
 MVN_BUILD = ("compile", "test-compile", "process-classes")
+MVN_SKIP = ("-DskipTests", "-DskipTests=true", "-Dmaven.test.skip=true", "-Dmaven.test.skip")
 MVN_VALUE = ("-pl", "--projects", "-f", "--file", "-s", "--settings", "-P", "--activate-profiles", "-T", "--threads",
              "-rf", "--resume-from", "-gs", "--global-settings", "-t", "--toolchains", "-l", "--log-file")
 
 
 def c_mvn(args, cwd):
     pos, opts, _ = parse_opts(args, MVN_VALUE)
-    skip = any(w in ("-DskipTests", "-DskipTests=true", "-Dmaven.test.skip=true", "-Dmaven.test.skip") for w in args)
+    skip = any(w in MVN_SKIP for w in args)
     narrow = any_opt(opts, ("-pl", "--projects")) or any(w.startswith("-Dtest=") or w.startswith("-Dit.test=")
                                                            for w in args)
     best = RESULT_OTHER
@@ -861,7 +893,7 @@ def c_cc(args, cwd):
 
 def c_cmake(args, cwd):
     if "--build" in args:
-        _, opts, _ = parse_opts(args, ("--build", "--target", "-t", "-j", "--parallel", "--config"))
+        _, opts, _ = parse_opts(args, CMAKE_VALUE)
         target = opts.get("--target") or opts.get("-t")
         if target in ("test", "check", "RUN_TESTS"):
             return "test", "cmake --build", True
@@ -874,10 +906,13 @@ CTEST_VALUE = ("--test-dir", "-C", "--build-config", "-j", "--parallel", "--time
                "--tests-information", "--repeat", "--stop-time", "-O", "--resource-spec-file", "--repeat-until-fail")
 
 
+CTEST_FILTERS = ("-R", "--tests-regex", "-E", "--exclude-regex", "-L", "--label-regex", "-LE", "--label-exclude", "-I",
+                 "--tests-information", "--rerun-failed")
+
+
 def c_ctest(args, cwd):
     _, opts, _ = parse_opts(args, CTEST_VALUE)
-    return "test", "ctest", any_opt(opts, ("-R", "--tests-regex", "-E", "--exclude-regex", "-L", "--label-regex",
-                                            "-LE", "--label-exclude", "-I", "--tests-information", "--rerun-failed"))
+    return "test", "ctest", any_opt(opts, CTEST_FILTERS)
 
 
 JEST_VALUE = ("-c", "--config", "-w", "--maxWorkers", "--testTimeout", "--reporters", "--coverageReporters",
@@ -916,17 +951,21 @@ MOCHA_VALUE = ("-r", "--require", "-R", "--reporter", "-t", "--timeout", "-s", "
                "--retries", "-j", "--jobs", "--reporter-option", "-O")
 
 
+MOCHA_FILTERS = ("-g", "--grep", "-f", "--fgrep")
+
+
 def c_mocha(args, cwd):
     pos, opts, _ = parse_opts(args, MOCHA_VALUE)
     if isinstance(opts.get("--spec"), str):
         pos.append(opts["--spec"])
-    return "test", "mocha", any_opt(opts, ("-g", "--grep", "-f", "--fgrep")) or path_targeted(pos, cwd)
+    return "test", "mocha", any_opt(opts, MOCHA_FILTERS) or path_targeted(pos, cwd)
 
 
 def c_path_tool(cls, suite, value_opts=(), filters=()):
     def handler(args, cwd):
         pos, opts, after = parse_opts(args, value_opts)
         return cls, suite, any_opt(opts, filters) or path_targeted(pos + after, cwd)
+    handler.rule = ("paths", cls, suite, filters, value_opts)
     return handler
 
 
@@ -968,15 +1007,15 @@ def c_check_flag(suite, flags, value_opts=()):
             return RESULT_OTHER
         pos, _, _ = parse_opts(args, value_opts)
         return "check", suite, path_targeted(pos, cwd)
+    handler.rule = ("flag", "check", suite, flags, value_opts)
     return handler
 
 
 def c_tsc(name):
     def handler(args, cwd):
-        if "--watch" in args or "-w" in args or "--version" in args or "--init" in args:
+        if any(a in TSC_NOT_CHECK for a in args):
             return RESULT_OTHER
-        pos, _, _ = parse_opts(args, ("-p", "--project", "--outDir", "--target", "--module", "--lib", "--jsx",
-                                      "--moduleResolution", "--rootDir", "--declarationDir", "--tsBuildInfoFile"))
+        pos, _, _ = parse_opts(args, TSC_VALUE)
         if "-b" in args or "--build" in args:
             pos = []
         return "check", name, path_targeted(pos, cwd)
@@ -991,13 +1030,14 @@ def c_sub(table, value_opts=()):
         cls, suite, filters, path_rule = table[args[0]]
         pos, opts, after = parse_opts(args[1:], value_opts)
         return cls, suite, any_opt(opts, filters) or (path_rule and path_targeted(pos + after, cwd))
+    handler.rule = ("sub", table, value_opts)
     return handler
 
 
 def c_bazel(args, cwd):
     if not args or args[0] not in ("test", "build"):
         return RESULT_OTHER
-    pos, _, _ = parse_opts(args[1:], ("--config", "--test_filter", "--test_output", "--jobs", "-j"))
+    pos, _, _ = parse_opts(args[1:], BAZEL_VALUE)
     narrow = any(p not in ("//...", "...", "//:all") for p in pos) or any(a.startswith("--test_filter") for a in args)
     return ("test", "bazel test", narrow) if args[0] == "test" else ("build", "bazel build", narrow)
 
@@ -1006,8 +1046,7 @@ def c_meson(args, cwd):
     if not args:
         return RESULT_OTHER
     if args[0] == "test":
-        pos, opts, _ = parse_opts(args[1:], ("-C", "--suite", "--no-suite", "--num-processes", "--repeat",
-                                             "--timeout-multiplier", "--setup", "--wrapper"))
+        pos, opts, _ = parse_opts(args[1:], MESON_VALUE)
         return "test", "meson test", bool(pos) or any_opt(opts, ("--suite",))
     if args[0] == "compile":
         return "build", "meson compile", False
@@ -1017,8 +1056,7 @@ def c_meson(args, cwd):
 def c_python_script(args, cwd):
     """`python manage.py test`, `python setup.py test`; any other script is not a check."""
     if len(args) >= 2 and args[0].replace("\\", "/").split("/")[-1] == "manage.py" and args[1] == "test":
-        pos, opts, _ = parse_opts(args[2:], ("-k", "--settings", "--parallel", "--tag", "--exclude-tag",
-                                             "--pattern", "-p", "-v", "--verbosity"))
+        pos, opts, _ = parse_opts(args[2:], DJANGO_VALUE)
         return "test", "django test", bool(pos) or any_opt(opts, ("-k", "--tag"))
     if len(args) >= 2 and args[0].replace("\\", "/").split("/")[-1] == "setup.py" and args[1] == "test":
         return "test", "setup.py test", False
@@ -1027,16 +1065,30 @@ def c_python_script(args, cwd):
 
 def c_node(args, cwd):
     if "--test" in args:
-        pos, opts, _ = parse_opts([a for a in args if a != "--test"], ("--test-name-pattern", "--test-reporter",
-                                                                        "--test-reporter-destination",
-                                                                        "--test-concurrency", "--require", "-r",
-                                                                        "--import", "--loader"))
+        pos, opts, _ = parse_opts([a for a in args if a != "--test"], NODE_TEST_VALUE)
         return "test", "node --test", any_opt(opts, ("--test-name-pattern", "--test-only")) or path_targeted(pos, cwd)
     return RESULT_OTHER
 
 
 def c_named(cls, suite):
-    return lambda args, cwd: (cls, suite, False)
+    def handler(args, cwd):
+        return cls, suite, False
+    handler.rule = ("named", cls, suite, (), ())
+    return handler
+
+
+def c_posargs(name):
+    """tox and nox: arguments after `--` go to the test runner and narrow the run."""
+    def handler(args, cwd):
+        return "test", name, "--" in args and args.index("--") < len(args) - 1
+    handler.rule = ("posargs", "test", name, (), ())
+    return handler
+
+
+def c_swiftlint(args, cwd):
+    if (args[:1] and args[0] in ("autocorrect", "analyze")) or "--fix" in args:
+        return RESULT_OTHER
+    return "check", "swiftlint", False
 
 
 PROGRAMS = {
@@ -1093,8 +1145,8 @@ PROGRAMS = {
                                                            "--target-version", "--include", "--exclude")),
     "isort": c_check_flag("isort", ("--check", "--check-only", "-c", "--diff"), ("--settings-path", "--sp",
                                                                                   "--profile")),
-    "tox": lambda args, cwd: ("test", "tox", "--" in args and args.index("--") < len(args) - 1),
-    "nox": lambda args, cwd: ("test", "nox", "--" in args and args.index("--") < len(args) - 1),
+    "tox": c_posargs("tox"),
+    "nox": c_posargs("nox"),
     "rspec": c_path_tool("test", "rspec", RSPEC_VALUE, ("-e", "--example", "-E", "--example-matches", "-t", "--tag",
                                                          "--only-failures", "--next-failure", "-P", "--pattern")),
     "rails": c_sub({"test": ("test", "rails test", ("-n", "--name"), True)}, ("-n", "--name", "-e",
@@ -1129,8 +1181,7 @@ PROGRAMS = {
     "golangci-lint": c_sub({"run": ("check", "golangci-lint", (), True)},
                            ("-c", "--config", "--timeout", "-E", "--enable", "-D", "--disable", "--out-format")),
     "staticcheck": c_path_tool("check", "staticcheck", ("-checks", "-f", "-tags")),
-    "swiftlint": lambda args, cwd: RESULT_OTHER if (args[:1] and args[0] in ("--fix", "autocorrect", "analyze")
-                                                    or "--fix" in args) else ("check", "swiftlint", False),
+    "swiftlint": c_swiftlint,
     "swift-format": c_sub({"lint": ("check", "swift-format", (), False)}),
     "clang-tidy": c_named("check", "clang-tidy"),
     "cppcheck": c_named("check", "cppcheck"),
@@ -1181,7 +1232,7 @@ MAKE_FILTER_VAR = rx(r"(?i:TESTS?|T|TEST_?ARGS|TEST_?FILTER|FILTER|RUN|ONLY|K|PK
 
 
 def script_class(runner, name):
-    n = name.lower()
+    n = name.translate(ASCII_LOWER)
     canon = SCRIPT_ALIASES.get(n, n)
     if runner in ("make", "ninja") and canon == "check":
         return "test", "make check" if runner == "make" else "ninja check"
@@ -1232,8 +1283,8 @@ def c_package_manager(runner):
         narrow = False
         while k < len(args) and args[k].startswith("-"):
             w = args[k]
-            if w in ("-w", "--workspace", "--filter", "-F", "--prefix", "-C", "--dir", "--cwd"):
-                narrow = narrow or w in ("-w", "--workspace", "--filter", "-F")
+            if w in PM_VALUE:
+                narrow = narrow or w in PM_NARROW
                 k += 2
                 continue
             if w.startswith("--workspace=") or w.startswith("--filter="):
@@ -1247,27 +1298,23 @@ def c_package_manager(runner):
             cls, suite, _ = handler(rest[2:], cwd)
             return cls, suite, True
         if runner == "bun" and sub == "test":
-            pos, opts, after = parse_opts(rest[1:], ("-t", "--test-name-pattern", "--timeout", "--preload",
-                                                     "--coverage-reporter", "--reporter", "--rerun-each"))
+            pos, opts, after = parse_opts(rest[1:], BUN_TEST_VALUE)
             return "test", "bun test", any_opt(opts, ("-t", "--test-name-pattern")) or name_targeted(pos + after,
                                                                                                        cwd)
         if runner == "bun" and sub == "build":
             return "build", "bun build", False
         before = rest[1:rest.index("--")] if "--" in rest else rest[1:]
-        if any(w in ("-w", "--workspace", "--filter", "-F") or w.startswith("--workspace=") or w.startswith("--filter=")
-               for w in before):
+        if any(w in PM_NARROW or w.startswith("--workspace=") or w.startswith("--filter=") for w in before):
             narrow = True
             rest = [w for k, w in enumerate(rest) if not (
-                w in ("-w", "--workspace", "--filter", "-F") or (k > 0 and rest[k - 1] in ("-w", "--workspace",
-                                                                                          "--filter", "-F")
-                                                               and k <= len(before))
+                w in PM_NARROW or (k > 0 and rest[k - 1] in PM_NARROW and k <= len(before))
                 or w.startswith("--workspace=") or w.startswith("--filter="))]
         if sub in ("test", "t", "tst"):
             name, fwd = "test", rest[1:]
         elif sub in ("run", "run-script", "rum", "urn"):
             if len(rest) < 2:
                 return RESULT_OTHER
-            j = drop_options(rest[1:], 0, ("-w", "--workspace", "--filter", "-F"), stop_dashdash=False) + 1
+            j = drop_options(rest[1:], 0, PM_NARROW, stop_dashdash=False) + 1
             if j >= len(rest):
                 return RESULT_OTHER
             name, fwd = rest[j], rest[j + 1:]
@@ -1297,7 +1344,7 @@ def c_runner(runner, value_opts, default=None):
         if runner in ("mise", "deno", "turbo") and rest[:1] and rest[0] in ("run", "r", "task"):
             rest = rest[1:]
         if runner == "nx" and rest[:1] and rest[0] in ("run-many", "affected"):
-            _, opts, _ = parse_opts(rest[1:], ("-t", "--target", "--targets", "-p", "--projects"))
+            _, opts, _ = parse_opts(rest[1:], NX_VALUE)
             target = opts.get("-t") or opts.get("--target") or opts.get("--targets")
             if not isinstance(target, str):
                 return RESULT_OTHER
@@ -1343,6 +1390,7 @@ def c_runner(runner, value_opts, default=None):
             if runner == "nx" and len(pos) > 1:
                 narrow = True
         return (cls, suite, narrow) if cls != "other" else RESULT_OTHER
+    handler.rule = ("runner", runner, value_opts, default)
     return handler
 
 
@@ -1371,8 +1419,7 @@ def c_deno(args, cwd):
         return RESULT_OTHER
     sub, rest = args[0], args[1:]
     if sub == "test":
-        pos, opts, after = parse_opts(rest, ("--filter", "--allow-read", "--allow-net", "--allow-env", "--config",
-                                             "-c", "--reporter", "--coverage", "--jobs", "--shuffle", "--seed"))
+        pos, opts, after = parse_opts(rest, DENO_TEST_VALUE)
         return "test", "deno test", "--filter" in opts or path_targeted(pos, cwd)
     if sub == "check":
         return "check", "deno check", False
@@ -1388,18 +1435,46 @@ def c_deno(args, cwd):
 PROGRAMS["deno"] = c_deno
 
 
+CUSTOM_SUITES = ("pytest", "unittest", "django test", "setup.py test", "cargo test", "cargo nextest", "cargo build",
+                 "cargo check", "cargo clippy", "cargo fmt", "swift test", "swift build", "xcodebuild test",
+                 "xcodebuild analyze", "xcodebuild build", "go test", "go build", "go vet", "dotnet test",
+                 "dotnet build", "dotnet publish", "dotnet pack", "dotnet msbuild", "dotnet format", "cc",
+                 "cmake --build", "ctest", "jest", "vitest", "mocha", "node --test", "tsc", "vue-tsc", "ruff",
+                 "ruff format", "swiftlint", "bazel test", "bazel build", "meson test", "meson compile", "deno test",
+                 "deno check", "deno lint", "deno fmt", "bun test", "bun build")
+
+
+def all_suites():
+    suites = set(CUSTOM_SUITES) | set(GRADLE_SUITES.values()) | {"mvn " + g for g in MVN_TEST + MVN_BUILD}
+    for handler in PROGRAMS.values():
+        rule = getattr(handler, "rule", None)
+        if rule and rule[0] in ("named", "posargs", "paths", "flag"):
+            suites.add(rule[2])
+        elif rule and rule[0] == "sub":
+            suites.update(entry[1] for entry in rule[1].values())
+    for runner, (test_label, prefix) in SCRIPT_LABEL.items():
+        suites.add(test_label)
+        suites.update(prefix + canon for canon in CANON_SCRIPTS if canon != "test")
+    suites.update(("make", "make check", "ninja", "ninja check"))
+    return tuple(sorted(suites))
+
+
+SUITES = all_suites()
+SUITE_SET = frozenset(SUITES)
+
+
 def classify(words, cwd=None):
     """(class, suite, targeted) of one segment's words after prefixes and runners are removed."""
     if not words:
         return RESULT_OTHER
     p = prog(words[0])
     args = words[1:]
-    if p == "python":
-        return c_python_script(args, cwd)
-    handler = PROGRAMS.get(p)
+    handler = c_python_script if p == "python" else PROGRAMS.get(p)
     if handler is None:
         return RESULT_OTHER
-    return handler(args, cwd)
+    result = handler(args, cwd)
+    assert result[1] is None or result[1] in SUITE_SET, result
+    return result
 
 
 # ============================================================================ command parsing and command_info (3)
@@ -1412,6 +1487,7 @@ SEARCH_PROGS = ("rg", "grep", "egrep", "fgrep", "ag", "ack", "find", "fd", "fdfi
 GIT_READ = ("status", "diff", "log", "show", "blame", "rev-parse", "ls-tree", "cat-file", "describe", "shortlog",
             "reflog", "branch", "remote", "tag", "config")
 GIT_SEARCH = ("grep", "ls-files")
+FIND_ACTIONS = ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprintf", "-fls")
 PATCH_LINE = rx(r"[ \t]*\*\*\* Begin Patch[ \t]*")
 WRITE_REDIRS = (">", ">>", ">|", "&>", "&>>", "<>")
 
@@ -1557,22 +1633,11 @@ def command_info(text, cwd=None, parsed=None):
         return {"class": "other", "suite": None, "targeted": False, "key": key, "masked": False,
                 "background": background}
     chosen = segs[best_index]
-    masked = False
-    if best_index + 1 < len(segs):
-        nxt = segs[best_index + 1]
-        if chosen.op_after == "|" and not parsed.pipefail:
-            masked = True
-        for later in segs[best_index + 1:]:
-            if later.op_before in (";", "||", "&") and not is_neutral_end(later):
-                masked = True
-    if chosen.words and chosen.words[0] == "!":
-        masked = True
+    later = segs[best_index + 1:]
+    masked = bool(later) and ((chosen.op_after == "|" and not parsed.pipefail)
+                              or any(s.op_before in (";", "||", "&") for s in later))
     return {"class": best[0], "suite": best[1], "targeted": bool(best[2]), "key": key, "masked": masked,
             "background": chosen.background}
-
-
-def is_neutral_end(seg):
-    return False
 
 
 def shell_kind(parsed, cwd=None):
@@ -1605,7 +1670,7 @@ def shell_kind(parsed, cwd=None):
         elif p in READ_PROGS:
             kinds.add("read")
         elif p in SEARCH_PROGS:
-            if p == "find" and any(a in ("-delete", "-exec", "-execdir", "-ok") for a in args):
+            if p == "find" and any(a in FIND_ACTIONS for a in args):
                 return "command"
             kinds.add("search")
         else:
@@ -1654,7 +1719,7 @@ def codex_output(result):
     out = result.get("output") if isinstance(result, dict) and "output" in result and "type" in result else result
     if isinstance(out, dict) and isinstance(out.get("content"), (list, str)):
         out = out.get("content")
-    if isinstance(out, str) and out.lstrip().startswith("["):
+    if isinstance(out, str) and out.lstrip(JSON_WS).startswith("["):
         try:
             decoded = json.loads(out)
             if isinstance(decoded, list):
@@ -1663,7 +1728,7 @@ def codex_output(result):
             pass
     text = blocks_text(out)
     head = None
-    stripped = text.lstrip()
+    stripped = text.lstrip(JSON_WS)
     if stripped.startswith("{"):
         try:
             obj, _ = json.JSONDecoder().raw_decode(stripped)
@@ -1704,9 +1769,9 @@ def result_text(source, result):
         if not isinstance(result, dict):
             return ""
         lines = lf(blocks_text(result.get("content"))).split("\n")
-        while lines and lines[-1].strip() == "":
+        while lines and lines[-1].strip(WS) == "":
             lines.pop()
-        if lines and PI_EXIT.fullmatch(lines[-1].strip()):
+        if lines and PI_EXIT.fullmatch(lines[-1].strip(WS)):
             lines.pop()
         return "\n".join(lines)
     return ""
@@ -1741,7 +1806,7 @@ def outcome(source, result, t=None, tool=None, value=None, cwd=None):
             state = "timeout"
         elif CLAUDE_BACKGROUND.fullmatch(first):
             state = "running"
-        else:
+        elif tool in ("BashOutput", "TaskOutput"):
             status = BASHOUTPUT_STATUS.search(text)
             if status and status.group(1) == "running":
                 state = "running"
@@ -1780,7 +1845,7 @@ def outcome(source, result, t=None, tool=None, value=None, cwd=None):
             body_first = lines[body_start] if body_start < len(lines) else ""
             if CODEX_TIMEOUT.match(body_first):
                 state = "timeout"
-            first = lines[0].strip() if lines else ""
+            first = lines[0].strip(WS) if lines else ""
             if first in ("aborted",) or first.startswith("aborted by user") or "rejected by user" in first:
                 state = "aborted"
             if exit_code is None and state == "done":
@@ -1791,7 +1856,7 @@ def outcome(source, result, t=None, tool=None, value=None, cwd=None):
         if exit_code is not None:
             failed = exit_code != 0
     elif family in ("omp", "pi", "openclaw") and isinstance(result, dict):
-        lines = [x.strip() for x in lf(blocks_text(result.get("content"))).split("\n")]
+        lines = [x.strip(WS) for x in lf(blocks_text(result.get("content"))).split("\n")]
         nonempty = [x for x in lines if x]
         details = result.get("details") if isinstance(result.get("details"), dict) else {}
         if is_int(details.get("exitCode")):
@@ -1962,7 +2027,7 @@ def strip_cwd(text, cwd):
     if not c:
         return text
     if re.match(r"[A-Za-z]:/", c):
-        pattern = re.compile(re.escape(c).replace("/", r"[\\/]") + r"[\\/]", re.IGNORECASE)
+        pattern = re.compile(re.escape(c).replace("/", r"[\\/]") + r"[\\/]", re.IGNORECASE | re.ASCII)
     else:
         pattern = re.compile(re.escape(c) + "/")
     return pattern.sub("", text)
@@ -1998,14 +2063,14 @@ def mask_name(text, cwd=None):
 
 
 def norm_file(path, cwd=None):
-    p = path.strip().strip("'\"`")
+    p = path.strip(WS).strip("'\"`")
     if p.startswith("file://"):
         p = p[len("file://"):]
     p = p.replace("\\", "/")
     p = TMP_PATH.sub("<tmp>", p)
     c = norm_cwd(cwd)
     if c:
-        if re.match(r"[A-Za-z]:/", c) and p.lower().startswith(c.lower() + "/"):
+        if re.match(r"[A-Za-z]:/", c) and p.translate(ASCII_LOWER).startswith(c.translate(ASCII_LOWER) + "/"):
             p = p[len(c) + 1:]
         elif p.startswith(c + "/"):
             p = p[len(c) + 1:]
@@ -2448,11 +2513,11 @@ class Js(Recognizer):
             r = MOCHA_ITEM(line)
             if r:
                 parts, k = [r.group(3)], i
-                while not parts[-1].endswith(":") and k + 1 < len(lines) and lines[k + 1].strip() \
+                while not parts[-1].endswith(":") and k + 1 < len(lines) and lines[k + 1].strip(WS) \
                         and len(lines[k + 1]) - len(lines[k + 1].lstrip(" ")) > len(r.group(1)):
                     k += 1
-                    parts.append(lines[k].strip())
-                title = " ".join(p.strip() for p in parts)
+                    parts.append(lines[k].strip(WS))
+                title = " ".join(p.strip(WS) for p in parts)
                 if title.endswith(":"):
                     self.f.test("mocha", title[:-1])
                     return k - i + 1
@@ -2828,7 +2893,7 @@ class Jvm(Recognizer):
             return 1
         r = SUREFIRE_RUN(line)
         if r:
-            if r.group(5).strip() == "":
+            if r.group(5).strip(WS) == "":
                 run, failures, errors, skipped = (int(r.group(k)) for k in (1, 2, 3, 4))
                 self.f.summary("maven", "test", failures + errors, max(0, run - failures - errors - skipped))
             return 1
@@ -3143,7 +3208,7 @@ def norm_edit_path(path, cwd=None):
         p = p[len("file://"):]
     c = norm_cwd(cwd)
     if c:
-        if re.match(r"[A-Za-z]:/", c) and p.lower().startswith(c.lower() + "/"):
+        if re.match(r"[A-Za-z]:/", c) and p.translate(ASCII_LOWER).startswith(c.translate(ASCII_LOWER) + "/"):
             p = p[len(c) + 1:]
         elif p.startswith(c + "/"):
             p = p[len(c) + 1:]
@@ -3203,18 +3268,18 @@ def update_chunks(lines):
 
 def codex_patch(text, cwd):
     lines = lf(text).split("\n")
-    start = next((k + 1 for k, x in enumerate(lines) if x.strip() == "*** Begin Patch"), 0)
+    start = next((k + 1 for k, x in enumerate(lines) if x.strip(WS) == "*** Begin Patch"), 0)
     hunks = []
     sections = []          # (op, path, move_to, body lines)
     for line in lines[start:]:
-        if line.strip() == "*** End Patch":
+        if line.strip(WS) == "*** End Patch":
             break
-        r = PATCH_HEADER.fullmatch(line.rstrip())
+        r = PATCH_HEADER.fullmatch(line.rstrip(WS))
         if r and r.group(1) == "Move to" and sections and sections[-1][0] == "Update File":
-            sections[-1][2] = r.group(2).strip()
+            sections[-1][2] = r.group(2).strip(WS)
             continue
         if r and r.group(1) != "Move to":
-            sections.append([r.group(1), r.group(2).strip(), None, []])
+            sections.append([r.group(1), r.group(2).strip(WS), None, []])
             continue
         if sections:
             sections[-1][3].append(line)
@@ -3243,11 +3308,11 @@ def hashline_patch(text, cwd):
     lines = lf(text).split("\n")
     hunks, path, k = [], None, 0
     while k < len(lines):
-        line = lines[k].rstrip()
+        line = lines[k].rstrip(WS)
         k += 1
         r = HASHLINE_HEADER.fullmatch(line)
         if r:
-            path = r.group(1).strip()
+            path = r.group(1).strip(WS)
             continue
         if path is None:
             continue
@@ -3262,16 +3327,16 @@ def hashline_patch(text, cwd):
             hunks.append(deleted(path, cwd))
         elif HASHLINE_MOVE.fullmatch(line):
             hunks.append(deleted(path, cwd))
-            path = HASHLINE_MOVE.fullmatch(line).group(1).strip()
+            path = HASHLINE_MOVE.fullmatch(line).group(1).strip(WS)
     return hunks
 
 
 def is_codex_patch(text):
-    return any(PATCH_HEADER.fullmatch(x.rstrip()) for x in lf(text).split("\n"))
+    return any(PATCH_HEADER.fullmatch(x.rstrip(WS)) for x in lf(text).split("\n"))
 
 
 def is_hashline(text):
-    return any(HASHLINE_HEADER.fullmatch(x.rstrip()) for x in lf(text).split("\n"))
+    return any(HASHLINE_HEADER.fullmatch(x.rstrip(WS)) for x in lf(text).split("\n"))
 
 
 def pi_edits(args):
@@ -3392,6 +3457,76 @@ def edit_hunks(source, tool, value, cwd=None):
     return []
 
 
+# ============================================================================ spec appendix (A)
+
+SPEC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "TASK-PARSERS.md")
+APPENDIX_BEGIN = "<!-- appendix: generated by spec/tools/task_parsers.py --write; checked by default -->"
+APPENDIX_END = "<!-- appendix end -->"
+
+
+def code_list(values):
+    return ", ".join("`" + v + "`" if "`" not in v else "``" + v + "``" for v in values) or "none"
+
+
+def spec_appendix():
+    """Appendix A of spec/TASK-PARSERS.md: every table, list and pattern of this reference, verbatim."""
+    out = [APPENDIX_BEGIN, "", "### A.1 Tool kinds", ""]
+    for family, table in TOOL_KINDS.items():
+        out.append("- **%s**: %s." % (family, "; ".join("%s %s" % (kind, code_list(names))
+                                                       for kind, names in table.items() if names)))
+    out += ["", "### A.2 Lists", ""]
+    for name, value in vars(sys.modules[__name__]).items():
+        if name.isupper() and isinstance(value, tuple) and value and all(isinstance(x, str) for x in value):
+            out.append("- `%s`: %s" % (name, code_list(value)))
+    out += ["", "### A.3 Table-driven programs", ""]
+    for program, handler in PROGRAMS.items():
+        rule = getattr(handler, "rule", None)
+        if rule is None:
+            continue
+        kind = rule[0]
+        if kind == "named":
+            text = "class %s, suite `%s`, never targeted" % (rule[1], rule[2])
+        elif kind == "posargs":
+            text = "class %s, suite `%s`; targeted when words follow `--`" % (rule[1], rule[2])
+        elif kind == "paths":
+            text = "class %s, suite `%s`; targeted by the path rule%s; value options %s" % (
+                rule[1], rule[2], " or by " + code_list(rule[3]) if rule[3] else "", code_list(rule[4]))
+        elif kind == "flag":
+            text = "class check, suite `%s` only with one of %s (else other); targeted by the path rule; value " \
+                   "options %s" % (rule[2], code_list(rule[3]), code_list(rule[4]))
+        elif kind == "sub":
+            subs = []
+            for sub, (cls, suite, filters, path_rule) in rule[1].items():
+                how = [code_list(filters)] if filters else []
+                how += ["the path rule"] if path_rule else []
+                subs.append("`%s` → %s `%s`%s" % (sub, cls, suite, ", targeted by " + " or ".join(how) if how else
+                                                  ", never targeted"))
+            text = "first word: %s; any other first word → other; value options %s" % ("; ".join(subs),
+                                                                                       code_list(rule[2]))
+        else:
+            text = "task runner `%s` (3.6); value options %s; no target → %s" % (
+                rule[1], code_list(rule[2]), "%s `%s`" % rule[3] if rule[3] else "other")
+        out.append("- `%s`: %s." % (program, text))
+    out += ["", "### A.4 Patterns", "", "Full-line patterns unless the text says *search*.", "", "```text"]
+    for name, value in vars(sys.modules[__name__]).items():
+        pattern = None
+        if isinstance(value, re.Pattern):
+            pattern = value.pattern
+        elif callable(value) and isinstance(getattr(value, "__self__", None), re.Pattern):
+            pattern = value.__self__.pattern
+        if pattern is not None and name.isupper():
+            out.append("%-18s %s" % (name, pattern))
+    out += ["```", "", APPENDIX_END]
+    return "\n".join(out) + "\n"
+
+
+def spec_with_appendix(text):
+    begin, end = text.find(APPENDIX_BEGIN), text.find(APPENDIX_END)
+    if begin < 0 or end < 0:
+        return None
+    return text[:begin] + spec_appendix() + text[end + len(APPENDIX_END) + 1:]
+
+
 # ============================================================================ fixtures
 
 def compute(case):
@@ -3451,12 +3586,24 @@ def main():
     for case in data["cases"]:
         counts[case["group"]] = counts.get(case["group"], 0) + 1
     summary = ", ".join("%s %d" % kv for kv in counts.items())
+    with open(SPEC, encoding="utf-8") as fh:
+        spec_text = fh.read()
+    spec_new = spec_with_appendix(spec_text)
+    if spec_new is None:
+        print("spec/TASK-PARSERS.md has no appendix markers")
+        return 1
     if "--write" in sys.argv:
         with open(FIXTURE, "w", encoding="utf-8") as fh:
             json.dump(data, fh, indent=1, ensure_ascii=False)
             fh.write("\n")
-        print("wrote %s: %d cases (%s)" % (os.path.normpath(FIXTURE), len(data["cases"]), summary))
+        with open(SPEC, "w", encoding="utf-8") as fh:
+            fh.write(spec_new)
+        print("wrote %s: %d cases (%s) and the appendix of %s" % (
+            os.path.normpath(FIXTURE), len(data["cases"]), summary, os.path.normpath(SPEC)))
         return 0
+    if spec_new != spec_text:
+        print("the appendix of spec/TASK-PARSERS.md differs from the reference; run with --write")
+        return 1
     with open(FIXTURE, encoding="utf-8") as fh:
         stored = json.load(fh)
     mismatches = []
