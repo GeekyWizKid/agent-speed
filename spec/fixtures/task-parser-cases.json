@@ -4744,6 +4744,488 @@
    }
   },
   {
+   "id": "session-claude-background-output-note",
+   "group": "session",
+   "source": "claudeCode",
+   "tool": "Bash",
+   "input": {
+    "command": "cargo test",
+    "run_in_background": true
+   },
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_01",
+    "content": "Command running in background with ID: bk3x9a. Output is being written to: /tmp/claude/tasks/bk3x9a.output"
+   },
+   "expect": {
+    "continuation": null,
+    "running": "claude:bk3x9a"
+   }
+  },
+  {
+   "id": "session-claude-background-dotted-id",
+   "group": "session",
+   "source": "claudeCode",
+   "tool": "Bash",
+   "input": {
+    "command": "make",
+    "run_in_background": true
+   },
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_01",
+    "content": "Command running in background with ID: job.7."
+   },
+   "expect": {
+    "continuation": null,
+    "running": "claude:job.7"
+   }
+  },
+  {
+   "id": "notice-completed",
+   "group": "notification",
+   "source": "claudeCode",
+   "line": {
+    "type": "attachment",
+    "timestamp": "2026-10-28T10:00:00.000Z",
+    "attachment": {
+     "type": "queued_command",
+     "commandMode": "task-notification",
+     "prompt": "<task-notification>\n<task-id>bk3x9a</task-id>\n<tool-use-id>toolu_01</tool-use-id>\n<output-file>/tmp/claude/tasks/bk3x9a.output</output-file>\n<status>completed</status>\n<summary>Background command \"Run the tests\" completed (exit code 0)</summary>\n</task-notification>"
+    }
+   },
+   "expect": {
+    "session": "claude:bk3x9a",
+    "exitCode": 0
+   }
+  },
+  {
+   "id": "notice-failed",
+   "group": "notification",
+   "source": "claudeCode",
+   "line": {
+    "type": "attachment",
+    "timestamp": "2026-10-28T10:00:00.000Z",
+    "attachment": {
+     "type": "queued_command",
+     "commandMode": "task-notification",
+     "prompt": "<task-notification>\n<task-id>bk3x9a</task-id>\n<tool-use-id>toolu_01</tool-use-id>\n<output-file>/tmp/claude/tasks/bk3x9a.output</output-file>\n<status>failed</status>\n<summary>Background command \"Build (release)\" failed with exit code 101</summary>\n</task-notification>"
+    }
+   },
+   "expect": {
+    "session": "claude:bk3x9a",
+    "exitCode": 101
+   }
+  },
+  {
+   "id": "notice-stopped",
+   "group": "notification",
+   "source": "claudeCode",
+   "line": {
+    "type": "attachment",
+    "timestamp": "2026-10-28T10:00:00.000Z",
+    "attachment": {
+     "type": "queued_command",
+     "commandMode": "task-notification",
+     "prompt": "<task-notification>\n<task-id>bk3x9a</task-id>\n<tool-use-id>toolu_01</tool-use-id>\n<output-file>/tmp/claude/tasks/bk3x9a.output</output-file>\n<status>killed</status>\n<summary>Background command \"Serve\" was stopped</summary>\n</task-notification>"
+    }
+   },
+   "expect": null
+  },
+  {
+   "id": "notice-agent",
+   "group": "notification",
+   "source": "claudeCode",
+   "line": {
+    "type": "attachment",
+    "timestamp": "2026-10-28T10:00:00.000Z",
+    "attachment": {
+     "type": "queued_command",
+     "commandMode": "task-notification",
+     "prompt": "<task-notification>\n<task-id>bk3x9a</task-id>\n<tool-use-id>toolu_01</tool-use-id>\n<output-file>/tmp/claude/tasks/bk3x9a.output</output-file>\n<status>completed</status>\n<summary>Agent \"Review the queue\" completed</summary>\n</task-notification>"
+    }
+   },
+   "expect": null
+  },
+  {
+   "id": "notice-monitor",
+   "group": "notification",
+   "source": "claudeCode",
+   "line": {
+    "type": "attachment",
+    "timestamp": "2026-10-28T10:00:00.000Z",
+    "attachment": {
+     "type": "queued_command",
+     "commandMode": "task-notification",
+     "prompt": "<task-notification>\n<task-id>m1</task-id>\n<summary>Monitor \"logs\": line</summary>\n<event>x</event>\n</task-notification>"
+    }
+   },
+   "expect": null
+  },
+  {
+   "id": "notice-other-mode",
+   "group": "notification",
+   "source": "claudeCode",
+   "line": {
+    "type": "attachment",
+    "timestamp": "2026-10-28T10:00:00.000Z",
+    "attachment": {
+     "type": "queued_command",
+     "commandMode": "prompt",
+     "prompt": "<task-notification>\n<task-id>bk3x9a</task-id>\n<tool-use-id>toolu_01</tool-use-id>\n<output-file>/tmp/claude/tasks/bk3x9a.output</output-file>\n<status>completed</status>\n<summary>Background command \"x\" completed (exit code 0)</summary>\n</task-notification>"
+    }
+   },
+   "expect": null
+  },
+  {
+   "id": "notice-no-task-id",
+   "group": "notification",
+   "source": "claudeCode",
+   "line": {
+    "type": "attachment",
+    "timestamp": "2026-10-28T10:00:00.000Z",
+    "attachment": {
+     "type": "queued_command",
+     "commandMode": "task-notification",
+     "prompt": "<summary>Background command \"x\" completed (exit code 0)</summary>"
+    }
+   },
+   "expect": null
+  },
+  {
+   "id": "notice-crlf",
+   "group": "notification",
+   "source": "claudeCode",
+   "line": {
+    "type": "attachment",
+    "timestamp": "2026-10-28T10:00:00.000Z",
+    "attachment": {
+     "type": "queued_command",
+     "commandMode": "task-notification",
+     "prompt": "<task-notification>\r\n<task-id>bk3x9a</task-id>\r\n<tool-use-id>toolu_01</tool-use-id>\r\n<output-file>/tmp/claude/tasks/bk3x9a.output</output-file>\r\n<status>completed</status>\r\n<summary>Background command \"x\" completed (exit code 2)</summary>\r\n</task-notification>"
+    }
+   },
+   "expect": {
+    "session": "claude:bk3x9a",
+    "exitCode": 2
+   }
+  },
+  {
+   "id": "script-one-print",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "text(await tools.exec_command({cmd: \"cargo test\", yield_time_ms: 10000}));",
+   "expect": {
+    "calls": [
+     {
+      "tool": "exec_command",
+      "input": {
+       "cmd": "cargo test",
+       "yield_time_ms": 10000
+      },
+      "digest": "c6718372ebb4f033",
+      "prints": true
+     }
+    ],
+    "plain": true
+   }
+  },
+  {
+   "id": "script-sequence",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "text(await tools.write_stdin({session_id: 7, chars: '', max_output_tokens: 4000}));\nawait tools.apply_patch(`*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch`)\ntext(await tools.exec_command({'cmd': \"rg -n \\\"x\\\" src\", workdir: \"/w\",}))",
+   "expect": {
+    "calls": [
+     {
+      "tool": "write_stdin",
+      "input": {
+       "session_id": 7,
+       "chars": "",
+       "max_output_tokens": 4000
+      },
+      "digest": "8cf88eab3db2c3e0",
+      "prints": true
+     },
+     {
+      "tool": "apply_patch",
+      "input": "*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch",
+      "digest": "e238726a51246e4c",
+      "prints": false
+     },
+     {
+      "tool": "exec_command",
+      "input": {
+       "cmd": "rg -n \"x\" src",
+       "workdir": "/w"
+      },
+      "digest": "1b9c1f9f652bb0a0",
+      "prints": true
+     }
+    ],
+    "plain": true
+   }
+  },
+  {
+   "id": "script-promise-all",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "const r = await Promise.all([tools.exec_command({cmd: 'ls'}), tools.exec_command({cmd: 'pwd'})]);\nfor (const x of r) text(x);",
+   "expect": {
+    "calls": [
+     {
+      "tool": "exec_command",
+      "input": {
+       "cmd": "ls"
+      },
+      "digest": "285644a7273bc34e",
+      "prints": false
+     },
+     {
+      "tool": "exec_command",
+      "input": {
+       "cmd": "pwd"
+      },
+      "digest": "e34910f2c451e88e",
+      "prints": false
+     }
+    ],
+    "plain": false
+   }
+  },
+  {
+   "id": "script-non-literal",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "const c = 'cargo ' + 'test';\ntext(await tools.exec_command({cmd: c, yield_time_ms: 1000}));",
+   "expect": {
+    "calls": [
+     {
+      "tool": "exec_command",
+      "input": {
+       "yield_time_ms": 1000
+      },
+      "digest": "4a1293858ec79cb6",
+      "prints": false
+     }
+    ],
+    "plain": false
+   }
+  },
+  {
+   "id": "script-template-opaque",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "text(await tools.exec_command({cmd: `cargo test ${name}`}));",
+   "expect": {
+    "calls": [
+     {
+      "tool": "exec_command",
+      "input": {},
+      "digest": "e2a97d45bbee6ba0",
+      "prints": true
+     }
+    ],
+    "plain": true
+   }
+  },
+  {
+   "id": "script-escapes",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "text(await tools.exec_command({cmd: \"printf '\\\\u00e9\\\\x41\\\\n'\", x: \"\\u00e9\\x41\\u{1F600}\\\nz\"}))",
+   "expect": {
+    "calls": [
+     {
+      "tool": "exec_command",
+      "input": {
+       "cmd": "printf '\\u00e9\\x41\\n'",
+       "x": "éA😀z"
+      },
+      "digest": "dfc7bd12add2cc4d",
+      "prints": true
+     }
+    ],
+    "plain": true
+   }
+  },
+  {
+   "id": "script-regex-and-comments",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "// list files\nconst q = x => x.replace(/'/g, \"'\\\\''\"); /* tools.fake() */\ntext(await tools.exec_command({cmd: 'ls'}));",
+   "expect": {
+    "calls": [
+     {
+      "tool": "exec_command",
+      "input": {
+       "cmd": "ls"
+      },
+      "digest": "285644a7273bc34e",
+      "prints": false
+     }
+    ],
+    "plain": false
+   }
+  },
+  {
+   "id": "script-no-tools",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "text(1 + 2);",
+   "expect": null
+  },
+  {
+   "id": "script-json-object-input",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "{\"cmd\": \"ls\"}",
+   "expect": null
+  },
+  {
+   "id": "script-unterminated",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "text(await tools.exec_command({cmd: 'ls}));",
+   "expect": null
+  },
+  {
+   "id": "script-member-not-tools",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "text(await x.tools.exec_command({cmd: 'ls'}));",
+   "expect": null
+  },
+  {
+   "id": "script-no-argument",
+   "group": "codeScript",
+   "source": "codex",
+   "tool": "exec",
+   "input": "text(await tools.list_agents());",
+   "expect": {
+    "calls": [
+     {
+      "tool": "list_agents",
+      "input": null,
+      "digest": "48ee98717e376353",
+      "prints": true
+     }
+    ],
+    "plain": true
+   }
+  },
+  {
+   "id": "items-completed",
+   "group": "codeItems",
+   "source": "codex",
+   "result": {
+    "type": "custom_tool_call_output",
+    "call_id": "c1",
+    "output": [
+     {
+      "type": "input_text",
+      "text": "Script completed\nWall time 1.2 seconds\nOutput:\n"
+     },
+     {
+      "type": "input_text",
+      "text": "{\"exit_code\":0,\"output\":\"ok\"}"
+     }
+    ]
+   },
+   "expect": [
+    "{\"exit_code\":0,\"output\":\"ok\"}"
+   ]
+  },
+  {
+   "id": "items-crlf-header",
+   "group": "codeItems",
+   "source": "codex",
+   "result": {
+    "type": "custom_tool_call_output",
+    "call_id": "c1",
+    "output": [
+     {
+      "type": "input_text",
+      "text": "Script completed\r\nWall time 1.2 seconds\r\nOutput:\r\n"
+     },
+     {
+      "type": "input_text",
+      "text": "a\r\nb"
+     }
+    ]
+   },
+   "expect": [
+    "a\nb"
+   ]
+  },
+  {
+   "id": "items-failed",
+   "group": "codeItems",
+   "source": "codex",
+   "result": {
+    "type": "custom_tool_call_output",
+    "call_id": "c1",
+    "output": [
+     {
+      "type": "input_text",
+      "text": "Script failed\nWall time 0.1 seconds\nOutput:\n"
+     },
+     {
+      "type": "input_text",
+      "text": "x"
+     }
+    ]
+   },
+   "expect": null
+  },
+  {
+   "id": "items-running",
+   "group": "codeItems",
+   "source": "codex",
+   "result": {
+    "type": "custom_tool_call_output",
+    "output": "Script running with cell ID 3\nWall time 10.0 seconds"
+   },
+   "expect": null
+  },
+  {
+   "id": "items-image-item",
+   "group": "codeItems",
+   "source": "codex",
+   "result": {
+    "type": "custom_tool_call_output",
+    "output": [
+     {
+      "type": "input_text",
+      "text": "Script completed\nOutput:\n"
+     },
+     {
+      "type": "input_image",
+      "image_url": "x"
+     },
+     {
+      "type": "input_text",
+      "text": "{}"
+     }
+    ]
+   },
+   "expect": [
+    null,
+    "{}"
+   ]
+  },
+  {
    "id": "edit-claude-edit",
    "group": "edits",
    "source": "claudeCode",
@@ -7166,9 +7648,9 @@
    "exitCode": 0,
    "expect": {
     "fingerprints": [],
-    "failedCount": null,
+    "failedCount": 0,
     "passedCount": null,
-    "framework": null,
+    "framework": "gradle",
     "canonical": []
    }
   },
@@ -8317,6 +8799,145 @@
      "cargo|test||t298|",
      "cargo|test||t299|"
     ]
+   }
+  },
+  {
+   "id": "fail-x-complete-cargo",
+   "group": "failures",
+   "command": "cargo build 2>&1 | tail -3",
+   "output": "   Compiling orbit v0.3.0 (/Users/dev/work/orbit)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.31s\n",
+   "failed": null,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": 0,
+    "passedCount": null,
+    "framework": "cargo",
+    "canonical": []
+   }
+  },
+  {
+   "id": "fail-x-complete-cargo-old",
+   "group": "failures",
+   "command": "cargo clippy 2>&1 | tail -2",
+   "output": "warning: `orbit` (lib) generated 1 warning\n    Finished dev [unoptimized + debuginfo] target(s) in 0.42s\n",
+   "failed": null,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": 0,
+    "passedCount": null,
+    "framework": "cargo",
+    "canonical": []
+   }
+  },
+  {
+   "id": "fail-x-complete-swiftpm",
+   "group": "failures",
+   "command": "swift build 2>&1 | tail -2",
+   "output": "[12/12] Linking orbit\nBuild complete! (8.04s)\n",
+   "failed": null,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": 0,
+    "passedCount": null,
+    "framework": "swiftpm",
+    "canonical": []
+   }
+  },
+  {
+   "id": "fail-x-complete-xcodebuild",
+   "group": "failures",
+   "command": "xcodebuild -scheme Orbit build | tail -1",
+   "output": "** BUILD SUCCEEDED **\n",
+   "failed": null,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": 0,
+    "passedCount": null,
+    "framework": "xcodebuild",
+    "canonical": []
+   }
+  },
+  {
+   "id": "fail-x-complete-maven",
+   "group": "failures",
+   "command": "mvn -q package | tail -3",
+   "output": "[INFO] BUILD SUCCESS\n[INFO] Total time:  4.210 s\n",
+   "failed": null,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": 0,
+    "passedCount": null,
+    "framework": "maven",
+    "canonical": []
+   }
+  },
+  {
+   "id": "fail-x-complete-prettier",
+   "group": "failures",
+   "command": "npx prettier --check src | tail -1",
+   "output": "Checking formatting...\nAll matched files use Prettier code style!\n",
+   "failed": null,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": 0,
+    "passedCount": null,
+    "framework": "prettier",
+    "canonical": []
+   }
+  },
+  {
+   "id": "fail-x-complete-vite",
+   "group": "failures",
+   "command": "npm run build 2>&1 | tail -2",
+   "output": "dist/assets/index-4f2a.js  142.10 kB\n✓ built in 2.13s\n",
+   "failed": null,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": 0,
+    "passedCount": null,
+    "framework": "vite",
+    "canonical": []
+   }
+  },
+  {
+   "id": "fail-x-complete-loses-to-errors",
+   "group": "failures",
+   "command": "cargo build 2>&1 | tail",
+   "output": "error[E0425]: cannot find value `x` in this scope\n --> src/main.rs:2:5\nerror: could not compile `orbit`\n",
+   "failed": null,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [
+     "a96a7461473292b3"
+    ],
+    "failedCount": 1,
+    "passedCount": null,
+    "framework": "rustc",
+    "canonical": [
+     "rustc|error|src/main.rs|E0425|cannot find value `x` in this scope"
+    ]
+   }
+  },
+  {
+   "id": "fail-x-complete-not-a-prefix",
+   "group": "failures",
+   "command": "cargo build 2>&1 | tail -1",
+   "output": "    Finished early, see log\n",
+   "failed": null,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": null,
+    "passedCount": null,
+    "framework": null,
+    "canonical": []
    }
   }
  ]

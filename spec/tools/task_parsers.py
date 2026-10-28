@@ -1742,7 +1742,7 @@ CLAUDE_ABORT = ("[Request interrupted by user", "The user doesn't want to procee
                 "The user doesn't want to take this action", "Permission to use ",
                 "Claude requested permissions to use", "User rejected", "The tool use was rejected")
 CLAUDE_TIMEOUT = rx(r"Command timed out after .*")
-CLAUDE_BACKGROUND = rx(r"Command running in background with ID: ?([A-Za-z0-9_.:-]+).*")
+CLAUDE_BACKGROUND = rx(r"Command running in background with ID: ?([A-Za-z0-9_:-]+(?:\.[A-Za-z0-9_:-]+)*).*")
 CODEX_EXIT = rx(r"Exit code: (-?[0-9]+)")
 CODEX_EXITED = rx(r"Process exited with code (-?[0-9]+)")
 CODEX_RUNNING = rx(r"Process running with session ID ([0-9]+)")
@@ -1969,6 +1969,365 @@ def running_session(source, result):
         m = CLAUDE_BACKGROUND.fullmatch(first)
         return "claude:" + m.group(1) if m else None
     return None
+
+
+NOTIFY_TASK = rx(r"<task-id>([^<]+)</task-id>")
+NOTIFY_SUMMARY = rx(r"<summary>([^\n]*?)</summary>")
+NOTIFY_EXIT = rx(r"Background command [^\n]*(?:\(exit code (-?[0-9]+)\)|with exit code (-?[0-9]+))")
+
+
+def notification(source, line):
+    """{session, exitCode} of a Claude background-task notice that reports an exit code (4.3), else None."""
+    if FAMILY.get(source) != "claude" or not isinstance(line, dict) or line.get("type") != "attachment":
+        return None
+    att = line.get("attachment")
+    if not isinstance(att, dict) or att.get("type") != "queued_command" or att.get("commandMode") != "task-notification":
+        return None
+    text = att.get("prompt")
+    if not isinstance(text, str):
+        return None
+    text = lf(scalars(text))
+    task, summary = NOTIFY_TASK.search(text), NOTIFY_SUMMARY.search(text)
+    if not task or not summary:
+        return None
+    m = NOTIFY_EXIT.fullmatch(summary.group(1).strip(WS))
+    if not m:
+        return None
+    return {"session": "claude:" + task.group(1), "exitCode": num(m.group(1) or m.group(2))}
+
+
+# ============================================================================ Codex code mode (4.4)
+
+JS_WS = " \t\r\n\f\v"
+JS_IDENT_START = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$")
+JS_IDENT = JS_IDENT_START | frozenset("0123456789")
+JS_DIGITS = frozenset("0123456789")
+JS_NUMBER_TOKEN = rx(r"[0-9](?:[0-9A-Za-z_.]|(?<=[eE])[+-])*")
+JS_NUMBER = rx(r"[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
+JS_HEX2 = rx(r"[0-9A-Fa-f]{2}")
+JS_HEX4 = rx(r"[0-9A-Fa-f]{4}")
+JS_CODEPOINT = rx(r"\{([0-9A-Fa-f]{1,6})\}")
+JS_SIMPLE_ESCAPES = {"n": "\n", "r": "\r", "t": "\t", "b": "\b", "f": "\f", "v": "\v"}
+JS_LINE_BREAKS = ["\r\n", "\n", "\r", "\u2028", "\u2029"]  # a list: the appendix lists word tuples only
+JS_REGEX_AFTER = ("return", "typeof", "instanceof", "in", "of", "new", "delete", "void", "throw", "case", "do", "else",
+                  "yield", "await")
+JS_OPEN, JS_CLOSE = "([{", ")]}"
+CODE_COMPLETED = "Script completed"
+
+
+class JsError(Exception):
+    pass
+
+
+class Tok:
+    __slots__ = ("kind", "start", "end", "value", "text")
+
+    def __init__(self, kind, start, end, value, text):
+        self.kind, self.start, self.end, self.value, self.text = kind, start, end, value, text
+
+
+def js_escape(text, i, out):
+    """One escape after the backslash at text[i - 1]; returns the next index."""
+    for brk in JS_LINE_BREAKS:
+        if text.startswith(brk, i):
+            return i + len(brk)
+    c = text[i]
+    if c in JS_SIMPLE_ESCAPES:
+        out.append(JS_SIMPLE_ESCAPES[c])
+        return i + 1
+    if c == "0" and not (i + 1 < len(text) and text[i + 1] in JS_DIGITS):
+        out.append("\0")
+        return i + 1
+    if c == "x" and JS_HEX2.match(text, i + 1):
+        out.append(chr(int(text[i + 1:i + 3], 16)))
+        return i + 3
+    if c == "u":
+        m = JS_CODEPOINT.match(text, i + 1)
+        if m and int(m.group(1), 16) <= 0x10FFFF:
+            out.append(chr(int(m.group(1), 16)))
+            return m.end()
+        if JS_HEX4.match(text, i + 1):
+            out.append(chr(int(text[i + 1:i + 5], 16)))
+            return i + 5
+    out.append(c)
+    return i + 1
+
+
+def js_join(units):
+    """Decoded characters, with surrogate pairs from \\u escapes combined and lone surrogates read as U+FFFD."""
+    s = "".join(units)
+    return s.encode("utf-16-le", "surrogatepass").decode("utf-16-le", "replace") if LONE_SURROGATE.search(s) else s
+
+
+def js_string(text, i):
+    quote, out, j, n = text[i], [], i + 1, len(text)
+    while j < n:
+        c = text[j]
+        if c == quote:
+            return js_join(out), j + 1
+        if c == "\\" and j + 1 < n:
+            j = js_escape(text, j + 1, out)
+            continue
+        if c in "\n\r":
+            break
+        out.append(c)
+        j += 1
+    raise JsError("unterminated string")
+
+
+def js_template(text, i):
+    """A template literal: its value, or None when it holds `${…}`; and its end."""
+    out, j, n, opaque = [], i + 1, len(text), False
+    while j < n:
+        c = text[j]
+        if c == "`":
+            return (None if opaque else js_join(out)), j + 1
+        if c == "\\" and j + 1 < n:
+            j = js_escape(text, j + 1, out)
+            continue
+        if text.startswith("${", j):
+            opaque = True
+            j = js_lex(text, j + 2, until_brace=True)[1]
+            continue
+        if c == "\r":
+            out.append("\n")
+            j += 2 if text.startswith("\r\n", j) else 1
+            continue
+        out.append(c)
+        j += 1
+    raise JsError("unterminated template")
+
+
+def js_regex_end(text, i):
+    """The end of a regular expression literal starting at text[i] == '/', or None."""
+    j, n, in_class = i + 1, len(text), False
+    while j < n:
+        c = text[j]
+        if c in "\n\r  ":
+            return None
+        if c == "\\":
+            j += 2
+            continue
+        if c == "[":
+            in_class = True
+        elif c == "]":
+            in_class = False
+        elif c == "/" and not in_class:
+            j += 1
+            while j < n and text[j] in JS_IDENT:
+                j += 1
+            return j
+        j += 1
+    return None
+
+
+def regex_allowed(toks):
+    if not toks:
+        return True
+    last = toks[-1]
+    if last.kind in ("num", "str", "regex"):
+        return False
+    if last.kind == "id":
+        return last.text in JS_REGEX_AFTER
+    return last.text not in JS_CLOSE
+
+
+def js_lex(text, i=0, until_brace=False):
+    """Tokens of a script (or of a template's `${…}` up to its closing brace) and the index after them."""
+    toks, n, depth = [], len(text), 0
+    while i < n:
+        c = text[i]
+        if c in JS_WS:
+            i += 1
+        elif text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+        elif c in "'\"":
+            value, j = js_string(text, i)
+            toks.append(Tok("str", i, j, value, text[i:j]))
+            i = j
+        elif c == "`":
+            value, j = js_template(text, i)
+            toks.append(Tok("str", i, j, value, text[i:j]))
+            i = j
+        elif c == "/" and regex_allowed(toks) and js_regex_end(text, i) is not None:
+            j = js_regex_end(text, i)
+            toks.append(Tok("regex", i, j, None, text[i:j]))
+            i = j
+        elif c in JS_IDENT_START:
+            j = i + 1
+            while j < n and text[j] in JS_IDENT:
+                j += 1
+            toks.append(Tok("id", i, j, None, text[i:j]))
+            i = j
+        elif c in JS_DIGITS:
+            j = JS_NUMBER_TOKEN.match(text, i).end()
+            raw = text[i:j]
+            value = None
+            if JS_NUMBER.fullmatch(raw):
+                value = int(raw) if raw.isdigit() else float(raw)
+            toks.append(Tok("num", i, j, value, raw))
+            i = j
+        else:
+            if until_brace:
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    if depth == 0:
+                        return toks, i + 1
+                    depth -= 1
+            toks.append(Tok("punct", i, i + 1, None, c))
+            i += 1
+    if until_brace:
+        raise JsError("unterminated template expression")
+    return toks, i
+
+
+def is_punct(tok, text):
+    return tok is not None and tok.kind == "punct" and tok.text == text
+
+
+def js_close(toks, k):
+    """Index of the token that closes the bracket at toks[k], or None."""
+    depth = 0
+    for j in range(k, len(toks)):
+        t = toks[j]
+        if t.kind != "punct":
+            continue
+        if t.text in JS_OPEN:
+            depth += 1
+        elif t.text in JS_CLOSE:
+            depth -= 1
+            if depth == 0:
+                return j
+    return None
+
+
+MISSING = object()
+
+
+def js_literal(toks, p, end):
+    """(value, next index) of the literal at toks[p] before `end`, or (MISSING, p) when it is not a literal."""
+    if p >= end:
+        return MISSING, p
+    t = toks[p]
+    if t.kind == "str":
+        return (MISSING, p) if t.value is None else (t.value, p + 1)
+    if t.kind == "num":
+        return (MISSING, p) if t.value is None else (t.value, p + 1)
+    if is_punct(t, "-") and p + 1 < end and toks[p + 1].kind == "num" and toks[p + 1].value is not None:
+        return -toks[p + 1].value, p + 2
+    if t.kind == "id" and t.text in ("true", "false", "null"):
+        return {"true": True, "false": False, "null": None}[t.text], p + 1
+    if is_punct(t, "{"):
+        close = js_close(toks, p)
+        if close is None or close >= end:
+            return MISSING, p
+        obj, q = {}, p + 1
+        while q < close:
+            stop = q
+            depth = 0
+            while stop < close and not (depth == 0 and is_punct(toks[stop], ",")):
+                if toks[stop].kind == "punct" and toks[stop].text in JS_OPEN:
+                    depth += 1
+                elif toks[stop].kind == "punct" and toks[stop].text in JS_CLOSE:
+                    depth -= 1
+                stop += 1
+            key_tok = toks[q]
+            key = key_tok.text if key_tok.kind == "id" else key_tok.value if key_tok.kind == "str" else \
+                str(key_tok.value) if key_tok.kind == "num" and isinstance(key_tok.value, int) else None
+            if isinstance(key, str) and q + 1 < stop and is_punct(toks[q + 1], ":"):
+                value, after = js_literal(toks, q + 2, stop)
+                if value is not MISSING and after == stop:
+                    obj[key] = value
+            q = stop + 1
+        return obj, close + 1
+    if is_punct(t, "["):
+        close = js_close(toks, p)
+        if close is None or close >= end:
+            return MISSING, p
+        items, q = [], p + 1
+        while q < close:
+            value, after = js_literal(toks, q, close)
+            if value is MISSING or (after < close and not is_punct(toks[after], ",")):
+                return MISSING, p
+            items.append(value)
+            q = after + 1
+        return items, close + 1
+    return MISSING, p
+
+
+def code_script(source, tool, value):
+    """A Codex code-mode script (4.4): {calls: [{tool, input, digest, prints}], plain} or None."""
+    if FAMILY.get(source) != "codex" or tool != "exec" or not isinstance(value, str) or decode_args(value) is not None:
+        return None
+    try:
+        toks = js_lex(scalars(value))[0]
+    except JsError:
+        return None
+    text = scalars(value)
+    calls, at = [], {}
+    for k, t in enumerate(toks):
+        if t.kind != "id" or t.text != "tools" or (k > 0 and is_punct(toks[k - 1], ".")):
+            continue
+        if not (k + 3 < len(toks) and is_punct(toks[k + 1], ".") and toks[k + 2].kind == "id"
+                and is_punct(toks[k + 3], "(")):
+            continue
+        close = js_close(toks, k + 3)
+        if close is None:
+            continue
+        if close == k + 4:
+            arg = None
+        else:
+            arg, after = js_literal(toks, k + 4, close)
+            if arg is MISSING or after != close:
+                arg = None
+        at[k] = len(calls)
+        calls.append({"tool": toks[k + 2].text, "input": arg, "digest": sha16(text[t.start:toks[close].end]),
+                      "prints": False, "close": close})
+    if not calls:
+        return None
+    plain, p = True, 0
+    while p < len(toks):
+        t = toks[p]
+        if is_punct(t, ";"):
+            p += 1
+            continue
+        printing = t.kind == "id" and t.text == "text" and is_punct(toks[p + 1] if p + 1 < len(toks) else None, "(")
+        q = p + 2 if printing else p
+        if not (q < len(toks) and toks[q].kind == "id" and toks[q].text == "await" and q + 1 in at):
+            plain = False
+            break
+        call = calls[at[q + 1]]
+        q = call["close"] + 1
+        if printing:
+            if not is_punct(toks[q] if q < len(toks) else None, ")"):
+                plain = False
+                break
+            call["prints"] = True
+            q += 1
+        p = q
+    for call in calls:
+        del call["close"]
+        if not plain:
+            call["prints"] = False
+    return {"calls": calls, "plain": plain}
+
+
+def code_items(source, result):
+    """The printed results of a code-mode script that completed (4.4), or None."""
+    if FAMILY.get(source) != "codex" or not isinstance(result, dict):
+        return None
+    out = result.get("output") if "type" in result and "output" in result else result
+    if not isinstance(out, list) or not out:
+        return None
+    texts = [lf(item["text"]) if isinstance(item, dict) and isinstance(item.get("text"), str) else None for item in out]
+    if texts[0] is None or texts[0].split("\n", 1)[0] != CODE_COMPLETED:
+        return None
+    return texts[1:]
 
 
 # ============================================================================ failures: preprocessing (5.1, 5.2)
@@ -3161,6 +3520,28 @@ def generic(found, lines, claimed):
 
 SUPERSEDES = {"nextest": ("cargo",)}
 
+COMPLETE_CARGO = rx(r"Finished .* target\(s\) in .+")
+COMPLETE_SWIFTPM = rx(r"Build complete!(?: \(.*\))?")
+COMPLETE_XCODEBUILD = rx(r"\*\* [A-Z]+(?: [A-Z]+)* SUCCEEDED \*\*(?: \[.*\])?")
+COMPLETE_GRADLE = rx(r"BUILD SUCCESSFUL(?: in .+)?")
+COMPLETE_MAVEN = rx(r"\[INFO\] BUILD SUCCESS")
+COMPLETE_PRETTIER = rx(r"All matched files use Prettier code style!")
+COMPLETE_VITE = rx(r"\u2713 built in [0-9]+(?:\.[0-9]+)?(?:ms|s)")
+COMPLETION_FRAMEWORKS = ("cargo", "swiftpm", "xcodebuild", "gradle", "maven", "prettier", "vite")
+COMPLETIONS = (COMPLETE_CARGO, COMPLETE_SWIFTPM, COMPLETE_XCODEBUILD, COMPLETE_GRADLE, COMPLETE_MAVEN,
+               COMPLETE_PRETTIER, COMPLETE_VITE)
+
+
+def completion(segments):
+    """The framework of the first line that says a tool finished cleanly (5.4), or None."""
+    for lines, _ in segments:
+        for line in lines:
+            trimmed = line.strip(WS)
+            for name, pattern in zip(COMPLETION_FRAMEWORKS, COMPLETIONS):
+                if pattern.fullmatch(trimmed):
+                    return name
+    return None
+
 
 def failures_detail(info, output_text, cwd=None, failed=None):
     """failures() plus the canonical strings behind the fingerprints (fixtures only)."""
@@ -3225,7 +3606,8 @@ def failures_detail(info, output_text, cwd=None, failed=None):
         failed_count, passed_count = len(canonical), None
         framework = found.fps[0].split("|", 1)[0]
     else:
-        failed_count = passed_count = framework = None
+        framework = completion(segments)
+        failed_count, passed_count = (0 if framework else None), None
     fingerprints = sorted({sha16(c) for c in canonical})[:MAX_FINGERPRINTS]
     return {"fingerprints": fingerprints, "failedCount": failed_count, "passedCount": passed_count,
             "framework": framework}, canonical
@@ -3612,6 +3994,12 @@ def compute(case):
         return dict(result, canonical=canonical)
     if group == "edits":
         return edit_hunks(case["source"], case["tool"], case["input"], cwd)
+    if group == "notification":
+        return notification(case["source"], case["line"])
+    if group == "codeScript":
+        return code_script(case["source"], case["tool"], case["input"])
+    if group == "codeItems":
+        return code_items(case["source"], case["result"])
     raise ValueError(group)
 
 

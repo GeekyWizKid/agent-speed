@@ -184,6 +184,12 @@ class Composer:
             found = model.prompt_line(state.source, obj)
             if found is not None:
                 self.line_kind(found["kind"], found.get("t", t), found.get("continuation"))
+            notice = parsers.notification(state.source, obj) if kind == "attachment" else None
+            if notice is not None:
+                queued = ref.parse_ts(obj["attachment"].get("timestamp"))
+                code = notice["exitCode"]
+                self.finish(notice["session"], {"exitCode": code, "failed": code != 0}, None,
+                            queued if queued is not None else t)
             message = obj.get("message") if kind == "user" and isinstance(obj.get("message"), dict) else {}
             content = message.get("content")
             for block in content if isinstance(content, list) else []:
@@ -224,14 +230,18 @@ class Composer:
         if kind == "turn_context":
             if not blank(payload.get("cwd")):
                 self.cwd = payload["cwd"]
-        elif kind == "event_msg":
+        elif kind == "response_item":
             found = model.prompt_line(state.source, obj)
             if found is not None:
                 self.prompt(found.get("t", t), found.get("continuation"))
-        elif kind == "response_item":
-            if ptype in ("function_call", "custom_tool_call"):
+            elif ptype in ("function_call", "custom_tool_call"):
                 value = payload.get("arguments" if ptype == "function_call" else "input")
-                self.call(state.source, payload.get("call_id"), t, payload.get("name"), value, None)
+                script = parsers.code_script(state.source, payload.get("name"), value) \
+                    if ptype == "custom_tool_call" else None
+                if script is not None:
+                    self.script(state.source, payload.get("call_id"), t, script)
+                else:
+                    self.call(state.source, payload.get("call_id"), t, payload.get("name"), value, None)
             elif ptype in ("function_call_output", "custom_tool_call_output"):
                 self.result(state.source, payload.get("call_id"), payload, t)
         return t
@@ -318,8 +328,19 @@ class Composer:
     def call(self, source, call_id, t, tool, value, raw_value):
         if not isinstance(call_id, str) or not isinstance(tool, str) or call_id in self.calls:
             return
+        self.calls[call_id] = self.action(source, t, tool, value, digest(value, raw_value))
+
+    def script(self, source, call_id, t, script):
+        """A Codex code-mode script (TASK-PARSERS 4.4): its tool calls are the actions; the script is none."""
+        if not isinstance(call_id, str) or call_id in self.calls:
+            return
+        subs = [self.action(source, t, c["tool"], c["input"], c["digest"]) for c in script["calls"]]
+        self.calls[call_id] = [(sub, c["prints"]) for sub, c in zip(subs, script["calls"])]
+        self.stats["scripts"] = self.stats.get("scripts", 0) + 1
+
+    def action(self, source, t, tool, value, dig):
         kind = parsers.action_kind(source, tool, value, self.cwd)
-        event = {"t": t, "type": "action", "kind": kind, "tool": tool, "digest": digest(value, raw_value)}
+        event = {"t": t, "type": "action", "kind": kind, "tool": tool, "digest": dig}
         info = None
         if kind == "command":
             text = parsers.command_text(source, tool, value)
@@ -329,14 +350,30 @@ class Composer:
         elif kind == "edit":
             event["hunks"] = parsers.edit_hunks(source, tool, value, self.cwd)
         self.events.append(event)
-        self.calls[call_id] = Call(event, tool, value, self.cwd, info, parsers.continuation(source, tool, value))
         self.stats["calls"] += 1
+        return Call(event, tool, value, self.cwd, info, parsers.continuation(source, tool, value))
 
     def result(self, source, call_id, result, t):
-        call = self.calls.get(call_id) if isinstance(call_id, str) else None
-        if call is None or call.answered:
+        entry = self.calls.get(call_id) if isinstance(call_id, str) else None
+        if isinstance(entry, list):
+            del self.calls[call_id]
+            items = parsers.code_items(source, result)
+            printing = [sub for sub, prints in entry if prints]
+            for sub, _ in entry:
+                sub.answered = True
+                sub.value = None
+            if items is not None and printing and len(items) == len(printing):
+                self.stats["scriptsMapped"] = self.stats.get("scriptsMapped", 0) + 1
+                for sub, item in zip(printing, items):
+                    sub.answered = False
+                    self.answer(source, sub, item, t)
+            return
+        if entry is None or entry.answered:
             self.stats["orphanResults"] += 1
             return
+        self.answer(source, entry, result, t)
+
+    def answer(self, source, call, result, t):
         call.answered = True
         self.stats["results"] += 1
         event = call.event
@@ -349,16 +386,19 @@ class Composer:
             self.sessions[session] = Running(event, call.info, call.cwd, masked, text)
         elif call.info is not None:
             event["failures"] = parsers.failures(call.info, text, call.cwd, out["failed"])
-        if call.continues is not None:
-            self.continued(call.continues, out, text, t)
+        if call.continues is not None and call.continues in self.sessions:
+            self.stats["continuationResults"] += 1
+            self.finish(call.continues, out, text, t)
         call.value = None
 
-    def continued(self, key, out, text, t):
+    def finish(self, key, out, text, t):
+        """A continuation's result for session `key`: its output (None for a Claude notice, which has none) joins the
+        command's; an exit code ends it."""
         running = self.sessions.get(key)
         if running is None:
             return
-        self.stats["continuationResults"] += 1
-        running.texts.append(text)
+        if text is not None:
+            running.texts.append(text)
         if out["exitCode"] is None or out["failed"] is None:
             return
         final = {"exitCode": out["exitCode"], "failed": None if running.masked else out["failed"], "t": t}
