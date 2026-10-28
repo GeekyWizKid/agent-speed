@@ -3475,6 +3475,335 @@
      }
     ]
    }
+  },
+  {
+   "platform": "macos",
+   "home": "/Users/dev",
+   "name": "tunnel-and-local-proxy",
+   "_comment": "Issue #35. Rows are what `nettop -t external -t undefined` lists (METRICS 10.3). codex runs behind a TUN-mode proxy: its socket on the tunnel interface is `undefined` and counts once, as its own. The proxy core verge-mihomo sends codex's traffic on and serves claude as a local HTTP proxy; it is no agent's process and is never counted. claude reaches that proxy only over loopback, which nettop does not list, so its row does not grow (METRICS 10.12). codex's ssh tool goes straight out over en0.",
+   "samples": [
+    {
+     "t": 1793181600000,
+     "processes": [
+      {
+       "pid": 1,
+       "ppid": 0,
+       "start": 0,
+       "exe": "/sbin/launchd"
+      },
+      {
+       "pid": 100,
+       "ppid": 1,
+       "start": 1793181591000,
+       "exe": "/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal"
+      },
+      {
+       "pid": 101,
+       "ppid": 100,
+       "start": 1793181592000,
+       "exe": "/bin/zsh"
+      },
+      {
+       "pid": 102,
+       "ppid": 101,
+       "start": 1793181593000,
+       "exe": "/opt/homebrew/bin/codex",
+       "args": [
+        "codex"
+       ],
+       "cwd": "/Users/dev/projects/nova"
+      },
+      {
+       "pid": 104,
+       "ppid": 100,
+       "start": 1793181594000,
+       "exe": "/bin/zsh"
+      },
+      {
+       "pid": 105,
+       "ppid": 104,
+       "start": 1793181595000,
+       "exe": "/Users/dev/.local/share/claude/versions/2.1.303",
+       "args": [
+        "claude"
+       ],
+       "cwd": "/Users/dev/projects/orbit"
+      },
+      {
+       "pid": 300,
+       "ppid": 1,
+       "start": 1793181540000,
+       "exe": "/Applications/Clash Verge.app/Contents/MacOS/verge-mihomo"
+      }
+     ],
+     "interfaces": {
+      "en0": [
+       100000000,
+       20000000
+      ]
+     },
+     "counters": {
+      "stream": "s1",
+      "rows": [
+       {
+        "pid": 102,
+        "start": 1793181593000,
+        "rx": 1000,
+        "tx": 500
+       },
+       {
+        "pid": 105,
+        "start": 1793181595000,
+        "rx": 3000,
+        "tx": 1200
+       },
+       {
+        "pid": 300,
+        "start": 1793181540000,
+        "rx": 5000000,
+        "tx": 1000000
+       }
+      ]
+     }
+    },
+    {
+     "t": 1793181601000,
+     "processes": [
+      {
+       "pid": 1,
+       "ppid": 0,
+       "start": 0,
+       "exe": "/sbin/launchd"
+      },
+      {
+       "pid": 100,
+       "ppid": 1,
+       "start": 1793181591000,
+       "exe": "/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal"
+      },
+      {
+       "pid": 101,
+       "ppid": 100,
+       "start": 1793181592000,
+       "exe": "/bin/zsh"
+      },
+      {
+       "pid": 102,
+       "ppid": 101,
+       "start": 1793181593000,
+       "exe": "/opt/homebrew/bin/codex",
+       "args": [
+        "codex"
+       ],
+       "cwd": "/Users/dev/projects/nova"
+      },
+      {
+       "pid": 104,
+       "ppid": 100,
+       "start": 1793181594000,
+       "exe": "/bin/zsh"
+      },
+      {
+       "pid": 105,
+       "ppid": 104,
+       "start": 1793181595000,
+       "exe": "/Users/dev/.local/share/claude/versions/2.1.303",
+       "args": [
+        "claude"
+       ],
+       "cwd": "/Users/dev/projects/orbit"
+      },
+      {
+       "pid": 300,
+       "ppid": 1,
+       "start": 1793181540000,
+       "exe": "/Applications/Clash Verge.app/Contents/MacOS/verge-mihomo"
+      },
+      {
+       "pid": 103,
+       "ppid": 102,
+       "start": 1793181600500,
+       "exe": "/usr/bin/ssh"
+      }
+     ],
+     "interfaces": {
+      "en0": [
+       100072000,
+       20085000
+      ]
+     },
+     "counters": {
+      "stream": "s1",
+      "rows": [
+       {
+        "pid": 102,
+        "start": 1793181593000,
+        "rx": 41000,
+        "tx": 8500
+       },
+       {
+        "pid": 103,
+        "start": 1793181600500,
+        "rx": 3000,
+        "tx": 69000
+       },
+       {
+        "pid": 105,
+        "start": 1793181595000,
+        "rx": 3000,
+        "tx": 1200
+       },
+       {
+        "pid": 300,
+        "start": 1793181540000,
+        "rx": 5065900,
+        "tx": 1013300
+       }
+      ]
+     }
+    },
+    {
+     "t": 1793181602000,
+     "processes": [
+      {
+       "pid": 1,
+       "ppid": 0,
+       "start": 0,
+       "exe": "/sbin/launchd"
+      },
+      {
+       "pid": 100,
+       "ppid": 1,
+       "start": 1793181591000,
+       "exe": "/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal"
+      },
+      {
+       "pid": 101,
+       "ppid": 100,
+       "start": 1793181592000,
+       "exe": "/bin/zsh"
+      },
+      {
+       "pid": 102,
+       "ppid": 101,
+       "start": 1793181593000,
+       "exe": "/opt/homebrew/bin/codex",
+       "args": [
+        "codex"
+       ],
+       "cwd": "/Users/dev/projects/nova"
+      },
+      {
+       "pid": 104,
+       "ppid": 100,
+       "start": 1793181594000,
+       "exe": "/bin/zsh"
+      },
+      {
+       "pid": 105,
+       "ppid": 104,
+       "start": 1793181595000,
+       "exe": "/Users/dev/.local/share/claude/versions/2.1.303",
+       "args": [
+        "claude"
+       ],
+       "cwd": "/Users/dev/projects/orbit"
+      },
+      {
+       "pid": 300,
+       "ppid": 1,
+       "start": 1793181540000,
+       "exe": "/Applications/Clash Verge.app/Contents/MacOS/verge-mihomo"
+      },
+      {
+       "pid": 103,
+       "ppid": 102,
+       "start": 1793181600500,
+       "exe": "/usr/bin/ssh"
+      }
+     ],
+     "interfaces": {
+      "en0": [
+       100108000,
+       20145000
+      ]
+     },
+     "counters": {
+      "stream": "s1",
+      "rows": [
+       {
+        "pid": 102,
+        "start": 1793181593000,
+        "rx": 61000,
+        "tx": 12500
+       },
+       {
+        "pid": 103,
+        "start": 1793181600500,
+        "rx": 3500,
+        "tx": 120000
+       },
+       {
+        "pid": 105,
+        "start": 1793181595000,
+        "rx": 3000,
+        "tx": 1200
+       },
+       {
+        "pid": 300,
+        "start": 1793181540000,
+        "rx": 5098800,
+        "tx": 1019900
+       }
+      ]
+     }
+    }
+   ],
+   "expected": {
+    "classes": {
+     "102": "codex/agent",
+     "103": "codex/tool",
+     "105": "claudeCode/agent",
+     "300": null
+    },
+    "today": {
+     "machine": {
+      "rx": 108000,
+      "tx": 145000,
+      "sampledMs": 2000
+     },
+     "sources": {
+      "codex": {
+       "rxSelf": 60000,
+       "txSelf": 12000,
+       "rxTools": 3500,
+       "txTools": 120000,
+       "unassignedRx": 63500,
+       "unassignedTx": 132000
+      }
+     }
+    },
+    "history": [
+     {
+      "day": "2026-10-28",
+      "key": "machine",
+      "rx": 108000,
+      "tx": 145000,
+      "rxTools": 0,
+      "txTools": 0,
+      "sampledMs": 2000
+     },
+     {
+      "day": "2026-10-28",
+      "key": "codex",
+      "rx": 60000,
+      "tx": 12000,
+      "rxTools": 3500,
+      "txTools": 120000,
+      "sampledMs": 2000
+     }
+    ]
+   }
   }
  ]
 }
