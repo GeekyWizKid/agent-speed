@@ -107,13 +107,32 @@ public sealed partial class TaskEvaluation
             return own;
         }
 
-        List<TaskAct>? covered = null;
-        for (var r = first.RunOrdinal + 1; r < _runCount; r++)
+        if (!_source.FullPasses.TryGetValue(suite, out var passes))
         {
-            var run = Run(r);
-            if (run.Result == RunResult.Pass && !run.Targeted && run.Suite == suite && run.CheckNo != checkNo)
+            return own;
+        }
+
+        List<TaskAct>? covered = null;
+        var lo = 0;
+        var hi = passes.Count;
+        while (lo < hi)
+        {
+            var mid = (lo + hi) >>> 1;
+            if (passes[mid].RunOrdinal > first.RunOrdinal)
             {
-                (covered ??= []).Add(run);
+                hi = mid;
+            }
+            else
+            {
+                lo = mid + 1;
+            }
+        }
+
+        for (var p = lo; p < passes.Count && passes[p].RunOrdinal < _runCount; p++)
+        {
+            if (passes[p].CheckNo != checkNo)
+            {
+                (covered ??= []).Add(passes[p]);
             }
         }
 

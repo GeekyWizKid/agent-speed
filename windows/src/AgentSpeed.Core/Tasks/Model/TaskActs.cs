@@ -14,6 +14,19 @@ internal sealed class TaskActs
         Runs = runs;
         CountedKeys = counted.ConvertAll(act => act.KeyId);
         StallEnds = TaskLoops.StallEnds(counted);
+        foreach (var run in runs)
+        {
+            if (run is { Result: RunResult.Pass, Targeted: false, Suite: { } suite })
+            {
+                if (!FullPasses.TryGetValue(suite, out var passes))
+                {
+                    passes = [];
+                    FullPasses[suite] = passes;
+                }
+
+                passes.Add(run);
+            }
+        }
     }
 
     public List<TaskAct> Acts { get; }
@@ -29,6 +42,9 @@ internal sealed class TaskActs
 
     /// <summary><c>stall_ends</c> over every counted act: 1-based counted indices that end a stall window.</summary>
     public List<int> StallEnds { get; }
+
+    /// <summary>Per suite, its passing non-targeted runs in order (what a targeted check's sequence also takes).</summary>
+    public Dictionary<string, List<TaskAct>> FullPasses { get; } = new(StringComparer.Ordinal);
 
     /// <summary>The actions among <c>events[start..end)</c> with <c>t ≤ now</c> (every action when null).</summary>
     public static TaskActs Of(IReadOnlyList<TaskEvent> events, int start, int end, long? now)
