@@ -31,6 +31,8 @@ enum HistoryPreviews {
         /// DESIGN 10: a source whose token usage is left out (it only used the network), and sources turned off.
         var tokenless: SourceKind?
         var disabled: Set<SourceKind> = []
+        /// DESIGN 12: the task records of 任務表現 (none while the first analysis of this version runs).
+        var tasks = true
     }
 
     enum Days { case full, none, recent(Int) }
@@ -70,6 +72,10 @@ enum HistoryPreviews {
         Case(name: "today-ja-min", size: HistoryWindowController.minimumSize, source: .omp, range: .today, language: .ja),
         Case(name: "today-zh-hans-min", size: HistoryWindowController.minimumSize, range: .today, language: .zhHans),
         Case(name: "table", tall: true),
+        // 任務表現 (DESIGN 12): one source chosen, the minimum width in English, and the first re-analysis.
+        Case(name: "tasks-source", source: .claudeCode, tall: true),
+        Case(name: "tasks-min-en", size: HistoryWindowController.minimumSize, language: .en, tall: true),
+        Case(name: "tasks-analyzing", state: .analyzing(0.36, 112, 304), tall: true, tasks: false),
         Case(name: "table-sorted", source: .claudeDesktop, sort: .speed, tall: true),
         // Scrolled into the table: the column titles stay pinned under the toolbar (issue #21 keeps them in place).
         Case(name: "table-scrolled", sort: .cost, scrolled: true),
@@ -252,6 +258,8 @@ enum HistoryPreviews {
         case .notLoaded: .notLoaded
         }
         model.history.publish(state: state, days: days)
+        let tasks = days.isEmpty || !item.tasks ? [] : PreviewTaskRecords.records(endingAt: now, calendar: calendar)
+        model.history.publish(taskRecords: tasks.filter { !item.disabled.contains($0.source) }, taskModels: [:])
         TrafficPreviewData.publish(into: model.traffic, now: now)
         model.settings.currency = item.currency
         model.rates.preview(rates: previewRates, currency: item.currency)
