@@ -299,6 +299,9 @@ struct TranscriptParser: Sendable {
 
     /// A Factory Droid sidecar that is not the version last looked at.
     var sidecarHasChanged: Bool { droid?.sidecarHasChanged ?? false }
+
+    /// A Factory Droid session's counter growth not yet allocated (P).
+    var droidPending: DroidCounters? { droid?.pending }
 }
 
 /// Reads a whole transcript (from the reader's position) and decodes its lines, off the state-machine thread.

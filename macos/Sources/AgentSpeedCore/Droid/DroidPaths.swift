@@ -6,6 +6,11 @@ enum DroidPaths {
     static let transcriptSuffix = ".jsonl"
     static let sidecarSuffix = ".settings.json"
 
+    /// The automatic root, `~/.factory/sessions`; Factory documents no environment variable for it.
+    static func defaultRoot(home: URL) -> URL {
+        home.appendingPathComponent(".factory/sessions", isDirectory: true)
+    }
+
     /// The folder a setting names: its `sessions` folder when it has one (the `.factory` folder), else itself.
     static func sessionsFolder(_ url: URL) -> URL {
         let folder = URL(fileURLWithPath: TranscriptDiscovery.normalizedRoot(url.path), isDirectory: true)
