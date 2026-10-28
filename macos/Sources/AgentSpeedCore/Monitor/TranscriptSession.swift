@@ -129,12 +129,17 @@ final class TranscriptSession {
     /// them and returns the result through `completeWholeFileRead`. Without it they run inline.
     var wholeFileReads: ((WholeFileRead) -> Void)?
 
+    /// Diagnostics keep every agent's whole task stream instead of its current task (`TaskStreamMode.history`).
+    let taskMode: TaskStreamMode
+
     init(
         configuration: MonitorConfiguration,
         limits: ReadingLimits = .standard,
         pricing: PriceBook? = nil,
-        clock: @escaping @Sendable () -> Int64 = { Clock.milliseconds(Date()) }
+        clock: @escaping @Sendable () -> Int64 = { Clock.milliseconds(Date()) },
+        taskMode: TaskStreamMode = .live
     ) {
+        self.taskMode = taskMode
         enabledSources = configuration.enabledSources
         self.configuration = configuration
         self.limits = limits
@@ -688,6 +693,7 @@ final class TranscriptSession {
     }
 
     private func finishRead(of file: TrackedFile, result: FileTailer.ReadResult) {
+        file.wasRead = true
         if result.oversized || file.parser.hasPartialHistory { partialHistory = true }
         if result.failed {
             unreadablePaths.insert(file.path)
@@ -707,6 +713,22 @@ final class TranscriptSession {
     }
 
     // MARK: - Engine
+
+    /// The transcript agents of scored sources that were read, with their whole streams (with `TaskStreamMode.history`)
+    /// and resolved parents: the probe's task rows (METRICS 6.9 *Dumps*).
+    func taskAgents() -> [TaskValueReport.Agent] {
+        var parentLinks = self.parentLinks
+        if parentLinksAreStale {
+            let direct = opencodeLinks.merging(zcodeLinks) { first, _ in first }.merging(openclawLinks) { first, _ in first }
+            parentLinks = AgentParents.resolve(Array(parentMembers.values), direct: direct)
+        }
+        return files.values.filter { $0.wasRead && $0.parser.tasks != nil }.sorted { $0.fileID < $1.fileID }.map { file in
+            let state = file.parser.state
+            return TaskValueReport.Agent(id: file.path, source: state.source, phase: state.phase,
+                                         lastLineMs: state.lastLineMs, parentId: parentLinks[file.path],
+                                         events: file.parser.tasks?.events ?? [])
+        }
+    }
 
     /// New calibrations from the history analysis: every agent's predictions are evaluated again (METRICS 6.11).
     func setTaskModels(_ models: [SourceKind: TaskModels]) {
@@ -905,7 +927,7 @@ final class TranscriptSession {
     private func track(_ file: DiscoveredFile, family: TranscriptFamily, root: String, start: FileTailer.Start) -> TrackedFile {
         let tracked = TrackedFile(
             path: file.path, family: family, root: root, fileID: nextFileID, stat: file.stat, start: start,
-            maxLineBytes: limits.maxLineBytes
+            maxLineBytes: limits.maxLineBytes, taskMode: taskMode
         )
         nextFileID &+= 1
         files[file.path] = tracked

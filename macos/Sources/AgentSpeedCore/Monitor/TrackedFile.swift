@@ -22,6 +22,10 @@ final class TrackedFile {
     var isDirty = false
     /// The current task's evaluation, kept until the task stream or the calibration changes (METRICS 6.9).
     var taskStatus: (version: Int, models: Int, status: AgentTaskStatus)?
+    /// `.live` keeps the current task only; `.history` (diagnostics) keeps the whole stream.
+    let taskMode: TaskStreamMode
+    /// Some read of the file completed (seeded or live).
+    var wasRead = false
 
     init(
         path: String,
@@ -30,20 +34,22 @@ final class TrackedFile {
         fileID: FileID,
         stat: FileStat,
         start: FileTailer.Start,
-        maxLineBytes: Int = FileTailer.defaultMaxLineBytes
+        maxLineBytes: Int = FileTailer.defaultMaxLineBytes,
+        taskMode: TaskStreamMode = .live
     ) {
+        self.taskMode = taskMode
         self.path = path
         self.family = family
         self.root = root
         self.fileID = fileID
         lastStat = stat
         reader = TranscriptReader(path: path, start: start, maxLineBytes: maxLineBytes, readsHeaderFirst: family == .omp || family == .pi)
-        parser = TranscriptParser(family: family, agentId: path, fileID: fileID, root: root, tasks: .live)
+        parser = TranscriptParser(family: family, agentId: path, fileID: fileID, root: root, tasks: taskMode)
     }
 
     /// Parser state restarts after truncation or replacement; the global dedupe set is kept.
     func resetParser() {
-        parser = TranscriptParser(family: family, agentId: path, fileID: fileID, root: root, tasks: .live)
+        parser = TranscriptParser(family: family, agentId: path, fileID: fileID, root: root, tasks: taskMode)
         taskStatus = nil
     }
 
