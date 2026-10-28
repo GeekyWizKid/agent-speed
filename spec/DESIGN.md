@@ -1484,7 +1484,8 @@ Windows only. macOS has no equivalent: the system places menu bar items and the 
   far edge, never its trailing edge.
 - Only the primary taskbar shows the widget, so there is one value. The floating fallback (when the widget cannot be
   embedded in the taskbar) follows the same rules.
-- The taskbar tooltip ends with `taskbar.dragHint` in caption size and the tertiary text color.
+- The taskbar tooltip ends with `taskbar.dragHint` in caption size and the secondary text color (tertiary text falls
+  below the 4.5:1 contrast of section 7 on a light tooltip), 6 DIP below the lines above it.
 - Undo: Settings → 工作列 → `settings.taskbar.position.reset` (section 5) — also the keyboard and screen reader route.
 
 ## 4. Dashboard

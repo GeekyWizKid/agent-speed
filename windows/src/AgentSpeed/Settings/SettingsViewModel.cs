@@ -180,6 +180,8 @@ internal sealed class SettingsViewModel : ObservableObject
         ChangeHermesCommand = new RelayCommand(() => ChangeFolder(HermesPath, (s, path) => s with { HermesRoot = path }));
         ResetHermesCommand = new RelayCommand(() => _settings.Update(s => s with { HermesRoot = null }),
             () => _settings.Current.HermesRoot is not null);
+        ResetTaskbarPositionCommand = new RelayCommand(() => _settings.Update(s => s with { TaskbarOffset = 0 }),
+            () => _settings.Current.TaskbarOffset > 0);
         OpenHistoryCommand = new RelayCommand(openHistory);
         ClearHistoryCommand = new RelayCommand(() =>
         {
@@ -451,6 +453,9 @@ internal sealed class SettingsViewModel : ObservableObject
         get => S.BarShowUnit;
         set => Apply(s => s with { BarShowUnit = value });
     }
+
+    /// <summary>Back to the default spot next to the notification area (DESIGN 3, Position on the taskbar); disabled while there.</summary>
+    public RelayCommand ResetTaskbarPositionCommand { get; }
 
     public string TaskbarStatus => _taskbarPresence switch
     {
@@ -821,6 +826,9 @@ internal sealed class SettingsViewModel : ObservableObject
 
             RefreshTitleLadder();
             OnPropertyChanged(string.Empty);
+
+            // Some changes come from outside this window (a drag of the taskbar widget), so ask the commands again.
+            System.Windows.Input.CommandManager.InvalidateRequerySuggested();
         }
         finally
         {

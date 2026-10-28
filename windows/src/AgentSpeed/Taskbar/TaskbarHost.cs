@@ -19,6 +19,9 @@ internal abstract record TaskbarSignal
     public sealed record Hover(bool IsOver, RECT Bounds) : TaskbarSignal;
 
     public sealed record PresenceChanged(TaskbarPresence Presence, RECT Bounds) : TaskbarSignal;
+
+    /// <summary>A drag ended: the stored position to save (DIPs from the default spot).</summary>
+    public sealed record Moved(double Offset) : TaskbarSignal;
 }
 
 /// <summary>
@@ -69,6 +72,16 @@ internal sealed unsafe class TaskbarHost : IDisposable
     private readonly WidthHold _width = new(ShrinkDelayMs);
     private readonly DispatcherTimer _shrinkTimer;
 
+    /// <summary>The taskbar and widget length of the last placement; a drag moves the widget within them.</summary>
+    private TaskbarGeometry? _geometry;
+    private int _length;
+
+    /// <summary>The left-button press in progress (DESIGN 3, Position on the taskbar): a click until it becomes a drag.</summary>
+    private TaskbarDrag? _drag;
+
+    /// <summary>The position of the last drop (DIPs) until a state from the UI thread carries it.</summary>
+    private double? _dropped;
+
     /// <summary>The second value's number cell (DESIGN 3): grows at once, shrinks only after the same delay.</summary>
     private readonly WidthHold _secondaryCell = new(ShrinkDelayMs);
     private readonly DispatcherTimer _secondaryTimer;
@@ -101,6 +114,12 @@ internal sealed unsafe class TaskbarHost : IDisposable
     public void Apply(TaskbarState state)
     {
         var layoutChanged = state.LayoutDiffers(_state) || state.TaskbarDark != _state.TaskbarDark;
+        var offsetChanged = state.Offset != _state.Offset;
+        if (_dropped is { } dropped && (offsetChanged || state.Offset == dropped))
+        {
+            _dropped = null;
+        }
+
         _state = state;
         UpdateSecondaryCell(_scale > 0 ? _scale : 1);
         _scene.Redline = state.Redline;
@@ -120,6 +139,10 @@ internal sealed unsafe class TaskbarHost : IDisposable
         if (_hwnd == 0 || layoutChanged)
         {
             Ensure(forceLength: true);
+        }
+        else if (offsetChanged && _drag is not { IsDragging: true })
+        {
+            Ensure();
         }
         else
         {
@@ -202,8 +225,14 @@ internal sealed unsafe class TaskbarHost : IDisposable
 
         var scaleChanged = Math.Abs(geo.Scale - _scale) > 0.001 || geo.Vertical != _vertical;
         UpdateSecondaryCell(geo.Scale);
+        if (_drag is not null && scaleChanged)
+        {
+            // The taskbar turned or changed DPI under the pointer: the press no longer maps onto it.
+            CancelPress();
+        }
+
         var length = ResolveLength(_renderer.MeasureLength(_state, geo.Scale, geo.Vertical), forceLength || scaleChanged || _hwnd == 0);
-        if (TaskbarLocator.WidgetRect(geo, length) is not { } rect)
+        if (TaskbarLocator.WidgetRect(geo, length, OffsetPixels(geo.Scale)) is not { } rect)
         {
             Teardown();
             SetPresence(TaskbarPresence.Unavailable);
@@ -212,6 +241,8 @@ internal sealed unsafe class TaskbarHost : IDisposable
 
         _scale = geo.Scale;
         _vertical = geo.Vertical;
+        _geometry = geo;
+        _length = length;
         WatchTaskbar(geo);
 
         if (_hwnd != 0 && (!User32.IsWindow(_hwnd) || (_presence == TaskbarPresence.Embedded && _parent != geo.Taskbar)))
@@ -418,7 +449,7 @@ internal sealed unsafe class TaskbarHost : IDisposable
 
                 var desired = _renderer.MeasureLength(_state, geometry.Value.Scale, geometry.Value.Vertical);
                 var length = Math.Abs(geometry.Value.Scale - _scale) > 0.001 ? desired : _width.Peek(desired, Environment.TickCount64);
-                var rect = TaskbarLocator.WidgetRect(geometry.Value, length);
+                var rect = TaskbarLocator.WidgetRect(geometry.Value, length, OffsetPixels(geometry.Value.Scale));
                 if (rect is not { } r || !RectEquals(r, _screenRect) || Math.Abs(geometry.Value.Scale - _scale) > 0.001)
                 {
                     Ensure();
@@ -630,6 +661,7 @@ internal sealed unsafe class TaskbarHost : IDisposable
         _parent = 0;
         _hovered = false;
         _pressed = false;
+        _drag = null;
         _tracking = false;
         _hiddenForFullscreen = false;
         _renderKey = string.Empty;
@@ -672,6 +704,146 @@ internal sealed unsafe class TaskbarHost : IDisposable
         User32.SetWindowText(_hwnd, _accessibleText);
     }
 
+    /// <summary>
+    /// The offset (physical pixels) to place the widget at: what a drag asks for, else the last drop until the settings
+    /// carry it, else the stored position (DESIGN 3, Position on the taskbar). The placement limits it to the taskbar.
+    /// </summary>
+    private double OffsetPixels(double scale) => _drag is { IsDragging: true, Requested: { } requested }
+        ? requested
+        : TaskbarPosition.ToPixels(_dropped ?? _state.Offset, scale);
+
+    private void BeginPress(nint hwnd)
+    {
+        _signal(new TaskbarSignal.Hover(false, CurrentBounds()));
+        _pressed = true;
+        _drag = null;
+        Render();
+        if (_geometry is not { } geo || !User32.GetCursorPos(out var cursor))
+        {
+            return;
+        }
+
+        var start = TaskbarLocator.WidgetOffset(geo, _length, OffsetPixels(geo.Scale)) ?? 0;
+        var threshold = User32.GetSystemMetricsForDpi(_vertical ? SM.CYDRAG : SM.CXDRAG, geo.Dpi);
+        _drag = new TaskbarDrag(new PointD(cursor.X, cursor.Y), start, _vertical, threshold > 0 ? threshold : Math.Round(4 * geo.Scale));
+        User32.SetCapture(hwnd);
+    }
+
+    private void ContinuePress()
+    {
+        if (_drag is not { } drag || !User32.GetCursorPos(out var cursor))
+        {
+            return;
+        }
+
+        var wasDragging = drag.IsDragging;
+        if (drag.Move(new PointD(cursor.X, cursor.Y)))
+        {
+            if (!wasDragging)
+            {
+                // Mouse capture suppresses WM_SETCURSOR, so this cursor holds until the release.
+                User32.SetCursor(User32.LoadCursor(0, _vertical ? IDC.SIZENS : IDC.SIZEWE));
+                _pressed = true;
+            }
+
+            PlaceDragged();
+            return;
+        }
+
+        // Still a click: it shows pressed only while the pointer is over the widget, like a button.
+        var inside = Contains(CurrentBounds(), cursor);
+        if (inside != _pressed)
+        {
+            _pressed = inside;
+            Render();
+        }
+    }
+
+    private void EndPress()
+    {
+        var drag = _drag;
+        var pressed = _pressed;
+        _drag = null;
+        _pressed = false;
+        ReleaseMouse();
+        if (drag is { IsDragging: true })
+        {
+            CommitDrag(drag);
+            User32.SetCursor(User32.LoadCursor(0, IDC.ARROW));
+            Render();
+            return;
+        }
+
+        Render();
+        var bounds = CurrentBounds();
+        var click = drag is not null && User32.GetCursorPos(out var cursor)
+            ? drag.IsClick(new PointD(cursor.X, cursor.Y), new RectD(bounds.Left, bounds.Top, bounds.Width, bounds.Height))
+            : pressed;
+        if (click)
+        {
+            _signal(new TaskbarSignal.Invoked(bounds));
+        }
+    }
+
+    /// <summary>The press ends with neither a click nor a drop (capture lost, the taskbar changed): back to the stored position.</summary>
+    private void CancelPress()
+    {
+        var dragging = _drag is { IsDragging: true };
+        _drag = null;
+        _pressed = false;
+        ReleaseMouse();
+        Render();
+        if (dragging)
+        {
+            QueueEnsure();
+        }
+    }
+
+    /// <summary>Saves where the widget was dropped: the offset as placed, so it stays on the same pixel.</summary>
+    private void CommitDrag(TaskbarDrag drag)
+    {
+        if (_geometry is not { } geo || drag.Requested is not { } requested
+            || TaskbarLocator.WidgetOffset(geo, _length, requested) is not { } pixels)
+        {
+            QueueEnsure();
+            return;
+        }
+
+        var offset = TaskbarPosition.ToDips(pixels, geo.Scale);
+        _dropped = offset;
+        _signal(new TaskbarSignal.Moved(offset));
+    }
+
+    /// <summary>Moves the widget under the pointer within the last placement's taskbar and length.</summary>
+    private void PlaceDragged()
+    {
+        if (_hwnd == 0 || _geometry is not { } geo
+            || TaskbarLocator.WidgetRect(geo, _length, OffsetPixels(geo.Scale)) is not { } rect || RectEquals(rect, _screenRect))
+        {
+            return;
+        }
+
+        if (_presence == TaskbarPresence.Embedded)
+        {
+            PlaceEmbedded(geo.Taskbar, rect);
+        }
+        else if (_presence == TaskbarPresence.Floating)
+        {
+            PlaceFloating(geo, rect);
+        }
+    }
+
+    private void ReleaseMouse()
+    {
+        if (_hwnd != 0 && User32.GetCapture() == _hwnd)
+        {
+            User32.ReleaseCapture();
+        }
+    }
+
+    private static bool Contains(RECT rect, POINT point) =>
+        point.X >= rect.Left && point.X < rect.Right && point.Y >= rect.Top && point.Y < rect.Bottom;
+
     private nint OnMessage(nint hwnd, uint message, nuint wParam, nint lParam)
     {
         switch (message)
@@ -681,7 +853,12 @@ internal sealed unsafe class TaskbarHost : IDisposable
             case WM.ERASEBKGND:
                 return 1;
             case WM.MOUSEMOVE:
-                if (!_tracking)
+                if (_drag is not null)
+                {
+                    // While the button is held the mouse is captured; tracking again would post a leave on every move outside.
+                    ContinuePress();
+                }
+                else if (!_tracking)
                 {
                     var track = new TRACKMOUSEEVENT
                     {
@@ -697,7 +874,7 @@ internal sealed unsafe class TaskbarHost : IDisposable
 
                 return 0;
             case WM.MOUSEHOVER:
-                if (!_pressed)
+                if (!_pressed && _drag is null)
                 {
                     _signal(new TaskbarSignal.Hover(true, CurrentBounds()));
                 }
@@ -706,27 +883,36 @@ internal sealed unsafe class TaskbarHost : IDisposable
             case WM.MOUSELEAVE:
                 _tracking = false;
                 _hovered = false;
-                _pressed = false;
+                if (_drag is null)
+                {
+                    _pressed = false;
+                }
+
                 Render();
                 _signal(new TaskbarSignal.Hover(false, CurrentBounds()));
                 return 0;
             case WM.LBUTTONDOWN:
-                _pressed = true;
-                Render();
-                _signal(new TaskbarSignal.Hover(false, CurrentBounds()));
+                BeginPress(hwnd);
                 return 0;
             case WM.LBUTTONUP:
-                if (_pressed)
+                EndPress();
+                return 0;
+            case WM.CAPTURECHANGED:
+                // Our own release clears the press first; anything else taking the mouse cancels it.
+                if (_drag is not null)
                 {
-                    _pressed = false;
-                    Render();
-                    _signal(new TaskbarSignal.Invoked(CurrentBounds()));
+                    CancelPress();
                 }
 
                 return 0;
             case WM.RBUTTONDOWN:
                 return 0;
             case WM.RBUTTONUP:
+                if (_drag is not null)
+                {
+                    return 0;
+                }
+
                 User32.GetCursorPos(out var cursor);
                 _signal(new TaskbarSignal.Hover(false, CurrentBounds()));
                 _signal(new TaskbarSignal.MenuRequested(cursor));

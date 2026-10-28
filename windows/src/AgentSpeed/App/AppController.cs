@@ -174,6 +174,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _taskbar.MenuRequested += (_, _) => ShowMenu();
         _taskbar.HoverChanged += (_, hover) => OnTaskbarHover(hover.IsOver, hover.Bounds);
         _taskbar.PresenceChanged += (_, _) => _settingsModel?.UpdateLive(_speed.Snapshot, _taskbar.Presence);
+        _taskbar.Moved += (_, offset) => OnTaskbarMoved(offset);
         _taskbar.Start();
         phases.Mark("taskbar");
 
@@ -755,7 +756,8 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             money?.Unknown ?? false,
             secondary,
             traffic,
-            intelligence);
+            intelligence,
+            s.TaskbarOffset);
         _taskbar.Update(_lastTaskbarState);
     }
 
@@ -965,7 +967,15 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _tooltipShown = true;
         _tooltip.Language = AppFonts.XmlLanguageFor(_loc.LanguageCode);
         var summary = LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(_speed.Snapshot, _loc);
-        _tooltip.ShowFor(bounds, LiveLine(), summary, _theme.ReduceMotion);
+        _tooltip.ShowFor(bounds, LiveLine(), summary, _theme.ReduceMotion, _loc["taskbar.dragHint"]);
+    }
+
+    /// <summary>The user dragged the taskbar widget along the taskbar (DESIGN 3, Position on the taskbar).</summary>
+    private void OnTaskbarMoved(double offset)
+    {
+        AppLog.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"Taskbar widget moved to {offset:0.##} DIPs from the notification area."));
+        _settings.Update(s => s with { TaskbarOffset = offset });
     }
 
     private void HideTooltip()

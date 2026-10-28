@@ -17,6 +17,7 @@ internal sealed class HoverTooltip : Window
 
     private readonly TextBlock _primary;
     private readonly TextBlock _secondary;
+    private readonly TextBlock _hint;
     private RECT _anchor;
     private bool _reduceMotion;
 
@@ -46,9 +47,16 @@ internal sealed class HoverTooltip : Window
         Typography.SetNumeralAlignment(_primary, FontNumeralAlignment.Tabular);
         Typography.SetNumeralAlignment(_secondary, FontNumeralAlignment.Tabular);
 
+        // DESIGN 3, Position on the taskbar: the widget can be dragged along the taskbar. Secondary color: tertiary text
+        // falls below 4.5:1 on the light tooltip (DESIGN 7).
+        _hint = new TextBlock { FontSize = 12, Margin = new Thickness(0, 6, 0, 0) };
+        _hint.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        _hint.SetResourceReference(TextBlock.FontFamilyProperty, AppFonts.UiFontKey);
+
         var stack = new StackPanel();
         stack.Children.Add(_primary);
         stack.Children.Add(_secondary);
+        stack.Children.Add(_hint);
 
         var border = new Border
         {
@@ -68,11 +76,14 @@ internal sealed class HoverTooltip : Window
         SizeChanged += (_, _) => Reposition();
     }
 
-    public void ShowFor(RECT anchor, string primary, string secondary, bool reduceMotion)
+    /// <param name="hint">An optional last line, set apart from the others (the taskbar widget's drag hint).</param>
+    public void ShowFor(RECT anchor, string primary, string secondary, bool reduceMotion, string? hint = null)
     {
         _anchor = anchor;
         _reduceMotion = reduceMotion;
         SetText(primary, secondary);
+        _hint.Text = hint;
+        _hint.Visibility = string.IsNullOrEmpty(hint) ? Visibility.Collapsed : Visibility.Visible;
         if (!IsVisible)
         {
             Opacity = 0;
