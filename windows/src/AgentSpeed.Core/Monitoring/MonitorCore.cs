@@ -58,6 +58,7 @@ internal sealed partial class MonitorCore : IDisposable
     private int _responsesSeen;
     private bool _partialHistory;
     private long? _observedAtMs;
+    private bool _keepEveryTask;
 
     public MonitorCore(
         MonitorConfiguration configuration,
@@ -281,7 +282,7 @@ internal sealed partial class MonitorCore : IDisposable
                     continue;
                 }
 
-                var tracked = new TrackedFile(root, file.Path, _deduper);
+                var tracked = NewTrackedFile(root, file.Path);
                 _files[file.Path] = tracked;
                 if (PlanInitialRead(tracked, file, todayStartMs) is { } plan)
                 {
@@ -1105,7 +1106,7 @@ internal sealed partial class MonitorCore : IDisposable
             return false;
         }
 
-        var tracked = new TrackedFile(root, file.Path, _deduper);
+        var tracked = NewTrackedFile(root, file.Path);
         _files[file.Path] = tracked;
         if (PlanInitialRead(tracked, file, todayStartMs) is not { } plan)
         {
@@ -1215,6 +1216,45 @@ internal sealed partial class MonitorCore : IDisposable
         parser is AntigravityParser ? AntigravityPaths.StoreNameOf(parser.AgentId) : null;
 
     /// <summary>Re-resolves parent links over the engine's agents after any of them changed (METRICS 6.7).</summary>
+    /// <summary>
+    /// Keep every task's events instead of each agent's current task (the probe's dumps evaluate at any instant); set
+    /// before seeding.
+    /// </summary>
+    internal bool KeepEveryTask
+    {
+        get => _keepEveryTask;
+        set
+        {
+            _keepEveryTask = value;
+            if (_openClaw is { } openClaw)
+            {
+                openClaw.KeepEveryTask = value;
+            }
+        }
+    }
+
+    /// <summary>The agents of the sources with a task score (METRICS 6.9), with their composers.</summary>
+    internal IEnumerable<TranscriptParser> TaskAgents =>
+        _files.Values.Select(f => f.Parser).Concat(_openClaw?.Parsers ?? []).Where(p => p.Tasks is not null);
+
+    /// <summary>An agent's parent link (METRICS 6.7) as last resolved; null for none.</summary>
+    internal string? ParentOf(string agentId)
+    {
+        ResolveParents();
+        return _parents.GetValueOrDefault(agentId);
+    }
+
+    private TrackedFile NewTrackedFile(SourceRoot root, string path)
+    {
+        var tracked = new TrackedFile(root, path, _deduper);
+        if (_keepEveryTask)
+        {
+            tracked.Parser.KeepEveryTask();
+        }
+
+        return tracked;
+    }
+
     private void ResolveParents()
     {
         if (!_linksChanged)

@@ -57,6 +57,9 @@ internal sealed class OpenClawSource
     /// <summary>A state folder (or the folder or file of the setting) exists (METRICS 2).</summary>
     public bool Available => Roots.Any(OpenClawPaths.Exists);
 
+    /// <summary>Windows keep every task's events (the probe's dumps); set before the first read.</summary>
+    internal bool KeepEveryTask { get; set; }
+
     public IEnumerable<OpenClawParser> Parsers => _databases.Values.SelectMany(d => d.Windows.Values).Select(w => w.Parser);
 
     public IReadOnlyCollection<string> DatabasePaths => _databases.Keys;
@@ -340,7 +343,13 @@ internal sealed class OpenClawSource
             var generation = generations.GetValueOrDefault(window.SessionId);
             if (!tracked.Windows.TryGetValue(window.SessionId, out var state))
             {
-                state = new WindowState(new OpenClawParser(tracked.Path, window, _deduper)) { Generation = generation, UpdatedMs = window.UpdatedMs };
+                var parser = new OpenClawParser(tracked.Path, window, _deduper);
+                if (KeepEveryTask)
+                {
+                    parser.KeepEveryTask();
+                }
+
+                state = new WindowState(parser) { Generation = generation, UpdatedMs = window.UpdatedMs };
                 tracked.Windows[window.SessionId] = state;
                 if (first && (window.UpdatedMs ?? long.MinValue) < _thresholdMs)
                 {
