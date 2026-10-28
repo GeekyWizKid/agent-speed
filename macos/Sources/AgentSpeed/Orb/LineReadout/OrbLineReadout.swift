@@ -90,12 +90,19 @@ final class OrbLineReadout {
     }
 
     /// The readout stack's shift at the frame: follows the block's quiet-rule fade (eased), so the value glides down as
-    /// the block appears and back when it has faded; never moves for the new-peak pill.
+    /// the block appears and back when it has faded, and the intelligence line's glide while the thinking line is
+    /// hidden; never moves for the new-peak pill.
     func stackShift(_ frame: OrbFrame, placement: OrbLinePlacement, layout: OrbReadoutLayout) -> CGFloat {
         guard let lines = frame.content.lines, let reading = lines.reading, !frame.unavailable,
               OrbLineMetrics.fits(placement, diameter: frame.s, format: lines.format, language: frame.content.language) else { return 0 }
         let shown = reading.alpha(at: frame.time, reduceMotion: frame.effects.reduceMotion)
-        return placement.stackShift(layout: layout, diameter: frame.s, format: lines.format) * CGFloat(Easing.smoothstep(0, 1, shown))
+        let shift = placement.stackShift(layout: layout, diameter: frame.s, format: lines.format, single: single(reading, frame))
+        return shift * CGFloat(Easing.smoothstep(0, 1, shown))
+    }
+
+    /// The intelligence line's glide toward the single-line position, eased (DESIGN 10, Thinking hidden at zero).
+    private func single(_ reading: OrbLineReading, _ frame: OrbFrame) -> CGFloat {
+        CGFloat(Easing.smoothstep(0, 1, reading.thinking.single(at: frame.time, reduceMotion: frame.effects.reduceMotion)))
     }
 
     func add(into scene: inout OrbScene, _ frame: OrbFrame, placement: OrbLinePlacement, palette: Palette,
@@ -109,7 +116,7 @@ final class OrbLineReadout {
         case .traffic(let rx, let tx):
             addTraffic(rx: rx, tx: tx, bits: lines.format == .traffic(bits: true), into: &scene, frame, placement: placement, ink: ink)
         case .intelligence(let index, let thinking):
-            addIntelligence(index: index, thinking: thinking, into: &scene, frame, placement: placement, ink: ink)
+            addIntelligence(index: index, thinking: thinking, line: reading, into: &scene, frame, placement: placement, ink: ink)
         }
     }
 
@@ -147,19 +154,25 @@ final class OrbLineReadout {
         }
     }
 
-    /// The intelligence line (`p = 1.25 t`) over the thinking line, each centred on the orb on its own.
-    private func addIntelligence(index: Int, thinking: String, into scene: inout OrbScene, _ frame: OrbFrame,
-                                 placement: OrbLinePlacement, ink: Ink) {
+    /// The intelligence line (`p = 1.25 t`) over the thinking line, each centred on the orb on its own. While the
+    /// thinking rate reads 0 the thinking line fades out after its hold and the intelligence line glides onto the
+    /// single-line position (DESIGN 10, Thinking hidden at zero).
+    private func addIntelligence(index: Int, thinking: String, line reading: OrbLineReading, into scene: inout OrbScene,
+                                 _ frame: OrbFrame, placement: OrbLinePlacement, ink: Ink) {
         let language = frame.content.language
         let glyphs = OrbLineGlyphs(language)
         let t = placement.textSize(diameter: frame.s)
         let p = OrbLinePlacement.intelligenceScale * t
-        let baselines = placement.intelligenceBaselines(center: frame.center.y + frame.readoutShift, diameter: frame.s)
+        let baselines = placement.intelligenceBaselines(center: frame.center.y + frame.readoutShift, diameter: frame.s,
+                                                        single: single(reading, frame))
         addCentredLine(glyphs.intelligence, number: String(index), unit: nil, size: p, gap: OrbLinePlacement.intelligenceGap * p,
                        baseline: baselines.intelligence, frame, into: &scene, ink: ink)
+        var thinkingInk = ink
+        thinkingInk.alpha *= reading.thinking.alpha(at: frame.time, reduceMotion: frame.effects.reduceMotion)
+        guard thinkingInk.alpha > 0.01 else { return }
         let unit = placement.thinkingUnit ? OrbLineMetrics.thinkingUnit : nil
         addCentredLine(glyphs.thinking, number: thinking, unit: unit, size: t, gap: OrbLinePlacement.gap * t,
-                       baseline: baselines.thinking, frame, into: &scene, ink: ink)
+                       baseline: baselines.thinking, frame, into: &scene, ink: thinkingInk)
     }
 
     /// `glyph · gap · number (· gap · unit)` at `size`, centred by its advances. Every piece starts on a device pixel,

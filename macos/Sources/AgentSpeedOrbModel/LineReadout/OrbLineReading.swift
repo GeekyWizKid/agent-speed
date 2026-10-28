@@ -15,6 +15,12 @@ public enum OrbLineContent: Equatable, Sendable {
     /// The shown index and thinking tok/s (METRICS 6.9).
     case intelligence(index: Int, thinking: String)
 
+    /// The thinking rate as shown reads 0 (DESIGN 10, Thinking hidden at zero).
+    public var thinkingReadsZero: Bool {
+        guard case .intelligence(_, let thinking) = self else { return false }
+        return OrbThinkingLine.readsZero(thinking)
+    }
+
     fileprivate func isSameKind(as other: OrbLineContent) -> Bool {
         switch (self, other) {
         case (.traffic, .traffic), (.intelligence, .intelligence): true
@@ -42,11 +48,14 @@ public struct OrbLineReading: Equatable, Sendable {
     public var shownAt: TimeInterval
     /// When it begins fading out, `quietAfter` past the last loud moment; gone `fadeOut` later.
     public var quietAt: TimeInterval
+    /// The intelligence readout's thinking line, hidden while its rate reads 0.
+    public var thinking: OrbThinkingLine
 
-    public init(content: OrbLineContent, shownAt: TimeInterval, quietAt: TimeInterval) {
+    public init(content: OrbLineContent, shownAt: TimeInterval, quietAt: TimeInterval, thinking: OrbThinkingLine = OrbThinkingLine()) {
         self.content = content
         self.shownAt = shownAt
         self.quietAt = quietAt
+        self.thinking = thinking
     }
 
     public static let fadeIn: TimeInterval = 0.25
@@ -69,6 +78,21 @@ public struct OrbLineReading: Equatable, Sendable {
 
     /// Fully faded out at `time`: nothing is drawn and new quiet values change nothing.
     public func isGone(at time: TimeInterval) -> Bool { time >= quietAt + Self.fadeOut }
+
+    /// Under Reduce Motion a step still renders over this, so its frame is drawn.
+    public static let reducedStep: TimeInterval = 0.05
+
+    /// The frame policy's view (DESIGN 10, Frame policy): whether a fade or the thinking line's glide runs at `time`
+    /// (frames at 30 fps), and when a still orb must wake next — the quiet moment or the end of the thinking hold.
+    public func motion(at time: TimeInterval, reduceMotion: Bool) -> (frames: Bool, wake: TimeInterval) {
+        let step = reduceMotion ? Self.reducedStep : nil
+        let gone = quietAt + Self.fadeOut
+        let fading = (time >= shownAt && time < shownAt + (step ?? Self.fadeIn)) || (time >= quietAt && time < quietAt + (step ?? Self.fadeOut))
+        let moving = time < gone && thinking.isMoving(at: time, step: step)
+        var wake = time < quietAt ? quietAt : .infinity
+        if let end = thinking.holdEnd(after: time), end < gone { wake = min(wake, end) }
+        return (fading || moving, wake)
+    }
 }
 
 /// The quiet rule shared by both readouts (DESIGN 10): visible while loud; 10 s after the last loud moment it fades
@@ -112,6 +136,7 @@ public struct OrbLineQuietRule: Sendable {
             }
             next = OrbLineReading(content: content, shownAt: time, quietAt: time + Self.quietAfter)
         }
+        next.thinking.update(zero: content.thinkingReadsZero, at: time)
         guard next != reading else { return false }
         reading = next
         return true

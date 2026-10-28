@@ -29,6 +29,7 @@ enum StringTable {
         "a11y.orb.costNamed": Entry("%@：每秒 %@ %@（API 等值），%@", "%@：每秒 %@ %@（API 等值），%@", "%@: %@ %@ per second (API-equivalent), %@", "%@：毎秒 %@ %@（API 換算）、%@"),
         "a11y.orb.costUnknown": Entry("價格未知，%@", "价格未知，%@", "Price unknown, %@", "価格不明、%@"),
         "a11y.orb.intel": Entry("智力 %@，思考每秒 %@ 個 token", "智力 %@，思考每秒 %@ 个 token", "intelligence %@, thinking %@ tokens per second", "知能 %@、思考 毎秒 %@ トークン"),
+        "a11y.orb.intel.only": Entry("智力 %@", "智力 %@", "intelligence %@", "知能 %@"),
         "a11y.orb.moveCorner": Entry("移到下一個角落", "移到下一个角落", "Move to Next Corner", "次の隅へ移動"),
         "a11y.orb.named": Entry("%@：每秒 %@ 個 token，%@", "%@：每秒 %@ 个 token，%@", "%@: %@ tokens per second, %@", "%@：毎秒 %@ トークン、%@"),
         "a11y.orb.showMenu": Entry("顯示選單", "显示菜单", "Show Menu", "メニューを表示"),

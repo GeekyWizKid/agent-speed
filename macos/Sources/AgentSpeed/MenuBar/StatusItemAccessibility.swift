@@ -22,7 +22,7 @@ final class StatusItemAccessibility {
             if self.model.settings.barSecondary { _ = self.model.snapshot.sources }
             switch self.model.settings.barTraffic {
             case .machine, .agents: _ = self.model.traffic.snapshot.timestamp
-            case .intelligence: _ = self.model.snapshot.intelligence
+            case .intelligence: _ = (self.model.snapshot.intelligence, self.model.barThinking.hidden)
             case .off: break
             }
             self.schedule()

@@ -62,6 +62,8 @@ final class AppModel {
     let traffic: TrafficStore
     /// Live reporting (DESIGN 11): off until the user confirms a service.
     let report: ReportController
+    /// The menu bar intelligence block's thinking line, hidden after its rate has read 0 for 3 s (DESIGN 10).
+    let barThinking = StatusItemThinkingHold()
 
     /// True while the 20 s effects preview (or the `--demo` loop) drives the store.
     private(set) var isPreviewing = false
@@ -143,6 +145,10 @@ final class AppModel {
             self.gauge.redline = self.settings.redline
             let snapshot = self.store.snapshot
             self.gauge.ingest(self.value(of: snapshot.live), now: Clock.now)
+        })
+        loops.append(ObservationLoop { [weak self] in
+            guard let self else { return }
+            self.barThinking.update(self.store.snapshot.intelligence, at: Clock.now)
         })
         loops.append(ObservationLoop { [weak self] in
             guard let self else { return }

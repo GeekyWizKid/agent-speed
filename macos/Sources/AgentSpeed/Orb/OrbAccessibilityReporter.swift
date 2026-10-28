@@ -15,6 +15,9 @@ final class OrbAccessibilityReporter {
     private weak var host: OrbHostView?
     private var loop: ObservationLoop?
     private var timer: Timer?
+    /// Publishes again when the thinking line's hold ends, which changes nothing the loop observes.
+    private var holdTimer: Timer?
+    private var holdEnd: TimeInterval?
     private var publishedAt: TimeInterval = -.infinity
     /// The unit last published; a change is announced once (DESIGN 9, Accessibility).
     private var publishedUnit: OrbUnit?
@@ -30,6 +33,9 @@ final class OrbAccessibilityReporter {
         loop?.cancel()
         timer?.invalidate()
         timer = nil
+        holdTimer?.invalidate()
+        holdTimer = nil
+        holdEnd = nil
     }
 
     private func observe() {
@@ -106,6 +112,7 @@ final class OrbAccessibilityReporter {
             if single { value += separator + lines } else { label += separator + lines }
         }
         host.accessibilityHelpText = help
+        scheduleHoldEnd()
         let labelChanged = label != host.accessibilityLabelText
         let valueChanged = value != host.accessibilityValueText
         host.accessibilityLabelText = label
@@ -123,8 +130,28 @@ final class OrbAccessibilityReporter {
         publishedUnit = unit
     }
 
+    private func scheduleHoldEnd() {
+        let now = Clock.now
+        let end = runtime.feed.lines?.reading?.thinking.holdEnd(after: now)
+        guard end != holdEnd else { return }
+        holdTimer?.invalidate()
+        holdTimer = nil
+        holdEnd = end
+        guard let end else { return }
+        let timer = Timer(timeInterval: end - now + 0.05, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.holdTimer = nil
+                self.holdEnd = nil
+                self.observe()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        holdTimer = timer
+    }
+
     /// While the readout is visible (DESIGN 10, Accessibility): `a11y.orb.traffic` with rates read as words and units as
-    /// written, or `a11y.orb.intel`.
+    /// written, or `a11y.orb.intel` (`a11y.orb.intel.only` while the thinking line is hidden).
     private func lineSentence(_ l10n: Localizer) -> String? {
         let config = runtime.config
         guard let lines = runtime.feed.lines, let reading = lines.reading, !runtime.isUnavailable else { return nil }
@@ -136,6 +163,7 @@ final class OrbAccessibilityReporter {
         case .traffic(let rx, let tx):
             return l10n("a11y.orb.traffic", TrafficText.spoken(rx), TrafficText.spoken(tx))
         case .intelligence(let index, let thinking):
+            guard !reading.thinking.isHidden(at: now) else { return l10n("a11y.orb.intel.only", String(index)) }
             return l10n("a11y.orb.intel", String(index), thinking)
         }
     }
