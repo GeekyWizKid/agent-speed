@@ -9,11 +9,48 @@ struct BoardContentItem {
         var cornerRadius: CGFloat
     }
 
-    enum Motion {
+    enum Motion: Equatable {
         /// Stays put (hero, footer).
         case none
         /// Springs to new places, fades in from 10 pt below and out when it leaves (rows).
         case row
+        /// Glides to new places (smoothstep, 0.3 s), fades in and out in place over `fade` seconds (the sub-gauge's
+        /// pieces as 思考 hides and returns, DESIGN 2c Live metrics). Reduce Motion: at once.
+        case glide(fade: Double)
+    }
+
+    /// The layer a piece belongs to: the hero's pieces share one, so a switch change crossfades the hero as a whole.
+    enum Group: Equatable {
+        case main
+        case hero
+    }
+
+    /// An arc revealed up to `fraction` of its sweep by a mask the layer animates (glass's dial, 0.24 s): the image
+    /// holds the whole arc. Item points, y down; angles in radians, clockwise on screen.
+    struct Sweep: Equatable {
+        var center: CGPoint
+        var radius: CGFloat
+        /// The mask's width (the stroke and its glow).
+        var width: CGFloat
+        var start: CGFloat
+        var sweep: CGFloat
+        var fraction: Double
+
+        /// The mask's centre line over the whole sweep, from a little before the start so the arc's round start cap
+        /// and glow stay whole; its end (under the dial's tip) is flat.
+        var maskLine: CGPath {
+            let lead = width / (2 * max(1, radius))
+            let path = CGMutablePath()
+            path.addArc(center: center, radius: radius, startAngle: start - lead, endAngle: start + sweep, clockwise: false)
+            return path
+        }
+
+        /// The mask's share of `maskLine` that reveals `fraction` of the sweep (a stroke end).
+        func strokeEnd(_ fraction: Double) -> CGFloat {
+            let lead = width / (2 * max(1, radius))
+            let shown = CGFloat(min(1, max(0, fraction)))
+            return shown > 0 ? (lead + sweep * shown) / (lead + sweep) : 0
+        }
     }
 
     /// Identity across updates (a row's plan key, `hero`, `footer`).
@@ -21,6 +58,7 @@ struct BoardContentItem {
     /// Board points, y down.
     var frame: CGRect
     var motion: Motion = .row
+    var group = Group.main
     /// A flat rounded fill behind the drawing, composited by the render server (a row's plate is never rasterized,
     /// so a changing value redraws only its text).
     var plate: Plate?
@@ -46,12 +84,46 @@ struct BoardContentItem {
     /// The drawing is the coverage of one color (drawn white): the layer fills `tint` through it, so a new color is a
     /// layer property with a short transition instead of a redraw (heat-colored bars and lights).
     var tint: CGColor?
+    /// Shows only the first `fraction` of an arc (a mask the layer animates instead of a redraw).
+    var sweep: Sweep?
+    /// Turns the image clockwise by this angle (radians) about its frame's center, animated like the sweep (glass's
+    /// dial tip riding the arc).
+    var turn: Double?
 
     /// Where the image shows in board points once stretched.
     var shownFrame: CGRect {
         guard let stretch else { return frame }
         let scale = CGFloat(min(1, max(0, stretch)))
         return CGRect(x: frame.minX + stretchAnchor * (1 - scale), y: frame.minY, width: frame.width * scale, height: frame.height)
+    }
+}
+
+extension BoardContentItem {
+    /// The item as its layer shows it, for offscreen frames: tinted, revealed and turned.
+    var composited: (CGContext, CGSize) -> Void {
+        let draw = BoardRaster.tinted(self.draw, with: tint)
+        let sweep = self.sweep, turn = self.turn
+        guard sweep != nil || turn != nil else { return draw }
+        return { context, size in
+            context.saveGState()
+            if let sweep {
+                let end = sweep.strokeEnd(sweep.fraction)
+                guard end > 0 else { return context.restoreGState() }
+                let lead = sweep.width / (2 * max(1, sweep.radius))
+                let line = CGMutablePath()
+                line.addArc(center: sweep.center, radius: sweep.radius, startAngle: sweep.start - lead,
+                            endAngle: sweep.start - lead + (lead + sweep.sweep) * end, clockwise: false)
+                context.addPath(line.copy(strokingWithWidth: sweep.width, lineCap: .butt, lineJoin: .miter, miterLimit: 10))
+                context.clip()
+            }
+            if let turn {
+                context.translateBy(x: size.width / 2, y: size.height / 2)
+                context.rotate(by: CGFloat(turn))
+                context.translateBy(x: -size.width / 2, y: -size.height / 2)
+            }
+            draw(context, size)
+            context.restoreGState()
+        }
     }
 }
 
@@ -73,6 +145,9 @@ enum BoardContentAccent {
     case punch(anchor: CGPoint)
     /// A decal shown beside the item for a while (chips, sweeps, banners).
     case decal(BoardDecal)
+    /// The new image crossfades over the old in `seconds` (a readout's `–` ↔ number, a row's live ↔ resting color,
+    /// the neon meter's segments).
+    case crossfade(Double)
 }
 
 /// A temporary drawing over an item: an overtake chip, a light sweep, a banner, a sheen.

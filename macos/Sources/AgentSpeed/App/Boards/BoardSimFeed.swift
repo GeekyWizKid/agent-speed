@@ -3,32 +3,73 @@ import AgentSpeedOrbModel
 import AppKit
 
 /// Feeds a board from `BoardSimulation` one engine tick at a time, as the prototypes' pages do: makes the tick's
-/// `BoardTick`, lays it out with the style's real content builder (only when asked, so a board nobody sees costs no
-/// layout) and plays the tick's heat, overtakes, new leader, number punch and new peak on the effects.
+/// `BoardTick` (with the live metrics of the board's switches), lays it out with the style's real content builder
+/// (only when asked, so a board nobody sees costs no layout) and plays the tick's heat, overtakes, new leader, number
+/// punch and new peak on the effects.
 @MainActor
 final class BoardSimFeed {
+    /// The live metrics as the harnesses show them.
+    struct Metrics {
+        var readouts = BoardReadouts.all
+        /// The display currency (`AGENT_SPEED_BOARD_CURRENCY`, a METRICS 9.8 code; USD by default).
+        var currency = "USD"
+        /// Every source marked as a subscription (`AGENT_SPEED_BOARD_SUBS=1`, the prototypes' `subs=all`).
+        var subscriptions = false
+
+        /// `AGENT_SPEED_BOARD_READOUTS` (`all`, `none`, or a list of intel, think, cost, rowcost), the currency and the
+        /// subscriptions from the environment.
+        static func environment() -> Metrics {
+            let environment = ProcessInfo.processInfo.environment
+            var metrics = Metrics()
+            if let raw = environment["AGENT_SPEED_BOARD_READOUTS"], raw != "all" {
+                let keys = Set(raw.split(separator: ",").map(String.init))
+                metrics.readouts = BoardReadouts(intelligence: keys.contains("intel"), thinking: keys.contains("think"),
+                                                 cost: keys.contains("cost"), rowCost: keys.contains("rowcost"))
+            }
+            if let currency = environment["AGENT_SPEED_BOARD_CURRENCY"] { metrics.currency = currency }
+            metrics.subscriptions = environment["AGENT_SPEED_BOARD_SUBS"] == "1"
+            return metrics
+        }
+    }
+
     var simulation: BoardSimulation
     let builder: BoardContentBuilding
     let style: BoardStyle
     let size: BoardSize
     let l10n: Localizer
     let redline: Double
+    var metrics: Metrics {
+        didSet { remake() }
+    }
     private(set) var snapshot: BoardSimulation.Snapshot
     private(set) var tick: BoardTick
     private var cached: BoardContentLayout?
     private var lastLive: Double?
     private var lastPeak: Double?
+    private var fold = BoardThinkingFold()
 
     init(simulation: BoardSimulation, style: BoardStyle, size: BoardSize, dark: Bool, l10n: Localizer, redline: Double = 2000,
-         highContrast: Bool = false) {
+         highContrast: Bool = false, metrics: Metrics = .environment()) {
+        var simulation = simulation
+        if ProcessInfo.processInfo.environment["AGENT_SPEED_BOARD_NOREASONING"] == "1" { simulation.recordsReasoning = false }
         self.simulation = simulation
         self.style = style
         self.size = size
         self.l10n = l10n
         self.redline = redline
+        self.metrics = metrics
         builder = BoardContentBuilders.make(style: style, size: size, dark: dark, l10n: l10n, capsule: nil, highContrast: highContrast)
-        snapshot = self.simulation.snapshot()
-        tick = BoardSimTick.make(snapshot, style: style, size: size, redline: redline, previousPeak: nil, l10n: l10n)
+        // The simulation took its first snapshot when it was made; taking another would tick its ranking twice.
+        var first = simulation
+        snapshot = simulation.last ?? first.snapshot()
+        tick = BoardSimTick.make(snapshot, style: style, size: size, redline: redline, previousPeak: nil, l10n: l10n,
+                                 metrics: metrics, fold: &fold)
+    }
+
+    private func remake() {
+        tick = BoardSimTick.make(snapshot, style: style, size: size, redline: redline, previousPeak: nil, l10n: l10n,
+                                 metrics: metrics, fold: &fold)
+        cached = nil
     }
 
     /// The harnesses' language: `AGENT_SPEED_BOARD_LANG` (zh-Hant, zh-Hans, en, ja), else zh-Hant as the prototypes.
@@ -44,7 +85,8 @@ final class BoardSimFeed {
         let peak = snapshot.peak
         simulation.advance()
         snapshot = simulation.snapshot()
-        let next = BoardSimTick.make(snapshot, style: style, size: size, redline: redline, previousPeak: peak, l10n: l10n)
+        let next = BoardSimTick.make(snapshot, style: style, size: size, redline: redline, previousPeak: peak, l10n: l10n,
+                                     metrics: metrics, fold: &fold)
         // An equal tick keeps its layout (as the app's boards do), so an idle board lays out nothing.
         guard next != tick else { return false }
         tick = next
@@ -110,13 +152,15 @@ enum BoardSimTick {
     ]
 
     static func make(_ snapshot: BoardSimulation.Snapshot, style: BoardStyle, size: BoardSize, redline: Double, previousPeak: Double?,
-                     l10n: Localizer) -> BoardTick {
+                     l10n: Localizer, metrics: BoardSimFeed.Metrics = .init(), fold: inout BoardThinkingFold) -> BoardTick {
         let agents = snapshot.groups.flatMap { [$0.root] + $0.subs }.map(status)
-        let grouped = Dictionary(uniqueKeysWithValues: BoardGrouping.groups(agents, metric: .output).map { ($0.id, $0) })
+        let billable: SourceSet = metrics.subscriptions ? SourceSet(rawValue: 0) : .everything
+        let grouped = Dictionary(uniqueKeysWithValues: BoardGrouping.groups(agents, metric: .output, billable: billable).map { ($0.id, $0) })
         let groups = snapshot.groups.compactMap { grouped[$0.id] }
         let liveByID = Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0.live.output) })
+        let geometry = BoardGeometry(style, size, readouts: metrics.readouts)
         let rows = BoardLayoutPlanner.plan(groups.map { group in BoardPlanGroup(group) { liveByID[$0] ?? 0 } },
-                                           metrics: .of(style, size))
+                                           metrics: BoardLayoutMetrics(geometry))
         let live = snapshot.live
         let title = titles.last { live >= $0.1 * redline }.map { "title." + $0.0 } ?? "tier.idle"
         // As the app's `BoardHistory`: the latest value of each simulated second, so the newest point follows every
@@ -127,13 +171,41 @@ enum BoardSimTick {
             seconds.record(value, atMs: Int64(((start + Double(index) * 0.5) * 1000).rounded()))
         }
         let history = seconds.values
-        return BoardTick(
+        let table = CurrencyTable.bundled
+        let currency = table.currencyOrUSD(metrics.currency)
+        let rate = table.fallbackRates.rates[currency.code] ?? 1
+        let format = BoardMoneyFormat(currency: currency, rate: rate, l10n: l10n)
+        let today = MoneyFormat.format(MoneyFormat.amount(microUsd: Int64((snapshot.costToday * 1e6).rounded()), rate: rate),
+                                       currency: currency, language: l10n.language.rawValue, form: .amount).text
+        var tick = BoardTick(
             value: live, valueText: SpeedFormat.speed(live), metric: .output, redline: redline,
             heat: HeatPalette.heat(value: live, redline: redline), overdrive: HeatPalette.overdrive(value: live, redline: redline),
             title: l10n(title), generating: snapshot.generating, tools: snapshot.tools, history: history,
             groups: groups, rows: rows, events: snapshot.events, newPeak: previousPeak.map { snapshot.peak > $0 + 1 } ?? false,
-            todayText: SpeedFormat.tokens(Int(snapshot.today)), costText: String(format: "$%.2f", snapshot.cost),
+            todayText: SpeedFormat.tokens(Int(snapshot.today)), costText: metrics.subscriptions ? nil : today,
             peakText: SpeedFormat.speed(snapshot.peak), peak: snapshot.peak)
+        let readouts = metrics.readouts
+        guard readouts.hero || readouts.rowCost else { return tick }
+        // The board's sums: every agent's, as the engine adds the per-source sums (METRICS 6.8, 6.9, 9.5).
+        var sums = AgentGroupSums()
+        for agent in agents { sums.add(agent, billable: !metrics.subscriptions) }
+        let state: CostReading.State = metrics.subscriptions ? .subscriptionOnly
+            : sums.costOutput > 0 && sums.cost.knownOutput <= 0 ? .nothingPriced
+            : sums.costKnownShare < CostReading.partialThreshold && sums.cost.microUsdPerSecond > 0 ? .partial : .priced
+        if readouts.cost, metrics.subscriptions {
+            tick.costText = format.tag
+            tick.costIsTag = true
+        }
+        var rowCosts: [String: BoardMoney] = [:]
+        if readouts.twoLineRows(size) {
+            for group in groups { rowCosts[group.id] = format.money(group.sums) }
+        }
+        fold.update(eligible: readouts.thinkingMayHide, quiet: sums.intelligence.shownIndex == nil,
+                    shown: SpeedFormat.speed(sums.intelligence.thinking), at: snapshot.time)
+        tick.metrics = .make(readouts: readouts, intelligence: sums.intelligence,
+                             cost: format.money(sums.cost.microUsdPerSecond, state: state), costUnit: format.unit,
+                             rowCosts: rowCosts, thinkingHidden: fold.hidden)
+        return tick
     }
 
     private static func status(_ agent: BoardSimulation.Agent) -> AgentStatus {
@@ -147,10 +219,20 @@ enum BoardSimTick {
         case .tools: .tools
         case .idle: .idle
         }
+        // sim.js `aggregate`: the agent's own METRICS 6.9 sums and its cost rate, as the engine's per-agent values.
+        var intelligence = IntelligenceSums()
+        intelligence.output = agent.live
+        intelligence.gradedOutput = agent.live * Double(agent.grade.value)
+        if agent.recordsReasoning {
+            intelligence.thinking = agent.thinking
+            intelligence.thinkingBase = agent.live
+        }
         return AgentStatus(id: agent.id, source: SourceKind(rawValue: agent.source) ?? .claudeCode,
                            project: agent.parentID == nil ? agent.project : agent.label, model: agent.model, phase: phase,
                            isSubagent: agent.parentID != nil, live: Rate(output: agent.live, total: agent.live * 1.6),
                            recentSpeed: nil, lastActivity: Date(timeIntervalSince1970: 1_800_000_000 + agent.lastActive),
-                           parentId: agent.parentID, modes: ExecutionModes(facts))
+                           parentId: agent.parentID,
+                           liveCost: LiveCost(microUsdPerSecond: agent.costRate, knownOutput: agent.priced ? agent.live : 0),
+                           modes: ExecutionModes(facts), grade: agent.grade, intelligence: intelligence)
     }
 }

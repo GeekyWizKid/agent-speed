@@ -3,46 +3,61 @@ import AgentSpeedOrbModel
 import AppKit
 
 /// 霓虹座艙 (DESIGN 2c Styles; `board-neon.html`): a night cockpit in the LED orb's language: a grid deck lit by the
-/// heat, glowing LED digits (chromatic fringes from h = 0.85), the 24-segment LED bar and a breathing neon tube.
+/// heat, glowing LED digits (chromatic fringes from h = 0.85), the 24-segment LED bar and a breathing neon tube. With
+/// the live metrics (Live metrics, *Hero*) the hero grows and its right side is the LED sub-gauge over the LED bar.
 @MainActor
 final class BoardNeonContent: BoardContentBuilding {
     let size: BoardSize
     let palette: BoardPalette
     let l10n: Localizer
-    let rows: BoardListRows
+    let capsules: BoardCapsuleDrawing
+    private(set) var rows: BoardListRows
     private var memory = BoardTickMemory()
+    private lazy var gauge = BoardNeonGauge(size: size, palette: palette, l10n: l10n)
 
     init(size: BoardSize, dark: Bool, highContrast: Bool, l10n: Localizer, capsules: BoardCapsuleDrawing) {
         self.size = size
         palette = BoardPalette(style: .neon, dark: dark, highContrast: highContrast)
         self.l10n = l10n
+        self.capsules = capsules
         rows = BoardListRows(style: .neon, size: size, palette: palette, capsules: capsules)
     }
 
     private var side: CGFloat { CGFloat(size.side) }
     private var pad: CGFloat { size == .small ? 14 : size == .medium ? 16 : 18 }
-    private var heroHeight: CGFloat { size == .small ? 82 : size == .medium ? 92 : 100 }
     private var big: CGFloat { size == .small ? 34 : size == .medium ? 40 : 46 }
-    private var rowsTop: CGFloat { pad + heroHeight + 2 }
+
+    var wakeAt: TimeInterval? { gauge.narrowsAt }
 
     func layout(_ tick: BoardTick) -> BoardContentLayout {
         memory.begin(tick)
-        let models = BoardRowModels.make(tick, l10n: l10n)
+        let geometry = BoardContentBuilders.geometry(.neon, size, tick)
+        if rows.geometry != geometry {
+            rows = BoardListRows(style: .neon, size: size, palette: palette, capsules: capsules, geometry: geometry,
+                                 caption: l10n("intel.glyph"))
+        }
+        let rowsTop = CGFloat(geometry.rankingTop)
+        let models = BoardRowModels.make(tick, l10n: l10n, twoLine: geometry.twoLine)
         let lives = BoardRowModels.lives(tick)
         let column = BoardRowModels.capsuleColumn(models, compact: rows.compact, capsules: rows.capsules)
         var items = deck(tick)
-        let (hero, number) = self.hero(tick)
+        let (hero, number) = self.hero(tick, geometry: geometry)
         items += hero
+        if geometry.hasIntelligence {
+            items.append(rows.captions(frame: CGRect(x: pad - 6, y: rowsTop, width: side - 2 * pad + 12, height: CGFloat(geometry.captionsHeight)),
+                                       intel: l10n("intel.glyph"), unit: l10n("unit.tokS")))
+        }
         var anchors: [String: (row: CGRect, rank: CGPoint)] = [:]
         for (index, row) in tick.rows.enumerated() {
             let frame = rows.frame(row, rowsTop: rowsTop, pad: pad)
             if case .group(let group) = row.kind { anchors[tick.groups[group].id] = (frame, rows.rankCenter(frame)) }
             items += rows.items(models[index], key: row.key, frame: frame, column: column,
-                                accents: BoardRowAccents(row, live: lives[index], tick: tick, memory: memory))
+                                accents: BoardRowAccents(row, live: lives[index], tick: tick, memory: memory, model: models[index]))
         }
         items.append(footer(tick))
         items += tube(tick)
-        memory.end(tick, rows: zip(tick.rows, lives).map { ($0.key, $1) })
+        memory.end(tick, rows: zip(tick.rows, lives).map { ($0.key, $1) },
+                   liveIntel: Set(zip(tick.rows, models).compactMap { $1.intelLive ? $0.key : nil }))
         return BoardContentLayout(items: items, groupRows: anchors, number: number)
     }
 
@@ -77,8 +92,8 @@ final class BoardNeonContent: BoardContentBuilding {
         return [light, grid]
     }
 
-    private func hero(_ tick: BoardTick) -> ([BoardContentItem], CGRect) {
-        let palette = self.palette, big = self.big, heroHeight = self.heroHeight
+    private func hero(_ tick: BoardTick, geometry: BoardGeometry) -> ([BoardContentItem], CGRect) {
+        let palette = self.palette, big = self.big, heroHeight = CGFloat(geometry.bandHeight)
         let heat = (tick.heat * 50).rounded() / 50
         let heatColor = palette.heatText(max(0.06, heat))
         let glow = palette.heat(max(0.06, heat))
@@ -87,15 +102,23 @@ final class BoardNeonContent: BoardContentBuilding {
                                         hot: palette.dark ? .white : palette.ink, hotGlow: palette.glows ? glow : nil, hotBlur: 12,
                                         fringes: palette.glows && palette.dark && heat > 0.85)
         let frame = CGRect(x: pad, y: pad - 2, width: side - 2 * pad, height: heroHeight)
-        let number = BoardHeroNumber(tick.valueText, value: tick.value, look: look, origin: frame.origin)
+        let now = Clock.now
+        let gaugeWidth = geometry.hasGauge ? gauge.width(tick.metrics, now: now) : 0
+        // With the sub-gauge the value and its meta line centre in the band above the LED bar, beside the sub-gauge.
+        let top = geometry.hasGauge ? ((heroHeight - 17 - (big * 1.08 + 8 + 12)) / 2).rounded() : 0
+        let room = geometry.hasGauge ? frame.width - gaugeWidth - CGFloat(BoardGeometry.heroGap) : frame.width
+        let number = BoardHeroNumber(tick.valueText, value: tick.value, look: look, origin: CGPoint(x: frame.minX, y: frame.minY + top))
         let unit = BoardLabel(l10n("unit.tokS"), BoardFont(family: .mono, size: 10.5, weight: .bold, tracking: 0.14), color: heatColor)
-        let title = BoardLabel(tick.title, BoardFont(size: 12, weight: .bold, tracking: 0.06), color: heatColor)
+        // Beside the sub-gauge at S the meta line tightens: no tracking, 4 pt between the title and the context.
+        let tight = geometry.hasGauge && size == .small
+        let metaGap: CGFloat = tight ? 4 : 8
+        let title = BoardLabel(tick.title, BoardFont(size: 12, weight: .bold, tracking: tight ? 0 : 0.06), color: heatColor)
         let counts = BoardLabel("· " + l10n("agents.context", tick.generating, tick.tools),
-                                BoardFont(family: .mono, size: 10.5, weight: .semibold, tracking: 0.06), color: palette.ink3)
+                                BoardFont(family: .mono, size: 10.5, weight: .semibold, tracking: tight ? 0 : 0.06), color: palette.ink3)
         let peakHeat = HeatPalette.heat(value: tick.peak, redline: tick.redline)
         let (lit, peak) = BoardHistoryShape.led(heat: heat, peakHeat: peakHeat)
         let theme = AnyHashable([AnyHashable(palette.dark), AnyHashable(palette.highContrast), AnyHashable(l10n.language.rawValue)])
-        let baseline = number.baseline
+        let baseline = top + number.baseline
         let unitX = number.label.width + 7
         let textGlow = palette.glows ? glow.opacity(0.55) : nil
         // Cached apart: the glow follows the digits, the unit their width and the heat, the meta line the title and
@@ -106,7 +129,7 @@ final class BoardNeonContent: BoardContentBuilding {
             let reach = (blurs.max() ?? 0) * 1.5
             var item = BoardContentItem.part("hero.glow", of: frame, rect: number.label.box(x: 0, baseline: baseline, margin: reach),
                                              revision: AnyHashable([AnyHashable(tick.valueText), AnyHashable(heat), theme])) { context in
-                number.drawGlow(in: context, x: 0, top: 0, color: palette.dark ? glow : glow.opacity(0.55), blurs: blurs)
+                number.drawGlow(in: context, x: 0, top: top, color: palette.dark ? glow : glow.opacity(0.55), blurs: blurs)
             }
             item.rasterScale = BoardContentItem.softScale
             items.append(item)
@@ -116,15 +139,15 @@ final class BoardNeonContent: BoardContentBuilding {
                            revision: AnyHashable([AnyHashable(unitX), heatKey, theme])) { context in
             unit.draw(in: context, x: unitX, baseline: baseline, glow: textGlow, blur: 8)
         })
-        let metaMid = big * 1.08 + 8 + 6
-        items.append(.part("hero.meta", of: frame, rect: CGRect(x: 0, y: metaMid - 22, width: frame.width, height: 44),
+        let metaMid = top + big * 1.08 + 8 + 6
+        items.append(.part("hero.meta", of: frame, rect: CGRect(x: 0, y: metaMid - 22, width: room + 12, height: 44),
                            revision: AnyHashable([AnyHashable(tick.title), AnyHashable(tick.generating), AnyHashable(tick.tools),
-                                                  heatKey, theme])) { context in
+                                                  heatKey, AnyHashable(room), AnyHashable(top), theme])) { context in
             let metaBaseline = title.baseline(centeredOn: metaMid)
-            let shownTitle = title.truncated(to: frame.width)
+            let shownTitle = title.truncated(to: room)
             shownTitle.draw(in: context, x: 0, baseline: metaBaseline, glow: textGlow, blur: 10)
-            counts.truncated(to: max(0, frame.width - shownTitle.width - 8))
-                .draw(in: context, x: shownTitle.width + 8, baseline: counts.baseline(centeredOn: metaMid))
+            counts.truncated(to: max(0, room - shownTitle.width - metaGap))
+                .draw(in: context, x: shownTitle.width + metaGap, baseline: counts.baseline(centeredOn: metaMid))
         })
         let led = CGRect(x: 0, y: frame.height - 6 - 7, width: frame.width, height: 7)
         let ledRevision = AnyHashable([AnyHashable(lit), AnyHashable(peak ?? -1), theme])
@@ -139,16 +162,21 @@ final class BoardNeonContent: BoardContentBuilding {
             BoardHeroHistory.led(lit: lit, peak: peak, glows: false, in: led, palette: palette, context: context)
         })
         let decals = tick.newPeak ? [number.sheen(), BoardHeroNumber.peakChip(style: .neon, l10n: l10n, glows: palette.glows)] : []
-        return (items + number.items(memory: memory, decals: decals), number.rect)
+        items += number.items(memory: memory, decals: decals)
+        if geometry.hasGauge {
+            items += gauge.items(tick.metrics, in: BoardGaugeFrame(top: frame.minY, height: CGFloat(geometry.gaugeArea),
+                                                                    right: side - pad, memory: memory, now: now))
+        }
+        return (items.inHero(), number.rect)
     }
 
     private func footer(_ tick: BoardTick) -> BoardContentItem {
         var parts = [BoardFooterPart("boards.today", value: tick.todayText, l10n: l10n)]
-        if let cost = tick.costText { parts.append(BoardFooterPart(value: cost)) }
+        if let cost = tick.costText { parts.append(BoardFooterPart(value: cost, quiet: tick.costIsTag)) }
         if size != .small { parts.append(BoardFooterPart("boards.peak", value: tick.peakText, l10n: l10n)) }
         let palette = self.palette
         let frame = CGRect(x: pad, y: side - 11 - 18, width: side - 2 * pad, height: 18)
-        let revision = AnyHashable([tick.todayText, tick.costText ?? "", tick.peakText, palette.dark ? "d" : "l",
+        let revision = AnyHashable([tick.todayText, tick.costText ?? "", tick.costIsTag ? "t" : "", tick.peakText, palette.dark ? "d" : "l",
                                     palette.highContrast ? "c" : "", l10n.language.rawValue])
         return BoardContentItem(key: "footer", frame: frame, motion: .none, revision: revision) { context, box in
             BoardFooterPart.draw(parts, label: BoardFont(family: .mono, size: 10, weight: .semibold, tracking: 0.06),

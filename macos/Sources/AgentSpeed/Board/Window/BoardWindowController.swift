@@ -143,14 +143,15 @@ final class BoardWindowController {
         effectsPanel.alphaValue = alpha
     }
 
-    /// The data behind the content changed (≤ 2 per second).
-    func contentChanged(animated: Bool = true) {
+    /// The data behind the content changed (≤ 2 per second). `crossfade`: a live metrics switch changed (the hero
+    /// crossfades, DESIGN 2c Live metrics).
+    func contentChanged(animated: Bool = true, crossfade: Double? = nil) {
         guard isRendering, let contentProvider else {
             contentStale = true
             return
         }
         contentStale = false
-        host.content.apply(contentProvider(), animated: animated)
+        host.content.apply(contentProvider(), animated: animated, crossfade: crossfade)
     }
 
     private func updateRendering() {

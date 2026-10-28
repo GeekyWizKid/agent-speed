@@ -8,6 +8,8 @@ struct BoardRowAccents {
     var change = BoardValueChange.steady
     var previousRank: Int?
     var event: BoardRankEvent?
+    /// The 智力 cell turned between live and resting: its color crossfades (0.2 s).
+    var intelChanged = false
 
     static let none = BoardRowAccents()
 
@@ -18,8 +20,9 @@ struct BoardRowAccents {
     }
 
     /// The accents of `row` given what the board showed before.
-    init(_ row: BoardPlannedRow, live: Double, tick: BoardTick, memory: BoardTickMemory) {
+    init(_ row: BoardPlannedRow, live: Double, tick: BoardTick, memory: BoardTickMemory, model: BoardRowModel? = nil) {
         change = memory.change(row.key, live: live)
+        if let model, model.intel != nil { intelChanged = memory.intelChanged(row.key, live: model.intelLive) }
         if case .group(let index) = row.kind {
             let id = tick.groups[index].id
             previousRank = memory.rankChange(id, rank: index + 1)
@@ -38,6 +41,9 @@ extension BoardRowModel {
         body.share = 0
         body.heat = 0
         body.interval = ""
+        body.intel = intel == nil ? nil : ""
+        body.intelLive = false
+        body.cost = nil
         if let rank { body.kind = .group(rank: rank == 1 ? 1 : 0) }
         return body
     }

@@ -154,6 +154,8 @@ struct BoardFooterPart {
     var prefix: String
     var value: String
     var suffix: String
+    /// The value is a word in the label's ink (today's cost as `cost.subscription.tag`).
+    var quiet = false
 
     /// Splits the localized template of `key` around its `%@`.
     @MainActor
@@ -167,10 +169,11 @@ struct BoardFooterPart {
         suffix = cased(parts.count > 1 ? parts[1] : "")
     }
 
-    init(value: String) {
+    init(value: String, quiet: Bool = false) {
         prefix = ""
         self.value = value
         suffix = ""
+        self.quiet = quiet
     }
 
     /// Draws `parts` spread across `width` (CSS `justify-content: space-between`) on one baseline.
@@ -178,7 +181,7 @@ struct BoardFooterPart {
     static func draw(_ parts: [BoardFooterPart], label: BoardFont, strong: BoardFont, labelColor: RGBColor, strongColor: RGBColor,
                      width: CGFloat, midY: CGFloat, in context: CGContext) {
         let lines = parts.map { part in
-            [BoardLabel(part.prefix, label, color: labelColor), BoardLabel(part.value, strong, color: strongColor),
+            [BoardLabel(part.prefix, label, color: labelColor), BoardLabel(part.value, strong, color: part.quiet ? labelColor : strongColor),
              BoardLabel(part.suffix, label, color: labelColor)]
         }
         let widths = lines.map { $0.reduce(0) { $0 + $1.width } }

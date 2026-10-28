@@ -13,6 +13,10 @@ struct BoardTickMemory {
     private(set) var value: Double?
     private var values: [String: Double] = [:]
     private var ranks: [String: Int] = [:]
+    /// The live metrics' texts (智力, 思考, 費用) the last fresh tick showed, for their rolls.
+    private var metrics: [String: String] = [:]
+    /// Rows whose 智力 cell showed a live index (not a grade or `–`).
+    private var liveIntel: Set<String> = []
 
     mutating func begin(_ tick: BoardTick) {
         var hasher = Hasher()
@@ -22,14 +26,25 @@ struct BoardTickMemory {
         hasher.combine(tick.rows.map(\.key))
         hasher.combine(tick.events.map { "\($0.kind.rawValue)\($0.id)\($0.from)\($0.to)" })
         hasher.combine(tick.newPeak)
+        hasher.combine(tick.metrics.intelligence)
+        hasher.combine(tick.metrics.thinking)
+        hasher.combine(tick.metrics.cost)
         let signature = hasher.finalize()
         fresh = self.signature != nil && signature != self.signature
         self.signature = signature
     }
 
+    /// What a live metric showed on the last fresh tick (nil before the first).
+    func previousMetric(_ key: String) -> String? { metrics[key] }
+
     /// The row's value change since the last fresh tick.
     func change(_ key: String, live: Double) -> BoardValueChange {
         fresh ? BoardValueChange(from: values[key], to: live) : .steady
+    }
+
+    /// The row's 智力 cell turned from live to resting or back since the last fresh tick (its color crossfades).
+    func intelChanged(_ key: String, live: Bool) -> Bool {
+        fresh && number != nil && liveIntel.contains(key) != live
     }
 
     /// The group's previous rank when it moved.
@@ -43,11 +58,18 @@ struct BoardTickMemory {
         fresh ? tick.events.first { $0.id == id } : nil
     }
 
-    mutating func end(_ tick: BoardTick, rows: [(key: String, live: Double)]) {
+    mutating func end(_ tick: BoardTick, rows: [(key: String, live: Double)], liveIntel: Set<String> = []) {
         guard fresh || number == nil else { return }
+        self.liveIntel = liveIntel
         number = tick.valueText
         value = tick.value
         values = Dictionary(rows.map { ($0.key, $0.live) }, uniquingKeysWith: { a, _ in a })
         ranks = Dictionary(tick.groups.enumerated().map { ($1.id, $0 + 1) }, uniquingKeysWith: { a, _ in a })
+        metrics = Self.metricTexts(tick.metrics)
+    }
+
+    /// The texts a tick's live metrics show, by readout key.
+    static func metricTexts(_ metrics: BoardMetricsTick) -> [String: String] {
+        ["intel": metrics.intelligence.map(String.init) ?? "–", "think": metrics.thinking, "cost": metrics.cost.number]
     }
 }

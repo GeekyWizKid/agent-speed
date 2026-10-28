@@ -14,6 +14,8 @@ public struct BoardConfig: Equatable, Hashable, Identifiable, Sendable {
     /// macOS only.
     public var allSpaces: Bool
     public var visible: Bool
+    /// The live metrics switches (DESIGN 2c Live metrics); every one on for a new board.
+    public var readouts: BoardReadouts
 
     public init(
         id: String,
@@ -24,7 +26,8 @@ public struct BoardConfig: Equatable, Hashable, Identifiable, Sendable {
         alwaysOnTop: Bool = true,
         clickThrough: Bool = false,
         allSpaces: Bool = true,
-        visible: Bool = true
+        visible: Bool = true,
+        readouts: BoardReadouts = .all
     ) {
         self.id = id
         self.style = style
@@ -35,12 +38,13 @@ public struct BoardConfig: Equatable, Hashable, Identifiable, Sendable {
         self.clickThrough = clickThrough
         self.allSpaces = allSpaces
         self.visible = visible
+        self.readouts = readouts
     }
 }
 
 extension BoardConfig: Codable {
     enum CodingKeys: String, CodingKey {
-        case id, style, size, sources, opacity, alwaysOnTop, clickThrough, allSpaces, visible
+        case id, style, size, sources, opacity, alwaysOnTop, clickThrough, allSpaces, visible, readouts
     }
 
     public init(from decoder: Decoder) throws {
@@ -61,7 +65,8 @@ extension BoardConfig: Codable {
             alwaysOnTop: value(Bool.self, .alwaysOnTop) ?? true,
             clickThrough: value(Bool.self, .clickThrough) ?? false,
             allSpaces: value(Bool.self, .allSpaces) ?? true,
-            visible: value(Bool.self, .visible) ?? true
+            visible: value(Bool.self, .visible) ?? true,
+            readouts: value(BoardReadouts.self, .readouts) ?? .all
         )
     }
 
@@ -76,5 +81,6 @@ extension BoardConfig: Codable {
         try container.encode(clickThrough, forKey: .clickThrough)
         try container.encode(allSpaces, forKey: .allSpaces)
         try container.encode(visible, forKey: .visible)
+        try container.encode(readouts, forKey: .readouts)
     }
 }

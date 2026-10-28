@@ -49,6 +49,15 @@ public extension BoardsDocument {
         edit(id) { $0.allSpaces = value }
     }
 
+    mutating func setReadouts(_ readouts: BoardReadouts, of id: String) {
+        edit(id) { $0.readouts = readouts }
+    }
+
+    /// `boards.readouts` ▸ one switch: toggles it (each is independent of the others).
+    mutating func toggleReadout(_ readout: BoardReadout, of id: String) {
+        edit(id) { $0.readouts[readout].toggle() }
+    }
+
     mutating func setVisible(_ value: Bool, of id: String) {
         edit(id) { $0.visible = value }
     }

@@ -16,6 +16,11 @@ public struct BoardGroup: Equatable, Sendable, Identifiable {
     public var lastActive: Date
     /// Members in phase `generating`.
     public var generating: Int
+    /// The members' live intelligence and cost sums (METRICS 6.9 Group intelligence, 9.5 Per group).
+    public var sums = AgentGroupSums.zero
+
+    /// Live over the group's sums, else the root's grade, else none.
+    public var intelligence: AgentIntelligence { sums.intelligence(rootGrade: root.grade) }
 }
 
 /// Groups a board's agents by their root (DESIGN 2c, Content 2; METRICS 6.7 parent links).
@@ -25,8 +30,8 @@ public enum BoardGrouping {
 
     /// `agents` is the board's agents list (METRICS 6.7 filtered by 6.8, so a parent outside the set is already
     /// cleared). A sub-agent whose parent is not listed is its own root; cycles resolve to the agent itself. Groups
-    /// come in the order of their roots in `agents`.
-    public static func groups(_ agents: [AgentStatus], metric: SpeedMetric) -> [BoardGroup] {
+    /// come in the order of their roots in `agents`. `billable`: the sources whose costs count (METRICS 9.4).
+    public static func groups(_ agents: [AgentStatus], metric: SpeedMetric, billable: SourceSet = .everything) -> [BoardGroup] {
         var index: [String: Int] = [:]
         for (position, agent) in agents.enumerated() where index[agent.id] == nil { index[agent.id] = position }
         func root(_ start: Int) -> Int {
@@ -56,15 +61,25 @@ public enum BoardGrouping {
                 if lhs.lastActivity != rhs.lastActivity { return lhs.lastActivity > rhs.lastActivity }
                 return lhs.id < rhs.id
             }
-            let subLive = subs.reduce(0) { $0 + max(0, $1.live.value(for: metric)) }
-            let all = [rootAgent] + subs
+            var subLive = 0.0
+            var lastActive = rootAgent.lastActivity
+            var generating = rootAgent.phase == .generating ? 1 : 0
+            var sums = AgentGroupSums()
+            sums.add(rootAgent, billable: billable.contains(rootAgent.source))
+            for sub in subs {
+                subLive += max(0, sub.live.value(for: metric))
+                lastActive = max(lastActive, sub.lastActivity)
+                if sub.phase == .generating { generating += 1 }
+                sums.add(sub, billable: billable.contains(sub.source))
+            }
             return BoardGroup(
                 root: rootAgent,
                 subs: subs,
                 live: max(0, rootAgent.live.value(for: metric)) + subLive,
                 subLive: subLive,
-                lastActive: all.map(\.lastActivity).max() ?? rootAgent.lastActivity,
-                generating: all.filter { $0.phase == .generating }.count
+                lastActive: lastActive,
+                generating: generating,
+                sums: sums
             )
         }
     }

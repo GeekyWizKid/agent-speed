@@ -38,6 +38,9 @@ struct BoardLabel {
     let line: CTLine
     let width: CGFloat
     let font: NSFont
+    let text: String
+    let style: BoardFont
+    let color: RGBColor
     private let attributes: [NSAttributedString.Key: Any]
 
     init(_ text: String, _ style: BoardFont, color: RGBColor) {
@@ -52,7 +55,7 @@ struct BoardLabel {
         ]
         if style.tracking != 0 { attributes[.kern] = style.tracking * style.size }
         self.init(line: CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes)),
-                  font: style.font, attributes: attributes)
+                  font: style.font, attributes: attributes, text: text, style: style, color: color)
         // Boards lay out the same names, values and labels on every tick: a line laid out once is reused.
         if Self.cache.count >= Self.cacheLimit { Self.cache.removeAll(keepingCapacity: true) }
         Self.cache[key] = self
@@ -67,10 +70,14 @@ struct BoardLabel {
     private static var cache: [Key: BoardLabel] = [:]
     private static let cacheLimit = 1024
 
-    private init(line: CTLine, font: NSFont, attributes: [NSAttributedString.Key: Any]) {
+    private init(line: CTLine, font: NSFont, attributes: [NSAttributedString.Key: Any], text: String, style: BoardFont,
+                 color: RGBColor) {
         self.line = line
         self.font = font
         self.attributes = attributes
+        self.text = text
+        self.style = style
+        self.color = color
         width = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
     }
 
@@ -82,7 +89,7 @@ struct BoardLabel {
         let token = CTLineCreateWithAttributedString(NSAttributedString(string: "…", attributes: attributes))
         let cut = limit > 0 ? CTLineCreateTruncatedLine(line, Double(limit), .end, token) : nil
         return BoardLabel(line: cut ?? CTLineCreateWithAttributedString(NSAttributedString(string: "")), font: font,
-                          attributes: attributes)
+                          attributes: attributes, text: text, style: style, color: color)
     }
 
     /// The baseline that centers the line box on `midY` (CSS `align-items: center`).

@@ -52,7 +52,8 @@ public struct BoardsDocument: Equatable, Sendable {
 
     public var canAdd: Bool { boards.count < Self.maxBoards }
 
-    /// `boards.add`: the last used style (else `neon`), `M`, all sources. Nil at the limit.
+    /// `boards.add`: the last used style (else `neon`), `M`, all sources, every readout on (nothing is copied). Nil at
+    /// the limit.
     @discardableResult
     public mutating func add(id: String) -> BoardConfig? {
         guard canAdd, board(id) == nil else { return nil }

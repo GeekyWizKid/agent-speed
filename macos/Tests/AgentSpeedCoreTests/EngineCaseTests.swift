@@ -95,6 +95,19 @@ struct EngineCaseTests {
                 #expect(output.todayCost.costMicroUsd == cost.int64Value, "\(label) todayCostMicroUsd")
                 #expect(output.todayCost.unpricedRequests == query.int("todayUnpricedRequests"), "\(label) todayUnpricedRequests")
             }
+            if let groups = query["groups"] as? [[String: Any]] {
+                // METRICS 9.5 per agent and per group: the members' own contributions, never an average of shares.
+                let snapshot = SnapshotBuilder.running(output, context: .fixture(todayStartMs: todayStartMs))
+                for group in groups {
+                    let ids = try #require(group["agents"] as? [String])
+                    var sums = AgentGroupSums()
+                    for id in ids {
+                        sums.add(try #require(snapshot.agents.first { $0.id == id }, "\(label) \(id) listed"), billable: true)
+                    }
+                    Self.expectClose(sums.cost.microUsdPerSecond, group.double("liveCost"), "\(label) group \(ids) liveCost")
+                    Self.expectClose(sums.costKnownShare, group.double("liveCostKnownShare"), "\(label) group \(ids) knownShare")
+                }
+            }
             if let buckets = query["historyMeasuredOutput"] as? [String: NSNumber] {
                 #expect(output.history.count == SpeedEngine.historySeconds)
                 for (startText, value) in buckets {

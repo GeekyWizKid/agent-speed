@@ -52,13 +52,23 @@ final class BoardContentStack {
     /// Images rasterized since launch (benchmarks: data changes only, never per frame).
     private(set) var rasterCount = 0
 
+    /// The sub-gauge's glide (DESIGN 2c Live metrics, *Thinking hidden at zero*): smoothstep, 0.3 s.
+    static let glideSeconds = 0.3
+    static let glideTiming = CAMediaTimingFunction(controlPoints: 0.33, 0, 0.67, 1)
+    /// The arc's sweep and the tip's turn follow the hero's digit roll: 0.24 s on its curve.
+    static let sweepSeconds = 0.24
+    static let rollTiming = CAMediaTimingFunction(controlPoints: 0.2, 0.8, 0.2, 1)
+
     private struct Entry {
         let layer: CALayer
+        var group: BoardContentItem.Group
         var revision: AnyHashable
         var frame: CGRect
         var stretch: Double?
         var stretchAnchor: CGFloat = 0
         var tint: CGColor?
+        var sweep: BoardContentItem.Sweep?
+        var turn: Double?
         var image: CGImage?
         var ambient: BoardContentAmbient?
     }
@@ -67,10 +77,13 @@ final class BoardContentStack {
     private var order: [String] = []
     /// The motion of every item shown, for the way it leaves.
     private var leaving: [String: BoardContentItem.Motion] = [:]
+    /// The hero's pieces, in one layer so a switch change crossfades the hero as a whole.
+    private let heroLayer = CALayer()
 
     init() {
         layer.masksToBounds = true
         layer.anchorPoint = .zero
+        heroLayer.anchorPoint = .zero
     }
 
     func setBoard(side: CGFloat, corner: CGFloat) {
@@ -78,6 +91,8 @@ final class BoardContentStack {
         CATransaction.setDisableActions(true)
         layer.bounds = CGRect(x: 0, y: 0, width: side, height: side)
         layer.cornerRadius = corner
+        heroLayer.bounds = layer.bounds
+        heroLayer.position = .zero
         CATransaction.commit()
     }
 
@@ -92,34 +107,46 @@ final class BoardContentStack {
     }
 
     /// Shows `items`: new ones fade in from 10 pt below, missing ones fade out, moved ones spring to their place
-    /// (Reduce Motion: a crossfade instead). `animated` false places everything at once.
-    func apply(_ items: [BoardContentItem], animated: Bool) {
+    /// (Reduce Motion: a crossfade instead); the sub-gauge's pieces glide and fade in place. `animated` false places
+    /// everything at once. `crossfade` (a live metrics switch change, DESIGN 2c): the hero crossfades as a whole and
+    /// changed rows crossfade their images while they move, over that many seconds.
+    func apply(_ items: [BoardContentItem], animated: Bool, crossfade: Double? = nil) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         var seen = Set<String>()
         var moved = false
-        // New layers go right above the previous item's, so the stack keeps the items' order (back to front).
-        var below: CALayer?
+        // New layers go right above the previous item's in their layer, so each keeps the items' order (back to front).
+        var below: [BoardContentItem.Group: CALayer] = [:]
         for item in items {
-            defer { below = entries[item.key]?.layer }
+            let parent = item.group == .hero ? heroLayer : layer
+            if item.group == .hero, heroLayer.superlayer == nil {
+                if let previous = below[.main] { layer.insertSublayer(heroLayer, above: previous) } else { layer.insertSublayer(heroLayer, at: 0) }
+            }
+            defer {
+                below[item.group] = entries[item.key]?.layer
+                if item.group == .hero { below[.main] = heroLayer }
+            }
             seen.insert(item.key)
+            // A switch change crossfades the hero as a whole: its pieces take their places at once inside it.
+            let live = animated && !(crossfade != nil && item.group == .hero)
             let target = layerFrame(item.frame)
-            // An item that starts or stops being tinted gets a new layer.
-            if let entry = entries[item.key], (entry.tint == nil) != (item.tint == nil) {
+            // An item that starts or stops being tinted or revealed, or changes layers, gets a new layer.
+            if let entry = entries[item.key],
+               (entry.tint == nil) != (item.tint == nil) || (entry.sweep == nil) != (item.sweep == nil) || entry.group != item.group {
                 entry.layer.removeFromSuperlayer()
                 entries[item.key] = nil
             }
             if var entry = entries[item.key] {
                 if item.tint == nil { Self.setPlate(item.plate, on: entry.layer) }
                 if let tint = item.tint, entry.tint != tint {
-                    setTint(tint, on: entry.layer, animated: animated)
+                    setTint(tint, on: entry.layer, animated: live)
                     entry.tint = tint
                 }
                 if entry.stretch != item.stretch || entry.stretchAnchor != item.stretchAnchor {
                     entry.stretch = item.stretch
                     entry.stretchAnchor = item.stretchAnchor
                     setStretch(item.stretch, anchor: item.stretchAnchor, on: entry.layer, at: target.origin, width: target.width,
-                               animated: animated)
+                               animated: live)
                 }
                 if entry.layer.masksToBounds != item.clips { entry.layer.masksToBounds = item.clips }
                 if entry.revision != item.revision || entry.frame.size != item.frame.size {
@@ -127,31 +154,50 @@ final class BoardContentStack {
                     entry.image = rasterize(item)
                     Self.show(entry.image, on: entry.layer, tinted: item.tint != nil)
                     entry.revision = item.revision
-                    if animated { change(entry.layer, from: old, to: entry.image, item: item) }
+                    if live { change(entry.layer, from: old, to: entry.image, item: item) }
+                    if animated, let crossfade, item.group == .main, item.motion == .row { fade(entry.layer, seconds: crossfade) }
                 }
                 if entry.frame != item.frame {
                     let from = entry.layer.presentation()?.position ?? entry.layer.position
                     entry.layer.bounds = CGRect(origin: .zero, size: target.size)
                     entry.layer.mask?.frame = entry.layer.bounds
-                    entry.layer.position = stretched(target.origin, anchor: entry.stretchAnchor)
-                    if entry.stretch != nil {
-                        entry.layer.anchorPoint = CGPoint(x: target.width > 0 ? min(1, max(0, entry.stretchAnchor / target.width)) : 0, y: 0)
-                    }
-                    if animated, item.motion == .row {
-                        if reduceMotion {
+                    let (anchor, position) = placement(item, target: target)
+                    entry.layer.anchorPoint = anchor
+                    entry.layer.position = position
+                    if let sweep = item.sweep { setSweep(sweep, on: entry.layer, animated: false) }
+                    if live {
+                        switch item.motion {
+                        case .row where reduceMotion:
                             moved = true
-                        } else {
+                        case .row:
                             let animation = CASpringAnimation(perceptualDuration: spring.duration, bounce: spring.bounce)
                             animation.keyPath = "position"
                             animation.fromValue = NSValue(point: from)
-                            animation.toValue = NSValue(point: target.origin)
+                            animation.toValue = NSValue(point: position)
                             animation.duration = animation.settlingDuration
                             entry.layer.add(animation, forKey: "move")
+                        case .glide where !reduceMotion:
+                            let glide = CABasicAnimation(keyPath: "position")
+                            glide.fromValue = NSValue(point: from)
+                            glide.toValue = NSValue(point: position)
+                            glide.duration = Self.glideSeconds
+                            glide.timingFunction = Self.glideTiming
+                            entry.layer.add(glide, forKey: "move")
+                        default:
+                            break
                         }
                     }
                     entry.frame = item.frame
                 }
-                if animated { play(item, on: entry.layer) }
+                if let sweep = item.sweep, sweep != entry.sweep {
+                    setSweep(sweep, on: entry.layer, animated: live)
+                    entry.sweep = sweep
+                }
+                if item.turn != entry.turn {
+                    setTurn(item.turn, on: entry.layer, animated: live)
+                    entry.turn = item.turn
+                }
+                if live { play(item, on: entry.layer) }
                 if entry.ambient != item.ambient {
                     entry.ambient = item.ambient
                     setAmbient(item.ambient, on: entry.layer)
@@ -159,9 +205,10 @@ final class BoardContentStack {
                 entries[item.key] = entry
             } else {
                 let child = CALayer()
-                child.anchorPoint = .zero
+                let (anchor, position) = placement(item, target: target)
+                child.anchorPoint = anchor
                 child.bounds = CGRect(origin: .zero, size: target.size)
-                child.position = stretched(target.origin, anchor: item.stretchAnchor)
+                child.position = position
                 child.contentsScale = scale
                 child.contentsGravity = .resize
                 child.masksToBounds = item.clips
@@ -177,24 +224,39 @@ final class BoardContentStack {
                 }
                 let image = rasterize(item)
                 Self.show(image, on: child, tinted: item.tint != nil)
-                if let below { layer.insertSublayer(child, above: below) } else { layer.insertSublayer(child, at: 0) }
-                entries[item.key] = Entry(layer: child, revision: item.revision, frame: item.frame, stretch: item.stretch,
-                                          stretchAnchor: item.stretchAnchor, tint: item.tint, image: image, ambient: item.ambient)
+                if let previous = below[item.group] { parent.insertSublayer(child, above: previous) } else { parent.insertSublayer(child, at: 0) }
+                entries[item.key] = Entry(layer: child, group: item.group, revision: item.revision, frame: item.frame,
+                                          stretch: item.stretch, stretchAnchor: item.stretchAnchor, tint: item.tint,
+                                          sweep: item.sweep, turn: item.turn, image: image, ambient: item.ambient)
                 if item.stretch != nil {
                     setStretch(item.stretch, anchor: item.stretchAnchor, on: child, at: target.origin, width: target.width,
                                animated: false)
                 }
+                if let sweep = item.sweep { setSweep(sweep, on: child, animated: false) }
+                if item.turn != nil { setTurn(item.turn, on: child, animated: false) }
                 setAmbient(item.ambient, on: child)
-                if animated, item.motion == .row { enter(child, at: target.origin) }
-                if animated { play(item, on: child) }
+                if live {
+                    switch item.motion {
+                    case .row: enter(child, at: position)
+                    case .glide(let seconds): appear(child, seconds: seconds)
+                    case .none: break
+                    }
+                    play(item, on: child)
+                }
             }
         }
         var motions: [String: BoardContentItem.Motion] = [:]
         for item in items { motions[item.key] = item.motion }
         for key in order where !seen.contains(key) {
             guard let entry = entries.removeValue(forKey: key) else { continue }
-            // Only rows fade out; a digit or a decal-free piece of the hero is replaced at once.
-            leave(entry.layer, animated: animated && (leaving[key] ?? .row) == .row)
+            let motion = leaving[key] ?? .row
+            // Rows and the sub-gauge's pieces fade out; a digit or another piece of the hero is replaced at once.
+            let fades = animated && !(crossfade != nil && entry.group == .hero)
+            switch motion {
+            case .row: leave(entry.layer, animated: fades, seconds: Self.fadeSeconds)
+            case .glide(let seconds): leave(entry.layer, animated: fades && !reduceMotion, seconds: seconds)
+            case .none: leave(entry.layer, animated: false, seconds: 0)
+            }
         }
         leaving = motions
         order = items.map(\.key)
@@ -204,7 +266,66 @@ final class BoardContentStack {
             fade.duration = 0.25
             layer.add(fade, forKey: "crossfade")
         }
+        if animated, let crossfade { fade(heroLayer, seconds: crossfade) }
         CATransaction.commit()
+    }
+
+    /// The layer's anchor and position for an item: turned items turn about their frame's center, stretched ones grow
+    /// from their anchor, the rest hang from their top-left.
+    private func placement(_ item: BoardContentItem, target: CGRect) -> (CGPoint, CGPoint) {
+        if item.turn != nil { return (CGPoint(x: 0.5, y: 0.5), CGPoint(x: target.midX, y: target.midY)) }
+        if item.stretch != nil {
+            let anchor = target.width > 0 ? min(1, max(0, item.stretchAnchor / target.width)) : 0
+            return (CGPoint(x: anchor, y: 0), stretched(target.origin, anchor: item.stretchAnchor))
+        }
+        return (.zero, target.origin)
+    }
+
+    private func fade(_ layer: CALayer, seconds: Double) {
+        let fade = CATransition()
+        fade.type = .fade
+        fade.duration = seconds
+        layer.add(fade, forKey: "switch")
+    }
+
+    /// An arc shown up to `sweep.fraction` by a stroked mask the render server moves (0.24 s; Reduce Motion: at once).
+    private func setSweep(_ sweep: BoardContentItem.Sweep, on layer: CALayer, animated: Bool) {
+        let mask = (layer.mask as? CAShapeLayer) ?? CAShapeLayer()
+        if layer.mask !== mask {
+            mask.fillColor = nil
+            mask.strokeColor = CGColor(gray: 0, alpha: 1)
+            mask.lineCap = .butt
+            layer.mask = mask
+        }
+        mask.frame = layer.bounds
+        var flip = CGAffineTransform(translationX: 0, y: layer.bounds.height).scaledBy(x: 1, y: -1)
+        mask.path = sweep.maskLine.copy(using: &flip)
+        mask.lineWidth = sweep.width
+        let end = sweep.strokeEnd(sweep.fraction)
+        if animated, !reduceMotion {
+            let move = CABasicAnimation(keyPath: "strokeEnd")
+            move.fromValue = mask.presentation()?.strokeEnd ?? mask.strokeEnd
+            move.toValue = end
+            move.duration = Self.sweepSeconds
+            move.timingFunction = Self.rollTiming
+            mask.add(move, forKey: "sweep")
+        }
+        mask.strokeEnd = end
+    }
+
+    /// Turns the layer clockwise on screen by `angle` about its center (0.24 s; Reduce Motion: at once).
+    private func setTurn(_ angle: Double?, on layer: CALayer, animated: Bool) {
+        // Layers are y up: a clockwise turn on screen is a negative rotation.
+        let to = -(angle ?? 0)
+        if animated, !reduceMotion {
+            let turn = CABasicAnimation(keyPath: "transform.rotation.z")
+            turn.fromValue = (layer.presentation()?.value(forKeyPath: "transform.rotation.z") as? Double) ?? 0
+            turn.toValue = to
+            turn.duration = Self.sweepSeconds
+            turn.timingFunction = Self.rollTiming
+            layer.add(turn, forKey: "turn")
+        }
+        layer.setValue(to, forKeyPath: "transform.rotation.z")
     }
 
     /// The cached images at their resting frames (board points, y down), back to front, for offscreen frames.
@@ -265,6 +386,17 @@ final class BoardContentStack {
         CGPoint(x: origin.x + anchor, y: origin.y)
     }
 
+    /// A sub-gauge piece fades in where it is.
+    private func appear(_ child: CALayer, seconds: Double) {
+        guard !reduceMotion else { return }
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.toValue = 1
+        fade.duration = seconds
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        child.add(fade, forKey: "enter")
+    }
+
     private func enter(_ child: CALayer, at position: CGPoint) {
         let group = CAAnimationGroup()
         let fade = CABasicAnimation(keyPath: "opacity")
@@ -282,18 +414,18 @@ final class BoardContentStack {
         child.add(group, forKey: "enter")
     }
 
-    private func leave(_ child: CALayer, animated: Bool) {
-        guard animated else {
+    private func leave(_ child: CALayer, animated: Bool, seconds: Double) {
+        guard animated, seconds > 0 else {
             child.removeFromSuperlayer()
             return
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.fadeSeconds) { [weak child] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak child] in
             MainActor.assumeIsolated { child?.removeFromSuperlayer() }
         }
         let fade = CABasicAnimation(keyPath: "opacity")
         fade.fromValue = child.presentation()?.opacity ?? 1
         fade.toValue = 0
-        fade.duration = Self.fadeSeconds
+        fade.duration = seconds
         child.opacity = 0
         child.add(fade, forKey: "leave")
     }

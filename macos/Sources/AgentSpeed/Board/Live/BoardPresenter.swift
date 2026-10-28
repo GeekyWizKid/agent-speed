@@ -28,6 +28,10 @@ final class BoardPresenter {
     private var hovered: String?
     private var tooltipTimer: Timer?
     private var tooltipGroup: String?
+    /// Lays the board out again when a sub-gauge cell narrows back with no new tick.
+    private var wakeTimer: Timer?
+    /// A live metrics switch change crossfades the hero (0.2 s, DESIGN 2c Live metrics, *Switches*).
+    static let switchCrossfade = 0.2
 
     var id: String { runtime.id }
     var config: BoardConfig { window.config }
@@ -55,6 +59,7 @@ final class BoardPresenter {
     func close() {
         runtime.onTick = nil
         tooltipTimer?.invalidate()
+        wakeTimer?.invalidate()
         tooltip.close()
         window.close()
     }
@@ -110,14 +115,33 @@ final class BoardPresenter {
     private func tickArrived() {
         guard let tick = runtime.tick else { return }
         if layoutStale || tick != layoutTick {
+            let switched = layoutTick.map { $0.metrics.readouts != tick.metrics.readouts } ?? false
             layoutStale = true
-            window.contentChanged()
+            window.contentChanged(crossfade: switched ? Self.switchCrossfade : nil)
+            scheduleWake()
         }
         let laidOut = window.isRendering && !layoutStale ? layout : nil
         let punch = runtime.frame.punch
         window.driver.update { fx in BoardEffectsPlayer.play(tick, layout: laidOut, punch: punch, on: &fx) }
         publishAccessibility()
         if let tooltipGroup, tooltip.isShown { showTooltip(for: tooltipGroup) }
+    }
+
+    /// A fixed cell of the sub-gauge narrows 6 s after the last value that needed it, even if no tick changes.
+    private func scheduleWake() {
+        wakeTimer?.invalidate()
+        wakeTimer = nil
+        guard let at = builder.wakeAt, at > Clock.now else { return }
+        let timer = Timer(timeInterval: max(0.05, at - Clock.now + 0.01), repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.layoutStale = true
+                self.window.contentChanged()
+                self.scheduleWake()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        wakeTimer = timer
     }
 
     private func publishAccessibility(force: Bool = false) {

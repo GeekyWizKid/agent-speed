@@ -26,11 +26,14 @@ public struct BoardLiveFrame: Equatable, Sendable {
     public var state: SubsetState
     /// Members that are disabled or not detected, in source order.
     public var unavailable: [SourceKind]
+    /// The METRICS 6.9 sums over the board's sources (the hero's 智力 and 思考).
+    public var intelligence: IntelligenceSums
 
     public init(value: Double = 0, metric: SpeedMetric = .output, generating: Int = 0, tools: Int = 0,
                 history: [Double] = [], groups: [BoardGroup] = [], rows: [BoardPlannedRow] = [],
                 events: [BoardRankEvent] = [], newPeak: Bool = false, punch: Double? = nil, todayOutput: Int = 0,
-                peak: Double = 0, state: SubsetState = .available, unavailable: [SourceKind] = []) {
+                peak: Double = 0, state: SubsetState = .available, unavailable: [SourceKind] = [],
+                intelligence: IntelligenceSums = .zero) {
         self.value = value
         self.metric = metric
         self.generating = generating
@@ -45,6 +48,7 @@ public struct BoardLiveFrame: Equatable, Sendable {
         self.peak = peak
         self.state = state
         self.unavailable = unavailable
+        self.intelligence = intelligence
     }
 }
 
@@ -87,11 +91,12 @@ public struct BoardLive: Sendable {
 
     /// Feeds one snapshot. `engineNewPeak`: the engine emitted `newPeak` since the last call (all-sources boards).
     /// While the effects preview runs every board shows all sources. A snapshot seen before (a settings change)
-    /// re-evaluates the values in the current order without advancing the ranking, history or peaks.
+    /// re-evaluates the values in the current order without advancing the ranking, history or peaks. `billable`: the
+    /// sources whose costs the group rows count (METRICS 9.4).
     @discardableResult
     public mutating func ingest(_ snapshot: SpeedSnapshot, metric: SpeedMetric, layout: BoardLayoutMetrics,
                                 expanded: String? = nil, engineNewPeak: Bool = false,
-                                previewing: Bool = false) -> BoardLiveFrame {
+                                previewing: Bool = false, billable: SourceSet = .everything) -> BoardLiveFrame {
         let set = previewing ? nil : sources.sourceSet
         let reading = OrbSubset.reading(snapshot, sources: set)
         let available = reading.state == .available
@@ -105,7 +110,7 @@ public struct BoardLive: Sendable {
             tracker.restart(nowMs: nowMs)
         }
 
-        let groups = BoardGrouping.groups(reading.agents, metric: metric)
+        let groups = BoardGrouping.groups(reading.agents, metric: metric, billable: billable)
         var events: [BoardRankEvent] = []
         let order: [String]
         if fresh {
@@ -166,7 +171,8 @@ public struct BoardLive: Sendable {
             todayOutput: available ? reading.today.output : 0,
             peak: peak,
             state: reading.state,
-            unavailable: reading.unavailable
+            unavailable: reading.unavailable,
+            intelligence: available ? reading.intelligence : .zero
         )
         return frame
     }

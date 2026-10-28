@@ -198,8 +198,9 @@ enum BoardFrameHarness {
                 canvas.context.setFillColor(plate.color)
                 canvas.context.fillPath()
             }
-            let draw = BoardRaster.tinted(accents ? accentDrawings(item).draw : item.draw, with: item.tint)
-            guard let image = BoardRaster.image(size: item.frame.size, scale: 2, draw: draw) else { continue }
+            var look = item
+            if accents { look.draw = accentDrawings(item).draw }
+            guard let image = BoardRaster.image(size: item.frame.size, scale: 2, draw: look.composited) else { continue }
             let shown = item.shownFrame
             canvas.draw(image, at: CGPoint(x: margin + shown.minX, y: margin + shown.minY), size: shown.size)
         }

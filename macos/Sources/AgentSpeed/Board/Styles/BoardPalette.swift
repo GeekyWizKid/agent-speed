@@ -69,6 +69,35 @@ struct BoardPalette {
         }
     }
 
+    /// Quiet values of the live metrics (`–`, resting grades, a real `0`, the subscription tag): `ink-3`, `ink-2` with
+    /// Increase Contrast (DESIGN 2c Live metrics, Accessibility).
+    var quiet: RGBColor { highContrast ? ink2 : ink3 }
+
+    /// The sub-gauge's hairlines: glass's dial track, timing's data box stroke and separators.
+    var line2: RGBColor {
+        if highContrast { return ink3 }
+        switch (style, dark) {
+        case (.glass, true): return RGBColor.white.opacity(0.14)
+        case (.glass, false): return RGBColor.black.opacity(0.11)
+        case (.neon, true): return RGBColor(red: 140 / 255, green: 170 / 255, blue: 1, alpha: 0.16)
+        case (.neon, false): return RGBColor(red: 20 / 255, green: 30 / 255, blue: 80 / 255, alpha: 0.12)
+        default: return (dark ? RGBColor.white : RGBColor.black).opacity(0.1)
+        }
+    }
+
+    /// Glass's pearl gradient (`pearl-c` → `pearl-a` → `pearl-b`).
+    var pearl: [RGBColor] {
+        dark ? [RGBColor(hex: 0xA5F3FC), RGBColor(hex: 0xC7D2FE), RGBColor(hex: 0xF5D0FE)]
+            : [RGBColor(hex: 0x1AA3C4), RGBColor(hex: 0x6D7CF0), RGBColor(hex: 0xC05BD9)]
+    }
+
+    /// Neon's LED digits (`--led`), their ghost segments and the mind meter's lit segments.
+    var led: RGBColor { dark ? RGBColor(hex: 0xEAF2FF) : RGBColor(hex: 0x141A33) }
+    var ghost: RGBColor { dark ? RGBColor(red: 160 / 255, green: 190 / 255, blue: 1, alpha: 0.075) : RGBColor(red: 20 / 255, green: 30 / 255, blue: 80 / 255, alpha: 0.06) }
+    var mind: RGBColor { highContrast ? ink : dark ? RGBColor(hex: 0xCFE0FF) : RGBColor(hex: 0x3D4F9A) }
+    /// Neon's glow of the live metrics' digits (dark only): the table's and the rows' 6 pt.
+    static let ledGlow = RGBColor(red: 140 / 255, green: 180 / 255, blue: 1, alpha: 0.45)
+
     /// Timing's position blocks and footer bar.
     var block: RGBColor { dark ? RGBColor(hex: 0x1B1F2A) : RGBColor(hex: 0xE6E9F0) }
     var blockInk: RGBColor { dark ? RGBColor(hex: 0xE8ECF5) : RGBColor(hex: 0x1A1E28) }
