@@ -243,6 +243,9 @@ class FileState:
                                           "thinkingTokens")}
         self.droid_growth = dict(self.droid_mark)
         self.droid_signature = None
+        self.droid_parent_bad = None  # signature of the parent sidecar the last attempt found unreadable
+        self.droid_unknown = False
+        self.droid_baseline = False
         self.droid_model = None
         self.droid_call_model = None
         self.droid_compaction = None
@@ -2125,13 +2128,32 @@ def droid_signature(path):
     return st.st_size, st.st_mtime_ns, st.st_dev, st.st_ino
 
 
+def droid_parent_counters(state):
+    """The parent's counters for the own counters (METRICS 4.16), or None while they are unknown: a parent sidecar that
+    exists but is unreadable, unless an earlier attempt found it unreadable with the same signature (then 0)."""
+    zero = dict.fromkeys(DROID_FIELDS, 0)
+    if not state.droid_parent:
+        return zero
+    path = os.path.join(os.path.dirname(state.path), state.droid_parent + ".settings.json")
+    signature = droid_signature(path)
+    if signature is None:
+        state.droid_parent_bad = None
+        return zero
+    readable, counters, _ = droid_read_sidecar(path)
+    if readable:
+        state.droid_parent_bad = None
+        return counters or zero
+    if signature == state.droid_parent_bad:
+        return zero
+    state.droid_parent_bad = signature
+    return None
+
+
 def droid_own(state, counters):
-    """Own counters: a session with a `parent` starts from that session's counters (METRICS 4.16)."""
-    parent = dict.fromkeys(DROID_FIELDS, 0)
-    if state.droid_parent:
-        _, inherited, _ = droid_read_sidecar(os.path.join(os.path.dirname(state.path),
-                                                          state.droid_parent + ".settings.json"))
-        parent = inherited or parent
+    """Own counters: a session with a `parent` starts from that session's counters (METRICS 4.16); None if unknown."""
+    parent = droid_parent_counters(state)
+    if parent is None:
+        return None
     own = {f: max(0, counters[f] - parent[f]) for f in DROID_FIELDS}
     own["thinkingTokens"] = min(own["thinkingTokens"], own["outputTokens"])
     return own
@@ -2230,22 +2252,32 @@ def droid_allocate(state):
     state.droid_growth = dict.fromkeys(DROID_FIELDS, 0)
 
 
-def droid_sidecar(state, baseline=False):
-    """Step 2 of a read cycle; `baseline` for a session whose transcript starts at its end (only sets H)."""
+def droid_sidecar(state):
+    """Step 2 of a read cycle. While `droid_baseline` is set (a transcript that started at its end) the first read
+    whose own counters are known only sets H. An unreadable sidecar, or unknown parent counters, changes nothing and
+    is tried again at the next read cycle (`droid_unknown` marks the latter for the history analysis)."""
     path = droid_sidecar_path(state.path)
     signature = droid_signature(path)
-    if signature is None or signature == state.droid_signature:
+    state.droid_unknown = False
+    if signature is None:
+        state.droid_baseline = False
         return
-    state.droid_signature = signature
+    if signature == state.droid_signature:
+        return
     readable, counters, model = droid_read_sidecar(path)
     if not readable:
-        state.droid_signature = None  # tried again at the next read cycle
+        state.droid_signature = None
         return
+    own = droid_own(state, counters) if counters is not None else None
+    if counters is not None and own is None:
+        state.droid_signature, state.droid_unknown = None, True
+        return
+    state.droid_signature = signature
     state.droid_model = model
     state.model = state.droid_call_model or state.droid_model
-    if counters is None:
+    baseline, state.droid_baseline = state.droid_baseline, False
+    if own is None:
         return
-    own = droid_own(state, counters)
     for f in DROID_FIELDS:
         if not baseline:
             state.droid_growth[f] += max(0, own[f] - state.droid_mark[f])
@@ -2326,7 +2358,8 @@ class DroidTail:
         self.state.droid_read_from = self.offset
         if at_end:
             self.identity = droid_signature(path)[2:]
-            droid_sidecar(self.state, baseline=True)
+            self.state.droid_baseline = True
+            droid_sidecar(self.state)
 
     def read(self):
         st = os.stat(self.path)
@@ -3674,6 +3707,32 @@ def check_droid(root, dr):
         if got != case["shares"]:
             failures.append("droid allocation %r: expected %r got %r" % (case["weights"], case["shares"], got))
     failures += check_droid_live(dr["live"])
+    failures += check_droid_history(dr["history"])
+    return failures
+
+
+def check_droid_history(history):
+    """Replays `droid.history`: history analyses of a scratch home, the parent memory kept between them."""
+    failures = []
+    with tempfile.TemporaryDirectory() as tmp:
+        memory, none = {}, os.path.join(tmp, "none")
+        for n, step in enumerate(history["steps"], start=1):
+            if "write" in step:
+                path = os.path.join(tmp, *step["write"].split("/"))
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(step["text"])
+                os.utime(path, ns=(step["mtime"] * 1_000_000, step["mtime"] * 1_000_000))
+                continue
+            skipped, got = [], OrderedDict()
+            rows = collect_all(none, none, none, None, include_archived=False,
+                               droid_roots=[droid_root(tmp)], droid_memory=memory, droid_skipped=skipped)
+            for _, agent, r in rows:
+                got.setdefault(os.path.relpath(agent, tmp).replace(os.sep, "/"), []).append(r)
+            skipped = sorted(os.path.relpath(p, tmp).replace(os.sep, "/") for p in skipped)
+            if dict(got) != step["responses"] or skipped != step["skipped"]:
+                failures.append("droid history step %d: expected %r skipped %r, got %r skipped %r" % (
+                    n, step["responses"], step["skipped"], dict(got), skipped))
     return failures
 
 
@@ -3698,7 +3757,7 @@ def check_droid_live(live):
             elif "sidecar" in step:
                 path = droid_sidecar_path(os.path.join(tmp, *step["sidecar"].split("/")))
                 with open(path, "w", encoding="utf-8") as fh:
-                    fh.write(json.dumps(step["doc"], indent=2))
+                    fh.write(step["text"] if "text" in step else json.dumps(step["doc"], indent=2))
                 os.utime(path, ns=(step["mtime"] * 1_000_000, step["mtime"] * 1_000_000))
             elif "open" in step:
                 path = os.path.join(tmp, *step["open"].split("/"))
@@ -4004,8 +4063,11 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
 
 def collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs=(), omp_dirs=(), ag_stores=(),
                 wb_roots=(), include_archived=True, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(),
-                openclaw_dbs=(), codex_roots=None, hermes_dirs=(), hermes_tz=None, droid_roots=()):
-    """Parses every log completely (METRICS 8) and returns all responses with their source and agent."""
+                openclaw_dbs=(), codex_roots=None, hermes_dirs=(), hermes_tz=None, droid_roots=(), droid_memory=None,
+                droid_skipped=None):
+    """Parses every log completely (METRICS 8) and returns all responses with their source and agent. A Droid session
+    whose parent counters are unknown is skipped (listed in `droid_skipped`); `droid_memory` keeps the signatures of
+    unreadable parent sidecars from one analysis to the next (METRICS 4.16 Own counters)."""
     files = startup_files(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots,
                           limit=10 ** 9, include_archived=include_archived, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
                           codex_roots=codex_roots, droid_roots=droid_roots)
@@ -4021,8 +4083,16 @@ def collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs=(), 
                 continue
         else:
             state = FileState(path, source, root)
+            if source == "droid" and droid_memory is not None:
+                state.droid_parent_bad = droid_memory.get(path)
             process_file(state, dedupe)
             if source == "droid":
+                if droid_memory is not None:
+                    droid_memory[path] = state.droid_parent_bad
+                if state.droid_unknown:
+                    if droid_skipped is not None:
+                        droid_skipped.append(path)
+                    continue
                 droid_finish(state)
         out += [(state.source, path, r) for r in state.responses.values()]
     if opencode_db and os.path.exists(opencode_db):

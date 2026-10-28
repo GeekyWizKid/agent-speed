@@ -479,12 +479,14 @@ def write_fixtures(out_dir):
                         "a sidecar's text (`size`: padded with spaces to that many bytes) and whether it is "
                         "readable, its counters and session model (`encoding`: the text's bytes in that encoding "
                         "instead of UTF-8). `allocations`: the largest-remainder split of "
-                        "`total` by `weights`. `live`: scripted read cycles in a scratch home (see its _comment).",
+                        "`total` by `weights`. `live`: scripted read cycles in a scratch home (see its _comment). "
+                        "`history`: scripted history analyses in a scratch home (see its _comment).",
             "discover": sorted(files),
             "roots": roots(),
             "sidecars": sidecar_cases(),
             "allocations": allocation_cases(),
             "live": live(),
+            "history": history_passes(),
         },
     }
 
@@ -557,8 +559,78 @@ def allocation_cases():
     ]
 
 
+CUT_OFF = '{"model":"claude-opus-5-5","tokenUsage":{"inputTokens":4'  # a sidecar caught mid-write
+
+
+def pair(parent_id, fork_id, cwd, base, parent_model=OPUS):
+    """A parent with one call and its successor (`parent`, a summary first) with one call, `base` (ms) the start."""
+    parent_lines = [start(parent_id, cwd, "Parent"),
+                    user("p-" + parent_id[:4], base, [text("Start")]),
+                    assistant("pm-" + parent_id[:4], base + 3000, [text("Started.")], parent_model, "high"),
+                    outcome("p-" + parent_id[:4])]
+    fork_lines = [start(fork_id, cwd, "Continue", parent=parent_id),
+                  compaction("fc-" + fork_id[:4], base + 60_000, 3),
+                  user("f-" + fork_id[:4], base + 61_000, [text("Continue")]),
+                  assistant("fm-" + fork_id[:4], base + 64_000, [text("Continued.")], OPUS, "high"),
+                  outcome("f-" + fork_id[:4])]
+    calls = {"parent": ("droid:pm-" + parent_id[:4], base, base + 3000),
+             "fork": ("droid:fm-" + fork_id[:4], base + 61_000, base + 64_000)}
+    return parent_lines, fork_lines, calls
+
+
+def history_passes():
+    """History analyses of a scratch home whose parent sidecars are unreadable (METRICS 4.16 Own counters)."""
+    folder = ".factory/sessions/-Users-dev-h"
+    PA, KA = "1a2b3c4d-0000-4000-8000-00000000000a", "2b3c4d5e-0000-4000-8000-00000000000b"
+    PB, KB = "3c4d5e6f-0000-4000-8000-00000000000c", "4d5e6f70-0000-4000-8000-00000000000d"
+    pa_lines, ka_lines, a = pair(PA, KA, "/Users/dev/h", ms("16:00:00.000"))
+    pb_lines, kb_lines, b = pair(PB, KB, "/Users/dev/h", ms("16:10:00.000"))
+    pa, ka = counters(3000, 0, 9000, 300, 0), counters(3800, 0, 20000, 450, 20)
+    kb = counters(2500, 100, 7000, 180, 10)
+
+    def rel(sid, ext=".jsonl"):
+        return "%s/%s%s" % (folder, sid, ext)
+
+    def write(sid, lines=None, doc=None, text_value=None, at=None):
+        step = {"write": rel(sid, ".jsonl" if lines is not None else ".settings.json"), "mtime": at}
+        if lines is not None:
+            step["text"] = "".join(encode(line) + "\n" for line in lines)
+        else:
+            step["text"] = text_value if text_value is not None else json.dumps(doc, indent=2)
+        return step
+
+    def r(call, share):
+        return resp(call[0], call[1], call[2], share, OPUS)
+
+    counted = {rel(PA): [r(a["parent"], pa)], rel(KA): [r(a["fork"], minus(ka, pa))], rel(KB): [r(b["fork"], kb)]}
+    return {
+        "_comment": "Steps in a scratch home with only Factory Droid sessions: `write` sets a file's `text` and "
+                    "modification time (ms); `analyze` runs a history analysis of the home's sessions (METRICS 8, "
+                    "the history rule of 4.16), keeping the remembered parent signatures from the analyses before, "
+                    "and compares the responses per session file and the session files skipped because their own "
+                    "counters are unknown.",
+        "steps": [
+            write(PA, pa_lines, at=ms("16:00:04.000")),
+            write(PA, text_value=CUT_OFF, at=ms("16:00:05.000")),
+            write(KA, ka_lines, at=ms("16:01:05.000")),
+            write(KA, doc=sidecar(OPUS, ka), at=ms("16:01:05.500")),
+            write(PB, pb_lines, at=ms("16:10:04.000")),
+            write(PB, text_value=CUT_OFF, at=ms("16:10:05.000")),
+            write(KB, kb_lines, at=ms("16:11:05.000")),
+            write(KB, doc=sidecar(OPUS, kb), at=ms("16:11:05.500")),
+            # Both parents unreadable: the successors are skipped (the parents themselves have no counters).
+            {"analyze": True, "responses": {}, "skipped": [rel(KA), rel(KB)]},
+            # PA readable now: KA counts its own share. PB unreadable again with the same signature: 0, KB counts all.
+            write(PA, doc=sidecar(OPUS, pa), at=ms("16:20:00.000")),
+            {"analyze": True, "responses": counted, "skipped": []},
+            {"analyze": True, "responses": counted, "skipped": []},
+        ],
+    }
+
+
 def live():
-    """Read cycles of two sessions in a scratch home: L read from its start, S from its end."""
+    """Read cycles in a scratch home: L read from its start, S from its end, then successors whose parent sidecar is
+    unreadable (K1 until it is rewritten, K2 for good, K3 started at its end)."""
     L, S = "5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c", "6b2e8d4f-1a5c-4f3b-9d7e-0c1f2a3b4c5d"
     folder = ".factory/sessions/-Users-dev-p"
     lpath, spath = "%s/%s.jsonl" % (folder, L), "%s/%s.jsonl" % (folder, S)
@@ -630,6 +702,7 @@ def live():
                     "transcript; `rewrite` replaces it with `lines` through a new file (a new identity); `sidecar` "
                     "writes the transcript's sidecar (`doc` as JSON) and sets its modification time (ms); `open` "
                     "starts following a transcript (`atEnd`: it starts at its end, older than the startup window); "
+                    "a `sidecar` step with `text` writes that text instead of `doc`; "
                     "`read` runs one read cycle of that transcript and compares every response emitted so far "
                     "(the latest version of each key, in first-emission order), the growth still waiting (P) and, "
                     "when given, the phase.",
@@ -671,8 +744,71 @@ def live():
             # The transcript replaced (a new identity): the session starts over and allocates its counters again.
             {"rewrite": lpath, "lines": lines + [r1, m2, outcome("u1")] + turn2 + m5 + m6},
             read(lpath, reset),
-        ],
+        ] + unreadable_parents(folder),
     }
+
+
+def unreadable_parents(folder):
+    """Successors whose parent sidecar is unreadable (METRICS 4.16 Own counters), as steps of `live`."""
+    P1, K1 = "7a1b2c3d-0000-4000-8000-000000000001", "8b2c3d4e-0000-4000-8000-000000000002"
+    P2, K2 = "9c3d4e5f-0000-4000-8000-000000000003", "ad4e5f60-0000-4000-8000-000000000004"
+    P3, K3 = "be5f6071-0000-4000-8000-000000000005", "cf607182-0000-4000-8000-000000000006"
+    p1_lines, k1_lines, c1 = pair(P1, K1, "/Users/dev/p", ms("14:00:00.000"))
+    p2_lines, k2_lines, c2 = pair(P2, K2, "/Users/dev/p", ms("14:10:00.000"))
+    p3_lines, k3_lines, c3 = pair(P3, K3, "/Users/dev/p", ms("08:00:00.000"))
+    path = {sid: "%s/%s.jsonl" % (folder, sid) for sid in (P1, K1, P2, K2, P3, K3)}
+    p1, k1 = counters(5000, 1000, 20000, 400, 50), counters(5600, 1000, 41000, 520, 60)
+    k2 = counters(1500, 0, 6000, 90, 0)
+    p3, k3a, k3b = counters(4000, 0, 10000, 300, 0), counters(4500, 0, 18000, 380, 0), counters(4900, 0, 30000, 460, 5)
+    zero = dict.fromkeys(FIELDS, 0)
+    more = [user("g-k3", ms("14:30:00.000"), [text("More")]),
+            assistant("gm-k3", ms("14:30:03.000"), [text("More done.")], OPUS, "high")]
+
+    def side(sid, usage, at, text_value=None):
+        step = {"sidecar": path[sid], "mtime": at}
+        if text_value is not None:
+            step["text"] = text_value
+        else:
+            step["doc"] = sidecar(OPUS, usage)
+        return step
+
+    def read(sid, keys):
+        return {"read": path[sid], "responses": keys, "pending": zero}
+
+    k1_resp = resp(c1["fork"][0], c1["fork"][1], c1["fork"][2], minus(k1, p1), OPUS)
+    k2_resp = resp(c2["fork"][0], c2["fork"][1], c2["fork"][2], k2, OPUS)
+    k3_resp = resp("droid:gm-k3", ms("14:30:00.000"), ms("14:30:03.000"), minus(k3b, k3a), OPUS)
+    return [
+        # K1: its parent's sidecar is caught mid-write; nothing counts until it reads, then K1 counts its own share.
+        {"append": path[P1], "lines": p1_lines},
+        side(P1, None, ms("14:00:03.100"), CUT_OFF),
+        {"append": path[K1], "lines": k1_lines},
+        side(K1, k1, ms("14:01:04.050")),
+        {"open": path[K1], "atEnd": False},
+        read(K1, []),
+        side(P1, p1, ms("14:01:05.000")),
+        read(K1, [k1_resp]),
+        # K2: its parent's sidecar stays malformed; the second attempt finds the same signature, so the parent gives 0.
+        {"append": path[P2], "lines": p2_lines},
+        side(P2, None, ms("14:10:03.100"), CUT_OFF),
+        {"append": path[K2], "lines": k2_lines},
+        side(K2, k2, ms("14:11:04.050")),
+        {"open": path[K2], "atEnd": False},
+        read(K2, []),
+        read(K2, [k2_resp]),
+        # K3 starts at its end while its parent's sidecar is unreadable: H waits for known own counters, so only the
+        # growth after the parent reads counts.
+        {"append": path[P3], "lines": p3_lines},
+        side(P3, None, ms("08:00:03.100"), CUT_OFF),
+        {"append": path[K3], "lines": k3_lines},
+        side(K3, k3a, ms("08:01:04.050")),
+        {"open": path[K3], "atEnd": True},
+        side(P3, p3, ms("14:20:00.000")),
+        read(K3, []),
+        {"append": path[K3], "lines": more},
+        side(K3, k3b, ms("14:30:03.050")),
+        read(K3, [k3_resp]),
+    ]
 
 
 def main():
