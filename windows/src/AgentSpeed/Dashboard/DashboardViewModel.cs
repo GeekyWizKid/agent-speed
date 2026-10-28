@@ -586,7 +586,11 @@ internal sealed partial class DashboardViewModel : ObservableObject
                 tooltip.AddRange(capsule.TooltipLines(loc));
             }
 
-            tooltip.Add(IntelligenceText.Grade(agent.Grade, loc));
+            if (agent.Grade is { } grade)
+            {
+                tooltip.Add(IntelligenceText.Grade(grade, loc));
+            }
+
             tooltip.AddRange(WorkText.Closing(agent.Work, loc));
             row.Tooltip = string.Join("\n", tooltip);
 

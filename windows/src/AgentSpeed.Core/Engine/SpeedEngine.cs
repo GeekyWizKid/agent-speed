@@ -142,6 +142,19 @@ internal sealed class SpeedEngine
         var measured = new Accumulator(SourceCount);
         var costs = new CostAccumulator(SourceCount);
         var intelligence = new IntelligenceSums[SourceCount];
+        var agentIntelligence = new Dictionary<string, IntelligenceSums>(StringComparer.Ordinal);
+
+        // Every contribution counts for its source and for its own agent (METRICS 6.9, Agent intelligence).
+        void AddIntelligence(SourceKind source, string agentId, double weight, double reasoning, ModelGrade grade)
+        {
+            ref var sums = ref intelligence[(int)source];
+            sums = sums.Add(source, weight, reasoning, grade);
+            if (weight > 0)
+            {
+                agentIntelligence[agentId] = agentIntelligence.GetValueOrDefault(agentId).Add(source, weight, reasoning, grade);
+            }
+        }
+
         var valid = new List<Stored>(_responses.Count);
         var unmeasured = new List<Stored>();
         var latestEnd = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -177,8 +190,7 @@ internal sealed class SpeedEngine
                     costs.Add(response.Source, response.AgentId, new LiveCost(cost * fraction, output));
                 }
 
-                ref var sums = ref intelligence[(int)response.Source];
-                sums = sums.Add(response.Source, output, ReasoningOf(response.Tokens) * fraction, Grade(response));
+                AddIntelligence(response.Source, response.AgentId, output, ReasoningOf(response.Tokens) * fraction, Grade(response));
             }
         }
 
@@ -199,8 +211,7 @@ internal sealed class SpeedEngine
                 costs.Add(source, agentId, new LiveCost(rate * overlap / 1000.0, output));
             }
 
-            ref var sums = ref intelligence[(int)source];
-            sums = sums.Add(source, output, output * reference.ThinkingShare, grade);
+            AddIntelligence(source, agentId, output, output * reference.ThinkingShare, grade);
         }
 
         // Unfinalized usage: the time is real, the token count is not, so it is estimated (METRICS 6.3).
@@ -265,7 +276,7 @@ internal sealed class SpeedEngine
         }
 
         liveCost = PerSecond(liveCost, seconds);
-        var agents = BuildAgents(nowMs, measured, estimated, costs, recent, seconds, out var generating, out var tools);
+        var agents = BuildAgents(nowMs, measured, estimated, costs, agentIntelligence, recent, seconds, out var generating, out var tools);
         var history = BuildHistory(nowMs, valid, estimates);
         var events = DrainCompletions(nowMs);
         var peak = UpdatePeak(nowMs, live, observeLive, events);
@@ -322,9 +333,15 @@ internal sealed class SpeedEngine
     private ModelGrade Grade(ParsedResponse response) =>
         ModelGrade.Of(CurrentTable, response.Model, response.Provider, EffortAndSpeed.Effort(response.Modes)?.Mode);
 
-    /// <summary>An agent's grade: its current model, the provider of its latest response and its current effort.</summary>
+    /// <summary>
+    /// The grade an agent's in-flight estimate weighs with: its current model, the provider of its latest response that
+    /// names one and its current effort; a model-less agent weighs as an unknown model (class 80).
+    /// </summary>
     private ModelGrade Grade(in AgentInfo agent) =>
         ModelGrade.Of(CurrentTable, agent.Model, _agentProviders.GetValueOrDefault(agent.Id), EffortAndSpeed.Effort(agent.Modes)?.Mode);
+
+    /// <summary>The agent's own grade (METRICS 6.9): none while its current model is unknown.</summary>
+    private ModelGrade? AgentGrade(in AgentInfo agent) => string.IsNullOrEmpty(agent.Model) ? null : Grade(agent);
 
     /// <summary>The reasoning part of a response's output (METRICS 6.9): never more than the output.</summary>
     private static long ReasoningOf(in TokenCounts tokens) => Math.Min(tokens.Reasoning, tokens.Output);
@@ -556,6 +573,7 @@ internal sealed class SpeedEngine
         Accumulator measured,
         Accumulator estimated,
         CostAccumulator costs,
+        Dictionary<string, IntelligenceSums> intelligence,
         Dictionary<string, SpeedPair> recent,
         double seconds,
         out int generating,
@@ -567,10 +585,12 @@ internal sealed class SpeedEngine
             estimated.AgentTotals.TryGetValue(agent.Id, out var e);
             var live = new Rate((m.Output + e.Output) / seconds, (m.Total + e.Total) / seconds);
             double? recentSpeed = recent.TryGetValue(agent.Id, out var own) ? own.Output : null;
+            var grade = AgentGrade(agent);
             return new AgentFrame(agent, phase, live, recentSpeed)
             {
                 LiveCost = costs.Agent.TryGetValue(agent.Id, out var cost) ? PerSecond(cost, seconds) : LiveCost.Zero,
-                Grade = Grade(agent),
+                Grade = grade,
+                Intelligence = new AgentIntelligence(intelligence.GetValueOrDefault(agent.Id), grade),
                 Work = WorkSignals.Of(agent.Work, nowMs),
             };
         });
