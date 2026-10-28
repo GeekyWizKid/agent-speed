@@ -1899,7 +1899,9 @@ outputs arrive here already parsed; their inputs are never kept.
   after a relaunch. Copied lines (3.5, 4.7) and assistant lines ignored as duplicates (4.1 step 2, 4.7 step 2) add
   none.
 - An evaluation at `nowMs` (the fixture queries) uses the events with `t ≤ nowMs`, and treats an outcome (with its
-  failures) whose `t` is after `nowMs` as not read yet. The live engine evaluates everything it has read.
+  failures) whose `t` is after `nowMs` as not read yet. The live engine evaluates everything it has read; it may keep
+  incremental state for each agent's current task instead of evaluating the task again, as long as every value equals
+  these definitions.
 
 #### Runs, checks and edits
 
