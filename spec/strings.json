@@ -3834,6 +3834,30 @@
     "en": "intelligence %@, thinking %@ tokens per second",
     "ja": "知能 %@、思考 毎秒 %@ トークン"
   },
+  "intel.none": {
+    "zh-Hant": "智力：目前沒有輸出",
+    "zh-Hans": "智力：目前没有输出",
+    "en": "intelligence: no output right now",
+    "ja": "知能：現在出力なし"
+  },
+  "agents.intel.hint": {
+    "zh-Hant": "生成中顯示 agent 的即時智力；淡色是閒置時目前模型與推理強度的等級。估算指數，不是測驗分數。",
+    "zh-Hans": "生成中显示 agent 的实时智力；淡色是空闲时当前模型与推理强度的等级。估算指数，不是测验分数。",
+    "en": "While an agent generates, its live intelligence; dimmed while idle, the grade of its current model and reasoning effort. An estimated index, not a benchmark score.",
+    "ja": "生成中は agent のリアルタイム知能、淡色は待機中の現在のモデルと推論の強さの等級です。推定の指数で、ベンチマークのスコアではありません。"
+  },
+  "a11y.agent.intel": {
+    "zh-Hant": "智力 %@",
+    "zh-Hans": "智力 %@",
+    "en": "intelligence %@",
+    "ja": "知能 %@"
+  },
+  "a11y.agent.grade": {
+    "zh-Hant": "等級 %@",
+    "zh-Hans": "等级 %@",
+    "en": "grade %@",
+    "ja": "等級 %@"
+  },
   "work.looping": {
     "zh-Hant": "原地打轉：同一組動作已重複 %d 次，且有失敗",
     "zh-Hans": "原地打转：同一组动作已重复 %d 次，且有失败",
@@ -3955,10 +3979,10 @@
     "ja": "ビット（Mb/s）"
   },
   "settings.bar.traffic": {
-    "zh-Hant": "顯示網路速度",
-    "zh-Hans": "显示网络速度",
-    "en": "Show network speed",
-    "ja": "ネットワーク速度を表示"
+    "zh-Hant": "數值旁顯示",
+    "zh-Hans": "数值旁显示",
+    "en": "Next to the value",
+    "ja": "数値の横に表示"
   },
   "settings.bar.traffic.off": {
     "zh-Hant": "不顯示",
@@ -3967,16 +3991,28 @@
     "ja": "表示しない"
   },
   "settings.bar.traffic.machine": {
-    "zh-Hant": "整台電腦",
-    "zh-Hans": "整台电脑",
-    "en": "Whole computer",
-    "ja": "コンピューター全体"
+    "zh-Hant": "網路速度：整台電腦",
+    "zh-Hans": "网络速度：整台电脑",
+    "en": "Network speed: whole computer",
+    "ja": "ネットワーク速度：コンピューター全体"
   },
   "settings.bar.traffic.agents": {
-    "zh-Hant": "只看 agent",
-    "zh-Hans": "只看 agent",
-    "en": "Agents only",
-    "ja": "agent のみ"
+    "zh-Hant": "網路速度：只看 agent",
+    "zh-Hans": "网络速度：只看 agent",
+    "en": "Network speed: agents only",
+    "ja": "ネットワーク速度：agent のみ"
+  },
+  "settings.bar.traffic.intelligence": {
+    "zh-Hant": "即時智力",
+    "zh-Hans": "实时智力",
+    "en": "Live intelligence",
+    "ja": "リアルタイム知能"
+  },
+  "settings.bar.traffic.hint.intel": {
+    "zh-Hant": "在數值旁顯示所有 agent 的即時智力與每秒思考 token 數；沒有輸出時顯示「–」。這是估算指數，不是測驗分數。",
+    "zh-Hans": "在数值旁显示所有 agent 的实时智力与每秒思考 token 数；没有输出时显示“–”。这是估算指数，不是测验分数。",
+    "en": "Shows the live intelligence and thinking tokens per second of all agents next to the value, and – while nothing is being generated. An estimated index, not a benchmark score.",
+    "ja": "数値の横に、すべての agent のリアルタイム知能と毎秒の思考トークン数を表示します。出力がないときは「–」です。推定の指数で、ベンチマークのスコアではありません。"
   },
   "history.chart.traffic": {
     "zh-Hant": "網路流量",

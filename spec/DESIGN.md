@@ -1317,6 +1317,12 @@ All three styles show the same content; the style decides its look (Styles, belo
    `boards.moreGroups` with their summed speed.
 3. **Footer**: `boards.today` (today's output of the board's sources), today's cost (section 9) and `boards.peak` (`peakToday_A`).
 
+**Intelligence** (planned, 2026-10-28): any intelligence a board shows for an agent — a group's root or a sub row — is
+METRICS 6.9 *Agent intelligence* with the dashboard column's meaning (section 4, *Intelligence column*): live in the
+number color, the resting grade quieter, `–` for none. A value for a whole group, should a style show one, is the
+same formula over its members' added agent sums (METRICS 6.9), never an average of shown values. Where and how each
+style shows it is decided separately (prototype in progress); until then boards show no intelligence.
+
 **Layout per size.** S: up to 4 groups, no sub rows, capsule without its word. M: up to 6 groups; sub rows two for #1,
 one for #2 and #3. L: up to 8 groups; three sub rows for #1–#3, two for #4–#5. Groups are placed first and sub rows
 only fill the room that remains, so a sub row never pushes a group out; no row is ever cut in half. Clicking a group
@@ -1439,8 +1445,9 @@ Glanceable and calm; it must never jitter in width.
   and in the tooltip as `a11y.bar.money`. In 選單列 / 工作列 the live value control has three choices —
   `settings.liveUnit.tokens`, `settings.liveUnit.cost` and `settings.liveUnit.both` (tok/s with the money block after
   it; tok/s alone stays the default) — so showing both is one visible choice rather than a separate switch.
-- Network speed (optional, `settings.bar.traffic`, default off): a fixed-width two-line `↓` / `↑` block after the value
-  (section 10).
+- Readout block (optional, `settings.bar.traffic`, default off): network speed (`↓` / `↑`) or live intelligence
+  (`智力` / `思考`) in a fixed-width two-line block after the value and the money block (section 10, *Menu bar and
+  taskbar*).
 - Click: open/close the dashboard. Right-click (Windows) / ⌥-click (macOS): quick menu.
 - The widget follows the system/taskbar light or dark theme for text; the glyph keeps heat colors.
 
@@ -1470,7 +1477,14 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
    `dashboard.sources.empty` in secondary text under its header.
 4. **Agents** — up to 6 rows sorted by section 6.7 of METRICS: project (semibold), source + model (secondary,
    truncated), phase badge (generating: animated three-dot shimmer in the source color; tools: wrench glyph;
-   idle: grey dot), live tok/s right-aligned. Sub-agents are indented 12 pt with a thin connector line.
+   idle: grey dot), effort capsule, intelligence and live tok/s right-aligned. Sub-agents are indented 12 pt with a
+   thin connector line.
+   **Header** — the section title `dashboard.agents` and, on the same line while the list has rows, two column
+   captions, each right-aligned to its column's right edge: `intel.glyph` (智力 / 智力 / IQ / 知, the word of the
+   orb's and the menu bar's readout) over the intelligence column and `unit.tokS` over the live value. Captions:
+   10.5 pt medium (Windows 11 px medium), secondary color, one line, never truncated or scaled, hidden from
+   accessibility (every row says its values in words). Hovering the intelligence caption shows `agents.intel.hint`.
+   The empty state has no captions.
    A live value below 0.05 (it would display as `0` or `0.0`) is never shown as a number: `tools` shows a small hourglass glyph (SF
    Symbol `hourglass` / Segoe Fluent `HourGlass`, 11 pt, secondary color, slow 2 s opacity breathing 55–100 %, static
    with Reduce Motion); `idle` and `generating` show an en dash `–` in tertiary color. Glyph and dash sit in the same
@@ -1483,12 +1497,13 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
    least 8 recent actions, and `work.repeating` while it repeats without failures. Accessibility: the row label adds
    `work.looping` while it holds.
    **Effort capsule** — the agent's current reasoning effort and speed (`spec/EXECUTION-MODES.md`, Reasoning effort
-   and speed), drawn in a trailing column just before the live value (8 pt gap). The column is as wide as the widest
-   capsule among the visible rows (width changes animate 0.2 s), so every meter starts on the same vertical line and
-   every bolt ends on another; rows without a capsule leave it empty, and with no capsule at all the column takes no
-   space. A capsule appears when the effort is known or the speed has bolts; nothing is drawn for unknown values or for
+   and speed), drawn in a trailing column just before the intelligence column (8 pt gap). The column is as wide as the
+   widest capsule among the visible rows (width changes animate 0.2 s), so every meter starts on the same vertical
+   line and every bolt ends on another; rows without a capsule leave it empty, and with no capsule at all the column
+   takes no space. A capsule appears when the effort is known or the speed has bolts; nothing is drawn for unknown values or for
    a standard speed, and there is never a "not provided" label. When the column would leave the project name less
-   than 72 pt, every capsule drops its word (meter and bolts stay; the word stays in the tooltip).
+   than 72 pt (the room left after every trailing column, the intelligence column included), every capsule drops its
+   word (meter and bolts stay; the word stays in the tooltip).
    - Capsule: height 18, fully rounded, fill label 5.5 % (dark 7 %), 0.5 pt stroke label 8 %; 6 pt horizontal padding,
      5 pt between its parts: meter, word, bolts.
    - Meter: five bars 2.5 pt wide with heights 4 / 5.5 / 7 / 8.5 / 10 pt, 1.5 pt apart, corner radius 0.75, bottoms
@@ -1509,6 +1524,36 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
      tokens through `speed.value.*` when one exists), `modes.unrecorded` for an unknown one; a top rung adds
      `effort.ultra.detail` or `effort.ultracode.detail`. Accessibility: the row's combined label ends with the same
      two lines joined by `，` / `, `.
+   **Intelligence column** — every row, root or sub-agent, shows the agent's intelligence (METRICS 6.9, *Agent
+   intelligence*) between the effort capsule column and the live value (user's choice, 2026-10-28):
+   - Cell: fixed, as wide as the wider of `888` in the column's number font and the header caption, measured when
+     the language, font or text size changes and never per value (macOS 24 pt: `888` is 23.2 pt in SF Pro 12 pt
+     medium, 智力 20.9 pt at 10.5 pt; Windows the same rule in Segoe UI). The number is right-aligned in it, tabular
+     digits, 12 pt medium (Windows 12 px semibold) — one point under the live value, so tok/s stays the row's main
+     number — on the live value's baseline. Gaps: capsule column, 8 pt, the cell, 6 pt, the live value; with no
+     capsule column the cell follows the name block at the row's spacing. The column is present whenever the list
+     has rows, so the digits of every row share one right edge whatever the indent.
+   - Value and color: **live** — the live intelligence, rounded half away from zero, in the live value's number
+     color; **resting** — the agent's grade in the tertiary color (it says what the agent would bring, not what it
+     is doing); **none** (no model known) — the tertiary `–` of the live slot. Updated on every engine tick with
+     the row; digits are replaced in place (no roll, no flash). A change between live and resting crossfades the
+     color in 0.2 s (an opacity change, kept with Reduce Motion). Increase Contrast: resting and `–` in the
+     secondary color. Windows high contrast: live in the text color, resting and `–` in the gray-text color.
+   - Room: the cell never truncates, shrinks or hides; the name block gives way. The detail (model · source)
+     truncates at its tail first (the source name goes first, the badge color still carries it), then the project
+     name with a tail ellipsis; the traffic suffix stays whole. The panel has one width (368 pt/DIP, rows 328), so
+     the room is fixed by the trailing columns and the indent; on macOS (badge 16, two 8 pt row spacings, cell 24,
+     6, live value 48) the name block keeps 218 pt at depth 0 and 194 pt at the deepest indent (depth 2) with no
+     capsule, ≈ 145 / 121 pt with a typical capsule (meter and `xhigh`, ≈ 65 pt) and ≈ 102 / 78 pt with the widest
+     (meter, `ultracode`, two bolts, ≈ 108 pt), so words drop only in rare combinations (the 72 pt rule above).
+     Windows keeps its row structure (name block over two lines, badge column 30, live value 56) and inserts the
+     cell between the capsule column and the live value by the same rules.
+   - Tooltip (the row's, after the effort and speed lines): while live, `intel.tooltip` with the shown value and
+     the agent's thinking share as a whole percent, rounded half away from zero (`智力 105 · 思考 25%`; `–` instead
+     of the percent for a source that does not record reasoning apart from output, METRICS 4.3); then `intel.grade`
+     whenever the agent has a grade (`等級 104 · 標準`). An agent without a model has no `intel.grade` line.
+   - Accessibility: the row's combined label adds, right after the live value, `a11y.agent.intel` (`智力 105`) while
+     live or `a11y.agent.grade` (`等級 104`) while resting; nothing for none.
    Empty state: `目前沒有 agent 在工作` with a muted gauge glyph.
    Collapsed (default) shows the first 6 rows of the depth-first order (so a child never appears without its parent); when more agents exist, a disclosure row `agents.expand` ("+4 個 agent",
    with a small chevron, accessibility label `agents.expand.a11y`) expands the list in place with a spring height
@@ -2015,12 +2060,13 @@ with Mica). Sections:
   while the slider is dragged; hovering or focusing a title highlights its tick. With Total throughput the same list
   shows that metric's values (compact `k`/`M`). Below the redline: the title theme picker and the custom set editor
   (Title themes, below).
-- **選單列 / 工作列 Menu bar / Taskbar** — Display mode, Colored glyph, Show unit, `settings.liveUnit` (section 9).
+- **選單列 / 工作列 Menu bar / Taskbar** — Display mode, Colored glyph, Show unit, `settings.bar.traffic` (network
+  speed or live intelligence, section 10), `settings.liveUnit` (section 9).
 - **懸浮窗 Floating orbs** — the orb list and the per-orb editor (Floating orb pane, below).
 - **特效 Effects** — Intensity (Off / Soft / Standard / Max), Celebrate new peaks, Response pulses,
   **Preview effects** button: runs the demo driver for 20 s sweeping through every tier.
 - **費用 Cost** — currency, live value unit, subscription marks, price table status (section 9).
-- **網路流量 Network Traffic** — measuring switch, tools, speed unit, menu bar / taskbar speed and the per-agent
+- **網路流量 Network Traffic** — measuring switch, tools, speed unit, the menu bar / taskbar readout and the per-agent
   measurement status; on Windows the optional helper service (section 10).
 - **API** (`settings.report`, the same short name in every language; the broadcast icon) — opt-in live reporting to
   an API the user chooses, for example a leaderboard service: service, username, API key, what is sent, status, pause
@@ -2592,9 +2638,9 @@ instead of network speed. It needs neither the traffic switch nor the Windows he
 - **Updates**: on every engine tick (METRICS 6, 500 ms), with the value; characters are replaced in their cells, no
   animation. A value change renders one frame of an otherwise static orb, at most two per second.
 - **Hover**: the title crossfade of the network readout. The orb's tooltip (Windows) adds `intel.tooltip`
-  (`智力 133 · 思考 44%`) and the caption `intel.disclaimer` (估算指數，不是測驗分數); the agent rows' tooltip (section 4)
-  adds `intel.grade` with the agent's grade and class (`等級 124 · 旗艦`, class names `intel.class.flagship` /
-  `.standard` / `.light`).
+  (`智力 133 · 思考 44%`) and the caption `intel.disclaimer` (估算指數，不是測驗分數); the agent rows' tooltip (section 4,
+  *Intelligence column*) adds the agent's live `intel.tooltip` and `intel.grade` with its grade and class
+  (`等級 124 · 旗艦`, class names `intel.class.flagship` / `.standard` / `.light`).
 - **Accessibility**: while the readout is visible the orb's label adds `a11y.orb.intel` (`智力 133，思考每秒 412 個 token`),
   within the label's 1-second update limit.
 - **Settings**: the orb editor's `orbs.traffic` popup lists `orbs.traffic.intelligence`; its caption becomes
@@ -2602,12 +2648,49 @@ instead of network speed. It needs neither the traffic switch nor the Windows he
 
 ### Menu bar and taskbar
 
-`settings.bar.traffic` (in 選單列 / 工作列 and in 網路流量): `settings.bar.traffic.off` (default),
-`settings.bar.traffic.machine`, `settings.bar.traffic.agents`. When on, a block follows the value after an 8 pt gap:
-two lines, `↓ 1.28 MB/s` over `↑ 64.0 KB/s`, 9 pt (menu bar) / 10 px (taskbar), weight 500, tabular, numbers in the
-label color at 85 %, arrows and units in the secondary color, fixed cells — so the item's width never changes with the
-values and section 3's width rule is untouched. It stays visible at `0 B/s` (a system meter is expected to stay).
-Display mode "glyph only" hides it. Accessibility and the Windows tooltip add `a11y.orb.traffic`.
+`settings.bar.traffic` picks the readout block after the menu bar or taskbar value. Stored values `off` (default),
+`machine`, `agents` and `intelligence` (an unknown value reads as `off`); the control is labelled
+`settings.bar.traffic` with the choices `settings.bar.traffic.off`, `.machine`, `.agents` and `.intelligence`.
+
+- **Block**: after the value and after the money block when section 3 shows one, 8 pt gap; two lines centred on the
+  bar, 9 pt (menu bar) / 10 px (taskbar), weight 500, tabular digits, 10 pt / 11 px pitch; numbers in the label color
+  at 85 %, everything else in the secondary color; fixed cells — so the item's width never changes with the values
+  and section 3's width rule is untouched. Display mode "glyph only" hides it.
+- **Network** (`machine`, `agents`): `↓ 1.28 MB/s` over `↑ 64.0 KB/s`. It stays visible at `0 B/s` (a system meter is
+  expected to stay). It needs `settings.traffic.enabled`: with measuring off it is not drawn. Accessibility and the
+  Windows tooltip add `a11y.orb.traffic`.
+- **Intelligence** (`intelligence`; user's choice, 2026-10-28): the live intelligence of all enabled sources
+  (METRICS 6.9), with the orb readout's words and number formats (*Intelligence readout*) at the bar's one size:
+
+  | Line | Label cell (left-aligned) | Number cell (right-aligned) | Unit cell |
+  | --- | --- | --- | --- |
+  | 1 | `intel.glyph` (智力 / 智力 / IQ / 知) | `intelligence`, an integer rounded half away from zero | empty |
+  | 2 | `intel.thinking.glyph` (思考 / 思考 / TH / 思考) | `liveThinking`, formatted as METRICS 7 | `tok/s` |
+
+  - Cells, left to right: the label cell, as wide as the wider of the two labels in the current language; 3 pt / 3 px;
+    one number cell shared by both lines, as wide as `8.88k` (the widest METRICS 7 form below 1 M tok/s; `888` fits
+    in it); 2.5 pt / 3 px; the unit cell (`tok/s`). Line 1 leaves its unit cell empty, so both numbers end on one
+    edge, as in the money block. The block's width depends on the language only: in SF Pro 9 pt, with every cell
+    rounded up to a whole point, 73.5 pt in Chinese and Japanese and 68.5 pt in English, plus the 8 pt gap. A text
+    wider than its cell (thinking at 1 M tok/s or more) widens the cell at once and narrows it after 6 s, section 3's
+    rule for the value.
+  - Updates: on every engine tick (500 ms); characters are replaced in their cells, no animation.
+  - **Quiet state**: the block stays, like a system meter. While `intelligence` has no value (nothing generated in
+    the window) both numbers are `–` in the secondary color and `tok/s` stays; a zero thinking rate under a live
+    value shows `0` in the secondary color. Chosen over hiding the block: a block that came and went with every
+    pause would shift every menu bar item to its left (on Windows, the taskbar's neighbours) whenever an agent
+    started or stopped, against section 3's rule that the item never jitters in width; the fixed cells keep it calm,
+    and `–` says "nothing right now" without claiming a score of 0.
+  - Independent of network measuring: it needs neither `settings.traffic.enabled` nor the Windows helper and is never
+    unavailable.
+  - Accessibility: the item's label adds `a11y.orb.intel` (`智力 125，思考每秒 10 個 token`; the thinking rate in
+    METRICS 7 form), or `intel.none` while there is no value. Windows tooltip: its first line adds the same text after
+    ` · `, where the traffic words go.
+- **Settings**: one control, in 選單列 / 工作列 (section 5) and in 網路流量 (*Settings → 網路流量*, below). In 選單列 /
+  工作列 it is always enabled: while `settings.traffic.enabled` is off the two network choices are disabled (shown,
+  not selectable) and a stored network choice stays selected and draws nothing, as before; `off` and `intelligence`
+  are always selectable. In 網路流量 the control follows that pane's state like its other controls. While
+  `intelligence` is chosen the control has the caption `settings.bar.traffic.hint.intel`; otherwise none.
 
 ### Dashboard
 
