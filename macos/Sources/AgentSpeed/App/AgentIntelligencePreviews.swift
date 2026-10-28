@@ -99,19 +99,15 @@ enum AgentIntelligencePreviews {
         if let tier, let fact = ExecutionModeFact(kind: .serviceTier, rawValue: tier, evidence: .served, provider: "openai", scope: .response) {
             modes.append(fact)
         }
-        let grade = PreviewData.previewGrade(model, effort: effort)
-        var sums = IntelligenceSums()
-        if let index, live > 0 {
-            // Thinking share 0.3 on top of a weighted grade that lands on `index`.
-            let share = source.recordsReasoningApart ? 0.3 : 0
-            sums = PreviewData.intelligence(output: live, grade: nil, thinkingShare: share, source: source)
-            sums.gradedOutput = live * (index - 20 * share)
-        }
+        let share = source.recordsReasoningApart ? 0.3 : 0
+        let score = index ?? PreviewData.previewScore(model, source: source)
+        let sums = PreviewData.intelligence(output: live, score: score, id: "/preview/\(id).jsonl", idle: phase == .idle,
+                                            thinkingShare: share, source: source)
         return AgentStatus(
             id: "/preview/\(id).jsonl", source: source, project: project, model: model, phase: phase,
             isSubagent: parent != nil, live: Rate(output: live, total: live * 26), recentSpeed: live > 0 ? live : nil,
             lastActivity: now, parentId: parent.map { "/preview/\($0).jsonl" }, modes: ExecutionModes(modes),
-            grade: grade, intelligence: sums
+            intelligence: sums
         )
     }
 }

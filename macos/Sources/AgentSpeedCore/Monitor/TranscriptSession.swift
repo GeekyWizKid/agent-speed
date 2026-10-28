@@ -19,11 +19,15 @@ struct WholeFileRead: Sendable {
     let family: TranscriptFamily
     let fileID: FileID
     let reader: TranscriptReader
+    /// The file's task reader (METRICS 6.9), carried through the read.
+    var taskReader: TaskLineReader?
 
     func perform() -> WholeFileResult {
         var reader = self.reader
-        let (lines, read) = TranscriptDecoder.decode(family, reader: &reader)
-        return WholeFileResult(path: path, fileID: fileID, reader: reader, lines: lines, read: read)
+        var taskReader = self.taskReader
+        let output = TranscriptDecoder.decode(family, reader: &reader, tasks: &taskReader)
+        return WholeFileResult(path: path, fileID: fileID, reader: reader, lines: output.lines, read: output.read,
+                               taskReader: taskReader, taskLines: output.tasks)
     }
 }
 
@@ -33,6 +37,8 @@ struct WholeFileResult: Sendable {
     let reader: TranscriptReader
     let lines: DecodedLines
     let read: FileTailer.ReadResult
+    var taskReader: TaskLineReader?
+    var taskLines: [TaskLine] = []
 }
 
 /// Every transcript file of the enabled roots, the OpenCode database, their parsers, the shared dedupe set and the
@@ -113,6 +119,9 @@ final class TranscriptSession {
     private let opencodeRoot: String
     private var opencodeNeedsSeed = false
     private var opencodeLinks: [String: String] = [:]
+    /// Each scored source's prediction coefficients (METRICS 6.11 *Calibration*), from the history analysis.
+    private var taskModels: [SourceKind: TaskModels] = [:]
+    private var taskModelsVersion = 0
 
     /// Wall-clock milliseconds, for the age rule of completion events (METRICS 6.4); tests pin it.
     private let clock: @Sendable () -> Int64
@@ -120,12 +129,17 @@ final class TranscriptSession {
     /// them and returns the result through `completeWholeFileRead`. Without it they run inline.
     var wholeFileReads: ((WholeFileRead) -> Void)?
 
+    /// Diagnostics keep every agent's whole task stream instead of its current task (`TaskStreamMode.history`).
+    let taskMode: TaskStreamMode
+
     init(
         configuration: MonitorConfiguration,
         limits: ReadingLimits = .standard,
         pricing: PriceBook? = nil,
-        clock: @escaping @Sendable () -> Int64 = { Clock.milliseconds(Date()) }
+        clock: @escaping @Sendable () -> Int64 = { Clock.milliseconds(Date()) },
+        taskMode: TaskStreamMode = .live
     ) {
+        self.taskMode = taskMode
         enabledSources = configuration.enabledSources
         self.configuration = configuration
         self.limits = limits
@@ -285,7 +299,9 @@ final class TranscriptSession {
         backlog.sort { TranscriptDiscovery.startupOrder($0.file, $1.file) }
         let ordered = backlog.map(\.tracked)
 
-        let jobs = ordered.map { DecodeJob(family: $0.family, reader: $0.reader, size: $0.lastStat.size) }
+        let jobs = ordered.map {
+            DecodeJob(family: $0.family, reader: $0.reader, size: $0.lastStat.size, taskReader: $0.parser.taskReader)
+        }
         let decoded = Self.decodeInParallel(jobs, progress: progress, isCancelled: isCancelled)
         let seededAt = DispatchTime.now().uptimeNanoseconds
         for (file, result) in zip(ordered, decoded) {
@@ -295,8 +311,9 @@ final class TranscriptSession {
             summary.filesRead += 1
             summary.bytesRead += Int64(result.read.bytesRead)
             if result.read.didReset { file.resetParser() }
+            file.parser.taskReader = result.taskReader
             var upserts: [ResponseUpsert] = []
-            file.parser.consume(result.lines, deduper: &deduper) { upserts.append($0) }
+            file.parser.consume(result.lines, taskLines: result.taskLines, deduper: &deduper) { upserts.append($0) }
             if !result.read.failed { _ = file.parser.finishReadCycle { upserts.append($0) } }
             let project = projectName(of: file)
             for upsert in upserts { deliver(upsert, project: project, live: false) }
@@ -359,12 +376,15 @@ final class TranscriptSession {
         var family: TranscriptFamily
         var reader: TranscriptReader
         var size: Int64
+        var taskReader: TaskLineReader?
     }
 
     private struct DecodedFile: Sendable {
         var reader: TranscriptReader
         var lines: DecodedLines
         var read: FileTailer.ReadResult
+        var taskReader: TaskLineReader?
+        var taskLines: [TaskLine]
     }
 
     private struct DecodeProgress: Sendable {
@@ -408,8 +428,9 @@ final class TranscriptSession {
     }
 
     private static func decode(_ job: inout DecodeJob) -> DecodedFile {
-        let (lines, read) = TranscriptDecoder.decode(job.family, reader: &job.reader)
-        return DecodedFile(reader: job.reader, lines: lines, read: read)
+        let output = TranscriptDecoder.decode(job.family, reader: &job.reader, tasks: &job.taskReader)
+        return DecodedFile(reader: job.reader, lines: output.lines, read: output.read, taskReader: job.taskReader,
+                           taskLines: output.tasks)
     }
 
     // MARK: - Live reading
@@ -581,7 +602,8 @@ final class TranscriptSession {
             file.wholeReadInFlight = true
             file.isDirty = false
             if let stat = file.family.stat(file.path) { file.lastStat = stat }
-            schedule(WholeFileRead(path: file.path, family: file.family, fileID: file.fileID, reader: file.reader))
+            schedule(WholeFileRead(path: file.path, family: file.family, fileID: file.fileID, reader: file.reader,
+                                   taskReader: file.parser.taskReader))
             return false
         }
         if file.family.isDatabase { return readDatabase(file, live: live) }
@@ -657,8 +679,9 @@ final class TranscriptSession {
             return true
         }
         if result.read.didReset { file.resetParser() }
+        file.parser.taskReader = result.taskReader
         var upserts: [ResponseUpsert] = []
-        file.parser.consume(result.lines, deduper: &deduper) { upserts.append($0) }
+        file.parser.consume(result.lines, taskLines: result.taskLines, deduper: &deduper) { upserts.append($0) }
         let project = projectName(of: file)
         for upsert in upserts { deliver(upsert, project: project, live: true) }
         finishRead(of: file, result: result.read)
@@ -670,6 +693,7 @@ final class TranscriptSession {
     }
 
     private func finishRead(of file: TrackedFile, result: FileTailer.ReadResult) {
+        file.wasRead = true
         if result.oversized || file.parser.hasPartialHistory { partialHistory = true }
         if result.failed {
             unreadablePaths.insert(file.path)
@@ -689,6 +713,32 @@ final class TranscriptSession {
     }
 
     // MARK: - Engine
+
+    /// The transcript agents of scored sources that were read, with their whole streams (with `TaskStreamMode.history`)
+    /// and resolved parents: the probe's task rows (METRICS 6.9 *Dumps*).
+    func taskAgents() -> [TaskValueReport.Agent] {
+        var parentLinks = self.parentLinks
+        if parentLinksAreStale {
+            let direct = opencodeLinks.merging(zcodeLinks) { first, _ in first }.merging(openclawLinks) { first, _ in first }
+            parentLinks = AgentParents.resolve(Array(parentMembers.values), direct: direct)
+        }
+        return files.values.filter { $0.wasRead && $0.parser.tasks != nil }.sorted { $0.fileID < $1.fileID }.map { file in
+            let state = file.parser.state
+            return TaskValueReport.Agent(id: file.path, source: state.source, phase: state.phase,
+                                         lastLineMs: state.lastLineMs, parentId: parentLinks[file.path],
+                                         events: file.parser.tasks?.events ?? [])
+        }
+    }
+
+    /// New calibrations from the history analysis: every agent's predictions are evaluated again (METRICS 6.11).
+    func setTaskModels(_ models: [SourceKind: TaskModels]) {
+        guard models != taskModels else { return }
+        taskModels = models
+        taskModelsVersion += 1
+        for file in files.values where file.parser.tasks != nil { syncAgent(file) }
+        openclaw?.taskModels = models
+        if let update = openclaw?.taskStatusUpdate() { apply(update, live: false) }
+    }
 
     func advance(
         nowMs: Int64,
@@ -772,7 +822,9 @@ final class TranscriptSession {
         if state.lastLineMs != nil, enabledSources.contains(state.source) {
             let member = AgentParents.Member(id: file.path, family: file.family, thread: state.thread)
             if parentMembers.updateValue(member, forKey: file.path) != member { parentLinksAreStale = true }
-            engine.setAgent(EngineAgent(id: file.path, state: state, parentId: parentLinks[file.path]))
+            var agent = EngineAgent(id: file.path, state: state, parentId: parentLinks[file.path])
+            agent.task = file.currentTaskStatus(models: taskModels[state.source] ?? .prior, modelsVersion: taskModelsVersion)
+            engine.setAgent(agent)
         } else {
             removeAgent(file.path)
         }
@@ -842,7 +894,9 @@ final class TranscriptSession {
         }
         for (id, state) in update.agents {
             if state.lastLineMs != nil, enabledSources.contains(.openclaw) {
-                engine.setAgent(EngineAgent(id: id, state: state, parentId: parentLinks[id]))
+                var agent = EngineAgent(id: id, state: state, parentId: parentLinks[id])
+                agent.task = update.tasks[id]
+                engine.setAgent(agent)
             } else {
                 engine.removeAgent(id: id)
             }
@@ -873,7 +927,7 @@ final class TranscriptSession {
     private func track(_ file: DiscoveredFile, family: TranscriptFamily, root: String, start: FileTailer.Start) -> TrackedFile {
         let tracked = TrackedFile(
             path: file.path, family: family, root: root, fileID: nextFileID, stat: file.stat, start: start,
-            maxLineBytes: limits.maxLineBytes
+            maxLineBytes: limits.maxLineBytes, taskMode: taskMode
         )
         nextFileID &+= 1
         files[file.path] = tracked

@@ -65,10 +65,11 @@ struct LineQuietTests {
         #expect(rule.reading == nil)
     }
 
+    /// `index` is the task score (METRICS 6.9), live.
     static func sums(index: Double, thinking: Double) -> IntelligenceSums {
         var sums = IntelligenceSums()
         sums.output = 100
-        sums.gradedOutput = 100 * index
+        sums.score = TaskSetValue(form: .live, score: index, shown: Int(index.rounded()), agentId: "a", lastLineMs: nil)
         sums.thinking = thinking
         sums.thinkingBase = 100
         return sums
@@ -80,11 +81,10 @@ struct LineQuietTests {
         #expect(!idle)
         let working = rule.apply(Self.sums(index: 92.4, thinking: 41.25), generating: true, at: 1)
         #expect(working)
-        // 92.4 + 20 × 41.25 / 100
-        #expect(rule.reading?.content == .intelligence(index: 101, thinking: "41"))
+        #expect(rule.reading?.content == .intelligence(index: 92, thinking: "41"))
         // A tool call: nothing in the window, the index holds while the readout waits for its quiet moment.
         rule.apply(.zero, generating: false, at: 4)
-        #expect(rule.reading?.content == .intelligence(index: 101, thinking: "0"))
+        #expect(rule.reading?.content == .intelligence(index: 92, thinking: "0"))
         #expect(rule.reading?.quietAt == 11)
         rule.apply(.zero, generating: false, at: 12)
         #expect(rule.reading.map { $0.isGone(at: 12) } == true)

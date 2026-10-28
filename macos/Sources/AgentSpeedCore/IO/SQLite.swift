@@ -132,6 +132,14 @@ final class SQLiteStatement {
         sqlite3_bind_text(statement, index, value, -1, Self.transient)
     }
 
+    func bind(_ index: Int32, _ value: String?) {
+        if let value { bind(index, value) } else { sqlite3_bind_null(statement, index) }
+    }
+
+    func bind(_ index: Int32, _ value: Double?) {
+        if let value { bind(index, value) } else { sqlite3_bind_null(statement, index) }
+    }
+
     func bind(_ index: Int32, blob: UnsafeRawBufferPointer) {
         if let base = blob.baseAddress, blob.count > 0 {
             sqlite3_bind_blob(statement, index, base, Int32(blob.count), Self.transient)
@@ -187,6 +195,11 @@ final class SQLiteStatement {
 
     func double(_ column: Int32) -> Double {
         sqlite3_column_double(statement, column)
+    }
+
+    /// Nil for NULL.
+    func optionalDouble(_ column: Int32) -> Double? {
+        sqlite3_column_type(statement, column) == SQLITE_NULL ? nil : sqlite3_column_double(statement, column)
     }
 
     func string(_ column: Int32) -> String? {

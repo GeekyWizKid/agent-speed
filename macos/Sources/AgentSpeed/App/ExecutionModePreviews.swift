@@ -60,8 +60,9 @@ enum ExecutionModePreviews {
                                     recentSpeed: live > 0 ? live : nil, lastActivity: now.addingTimeInterval(live > 0 ? 0 : -90),
                                     parentId: parent.map { "/preview/\($0).jsonl" })
             agent.modes = modes(effort, tier: tier)
-            agent.grade = PreviewData.previewGrade(model, effort: effort)
-            agent.intelligence = PreviewData.intelligence(output: live, grade: agent.grade, thinkingShare: 0.3, source: source)
+            agent.intelligence = PreviewData.intelligence(output: live, score: PreviewData.previewScore(model, source: source),
+                                                          id: agent.id, idle: phase == .idle, thinkingShare: 0.3,
+                                                          source: source)
             return agent
         }
         snapshot.agents = [

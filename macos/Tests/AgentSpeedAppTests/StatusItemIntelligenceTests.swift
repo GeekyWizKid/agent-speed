@@ -8,12 +8,13 @@ import Testing
 @Suite("Menu bar intelligence block")
 @MainActor
 struct StatusItemIntelligenceTests {
+    /// `index` is the shown value (a live task score; values above 100 only exercise the three-digit cell).
     static func sums(index: Double?, thinking: Double) -> IntelligenceSums {
         var sums = IntelligenceSums()
         guard let index else { return sums }
         let output = max(thinking * 2, 40)
         sums.output = output
-        sums.gradedOutput = output * (index - 20 * thinking / output)
+        sums.score = TaskSetValue(form: .live, score: index, shown: Int(index.rounded()), agentId: "a", lastLineMs: nil)
         sums.thinking = thinking
         sums.thinkingBase = output
         return sums

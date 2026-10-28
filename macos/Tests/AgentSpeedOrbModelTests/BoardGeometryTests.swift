@@ -134,42 +134,63 @@ struct BoardGeometryTests {
     }
 }
 
-/// METRICS 6.9 *Group intelligence* as the board's grouping fills it.
+/// METRICS 6.9 *Live thinking* (group sums) and *Sets and groups* (the highest score) as the board's grouping fills them.
 @Suite("Board group sums")
 struct BoardGroupSumsTests {
-    static func agent(_ id: String, parent: String? = nil, source: SourceKind = .claudeCode, output: Double, grade: Int?) -> AgentStatus {
+    static func agent(_ id: String, parent: String? = nil, source: SourceKind = .claudeCode, output: Double,
+                      thinking: Double? = nil, score: Double? = nil) -> AgentStatus {
         var sums = IntelligenceSums()
         sums.output = output
-        sums.gradedOutput = output * Double(grade ?? 80)
-        sums.thinking = output * 0.25
-        sums.thinkingBase = output
-        return AgentStatus(id: id, source: source, project: id, model: grade == nil ? nil : "m", phase: output > 0 ? .generating : .idle,
+        // A source that does not record reasoning apart adds its output but neither reasoning nor base.
+        sums.thinking = source == .deepseek ? 0 : thinking ?? output * 0.25
+        sums.thinkingBase = source == .deepseek ? 0 : output
+        return AgentStatus(id: id, source: source, project: id, model: "m", phase: output > 0 ? .generating : .idle,
                            isSubagent: parent != nil, live: Rate(output: output, total: output), recentSpeed: nil,
                            lastActivity: Date(), parentId: parent,
-                           grade: grade.map { IntelligenceGrade(modelClass: .standard, level: ($0 - 80) / 6) }, intelligence: sums)
+                           intelligence: Self.scored(sums, id: id, score: score, live: output > 0))
     }
 
-    @Test func membersWeighByTheirTokens() throws {
-        let agents = [Self.agent("r", output: 30, grade: 98), Self.agent("s", parent: "r", output: 10, grade: 80)]
+    static func scored(_ sums: IntelligenceSums, id: String, score: Double?, live: Bool) -> IntelligenceSums {
+        guard let score else { return sums }
+        var sums = sums
+        sums.score = TaskSetValue(id: id, lastLineMs: 0, value: TaskAgentValue(
+            form: live ? .live : .resting, score: score, shown: taskRoundHalfAway(score), state: .passing))
+        return sums
+    }
+
+    @Test func membersAddTheirSumsNeverAnAverageOfTheirShares() throws {
+        let agents = [Self.agent("r", output: 30, thinking: 3), Self.agent("s", parent: "r", output: 10, thinking: 7)]
         let group = try #require(BoardGrouping.groups(agents, metric: .output).first)
-        #expect(group.sums.intelligence.output == 40)
-        // (30 × 98 + 10 × 80) / 40 + 20 × 0.25.
-        #expect(group.intelligence == .live(93.5 + 5))
+        #expect(group.sums.intelligence.output == 40 && group.sums.intelligence.thinking == 10)
+        // (3 + 7) / (30 + 10), not the mean of 0.1 and 0.7.
+        #expect(group.sums.intelligence.thinkingShare == 0.25)
     }
 
-    @Test func atRestTheGroupShowsItsRootsGradeOrNone() throws {
-        let resting = [Self.agent("r", output: 0, grade: 92), Self.agent("s", parent: "r", output: 0, grade: 110)]
-        #expect(try #require(BoardGrouping.groups(resting, metric: .output).first).intelligence == .resting(IntelligenceGrade(modelClass: .standard, level: 2)))
-        let unknownRoot = [Self.agent("r", output: 0, grade: nil), Self.agent("s", parent: "r", output: 0, grade: 110)]
-        #expect(try #require(BoardGrouping.groups(unknownRoot, metric: .output).first).intelligence == .none)
+    @Test func theGroupShowsItsHighestLiveScoreElseItsHighestResting() throws {
+        let mixed = [Self.agent("r", output: 0, score: 81.5), Self.agent("s", parent: "r", output: 12, score: 47.25)]
+        #expect(try #require(BoardGrouping.groups(mixed, metric: .output).first).intelligence == .live(47.25))
+        let resting = [Self.agent("r", output: 0, score: 60), Self.agent("s", parent: "r", output: 0, score: 72.5)]
+        #expect(try #require(BoardGrouping.groups(resting, metric: .output).first).intelligence == .resting(72.5))
+        let none = [Self.agent("r", output: 9), Self.agent("s", parent: "r", output: 3)]
+        #expect(try #require(BoardGrouping.groups(none, metric: .output).first).intelligence == .none)
     }
 
-    /// The groups of `spec/fixtures/intelligence-cases.json` `groupWindows`: a root and all its descendants.
+    @Test func outputWithoutSeparateReasoningLeavesTheShareAlone() throws {
+        let agents = [Self.agent("r", output: 20, thinking: 5), Self.agent("d", parent: "r", source: .deepseek, output: 60)]
+        let group = try #require(BoardGrouping.groups(agents, metric: .output).first)
+        #expect(group.sums.intelligence.output == 80 && group.sums.intelligence.thinkingBase == 20)
+        #expect(group.sums.intelligence.thinkingShare == 0.25)
+    }
+
+    /// The groups of the `thinking` `groupWindows` cases of `spec/fixtures/task-score-cases.json`: a root and all its
+    /// descendants.
     @Test func theFixtureGroupsAreRootsWithTheirDescendants() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("spec/fixtures/intelligence-cases.json")
+            .deletingLastPathComponent().appendingPathComponent("spec/fixtures/task-score-cases.json")
         let root = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
-        for spec in try #require(root["groupWindows"] as? [[String: Any]]) {
+        let thinking = try #require(root["thinking"] as? [String: Any])
+        var checked = 0
+        for spec in try #require(thinking["groupWindows"] as? [[String: Any]]) {
             let agents = try #require(spec["agents"] as? [[String: Any]]).map { item in
                 AgentStatus(id: item["id"] as? String ?? "", source: SourceKind(rawValue: item["source"] as? String ?? "") ?? .codex,
                             project: "p", model: item["model"] as? String, phase: .idle, isSubagent: item["parentId"] is String,
@@ -177,11 +198,15 @@ struct BoardGroupSumsTests {
             }
             let groups = BoardGrouping.groups(agents, metric: .output)
             for query in try #require(spec["queries"] as? [[String: Any]]) {
-                for (id, expected) in try #require(query["groups"] as? [String: [String: Any]]) {
-                    let group = try #require(groups.first { $0.id == id })
-                    #expect(Set([group.root.id] + group.subs.map(\.id)) == Set(expected["members"] as? [String] ?? []), "\(id)")
+                let expected = try #require(query["groups"] as? [String: [String: Any]])
+                #expect(Set(groups.map(\.id)) == Set(expected.keys))
+                for (id, group) in expected {
+                    let found = try #require(groups.first { $0.id == id })
+                    #expect(Set([found.root.id] + found.subs.map(\.id)) == Set(group["members"] as? [String] ?? []), "\(id)")
+                    checked += 1
                 }
             }
         }
+        #expect(checked > 0)
     }
 }

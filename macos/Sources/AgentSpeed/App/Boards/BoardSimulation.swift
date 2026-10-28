@@ -34,8 +34,8 @@ struct BoardSimulation {
         var speed: String?
         /// sim.js `hashUnit(id)`, 0..<1.
         var seed = 0.0
-        /// The live metrics (sim.js `measure`): grade, thinking tok/s, cost µUSD/s, priced.
-        var grade = IntelligenceGrade(modelClass: .standard, level: 2)
+        /// The live metrics (sim.js `measure`): task score, thinking tok/s, cost µUSD/s, priced.
+        var score: Double?
         var thinking = 0.0
         var recordsReasoning = true
         var costRate = 0.0
@@ -173,17 +173,17 @@ struct BoardSimulation {
         return Double(h) / 4_294_967_296
     }
 
-    /// sim.js `classOf`: flagship from 15 USD per million output tokens, standard from 3, unknown standard.
-    static func modelClass(_ model: String) -> ModelClass {
-        guard let price = prices[model] else { return .standard }
-        return price >= 15 ? .flagship : price >= 3 ? .standard : .light
+    /// A simulated task score (METRICS 6.9): steady per agent, none for a source without one.
+    static func score(_ agent: Agent) -> Double? {
+        guard let source = SourceKind(rawValue: agent.source), TaskScoring.scores(source) else { return nil }
+        return (20 + 75 * agent.seed).rounded() + 0.25
     }
 
-    /// sim.js `measure`: the agent's grade, its reasoning (breathing ±20 % over ~7 s), its cost rate (Ultrafast has no
+    /// sim.js `measure`: the agent's task score, its reasoning (breathing ±20 % over ~7 s), its cost rate (Ultrafast has no
     /// list price, Fast is billed at 2×).
     private func measure(_ a: inout Agent) {
         let level = a.effort.flatMap { effort in Self.effortLevels[effort].map { $0 + (effort == "ultra" || effort == "ultracode" ? 1 : 0) } } ?? 2
-        a.grade = IntelligenceGrade(modelClass: Self.modelClass(a.model), level: level)
+        a.score = Self.score(a)
         a.recordsReasoning = recordsReasoning && a.source != "deepseek"
         let breath = 0.8 + 0.4 * (0.5 + 0.5 * sin(time * 0.9 + a.seed * 6.283))
         a.thinking = a.recordsReasoning ? a.live * (0.07 + 0.05 * Double(level)) * (0.7 + 0.6 * a.seed) * breath : 0

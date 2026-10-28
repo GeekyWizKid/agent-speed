@@ -224,7 +224,11 @@ enum BoardSimTick {
         // sim.js `aggregate`: the agent's own METRICS 6.9 sums, as the engine's per-agent values.
         var intelligence = IntelligenceSums()
         intelligence.output = agent.live
-        intelligence.gradedOutput = agent.live * Double(agent.grade.value)
+        if let score = agent.score {
+            let value = TaskAgentValue(form: phase == .idle ? .resting : .live, score: score, shown: Int(score.rounded()),
+                                       state: .passing)
+            intelligence.score = TaskSetValue(id: agent.id, lastLineMs: Int64(agent.lastActive * 1000), value: value)
+        }
         if agent.recordsReasoning {
             intelligence.thinking = agent.thinking
             intelligence.thinkingBase = agent.live
@@ -233,6 +237,6 @@ enum BoardSimTick {
                            project: agent.parentID == nil ? agent.project : agent.label, model: agent.model, phase: phase,
                            isSubagent: agent.parentID != nil, live: Rate(output: agent.live, total: agent.live * 1.6),
                            recentSpeed: nil, lastActivity: Date(timeIntervalSince1970: 1_800_000_000 + agent.lastActive),
-                           parentId: agent.parentID, modes: ExecutionModes(facts), grade: agent.grade, intelligence: intelligence)
+                           parentId: agent.parentID, modes: ExecutionModes(facts), intelligence: intelligence)
     }
 }

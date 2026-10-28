@@ -28,6 +28,8 @@ final class MonitorCore: @unchecked Sendable {
     private let subsets: OSAllocatedUnfairLock<Set<SourceSet>>
 
     private var session: TranscriptSession?
+    /// The latest prediction coefficients (METRICS 6.11), applied to every session this core creates.
+    private var taskModels: [SourceKind: TaskModels] = [:]
     private var watcher: DirectoryWatcher?
     private var watchedPaths: [String] = []
     private var timers: [DispatchSourceTimer] = []
@@ -73,6 +75,17 @@ final class MonitorCore: @unchecked Sendable {
     private var isCancelled: Bool { cancelled.withLock { $0 } }
 
     /// Replaces the requested source sets from any thread; a running monitor publishes them promptly.
+    /// New prediction coefficients (METRICS 6.11): the agents' predictions are evaluated again.
+    func setTaskModels(_ models: [SourceKind: TaskModels]) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            taskModels = models
+            guard let session else { return }
+            session.setTaskModels(models)
+            if isLive { publish() }
+        }
+    }
+
     func setSubsets(_ sets: Set<SourceSet>) {
         let changed = subsets.withLock { current in
             guard current != sets else { return false }
@@ -89,6 +102,7 @@ final class MonitorCore: @unchecked Sendable {
         guard !isCancelled else { return }
         let session = TranscriptSession(configuration: configuration, pricing: pricing)
         session.wholeFileReads = { [weak self] job in self?.scheduleWholeFileRead(job) }
+        session.setTaskModels(taskModels)
         self.session = session
         guard session.hasAvailableRoot else {
             publishPlaceholder(.noSources, session: session)
