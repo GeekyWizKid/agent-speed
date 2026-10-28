@@ -2065,7 +2065,8 @@ costMicroUsd = (costPicoUsd + 500 000) div 1 000 000          (half up)
 integers and any grouping (per file, day, source, model) gives the same number. Free → 0. Unknown → no cost (null),
 never 0: it is counted in `unpricedRequests` instead. A response without a date (8) has no cost either. The cost is
 computed when a response is emitted and again when an update replaces it (4.4), with the table of its date (9.7);
-periods and off-peak hours follow its `endMs`. Cases: `spec/fixtures/price-cases.json` `cost`.
+periods and off-peak hours follow its `endMs`. Cases: `spec/fixtures/price-cases.json` `cost` (fixture tables) and
+`bundled.cost` (the real table of 9.1, each at a fixed `at`).
 
 ### 9.4 Subscriptions
 

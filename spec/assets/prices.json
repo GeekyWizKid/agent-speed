@@ -693,6 +693,47 @@
       "checked": "2026-10-22"
     },
     {
+      "id": "gpt-6.1-terra",
+      "provider": "openai",
+      "name": "GPT-6.1 Terra",
+      "status": "current",
+      "prices": {
+        "input": 1,
+        "cachedInput": 0.05,
+        "cacheWrite": 1.25,
+        "output": 5
+      },
+      "tiers": [
+        {
+          "above": 272000,
+          "input": 2,
+          "cachedInput": 0.1,
+          "cacheWrite": 2.5,
+          "output": 7.5
+        }
+      ],
+      "fast": {
+        "prices": {
+          "input": 2,
+          "cachedInput": 0.1,
+          "cacheWrite": 2.5,
+          "output": 10
+        },
+        "tiers": [
+          {
+            "above": 272000,
+            "input": 4,
+            "cachedInput": 0.2,
+            "cacheWrite": 5,
+            "output": 15
+          }
+        ]
+      },
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "checked": "2026-10-28",
+      "note": "Cache writes (30-minute lifetime) cost 1.25x input; 12-hour writes (2.5x) are not separated in logs and are priced as 30-minute writes."
+    },
+    {
       "id": "gpt-6-sol",
       "provider": "openai",
       "name": "GPT-6 Sol",
@@ -4408,6 +4449,22 @@
     {
       "model": "gpt-6.1-sol",
       "expect": "gpt-6.1-sol"
+    },
+    {
+      "model": "gpt-6.1-terra",
+      "expect": "gpt-6.1-terra"
+    },
+    {
+      "model": "openai/gpt-6.1-terra",
+      "expect": "gpt-6.1-terra"
+    },
+    {
+      "model": "gpt-6.1-terra-fast",
+      "expect": "gpt-6.1-terra fast"
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "expect": "gpt-5.6-terra"
     },
     {
       "model": "claude-fable-5",

@@ -7,8 +7,8 @@
 
 Validation covers spec/assets/prices.json (schema, prices, aliases, normalization lists, its own `tests`),
 spec/assets/currencies.json (codes, digits, symbols, fallback rates, names in spec/strings.json) and the stable
-fixture tables in spec/fixtures/prices/ with spec/fixtures/price-cases.json. Only the Python standard library is
-used; reference.py imports this module.
+fixture tables in spec/fixtures/prices/ with spec/fixtures/price-cases.json (its `bundled` cases price the real
+table). Only the Python standard library is used; reference.py imports this module.
 """
 import argparse
 import json
@@ -779,8 +779,28 @@ def at_ms(case):
     return instant_ms(case["at"]) if "at" in case else None
 
 
+def check_cost_case(label, idx, case):
+    r = dict(case["tokens"], model=case["model"], provider=case.get("provider"), endMs=at_ms(case),
+             fast=case.get("fast", False))
+    res = idx.resolve(r["model"], r["provider"])
+    pricing = pricing_of(res.entry, r, res.fast or r["fast"]) if res.kind == "priced" else None
+    if pricing is not None:
+        pico, tier = cost_pico(pricing, r)
+        got = dict(costPicoUsd=pico, costMicroUsd=round_micro(pico), tier=tier)
+    else:
+        got = dict(costPicoUsd=0 if res.kind == "free" else None, costMicroUsd=idx.price(r), tier=None)
+    errors = []
+    if got["costMicroUsd"] != idx.price(r):
+        errors.append("%s %s: Index.price disagrees" % (label, case["name"]))
+    for k, v in case["expect"].items():
+        if got[k] != v:
+            errors.append("%s %s: %s expected %r got %r" % (label, case["name"], k, v, got[k]))
+    return errors
+
+
 def check_cases(path=None):
-    """Fixture tables and cases (stable, independent of real prices)."""
+    """Fixture tables and cases (stable, independent of real prices), then the `bundled` cases against the real
+    table at fixed instants."""
     path = path or os.path.join(FIXTURES, "price-cases.json")
     cases = load(path)
     errors = []
@@ -797,21 +817,10 @@ def check_cases(path=None):
         if got.label != case["expect"]:
             errors.append("resolve[%d] %r: expected %s got %s" % (i, case["model"], case["expect"], got.label))
     for i, case in enumerate(cases["cost"]):
-        idx = indexes[case["table"]]
-        r = dict(case["tokens"], model=case["model"], provider=case.get("provider"), endMs=at_ms(case),
-                 fast=case.get("fast", False))
-        res = idx.resolve(r["model"], r["provider"])
-        pricing = pricing_of(res.entry, r, res.fast or r["fast"]) if res.kind == "priced" else None
-        if pricing is not None:
-            pico, tier = cost_pico(pricing, r)
-            got = dict(costPicoUsd=pico, costMicroUsd=round_micro(pico), tier=tier)
-        else:
-            got = dict(costPicoUsd=0 if res.kind == "free" else None, costMicroUsd=idx.price(r), tier=None)
-        if got["costMicroUsd"] != idx.price(r):
-            errors.append("cost[%d] %s: Index.price disagrees" % (i, case["name"]))
-        for k, v in case["expect"].items():
-            if got[k] != v:
-                errors.append("cost[%d] %s: %s expected %r got %r" % (i, case["name"], k, v, got[k]))
+        errors += check_cost_case("cost[%d]" % i, indexes[case["table"]], case)
+    bundled = Index(load(TABLE))
+    for i, case in enumerate(cases.get("bundled", {}).get("cost", [])):
+        errors += check_cost_case("bundled.cost[%d]" % i, bundled, case)
     tables = [idx.table for idx in indexes.values()]
     for i, case in enumerate(cases.get("days", [])):
         days = DayPricing(tables, case["bindings"])
