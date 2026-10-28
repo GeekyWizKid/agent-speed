@@ -1291,6 +1291,27 @@ cases += [
                               {"sources": ["claudeCode"], "liveOutput": 100.0, "liveCost": 300.0},
                               {"sources": ["codex", "claudeCode"], "liveOutput": 700 / 3, "liveCost": 2900 / 3},
                               {"sources": ["gemini"], "liveOutput": 0.0, "liveCost": 0.0}]}]},
+    # A board group (DESIGN 2c): g1 with its sub-agent g2 and g2's sub-agent g3; h1 alone. g3's in-flight estimate
+    # uses its own reference response (100 tok/s, 200 micro-USD/s); g2's response has no price.
+    {"name": "a board group's cost adds its members' own contributions (METRICS 9.5 per agent and per group)",
+     "agents": [agent("g1", "codex", "m1", last=B + 3000),
+                agent("g2", "codex", "m2", last=B + 3000, parent="g1"),
+                agent("g3", "codex", "m1", "generating", B + 1500, B + 1500, "g2"),
+                agent("h1", "claudeCode", "m3", last=B + 3000)],
+     "responses": [ec("rg1", "g1", "codex", "m1", B, B + 3000, 300, 900),
+                   ec("rg2", "g2", "codex", "m2", B + 1000, B + 3000, 100, None),
+                   ec("rg3", "g3", "codex", "m1", B - 3000, B - 1000, 200, 400),
+                   ec("rh1", "h1", "claudeCode", "m3", B + 1500, B + 3000, 150, 600)],
+     "queries": [{"nowMs": B + 3000, "liveOutput": 700 / 3, "liveTotal": 700 / 3, "estimatedShare": 150 / 700,
+                  "liveCost": 1800 / 3, "liveCostKnownShare": 600 / 700,
+                  "groups": [{"agents": ["g1", "g2", "g3"], "liveCost": 1200 / 3, "liveCostKnownShare": 450 / 550},
+                             {"agents": ["h1"], "liveCost": 600 / 3, "liveCostKnownShare": 1.0},
+                             {"agents": ["g2"], "liveCost": 0.0, "liveCostKnownShare": 0.0},
+                             {"agents": ["g3"], "liveCost": 300 / 3, "liveCostKnownShare": 1.0}]},
+                 {"nowMs": B + 10_000, "liveOutput": 100.0, "liveTotal": 100.0, "estimatedShare": 1.0,
+                  "liveCost": 200.0, "liveCostKnownShare": 1.0,
+                  "groups": [{"agents": ["g1", "g2", "g3"], "liveCost": 200.0, "liveCostKnownShare": 1.0},
+                             {"agents": ["h1"], "liveCost": 0.0, "liveCostKnownShare": 1.0}]}]},
 ]
 with open(os.path.join(ROOT, "engine-cases.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "Times are Unix ms. Unless a case sets todayStartMs, use 0. Compare floats with 1e-6 "
@@ -1299,7 +1320,10 @@ with open(os.path.join(ROOT, "engine-cases.json"), "w", encoding="utf-8") as f:
                            "responses and agents (keys that are absent are not checked). Responses with "
                            "`costMicroUsd` carry their priced cost (METRICS 9.3; null = unknown price): `liveCost` is "
                            "micro-USD per second and `liveCostKnownShare` the share of live output tokens whose cost "
-                           "is known (9.5); `todayCostMicroUsd` and `todayUnpricedRequests` are exact (9.6).",
+                           "is known (9.5); `todayCostMicroUsd` and `todayUnpricedRequests` are exact (9.6). `groups` "
+                           "evaluate 9.5 per agent and per group (a board group, DESIGN 2c): live cost and known share "
+                           "over the contributions of the listed agents only, with the reference sets of the whole "
+                           "case.",
                "cases": cases}, f, indent=2)
     f.write("\n")
 print("fixtures written to", ROOT)
