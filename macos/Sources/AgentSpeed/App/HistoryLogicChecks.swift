@@ -177,6 +177,9 @@ enum HistoryLogicChecks {
         check("csv source id of OpenClaw", HistoryCSV.sourceID(.openclaw) == "openclaw")
         check("settings saved before OpenClaw load with OpenClaw on and its state folders", openclawSettingsUpgrade())
         check("an OpenClaw database chosen as the folder stays a file", openclawDatabaseSetting())
+        check("csv source id of Hermes Agent", HistoryCSV.sourceID(.hermes) == "hermes")
+        check("settings saved before Hermes Agent load with it on and its home", hermesSettingsUpgrade())
+        check("a Hermes logs folder chosen in Sources replaces the home", hermesFolderSetting())
         let risky = DaySummary(
             day: today, requests: 0, input: 0, cachedInput: 0, cacheWriteInput: 0, output: 0, reasoning: 0,
             measuredOutput: 0, measuredMs: 0, unfinalized: 0, agents: 0, peak: nil,
@@ -405,13 +408,44 @@ enum HistoryLogicChecks {
         UserDefaults.standard.removePersistentDomain(forName: suite)
         defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
         guard let defaults = UserDefaults(suiteName: suite) else { return false }
-        let before = SourceKind.allCases.filter { $0 != .openclaw }.map(\.rawValue)
+        let before = SourceKind.allCases.filter { $0 != .openclaw && $0 != .hermes }.map(\.rawValue)
         defaults.set(before.filter { $0 != "omp" }, forKey: "enabledSources")
         defaults.set(before, forKey: "knownSources")
         let settings = AppSettings(defaults: defaults)
         return settings.isEnabled(.openclaw) && !settings.isEnabled(.omp) && settings.openclawRoot == nil
             && settings.monitorConfiguration.openclawRoot == nil
             && TranscriptFolder.openclaw.urls(in: settings) == LiveMonitor.defaultOpenclawRoots
+    }
+
+    /// Settings saved by a version before Hermes Agent: it starts enabled and reads the automatic home.
+    private static func hermesSettingsUpgrade() -> Bool {
+        let suite = "AgentSpeedHermesUpgradeCheck"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        guard let defaults = UserDefaults(suiteName: suite) else { return false }
+        let before = SourceKind.allCases.filter { $0 != .hermes }.map(\.rawValue)
+        defaults.set(before.filter { $0 != "pi" }, forKey: "enabledSources")
+        defaults.set(before, forKey: "knownSources")
+        let settings = AppSettings(defaults: defaults)
+        return settings.isEnabled(.hermes) && !settings.isEnabled(.pi) && settings.hermesRoot == nil
+            && settings.monitorConfiguration.hermesRoot == nil
+            && TranscriptFolder.hermes.urls(in: settings) == [LiveMonitor.defaultHermesHome]
+            && SourceKind.hermes.transcriptFolder == .hermes
+    }
+
+    /// A Hermes `logs` folder picked in Sources is stored and passed to the monitor; Reset returns to the home.
+    private static func hermesFolderSetting() -> Bool {
+        let suite = "AgentSpeedHermesFolderCheck"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        guard let defaults = UserDefaults(suiteName: suite) else { return false }
+        let folder = URL(fileURLWithPath: "/Users/dev/.hermes/profiles/work/logs", isDirectory: true)
+        TranscriptFolder.hermes.setURL(folder, in: AppSettings(defaults: defaults))
+        let reloaded = AppSettings(defaults: defaults)
+        let chosen = reloaded.hermesRoot?.path == folder.path && reloaded.monitorConfiguration.hermesRoot?.path == folder.path
+            && TranscriptFolder.hermes.shownURLs(in: reloaded) == [folder]
+        TranscriptFolder.hermes.setURL(nil, in: reloaded)
+        return chosen && AppSettings(defaults: defaults).hermesRoot == nil && !TranscriptFolder.hermes.acceptsDatabaseFile
     }
 
     /// `openclaw-agent.sqlite` picked in Sources is stored and read back as that file, not as a folder.
