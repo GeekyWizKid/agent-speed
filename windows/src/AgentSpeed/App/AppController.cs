@@ -134,7 +134,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
         _hub = new SpeedHub(new DispatcherSynchronizationContext(_ui));
         _historyHub = new HistoryHub(new DispatcherSynchronizationContext(_ui));
-        _history = new HistoryController(_historyHub, _settings, _theme, _loc, _cost.Display) { Traffic = _traffic.Hub };
+        _history = new HistoryController(_historyHub, _settings, _theme, _loc, _cost.Display) { Traffic = _traffic.Hub, Prices = _cost.Book };
         _hub.SnapshotChanged += (_, snapshot) =>
         {
             if (!_hub.IsPreviewing)

@@ -321,65 +321,6 @@
         </Style>
 
         <!-- The unknown-price models: a keyboard list that scrolls inside the flyout, rows without a selection chip -->
-        <Style x:Key="UnpricedListStyle" TargetType="ListBox">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-            <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="SelectionMode" Value="Single" />
-            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
-            <Setter Property="KeyboardNavigation.TabNavigation" Value="Once" />
-            <Setter Property="KeyboardNavigation.DirectionalNavigation" Value="Contained" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListBox">
-                        <ScrollViewer Focusable="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                                      CanContentScroll="False" PanningMode="VerticalOnly">
-                            <ItemsPresenter />
-                        </ScrollViewer>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="ItemTemplate">
-                <Setter.Value>
-                    <DataTemplate DataType="{x:Type history:UnpricedModelView}">
-                        <DockPanel Height="26" Background="Transparent" ToolTip="{Binding SourceName}">
-                            <Ellipse DockPanel.Dock="Left" Width="7" Height="7" Margin="0,0,8,0" VerticalAlignment="Center" Fill="{Binding Dot}" />
-                            <TextBlock DockPanel.Dock="Right" Text="{Binding Requests}" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"
-                                       Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center" />
-                        </DockPanel>
-                    </DataTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="UnpricedItemStyle" TargetType="ListBoxItem">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="8,0" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="FocusVisualStyle" Value="{StaticResource RoundedFocusVisual}" />
-            <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="Chip" CornerRadius="4" Background="Transparent" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chip" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <Style x:Key="BreakdownItemStyle" TargetType="ListBoxItem">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
             <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
@@ -946,27 +887,20 @@
             </history:FooterLinePanel>
         </Border>
 
-        <!-- The models behind the unknown-price notice: name, requests and source; closes with Escape or a click elsewhere. -->
-        <!-- Offsets take back the card's 12 DIP shadow margin: the card starts at the notice's icon, 4 DIP above it. -->
+        <!-- Why the notice's requests have no price, by source, with the copyable diagnostics (DESIGN 9, Unknown prices);
+             closes with Escape or a click elsewhere. Offsets take back the card's 12 DIP shadow margin: the card starts at
+             the notice's icon, 4 DIP above it. -->
         <Popup x:Name="UnpricedFlyout" Grid.Row="3" PlacementTarget="{Binding ElementName=UnpricedNotice}" Placement="Top" StaysOpen="False"
                AllowsTransparency="True" PopupAnimation="Fade" HorizontalOffset="-12" VerticalOffset="8" Closed="OnUnpricedClosed"
                KeyDown="OnUnpricedKeyDown">
-            <Border Margin="12" Width="300" Padding="16,14,16,14" CornerRadius="8" BorderThickness="1"
+            <Border Margin="12" Width="380" Padding="16" CornerRadius="8" BorderThickness="1"
                     Background="{DynamicResource FlyoutBackground}" BorderBrush="{DynamicResource FlyoutBorderBrush}"
                     TextElement.FontFamily="{DynamicResource AppFontFamily}"
                     TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Opacity="0.2" />
                 </Border.Effect>
-                <StackPanel>
-                    <TextBlock Text="{loc:Loc cost.unknown}" FontSize="13" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2" />
-                    <ListBox x:Name="UnpricedList" Margin="-8,8,-8,0" MaxHeight="220" ItemsSource="{Binding UnpricedModels}"
-                             Style="{StaticResource UnpricedListStyle}" ItemContainerStyle="{StaticResource UnpricedItemStyle}"
-                             AutomationProperties.Name="{loc:Loc cost.unknown}" />
-                    <Rectangle Style="{StaticResource Hairline}" Margin="0,10,0,8" />
-                    <TextBlock Text="{loc:Loc history.unpricedModels.hint}" FontSize="12" TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                </StackPanel>
+                <history:UnpricedPanel x:Name="UnpricedContent" />
             </Border>
         </Popup>
     </Grid>

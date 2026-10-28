@@ -179,6 +179,7 @@ public static class PreviewHistory
                 var totals = new TokenTotals(requests, input, (long)(input * 0.9), input / 40, output, output / 3);
                 usage = [.. usage.Select(m => m with { Cost = PreviewCost(m, totals) })];
                 var dayCost = usage.Aggregate(CostTally.Zero, (sum, m) => sum + m.Cost!.Value);
+                var withoutCost = offset > count * 3 / 4 && (offset * 7 + (int)source) % 4 == 0;
                 result.Add(new DailyUsage(
                     date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
                     source,
@@ -191,8 +192,13 @@ public static class PreviewHistory
                     usage)
                 {
                     // A quarter of the oldest days predate costs, as after an upgrade whose logs are gone.
-                    Cost = offset > count * 3 / 4 && (offset * 7 + (int)source) % 4 == 0 ? null : dayCost,
+                    Cost = withoutCost ? null : dayCost,
                     PriceVersion = Pricing.PriceBook.Bundled.Version,
+                    Unpriced = withoutCost
+                        ? new UnpricedReading(requests, 0, [])
+                        : new UnpricedReading(0, 0, UnpricedFacts.Sorted(usage
+                            .Where(m => m.Cost is { UnpricedRequests: > 0 })
+                            .Select(m => KeyValuePair.Create(UnpricedFact.Of(m.Model, null, false), m.Cost!.Value.UnpricedRequests)))),
                 });
             }
         }
