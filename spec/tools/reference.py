@@ -4,7 +4,7 @@
   python3 spec/tools/reference.py --check-fixtures
   python3 spec/tools/reference.py --dump-today [--codex PATH] [--claude PATH] [--dsh PATH] [--gemini PATH]
                                               [--omp PATH] [--pi PATH] [--antigravity PATH] [--workbuddy PATH]
-                                              [--workbuddy-ai PATH] [--openclaw PATH]
+                                              [--workbuddy-ai PATH] [--openclaw PATH] [--hermes PATH]
   python3 spec/tools/reference.py --dump-history [--utc] [--prices PATH] [...]
   python3 spec/tools/reference.py --write-history-fixture
   python3 spec/tools/reference.py --dump-unpriced [--days N | --first YYYY-MM-DD --last YYYY-MM-DD | --live]
@@ -17,18 +17,22 @@ Costs (METRICS 9) use spec/assets/prices.json unless --prices names another tabl
 """
 import argparse
 import math
+import ntpath
+import posixpath
 import sqlite3
 import subprocess
 import json
 import os
 import re
 import shutil
+import stat
 import sys
 import tempfile
 import time
 from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote
+from zoneinfo import ZoneInfo
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -1667,6 +1671,343 @@ def openclaw_states(db_path, dedupe, stop_at=None):
         db.close()
 
 
+# ----------------------------------------------------------------------------- Hermes Agent (METRICS 4.15)
+
+HERMES_FILE = re.compile(r"agent\.log(?:\.[0-9]+)?")
+HERMES_RECORD = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2}),([0-9]{3}) "
+                           r"(DEBUG|INFO|WARNING|ERROR|CRITICAL)( .*)", re.S)
+HERMES_TURN = re.compile(r"conversation turn: session=[^ ]* model=(.*?) provider=[^ ]* platform=([^ ]*) "
+                         r"history=-?[0-9]+ msg=", re.S)
+HERMES_CALL = re.compile(r"API call #([0-9]+): model=(.*?) provider=([^ ]*) in=(-?[0-9]+|\?) out=(-?[0-9]+|\?) "
+                         r"total=(-?[0-9]+|\?) latency=(-?[0-9]+(?:\.[0-9]+)?)s"
+                         r"(?: cache=(-?[0-9]+)/-?[0-9]+ \(-?[0-9]+%\))?(?: write=(-?[0-9]+))?(?: .*)?", re.S)
+HERMES_LOG_PREFIX = re.compile(r"\[[^\]]*\] *")
+HERMES_FAILED = ("API call failed after ", "Non-retryable client error: ")
+HERMES_LOGGERS = ("agent.turn_context", "agent.conversation_loop")
+HERMES_CONFIG_MAX = 1 << 20
+HERMES_MODEL_HEADER = re.compile(r"(?:model|\"model\"|'model')[ \t]*:(?:[ \t]+(?:#.*)?)?")
+HERMES_RUNTIME_KEY = re.compile(r"(?:openai_runtime|\"openai_runtime\"|'openai_runtime')[ \t]*:(|[ \t].*)")
+HERMES_CODEX_VALUE = re.compile(r"[ \t]+(?:\"[ \t]*codex_app_server[ \t]*\"|'[ \t]*codex_app_server[ \t]*'|codex_app_server)"
+                                r"(?:[ \t]+#.*)?[ \t]*", re.I | re.A)
+
+
+def hermes_home(env=None, platform=None, home=None):
+    """The Hermes home of METRICS 4.15: $HERMES_HOME (the root of a profile home), else the platform default."""
+    env = os.environ if env is None else env
+    platform = platform or sys.platform
+    home = home or os.path.expanduser("~")
+    paths = ntpath if platform == "win32" else posixpath
+    if platform == "win32":
+        local = (env.get("LOCALAPPDATA") or "").strip()
+        default = paths.join(local or paths.join(home, "AppData", "Local"), "hermes")
+    else:
+        default = paths.join(home, ".hermes")
+    raw = (env.get("HERMES_HOME") or "").strip()
+    if raw == "~" or raw.startswith(("~/", "~\\")):
+        raw = home + raw[1:]
+    if not raw or not paths.isabs(raw):
+        return default
+    value = paths.normpath(raw)
+    fold = (lambda p: paths.normcase(p)) if platform == "win32" else (lambda p: p)
+    base = fold(paths.normpath(default))
+    if fold(value) == base or fold(value).startswith(base.rstrip(paths.sep) + paths.sep):
+        return default
+    parent = paths.dirname(value)
+    if paths.basename(parent) == "profiles":
+        return paths.dirname(parent)
+    return value
+
+
+def hermes_log_folders(home):
+    """`<home>/logs`, then `<home>/profiles/<name>/logs` in ordinal order; missing folders skipped."""
+    folders = [os.path.join(home, "logs")]
+    profiles = os.path.join(home, "profiles")
+    if os.path.isdir(profiles):
+        for name in sorted(os.listdir(profiles)):
+            path = os.path.join(profiles, name)
+            if not name.startswith(".") and os.path.isdir(path) and not os.path.islink(path):
+                folders.append(os.path.join(path, "logs"))
+    return [f for f in OrderedDict.fromkeys(folders) if os.path.isdir(f)]
+
+
+def hermes_setting_folders(setting):
+    """The user setting: a Hermes home (it has a `logs` folder) or one log folder."""
+    if os.path.isdir(os.path.join(setting, "logs")):
+        return hermes_log_folders(setting)
+    return [setting] if os.path.isdir(setting) else []
+
+
+def discover_hermes(folder):
+    """`agent.log` and `agent.log.<n>` directly in a log folder, regular files only."""
+    if not os.path.isdir(folder):
+        return []
+    return [os.path.join(folder, name) for name in sorted(os.listdir(folder))
+            if HERMES_FILE.fullmatch(name) and os.path.isfile(os.path.join(folder, name))
+            and not os.path.islink(os.path.join(folder, name))]
+
+
+def hermes_config_path(folder, platform=None):
+    """The `config.yaml` of a log folder's profile (METRICS 4.15 Codex runtime): none unless the folder is `logs`."""
+    folder = os.path.normpath(folder)
+    name = os.path.basename(folder)
+    if (name.lower() if (platform or sys.platform) == "win32" else name) != "logs":
+        return None
+    return os.path.join(os.path.dirname(folder), "config.yaml")
+
+
+def hermes_codex_runtime(text):
+    """Whether config.yaml text selects the Codex runtime: the last `openai_runtime` key line of a top-level `model`
+    block decides (METRICS 4.15 Codex runtime). A tolerant line reader, not a YAML parser."""
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    codex, in_model, indent = False, False, None
+    for line in text.split("\n"):
+        if line.endswith("\r"):
+            line = line[:-1]
+        rest = line.lstrip(" \t")
+        if not rest or rest.startswith("#"):
+            continue
+        body = line.lstrip(" ")
+        depth = len(line) - len(body)
+        if depth == 0:
+            in_model, indent = HERMES_MODEL_HEADER.fullmatch(line) is not None, None
+            continue
+        if not in_model:
+            continue
+        if indent is None:
+            indent = depth
+        if depth == indent:
+            key = HERMES_RUNTIME_KEY.fullmatch(body)
+            if key:
+                codex = HERMES_CODEX_VALUE.fullmatch(key.group(1)) is not None
+    return codex
+
+
+def hermes_lines(path, start_offset=0, max_lines=None):
+    """Complete physical lines from `start_offset`, `\\r\\n` or `\\n`, decoded as UTF-8 with replacement."""
+    with open(path, "rb") as f:
+        f.seek(start_offset)
+        data = f.read()
+    end = data.rfind(b"\n")
+    if end < 0:
+        return
+    for count, raw in enumerate(data[:end].split(b"\n"), start=1):
+        if max_lines is not None and count > max_lines:
+            return
+        if len(raw) > MAX_LINE:
+            continue
+        if raw.endswith(b"\r"):
+            raw = raw[:-1]
+        yield raw.decode("utf-8", errors="replace")
+
+
+def hermes_wall_ms(m, tz):
+    """The record timestamp (local wall time, no zone) as Unix ms: fold 0, `tz` or this computer's zone."""
+    y, mo, d, h, mi, s, frac = (int(m.group(i)) for i in range(1, 8))
+    if not (1970 <= y <= 9999 and 1 <= mo <= 12 and 1 <= d <= days_in_month(y, mo) and h <= 23 and mi <= 59
+            and s <= 59):
+        return None
+    try:
+        dt = datetime(y, mo, d, h, mi, s, tzinfo=tz) if tz is not None else datetime(y, mo, d, h, mi, s)
+        return int(dt.timestamp()) * 1000 + frac
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def hermes_split(rest, logger):
+    """(session id, message) when `rest` (the text after the level) belongs to `logger`; the id is empty untagged."""
+    head = " " + logger + ": "
+    if rest.startswith(head):
+        return "", rest[len(head):]
+    if rest.startswith(" ["):
+        end = rest.find("] " + logger + ": ", 2)
+        if end > 2:
+            return rest[2:end], rest[end + len(logger) + 4:]
+    return None
+
+
+def hermes_count(text):
+    """A token count of the line: an integer literal, negatives 0, capped (METRICS 3.2); absent 0."""
+    return 0 if text is None else min(max(int(text), 0), TOKEN_CAP)
+
+
+def hermes_latency_ms(text):
+    """The latency's decimal digits × 1000, truncated to whole milliseconds and saturated (METRICS 3.6)."""
+    whole, _, frac = text.partition(".")
+    return min(int(whole) * 1000 + int((frac + "000")[:3]), INT64_MAX)
+
+
+class HermesSet:
+    """One log folder: one parser state for all its files, one agent (FileState) per session id."""
+
+    def __init__(self, folder, tz=None):
+        self.folder, self.tz = folder, tz
+        self.agents = OrderedDict()
+        self.malformed = 0
+        self.codex_runtime = False
+        self.config_sig = None
+
+    def check_config(self):
+        """Re-reads the profile's config.yaml when its modification time or size changed (METRICS 4.15)."""
+        path = hermes_config_path(self.folder)
+        try:
+            st = os.stat(path) if path else None
+        except (FileNotFoundError, NotADirectoryError):
+            st = None
+        except OSError:
+            return
+        if st is None or not stat.S_ISREG(st.st_mode):
+            self.config_sig = None
+            self.set_codex_runtime(False)
+            return
+        sig = (st.st_mtime_ns, st.st_size)
+        if sig == self.config_sig:
+            return
+        data = b""
+        if st.st_size <= HERMES_CONFIG_MAX:
+            try:
+                with open(path, "rb") as f:
+                    data = f.read(HERMES_CONFIG_MAX + 1)
+            except OSError:
+                return
+        self.config_sig = sig
+        self.set_codex_runtime(len(data) <= HERMES_CONFIG_MAX
+                               and hermes_codex_runtime(data.decode("utf-8", errors="replace")))
+
+    def set_codex_runtime(self, on):
+        if on and not self.codex_runtime:
+            for state in self.agents.values():
+                if state.phase == "generating":
+                    state.phase, state.in_flight = "idle", None
+        self.codex_runtime = on
+
+    def agent(self, sid, ts):
+        state = self.agents.get(sid)
+        if state is None:
+            state = FileState(self.folder + "#" + sid, "hermes")
+            state.source_decided = True
+            self.agents[sid] = state
+        state.last_line = ts if state.last_line is None else max(state.last_line, ts)
+        return state
+
+    def line(self, text, dedupe):
+        m = HERMES_RECORD.fullmatch(text)
+        if m is None:
+            return
+        level, rest = m.group(8), m.group(9)
+        for logger in HERMES_LOGGERS:
+            split = hermes_split(rest, logger)
+            if split is not None:
+                break
+        else:
+            return
+        sid, msg = split
+        kind = None
+        if logger == "agent.turn_context":
+            turn = HERMES_TURN.match(msg) if level == "INFO" else None
+            kind = "turn" if turn else None
+        elif level == "INFO" and msg.startswith("API call #"):
+            kind = "call"
+        elif level in ("INFO", "WARNING") and msg.startswith(("Turn ended: ", "Turn ended with pending tool result")):
+            kind = "end"
+        elif level == "ERROR":
+            prefix = HERMES_LOG_PREFIX.match(msg)
+            kind = "end" if msg[prefix.end() if prefix else 0:].startswith(HERMES_FAILED) else None
+        if kind is None:
+            return
+        ts = hermes_wall_ms(m, self.tz)
+        if ts is None:
+            return
+        if kind == "turn":
+            state = self.agent(sid, ts)
+            state.phase, state.in_flight = ("idle", None) if self.codex_runtime else ("generating", ts)
+            if turn.group(1):
+                state.model = turn.group(1)
+            state.is_subagent = turn.group(2) == "subagent"
+        elif kind == "end":
+            state = self.agent(sid, ts)
+            state.phase, state.in_flight = "idle", None
+        else:
+            self.call(sid, msg, text[:23], ts, dedupe)
+
+    def call(self, sid, msg, stamp, ts, dedupe):
+        c = HERMES_CALL.fullmatch(msg)
+        if c is None:
+            self.malformed += 1
+            return
+        state = self.agent(sid, ts)
+        key = "hermes:%s:%s:%s" % (sid, c.group(1), stamp)
+        if dedupe.owner(key) is not None:
+            return
+        dedupe.claim(key, state.path)
+        model = c.group(2) or None
+        if model:
+            state.model = model
+        if state.phase == "generating":
+            state.in_flight = ts
+        if c.group(4) == "?" or c.group(5) == "?":
+            return
+        tokens = dict(input=hermes_count(c.group(4)), cachedInput=hermes_count(c.group(8)),
+                      cacheWriteInput=hermes_count(c.group(9)), output=hermes_count(c.group(5)), reasoning=0)
+        if tokens["input"] == 0 and tokens["output"] == 0:
+            return
+        latency = c.group(7)
+        start = None if latency.startswith("-") else max(ts - hermes_latency_ms(latency), -INT64_MAX - 1)
+        provider = c.group(3) if c.group(3) not in ("", "unknown") else None
+        emit(state, key, start, ts, tokens, model, provider=provider)
+
+    def feed(self, path, dedupe, start_offset=0, max_lines=None):
+        for text in hermes_lines(path, start_offset, max_lines):
+            self.line(text, dedupe)
+
+
+def hermes_files(folder, since_ms=None):
+    """A log set's files in startup order (modification time, then path); files older than `since_ms` start at their
+    end and are not read (METRICS 5)."""
+    timed = sorted((os.path.getmtime(p), p) for p in discover_hermes(folder))
+    return [p for t, p in timed if since_ms is None or t * 1000 >= since_ms]
+
+
+def hermes_sets(folders, dedupe, tz=None, since_ms=None):
+    sets = []
+    for folder in OrderedDict.fromkeys(folders):
+        hs = HermesSet(folder, tz)
+        hs.check_config()
+        for path in hermes_files(folder, since_ms):
+            hs.feed(path, dedupe)
+        sets.append(hs)
+    return sets
+
+
+class HermesTail:
+    """Live reading of one log set (METRICS 4.15 Reading and rotation): files followed by identity across renames."""
+
+    def __init__(self, folder, tz=None):
+        self.set = HermesSet(folder, tz)
+        self.offsets = {}
+
+    def read(self, dedupe):
+        self.set.check_config()
+        timed = []
+        for path in discover_hermes(self.set.folder):
+            st = os.stat(path)
+            timed.append((st.st_mtime_ns, path, (st.st_dev, st.st_ino), st.st_size))
+        offsets = {}
+        for _, path, ident, size in sorted(timed):
+            offset = self.offsets.get(ident, 0)
+            if size < offset:
+                offset = 0
+            with open(path, "rb") as f:
+                f.seek(offset)
+                data = f.read()
+            end = data.rfind(b"\n")
+            if end >= 0:
+                self.set.feed(path, dedupe, offset, data[:end].count(b"\n") + 1)
+                offset += end + 1
+            offsets[ident] = offset
+        self.offsets = offsets
+
+
 # ----------------------------------------------------------------------------- WorkBuddy (METRICS 4.9)
 
 WB_FOLDERS = OrderedDict([("workbuddy", ".workbuddy"), ("workbuddyAi", ".workbuddy-ai")])
@@ -2472,6 +2813,9 @@ def check_fixtures():
             failures.append("workbuddy discover: expected %r got %r" % (wb["discover"], found))
         failures += check_traces(root, expected, wb["traces"])
         failures += check_workbuddy_roots()
+    hm = expected.get("hermes")
+    if hm:
+        failures += check_hermes(root, hm, dedupe)
     hist_path = os.path.join(root, "history-expected.json")
     if os.path.exists(hist_path):
         hist = json.load(open(hist_path, encoding="utf-8"))
@@ -2535,9 +2879,9 @@ def check_fixtures():
         print("\n".join(failures))
         sys.exit(1)
     print("reference implementation matches all fixtures (%d files, %d Antigravity databases, %d OpenClaw databases, "
-          "%d engine cases, price cases, %d model attribution cases, unpriced %s)" % (
-        len(expected["order"]), len((ag or {}).get("order", [])), len((ocl or {}).get("dbOrder", [])), len(cases),
-        len(attribution["cases"]), diagnostics.summary()))
+          "%d Hermes log files, %d engine cases, price cases, %d model attribution cases, unpriced %s)" % (
+        len(expected["order"]), len((ag or {}).get("order", [])), len((ocl or {}).get("dbOrder", [])),
+        len((hm or {}).get("order", [])), len(cases), len(attribution["cases"]), diagnostics.summary()))
 
 
 def report_model_id(index, model, provider=None):
@@ -2680,6 +3024,164 @@ def check_omp_roots():
             got = omp_roots(env, platform, home)
             if [os.path.normpath(p) for p in got] != [os.path.normpath(p) for p in want]:
                 failures.append("omp roots %r %s: expected %r got %r" % (env, platform, want, got))
+    return failures
+
+
+def hermes_agent_view(state):
+    return dict(source=state.source, project=state.project, model=state.model, isSubagent=state.is_subagent,
+                parentId=None, phase=state.phase, inFlightStartMs=state.in_flight, lastLineMs=state.last_line,
+                responses=list(state.responses.values()))
+
+
+def check_hermes(root, hm, dedupe):
+    """METRICS 4.15 on spec/fixtures/hermes: discovery, the log sets in `hermes.order`, traces, wall times, homes,
+    a scripted rotation, config.yaml texts and a scripted Codex runtime switch."""
+    failures = []
+    tz = ZoneInfo(hm["timeZone"])
+    home = os.path.join(root, hm["home"])
+    found = sorted(os.path.relpath(p, root).replace(os.sep, "/") for f in hermes_log_folders(home)
+                   for p in discover_hermes(f))
+    if found != hm["discover"]:
+        failures.append("hermes discover: expected %r got %r" % (hm["discover"], found))
+    sets = OrderedDict()
+    for rel in hm["order"]:
+        folder = os.path.dirname(os.path.join(root, rel))
+        if folder not in sets:
+            sets[folder] = HermesSet(folder, tz)
+            sets[folder].check_config()
+        sets[folder].feed(os.path.join(root, rel), dedupe)
+    for rel_folder, exp in hm["sets"].items():
+        hs = sets.get(os.path.join(root, rel_folder))
+        if hs is None:
+            failures.append("hermes %s: log set not read" % rel_folder)
+            continue
+        if hs.malformed != exp["malformedLines"]:
+            failures.append("hermes %s: malformedLines expected %r got %r" % (rel_folder, exp["malformedLines"],
+                                                                            hs.malformed))
+        if list(hs.agents) != list(exp["agents"]):
+            failures.append("hermes %s: agents expected %r got %r" % (rel_folder, list(exp["agents"]), list(hs.agents)))
+        for sid, want in exp["agents"].items():
+            if sid not in hs.agents:
+                continue
+            got = hermes_agent_view(hs.agents[sid])
+            for k, v in want.items():
+                if got[k] != v:
+                    failures.append("hermes %s#%s: %s expected %r got %r" % (rel_folder, sid, k, v, got[k]))
+    for t in hm["traces"]:
+        trace_dedupe, trace_sets = Deduper(), {}
+        for rel in hm["order"]:
+            folder = os.path.dirname(os.path.join(root, rel))
+            if folder not in trace_sets:
+                trace_sets[folder] = HermesSet(folder, tz)
+                trace_sets[folder].check_config()
+            hs = trace_sets[folder]
+            if rel == t["file"]:
+                hs.feed(os.path.join(root, rel), trace_dedupe, max_lines=t["afterLine"])
+                break
+            hs.feed(os.path.join(root, rel), trace_dedupe)
+        state = hs.agents.get(t["session"])
+        got = (state.phase, state.in_flight) if state else (None, None)
+        if got != (t["phase"], t["inFlightStartMs"]):
+            failures.append("hermes %s line %d %s: expected %s/%r got %s/%r" % (
+                t["file"], t["afterLine"], t["session"], t["phase"], t["inFlightStartMs"], got[0], got[1]))
+    for case in hm["wallTimes"]:
+        m = HERMES_RECORD.fullmatch(case["line"])
+        got = hermes_wall_ms(m, ZoneInfo(case["timeZone"])) if m else None
+        if got != case["ms"]:
+            failures.append("hermes wall time %r in %s: expected %r got %r" % (case["line"][:23], case["timeZone"],
+                                                                             case["ms"], got))
+    for case in hm["homes"]:
+        got = hermes_home(case["env"], case["platform"], case["home"])
+        if got != case["expected"]:
+            failures.append("hermes home %r %s: expected %r got %r" % (case["env"], case["platform"],
+                                                                       case["expected"], got))
+    failures += check_hermes_rotation(hm["rotation"])
+    for case in hm["runtimeConfigs"]:
+        got = hermes_codex_runtime(case["text"])
+        if got != case["codexRuntime"]:
+            failures.append("hermes config.yaml %r: codexRuntime expected %r got %r" % (case["name"],
+                                                                                      case["codexRuntime"], got))
+    failures += check_hermes_codex_runtime(hm["codexRuntime"])
+    return failures
+
+
+def check_hermes_codex_runtime(scenario):
+    """Replays `hermes.codexRuntime` in a scratch Hermes home (METRICS 4.15 Codex runtime)."""
+    failures = []
+    tz = ZoneInfo(scenario["timeZone"])
+    with tempfile.TemporaryDirectory() as tmp:
+        home = os.path.join(tmp, "home")
+        tails = OrderedDict()
+        for rel in scenario["logFolders"]:
+            os.makedirs(os.path.join(home, *rel.split("/")))
+            tails[rel] = HermesTail(os.path.join(home, *rel.split("/")), tz)
+        dedupe = Deduper()
+        for number, step in enumerate(scenario["steps"], start=1):
+            path = os.path.join(home, *(step.get("append") or step.get("write") or step.get("remove") or "").split("/"))
+            if "append" in step:
+                with open(path, "ab") as fh:
+                    fh.write("".join(line + "\n" for line in step["lines"]).encode("utf-8"))
+                os.utime(path, (step["mtime"] / 1000, step["mtime"] / 1000))
+            elif "write" in step:
+                data = step["text"].encode("utf-8")
+                data += b"#" * (step.get("size", len(data)) - len(data))
+                with open(path, "wb") as fh:
+                    fh.write(data)
+                os.utime(path, (step["mtime"] / 1000, step["mtime"] / 1000))
+            elif "remove" in step:
+                os.remove(path)
+            else:
+                for tail in tails.values():
+                    tail.read(dedupe)
+                keys = [k for tail in tails.values() for st in tail.set.agents.values() for k in st.responses]
+                if sorted(keys) != sorted(step["responseKeys"]):
+                    failures.append("hermes codex runtime step %d: keys expected %r got %r" % (
+                        number, step["responseKeys"], keys))
+                for rel, want in step["sets"].items():
+                    hs = tails[rel].set
+                    if hs.codex_runtime != want["codexRuntime"]:
+                        failures.append("hermes codex runtime step %d %s: codexRuntime expected %r got %r" % (
+                            number, rel, want["codexRuntime"], hs.codex_runtime))
+                    for sid, agent_want in want["agents"].items():
+                        st = hs.agents.get(sid)
+                        got = dict(phase=st.phase, inFlightStartMs=st.in_flight, lastLineMs=st.last_line,
+                                   model=st.model) if st else None
+                        if got is None or any(got[k] != v for k, v in agent_want.items()):
+                            failures.append("hermes codex runtime step %d %s#%s: expected %r got %r" % (
+                                number, rel, sid, agent_want, got))
+    return failures
+
+
+def check_hermes_rotation(rotation):
+    """Replays `hermes.rotation` in a scratch log folder with real renames (identity following, METRICS 4.15)."""
+    failures = []
+    tz = ZoneInfo(rotation["timeZone"])
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = os.path.join(tmp, "logs")
+        os.makedirs(folder)
+        tail, dedupe = HermesTail(folder, tz), Deduper()
+        for number, step in enumerate(rotation["steps"], start=1):
+            if "append" in step:
+                path = os.path.join(folder, step["append"])
+                text = step["text"] if "text" in step else "".join(line + "\n" for line in step["lines"])
+                with open(path, "ab") as fh:
+                    fh.write(text.encode("utf-8"))
+                os.utime(path, (step["mtime"] / 1000, step["mtime"] / 1000))
+            elif "rename" in step:
+                os.rename(os.path.join(folder, step["rename"][0]), os.path.join(folder, step["rename"][1]))
+            elif "delete" in step:
+                os.remove(os.path.join(folder, step["delete"]))
+            else:
+                tail.read(dedupe)
+                keys = [k for st in tail.set.agents.values() for k in st.responses]
+                if sorted(keys) != sorted(step["responseKeys"]):
+                    failures.append("hermes rotation step %d: keys expected %r got %r" % (number, step["responseKeys"],
+                                                                                         keys))
+                for sid, want in step["agents"].items():
+                    st = tail.set.agents.get(sid)
+                    got = dict(phase=st.phase, inFlightStartMs=st.in_flight, lastLineMs=st.last_line) if st else None
+                    if got != want:
+                        failures.append("hermes rotation step %d %s: expected %r got %r" % (number, sid, want, got))
     return failures
 
 
@@ -2858,6 +3360,11 @@ def fixture_omp_roots(root):
     return omp_roots({"PI_CONFIG_DIR": "omp"}, "linux", root)
 
 
+def fixture_hermes_dirs(root):
+    """The fixture folder `hermes/home` plays the Hermes home (`~/.hermes`): its log folder and every profile's."""
+    return hermes_log_folders(os.path.join(root, "hermes", "home"))
+
+
 def fixture_state(root, rel):
     path = os.path.join(root, rel)
     source = fixture_source(rel)
@@ -2888,8 +3395,14 @@ def fixture_history(root, expected, config=HISTORY_PRICES):
                                          antigravity_stores(gemini_dir=os.path.join(copy, "antigravity")),
                                          fixture_wb_roots(copy), pi_dirs=fixture_pi_roots(copy),
                                          openclaw_dbs=[db for r in fixture_openclaw_dirs(copy) for db in
-                                                       discover_openclaw(r)]),
+                                                       discover_openclaw(r)],
+                                         hermes_dirs=fixture_hermes_dirs(copy), hermes_tz=hermes_zone(expected)),
                              tz=timezone.utc, day_pricing=fixture_pricing(root, config))
+
+
+def hermes_zone(expected):
+    zone = expected.get("hermes", {}).get("timeZone")
+    return ZoneInfo(zone) if zone else None
 
 
 def write_history_fixture():
@@ -2961,7 +3474,7 @@ def startup_files(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=()
 
 def today_rows(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
                table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(), openclaw_dbs=(),
-               codex_roots=None):
+               codex_roots=None, hermes_dirs=()):
     """Today's responses as the engine seeds them (the `--dump-today` rows), with files and bytes read."""
     index = pricing.Index(pricing.load(table))
     now = datetime.now().astimezone()
@@ -3007,6 +3520,21 @@ def today_rows(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
                                          ("requestCount", 1),
                                          ("costMicroUsd", index.price(r) if has_day(r["endMs"]) else None),
                                          ("effort", effort), ("speed", speed)]))
+    for folder in OrderedDict.fromkeys(hermes_dirs):
+        for path in hermes_files(folder, today_start - 15 * 60_000):
+            read_files += 1
+            read_bytes += os.path.getsize(path)
+    for hs in hermes_sets(hermes_dirs, dedupe, since_ms=today_start - 15 * 60_000):
+        for st in hs.agents.values():
+            for r in st.responses.values():
+                if r["endMs"] >= today_start:
+                    rows.append(OrderedDict([("key", r["key"]), ("source", "hermes"), ("agentId", st.path)]
+                                            + [(k, r[k]) for k in ("model", "startMs", "endMs", "input", "cachedInput",
+                                                                   "cacheWriteInput", "cacheWrite1hInput", "output",
+                                                                   "reasoning", "final", "provider", "fast")]
+                                            + [("requestCount", 1),
+                                               ("costMicroUsd", index.price(r) if has_day(r["endMs"]) else None),
+                                               ("effort", None), ("speed", None)]))
     for source, agent, record in harnesses.collect(zcode_root, kimi_root, grok_root):
         if record["endMs"] >= today_start:
             rows.append(dict(record, source=source, agentId=agent,
@@ -3017,11 +3545,11 @@ def today_rows(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
 
 def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
                table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(), openclaw_dbs=(),
-               codex_roots=None):
+               codex_roots=None, hermes_dirs=()):
     started = time.time()
     rows, read_files, read_bytes = today_rows(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores,
                                               wb_roots, table, zcode_root, kimi_root, grok_root, pi_dirs,
-                                              openclaw_dbs, codex_roots)
+                                              openclaw_dbs, codex_roots, hermes_dirs)
     for r in rows:
         print(json.dumps(r, ensure_ascii=False, separators=(",", ":")))
     counts = {}
@@ -3036,7 +3564,7 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
 
 def collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs=(), omp_dirs=(), ag_stores=(),
                 wb_roots=(), include_archived=True, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(),
-                openclaw_dbs=(), codex_roots=None):
+                openclaw_dbs=(), codex_roots=None, hermes_dirs=(), hermes_tz=None):
     """Parses every log completely (METRICS 8) and returns all responses with their source and agent."""
     files = startup_files(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots,
                           limit=10 ** 9, include_archived=include_archived, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
@@ -3058,6 +3586,8 @@ def collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs=(), 
     if opencode_db and os.path.exists(opencode_db):
         for st in opencode_states(opencode_db, dedupe):
             out += [(st.source, st.path, r) for r in st.responses.values()]
+    for hs in hermes_sets(hermes_dirs, dedupe, hermes_tz):
+        out += [(st.source, st.path, r) for st in hs.agents.values() for r in st.responses.values()]
     out += harnesses.collect(zcode_root, kimi_root, grok_root)
     return out
 
@@ -3151,6 +3681,8 @@ def main():
     parser.add_argument("--gemini", action="append", default=None, help="Gemini CLI tmp folder (repeatable)")
     parser.add_argument("--omp", action="append", default=None, help="omp sessions folder (repeatable)")
     parser.add_argument("--pi", default=None, help="Pi sessions folder (replaces every automatic Pi root)")
+    parser.add_argument("--hermes", default=None,
+                        help="Hermes Agent home or one logs folder (replaces the automatic Hermes home)")
     parser.add_argument("--antigravity", action="append", default=None,
                         help="Antigravity store folder or its conversations folder (repeatable)")
     parser.add_argument("--workbuddy", default=None, help="WorkBuddy data folder (~/.workbuddy) or its projects folder")
@@ -3181,6 +3713,7 @@ def main():
     gemini_dirs = args.gemini or gemini_roots()
     omp_dirs = args.omp or omp_roots()
     pi_dirs = [args.pi] if args.pi else pi_roots()
+    hermes_dirs = hermes_setting_folders(args.hermes) if args.hermes else hermes_log_folders(hermes_home())
     ag_stores = ([s for a in args.antigravity for s in antigravity_stores(setting=a)] if args.antigravity
                  else antigravity_stores())
     wb_roots = workbuddy_roots(settings={"workbuddy": args.workbuddy, "workbuddyAi": args.workbuddy_ai})
@@ -3207,13 +3740,13 @@ def main():
         if args.live:
             rows, _, _ = today_rows(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots,
                                     args.prices, zcode_root, kimi_root, grok_root, pi_dirs=pi_dirs,
-                                    openclaw_dbs=openclaw_dbs, codex_roots=codex_roots)
+                                    openclaw_dbs=openclaw_dbs, codex_roots=codex_roots, hermes_dirs=hermes_dirs)
             parts = diagnostics.live_parts([(r["source"], r) for r in rows], first)
         else:
             parts = diagnostics.history_parts(daily_history(
                 collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs, omp_dirs, ag_stores, wb_roots,
                             zcode_root=zcode_root, kimi_root=kimi_root, grok_root=grok_root, pi_dirs=pi_dirs,
-                            openclaw_dbs=openclaw_dbs, codex_roots=codex_roots),
+                            openclaw_dbs=openclaw_dbs, codex_roots=codex_roots, hermes_dirs=hermes_dirs),
                 day_pricing=pricing.DayPricing([pricing.load(args.prices)])))
         dump_unpriced(parts, args.prices, view, first, last, args.source)
         return
@@ -3221,7 +3754,8 @@ def main():
         rows = daily_history(collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs, omp_dirs,
                                          ag_stores, wb_roots, zcode_root=zcode_root, kimi_root=kimi_root,
                                          grok_root=grok_root, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
-                                         codex_roots=codex_roots), tz=timezone.utc if args.utc else None,
+                                         codex_roots=codex_roots, hermes_dirs=hermes_dirs),
+                             tz=timezone.utc if args.utc else None,
                              day_pricing=pricing.DayPricing([pricing.load(args.prices)]))
         for row in rows:
             print(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
@@ -3230,7 +3764,8 @@ def main():
         check_fixtures()
     elif args.dump_today:
         dump_today(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots, args.prices,
-                   zcode_root, kimi_root, grok_root, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs, codex_roots=codex_roots)
+                   zcode_root, kimi_root, grok_root, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs, codex_roots=codex_roots,
+                   hermes_dirs=hermes_dirs)
     else:
         parser.print_help()
 

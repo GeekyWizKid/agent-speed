@@ -49,6 +49,7 @@ enum PreviewData {
             source(.grokBuild, speed * 0.02, TokenTotals(requests: 18, input: 530_000, output: 23_000), 1),
             source(.pi, speed * 0.04, TokenTotals(requests: 31, input: 1_200_000, output: 27_000), 1),
             source(.openclaw, speed * 0.05, TokenTotals(requests: 44, input: 1_900_000, output: 36_000), 1),
+            source(.hermes, speed * 0.04, TokenTotals(requests: 38, input: 1_500_000, output: 31_000), 1),
         ]
         var liveCost = LiveCost.zero
         var todayCost = CostTally()
@@ -162,7 +163,7 @@ enum PreviewData {
             switch source.kind {
             case .deepseek: source.available = false
             case .claudeDesktop: source.enabled = false
-            case .codex, .claudeCode, .opencode, .gemini, .omp, .antigravity, .workbuddy, .workbuddyAi, .zcode, .kimi, .grokBuild, .pi, .openclaw: return source
+            case .codex, .claudeCode, .opencode, .gemini, .omp, .antigravity, .workbuddy, .workbuddyAi, .zcode, .kimi, .grokBuild, .pi, .openclaw, .hermes: return source
             }
             source.sessionCount = 0
             source.live = .zero
@@ -228,6 +229,7 @@ enum PreviewData {
         case .grokBuild: 1
         case .pi: 4
         case .openclaw: 6
+        case .hermes: 3
         }
     }
 }

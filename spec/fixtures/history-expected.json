@@ -215,6 +215,65 @@
     },
     {
       "date": "2026-10-20",
+      "source": "hermes",
+      "requests": 9,
+      "input": 84913,
+      "cachedInput": 52460,
+      "cacheWriteInput": 18600,
+      "output": 1910,
+      "reasoning": 0,
+      "measuredOutput": 1610,
+      "measuredMs": 33900,
+      "unfinalized": 0,
+      "costMicroUsd": 189028,
+      "unpricedRequests": 2,
+      "priceVersion": 1,
+      "agents": 5,
+      "models": {
+        "anthropic/claude-opus-5-5": {
+          "requests": 5,
+          "output": 1170,
+          "measuredOutput": 870,
+          "measuredMs": 15500,
+          "costMicroUsd": 171765,
+          "unpricedRequests": 0
+        },
+        "claude-sonnet-5-5": {
+          "requests": 1,
+          "output": 210,
+          "measuredOutput": 210,
+          "measuredMs": 3200,
+          "costMicroUsd": 12150,
+          "unpricedRequests": 0
+        },
+        "gpt-5.5": {
+          "requests": 1,
+          "output": 410,
+          "measuredOutput": 410,
+          "measuredMs": 6700,
+          "costMicroUsd": 5113,
+          "unpricedRequests": 0
+        },
+        "hermes-4-405b": {
+          "requests": 2,
+          "output": 120,
+          "measuredOutput": 120,
+          "measuredMs": 8500,
+          "costMicroUsd": 0,
+          "unpricedRequests": 2
+        }
+      },
+      "unpriced": [
+        {
+          "model": "hermes-4-405b",
+          "provider": "nous",
+          "fast": false,
+          "requests": 2
+        }
+      ]
+    },
+    {
+      "date": "2026-10-20",
       "source": "omp",
       "requests": 25,
       "input": 288101,
@@ -549,6 +608,34 @@
           "requests": 1
         }
       ]
+    },
+    {
+      "date": "2026-10-21",
+      "source": "hermes",
+      "requests": 1,
+      "input": 3200,
+      "cachedInput": 0,
+      "cacheWriteInput": 3000,
+      "output": 180,
+      "reasoning": 0,
+      "measuredOutput": 180,
+      "measuredMs": 3500,
+      "unfinalized": 0,
+      "costMicroUsd": 14550,
+      "unpricedRequests": 0,
+      "priceVersion": 2,
+      "agents": 1,
+      "models": {
+        "claude-sonnet-5-5": {
+          "requests": 1,
+          "output": 180,
+          "measuredOutput": 180,
+          "measuredMs": 3500,
+          "costMicroUsd": 14550,
+          "unpricedRequests": 0
+        }
+      },
+      "unpriced": []
     },
     {
       "date": "2026-10-21",

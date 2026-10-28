@@ -1,8 +1,8 @@
 import Foundation
 
 /// Computes the daily history (METRICS 8): every transcript of the enabled sources (plus Codex `archived_sessions`,
-/// every omp and Pi root and every Antigravity conversation database) and every OpenCode session, parsed completely with
-/// the live rules, in startup order, incrementally against a `HistoryDatabase`.
+/// every omp and Pi root, every Antigravity conversation database and every Hermes Agent log of every profile) and every
+/// OpenCode session, parsed completely with the live rules, in startup order, incrementally against a `HistoryDatabase`.
 ///
 /// Not thread-safe: one owner (a serial queue) drives it.
 final class HistoryAnalyzer {
@@ -17,6 +17,7 @@ final class HistoryAnalyzer {
     static let openclawFamily = "openclaw"
     /// Meta key prefix of an analysed OpenClaw database's identity.
     static let openclawMetaPrefix = "openclaw:"
+    static let hermesFamily = "hermes"
     static let maxWorkers = 4
 
     struct Options: Sendable {
@@ -124,6 +125,15 @@ final class HistoryAnalyzer {
         var windows: [PlannedOpenClawWindow] = []
     }
 
+    /// One Hermes Agent log file to analyse again, stored under its identity so a rotation keeps its contributions.
+    private struct PlannedHermesFile {
+        var entryKey: String
+        var path: String
+        var folder: String
+        var stat: FileStat
+        var previous: HistoryDatabase.Entry?
+    }
+
     private struct Plan {
         var files: [PlannedFile] = []
         var discovered = 0
@@ -132,10 +142,11 @@ final class HistoryAnalyzer {
         var zcode: [PlannedZcodeSession] = []
         var zcodeIdentity: String?
         var openclaw: [PlannedOpenClawDatabase] = []
+        var hermes: [PlannedHermesFile] = []
 
         var openclawWindows: Int { openclaw.reduce(0) { $0 + $1.windows.count } }
 
-        var bytes: Int64 { files.reduce(0) { $0 + $1.stat.size } }
+        var bytes: Int64 { files.reduce(0) { $0 + $1.stat.size } + hermes.reduce(0) { $0 + $1.stat.size } }
     }
 
     /// The work a run would do: discovered files whose identity or analysis version changed, and changed OpenCode
@@ -173,7 +184,37 @@ final class HistoryAnalyzer {
         if configuration.readsOpenclaw {
             try planOpenclaw(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing, into: &plan)
         }
+        if configuration.readsHermes {
+            planHermes(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing, into: &plan)
+        }
         return plan
+    }
+
+    /// Hermes Agent's log files (METRICS 4.15, 8): per log folder in startup order, each stored under its identity
+    /// (device and inode), so a renamed (rotated) file is unchanged and the deleted oldest keeps its contributions.
+    private func planHermes(configuration: MonitorConfiguration, options: Options, zoneChanged: Bool,
+                            repricing: Bool, into plan: inout Plan) {
+        var seen: Set<String> = []
+        for folder in configuration.resolvedHermesFolders {
+            for file in HermesSource.discover(folder).sorted(by: TranscriptDiscovery.startupOrder) {
+                let key = Self.hermesEntryKey(file.stat.identity)
+                guard seen.insert(key).inserted else { continue }
+                plan.discovered += 1
+                let previous = entries[key]
+                if let previous, !zoneChanged, previous.version == options.analysisVersion, previous.family == Self.hermesFamily,
+                   previous.size == file.stat.size, previous.modified == file.stat.modifiedNs,
+                   !(repricing && previous.hasUnpriced) {
+                    continue
+                }
+                plan.hermes.append(PlannedHermesFile(entryKey: key, path: file.path, folder: folder, stat: file.stat,
+                                                     previous: previous))
+            }
+        }
+    }
+
+    /// The store key of a Hermes Agent log: its identity, not its path.
+    static func hermesEntryKey(_ identity: FileIdentity) -> String {
+        "hermes:\(identity.device):\(identity.inode)"
     }
 
     /// OpenClaw's agent databases in startup order (METRICS 4.14, 8). A database whose files did not change is not
@@ -325,12 +366,12 @@ final class HistoryAnalyzer {
         let plan = try plan(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing)
         report.filesDiscovered = plan.discovered
         let sessions = plan.opencode?.sessions ?? []
-        var state = Progress(filesTotal: plan.files.count + sessions.count + plan.zcode.count + plan.openclawWindows,
-                             bytesTotal: plan.bytes)
+        var state = Progress(filesTotal: plan.files.count + sessions.count + plan.zcode.count + plan.openclawWindows
+                                + plan.hermes.count, bytesTotal: plan.bytes)
         progress(state)
         func elapsedMs() -> Double { Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000 }
 
-        if plan.files.isEmpty && sessions.isEmpty && plan.zcode.isEmpty && plan.openclaw.isEmpty {
+        if plan.files.isEmpty && sessions.isEmpty && plan.zcode.isEmpty && plan.openclaw.isEmpty && plan.hermes.isEmpty {
             try finish(plan: plan, zone: zone, priceVersion: priceVersion)
             report.durationMs = elapsedMs()
             return report
@@ -338,7 +379,7 @@ final class HistoryAnalyzer {
 
         var deduper = Deduper.hashed()
         let replaced = Set(plan.files.compactMap(\.previous?.id) + sessions.compactMap(\.previous?.id) + plan.zcode.compactMap(\.previous?.id)
-            + plan.openclaw.flatMap { $0.windows.compactMap(\.previous?.id) })
+            + plan.openclaw.flatMap { $0.windows.compactMap(\.previous?.id) } + plan.hermes.compactMap(\.previous?.id))
         try database.loadKeys(excluding: replaced, into: &deduper)
         var labeler = DayLabeler(timeZone: options.timeZone)
         var pending: [(path: String, entry: HistoryDatabase.Entry, keys: [UInt64])] = []
@@ -488,6 +529,32 @@ final class HistoryAnalyzer {
             }
         }
 
+        if !report.cancelled {
+            let zone = configuration.resolvedHermesTimeZone
+            for (index, file) in plan.hermes.enumerated() {
+                if isCancelled() { report.cancelled = true; break }
+                state.filesDone += 1
+                state.bytesDone += file.stat.size
+                let fileID = HermesSource.firstFileID &+ FileID(truncatingIfNeeded: index)
+                guard let (days, size, modified) = analyseHermes(file, fileID: fileID, zone: zone, deduper: &deduper,
+                                                                 labeler: &labeler) else {
+                    // Unreadable, vanished or renamed meanwhile: keep what was stored, including its key ownership.
+                    report.filesUnreadable += 1
+                    if let id = file.previous?.id { deduper.insertSettled(try database.keys(ofFile: id)) }
+                    progress(state)
+                    continue
+                }
+                let entry = HistoryDatabase.Entry(id: file.previous?.id, family: Self.hermesFamily, size: size,
+                                                  modified: modified, version: options.analysisVersion, days: days)
+                entries[file.entryKey] = entry
+                pending.append((file.entryKey, entry, deduper.finishFile()))
+                report.filesAnalyzed += 1
+                report.bytesAnalyzed += size
+                try flush(force: false)
+                progress(state)
+            }
+        }
+
         try flush(force: true)
         try saveBindings()
         if !report.cancelled {
@@ -495,6 +562,41 @@ final class HistoryAnalyzer {
         }
         report.durationMs = elapsedMs()
         return report
+    }
+
+    /// One Hermes Agent log read whole with the live rules. A session's day counts as one agent in the file that first
+    /// claims it, so a session spread over rotated files is one agent of the day (METRICS 8). Nil when the file cannot
+    /// be read or its path names another file now.
+    private func analyseHermes(
+        _ file: PlannedHermesFile,
+        fileID: FileID,
+        zone: TimeZone,
+        deduper: inout Deduper,
+        labeler: inout DayLabeler
+    ) -> (days: [UsageKey: DayAggregate], size: Int64, modified: Int64)? {
+        var parser = HermesLogSet(folder: file.folder, timeZone: zone, fileID: fileID)
+        var tailer = FileTailer(path: file.path, start: .beginning)
+        var records: [ResponseRecord] = []
+        let read = autoreleasepool {
+            tailer.read(expecting: file.stat.identity) { line in
+                parser.consume(line, deduper: &deduper) { records.append($0.record) }
+            }
+        }
+        guard !read.failed, !read.otherFile, let stat = read.stat else {
+            _ = deduper.finishFile()
+            return nil
+        }
+        var days = DayAggregate.contributions(of: records, source: .hermes, labeler: &labeler, pricing: pricing)
+        var agents: [String: Int] = [:]
+        var claimed: Set<String> = []
+        for record in records where DayLabeler.hasDay(record.endMs) {
+            let day = labeler.label(forMs: record.endMs)
+            let marker = "hermes-agent-day:" + day + ":" + record.agentId
+            guard claimed.insert(marker).inserted else { continue }
+            if deduper.claim(marker, for: fileID) == .new { agents[day, default: 0] += 1 }
+        }
+        for key in days.keys { days[key]?.agents = agents[key.day] ?? 0 }
+        return (days, stat.size, stat.modifiedNs)
     }
 
     private func finish(plan: Plan, zone: String, priceVersion: String, opencodeComplete: Bool = true) throws {

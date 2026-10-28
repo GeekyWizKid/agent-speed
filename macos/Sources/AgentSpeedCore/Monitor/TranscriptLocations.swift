@@ -148,6 +148,9 @@ enum TranscriptLocations {
     /// OpenClaw's state folders (METRICS 2, 4.14) for this process's environment and home folder.
     static var defaultOpenclawRoots: [URL] { OpenClawHome.current.stateFolders }
 
+    /// The Hermes Agent home (METRICS 2, 4.15) for this process's environment and home folder.
+    static var defaultHermesHome: URL { URL(fileURLWithPath: HermesHome.current.folder, isDirectory: true) }
+
     static func sessionsFolder(_ folder: URL) -> URL {
         folder.lastPathComponent == "sessions" ? folder : folder.appendingPathComponent("sessions", isDirectory: true)
     }
@@ -276,6 +279,24 @@ extension MonitorConfiguration {
 
     var readsOpenclaw: Bool { enabledSources.contains(.openclaw) }
 
+    /// The Hermes Agent home, or the folder of the setting (a home or one log folder), and whether it is the setting
+    /// (METRICS 2, 4.15).
+    var resolvedHermesRoot: (path: String, isSetting: Bool) {
+        if let hermesRoot { return (TranscriptDiscovery.normalizedRoot(hermesRoot.path), true) }
+        return ((hermesHome ?? .current).folder, false)
+    }
+
+    /// The log folders Hermes Agent's root names now: the home's own and every profile's, or the setting's.
+    var resolvedHermesFolders: [String] {
+        let root = resolvedHermesRoot
+        return root.isSetting ? HermesHome.settingFolders(root.path) : HermesHome.logFolders(ofHome: root.path)
+    }
+
+    /// The zone Hermes's wall-clock times are read in: this computer's, unless a test sets one.
+    var resolvedHermesTimeZone: TimeZone { hermesTimeZone ?? .autoupdatingCurrent }
+
+    var readsHermes: Bool { enabledSources.contains(.hermes) }
+
     func reads(_ family: TranscriptFamily) -> Bool {
         family.sources.contains { enabledSources.contains($0) }
     }
@@ -310,5 +331,6 @@ extension MonitorConfiguration {
             || resolvedOpencodeRoot != other.resolvedOpencodeRoot
             || resolvedZcodeRoot != other.resolvedZcodeRoot
             || resolvedOpenclawRoots != other.resolvedOpenclawRoots
+            || resolvedHermesRoot != other.resolvedHermesRoot
     }
 }

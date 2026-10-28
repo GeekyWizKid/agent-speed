@@ -25,9 +25,11 @@ struct FileTailer: Sendable {
         var stat: FileStat?
         /// A whole-document file over its size limit was not read (`partialHistory`).
         var oversized = false
+        /// The path names another file than the one expected; nothing was read.
+        var otherFile = false
     }
 
-    let path: String
+    private(set) var path: String
     private(set) var offset: Int64 = 0
     private(set) var identity: FileIdentity?
     private var start: Start?
@@ -42,8 +44,13 @@ struct FileTailer: Sendable {
         lines = LineSplitter(maxLineBytes: maxLineBytes)
     }
 
-    /// Reads every complete line appended since the last call.
-    mutating func read(onReset: () -> Void = {}, onLine: (UnsafeRawBufferPointer) -> Void) -> ReadResult {
+    /// Reads every complete line appended since the last call. With `expecting`, a path that now names another file is
+    /// not read (a file followed across renames, METRICS 4.15).
+    mutating func read(
+        expecting expected: FileIdentity? = nil,
+        onReset: () -> Void = {},
+        onLine: (UnsafeRawBufferPointer) -> Void
+    ) -> ReadResult {
         var result = ReadResult()
         let descriptor = Darwin.open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
         guard descriptor >= 0 else {
@@ -56,6 +63,10 @@ struct FileTailer: Sendable {
             return result
         }
         result.stat = stat
+        if let expected, expected != stat.identity {
+            result.otherFile = true
+            return result
+        }
 
         if let identity, identity != stat.identity || stat.size < offset {
             restart()
@@ -86,6 +97,11 @@ struct FileTailer: Sendable {
             result.bytesRead += count
         }
         return result
+    }
+
+    /// The followed file now has this path (renamed); offset and buffered line stay.
+    mutating func follow(to path: String) {
+        self.path = path
     }
 
     /// Forgets everything; the next read starts at offset 0.

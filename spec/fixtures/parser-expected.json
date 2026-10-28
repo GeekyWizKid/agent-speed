@@ -1,5 +1,5 @@
 {
-  "_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this folder. `mtimes` (Unix ms) give the modification times that produce both orders; apply them to a copy of this folder before computing daily history. `traces` (Gemini, omp) give the phase after feeding a file up to and including physical line `afterLine` (after the files before it in `order`). omp: the folder `omp` plays ~/.omp, so its automatic roots are omp/agent/sessions and omp/profiles/*/agent/sessions; `omp.discover` lists what discovery finds there. Antigravity: the folder `antigravity` plays ~/.gemini (stores antigravity-cli, antigravity, antigravity-ide); each database is one agent whose id is its path; `{\"unsupported\": true}` marks a database that contributes no agent; reading must not create any file (no -wal or -shm). WorkBuddy: the folder `workbuddy` plays the home folder (data folders .workbuddy and .workbuddy-ai); `workbuddy.discover` lists what discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both roots; its `traces` work like the omp ones. OpenClaw: the folder `openclaw` plays the home folder (state folders .openclaw and the profile .openclaw-work); after the OpenCode and Antigravity databases, the agent databases of `openclaw.dbOrder` are read with the same dedupe set, each one agent per transcript window (agent id `<database>#<session id>`, relative to this folder); `{\"unsupported\": true}` marks a database without session tables; `openclaw.discover` lists the databases discovery finds, `openclaw.codexDiscover` the rollouts of the Codex roots next to them (METRICS 2); a trace gives the phase of a window after its row `afterSeq`, after the databases before it; reading must not create any file.",
+  "_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this folder. `mtimes` (Unix ms) give the modification times that produce both orders; apply them to a copy of this folder before computing daily history. `traces` (Gemini, omp) give the phase after feeding a file up to and including physical line `afterLine` (after the files before it in `order`). omp: the folder `omp` plays ~/.omp, so its automatic roots are omp/agent/sessions and omp/profiles/*/agent/sessions; `omp.discover` lists what discovery finds there. Antigravity: the folder `antigravity` plays ~/.gemini (stores antigravity-cli, antigravity, antigravity-ide); each database is one agent whose id is its path; `{\"unsupported\": true}` marks a database that contributes no agent; reading must not create any file (no -wal or -shm). WorkBuddy: the folder `workbuddy` plays the home folder (data folders .workbuddy and .workbuddy-ai); `workbuddy.discover` lists what discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both roots; its `traces` work like the omp ones. OpenClaw: the folder `openclaw` plays the home folder (state folders .openclaw and the profile .openclaw-work); after the OpenCode and Antigravity databases, the agent databases of `openclaw.dbOrder` are read with the same dedupe set, each one agent per transcript window (agent id `<database>#<session id>`, relative to this folder); `{\"unsupported\": true}` marks a database without session tables; `openclaw.discover` lists the databases discovery finds, `openclaw.codexDiscover` the rollouts of the Codex roots next to them (METRICS 2); a trace gives the phase of a window after its row `afterSeq`, after the databases before it; reading must not create any file. Hermes Agent: see `hermes._comment`; its log files are not in `order` (one parser state per log folder) but their modification times are in `mtimes`.",
   "order": [
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl",
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-20-subagent.jsonl",
@@ -2413,7 +2413,11 @@
     "openclaw/.openclaw/agents/main/agent/codex-home/sessions/2026/10/20/rollout-2026-10-20T13-10-00-019a0b1c-2d3e-7f40-8a51-c2d3e4f5a6b7.jsonl": 1792584010000,
     "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite": 1792584011000,
     "openclaw/.openclaw-work/agents/ops/agent/openclaw-agent.sqlite": 1792584012000,
-    "openclaw/.openclaw/agents/legacy/agent/openclaw-agent.sqlite": 1792584013000
+    "openclaw/.openclaw/agents/legacy/agent/openclaw-agent.sqlite": 1792584013000,
+    "hermes/home/logs/agent.log.2": 1792584060000,
+    "hermes/home/logs/agent.log.1": 1792584061000,
+    "hermes/home/logs/agent.log": 1792584062000,
+    "hermes/home/profiles/work/logs/agent.log": 1792584063000
   },
   "opencode": {
     "database": "opencode/opencode.db",
@@ -4807,5 +4811,1269 @@
         "inFlightStartMs": 1792503006430
       }
     ]
+  },
+  "hermes": {
+    "_comment": "Hermes Agent (METRICS 4.15). `home` plays the Hermes home; `discover` lists the log files of its log folders. Feed the files of `order` (modification times `mtimes`) to one parser state per log folder, with wall times in `timeZone`, and the shared dedupe set; `sets` gives, per log folder, its malformed API-call lines and one agent per session id (the empty id is the agent of lines without a session tag; agent id = absolute folder path + '#' + id), in the order agents first appear. `traces` give one session's phase after feeding a file up to and including physical line `afterLine`, after the files before it in `order`. `wallTimes` convert a record line's timestamp in a zone (null: not a record line). `homes` resolve the Hermes home from an environment. `rotation` replays a log folder with real renames: `append` writes `lines` (each followed by a newline) or raw `text` to a file and sets its modification time, `rename` and `delete` change files, `read` reads every file of the folder from the offset its identity reached and checks every response key emitted so far and the listed agents. `runtimeConfigs` give config.yaml texts and whether they select the Codex runtime. `codexRuntime` replays a Hermes home (folder `home`, with the profile `p`): `write` sets a file's text (`size`: padded with `#` to that many bytes) and modification time, `remove` deletes it, `append` works like the rotation's, and `read` checks the config.yaml of every log folder, then reads its new lines, and checks each listed log folder's switch, every response key emitted so far and the listed agents.",
+    "home": "hermes/home",
+    "timeZone": "America/Los_Angeles",
+    "discover": [
+      "hermes/home/logs/agent.log",
+      "hermes/home/logs/agent.log.1",
+      "hermes/home/logs/agent.log.2",
+      "hermes/home/profiles/work/logs/agent.log"
+    ],
+    "order": [
+      "hermes/home/logs/agent.log.2",
+      "hermes/home/logs/agent.log.1",
+      "hermes/home/logs/agent.log",
+      "hermes/home/profiles/work/logs/agent.log"
+    ],
+    "mtimes": {
+      "hermes/home/logs/agent.log.2": 1792584060000,
+      "hermes/home/logs/agent.log.1": 1792584061000,
+      "hermes/home/logs/agent.log": 1792584062000,
+      "hermes/home/profiles/work/logs/agent.log": 1792584063000
+    },
+    "sets": {
+      "hermes/home/logs": {
+        "malformedLines": 1,
+        "agents": {
+          "20261020_045958_a1b2c3": {
+            "source": "hermes",
+            "project": null,
+            "model": "anthropic/claude-opus-5-5",
+            "isSubagent": false,
+            "parentId": null,
+            "phase": "idle",
+            "inFlightStartMs": null,
+            "lastLineMs": 1792497785600,
+            "responses": [
+              {
+                "key": "hermes:20261020_045958_a1b2c3:1:2026-10-20 05:00:04,321",
+                "startMs": 1792497600021,
+                "endMs": 1792497604321,
+                "input": 18003,
+                "cachedInput": 0,
+                "cacheWriteInput": 18000,
+                "cacheWrite1hInput": 0,
+                "output": 420,
+                "reasoning": 0,
+                "model": "anthropic/claude-opus-5-5",
+                "provider": "openrouter",
+                "fast": false,
+                "final": true
+              },
+              {
+                "key": "hermes:20261020_045958_a1b2c3:2:2026-10-20 05:00:09,512",
+                "startMs": 1792497605012,
+                "endMs": 1792497609512,
+                "input": 18610,
+                "cachedInput": 18000,
+                "cacheWriteInput": 600,
+                "cacheWrite1hInput": 0,
+                "output": 260,
+                "reasoning": 0,
+                "model": "anthropic/claude-opus-5-5",
+                "provider": "openrouter",
+                "fast": false,
+                "final": true
+              },
+              {
+                "key": "hermes:20261020_045958_a1b2c3:4:2026-10-20 05:01:20,250",
+                "startMs": null,
+                "endMs": 1792497680250,
+                "input": 19100,
+                "cachedInput": 18600,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 300,
+                "reasoning": 0,
+                "model": "anthropic/claude-opus-5-5",
+                "provider": "openrouter",
+                "fast": false,
+                "final": true
+              },
+              {
+                "key": "hermes:20261020_045958_a1b2c3:1:2026-10-20 05:03:05,500",
+                "startMs": 1792497780000,
+                "endMs": 1792497785500,
+                "input": 2000,
+                "cachedInput": 1800,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 150,
+                "reasoning": 0,
+                "model": "anthropic/claude-opus-5-5",
+                "provider": "openrouter",
+                "fast": false,
+                "final": true
+              }
+            ]
+          },
+          "20261020_050019_5d6e7f": {
+            "source": "hermes",
+            "project": null,
+            "model": "gpt-5.5",
+            "isSubagent": true,
+            "parentId": null,
+            "phase": "idle",
+            "inFlightStartMs": null,
+            "lastLineMs": 1792497641000,
+            "responses": [
+              {
+                "key": "hermes:20261020_050019_5d6e7f:1:2026-10-20 05:00:26,789",
+                "startMs": 1792497620089,
+                "endMs": 1792497626789,
+                "input": 5400,
+                "cachedInput": 5100,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 410,
+                "reasoning": 0,
+                "model": "gpt-5.5",
+                "provider": "openai-codex",
+                "fast": false,
+                "final": true
+              }
+            ]
+          },
+          "20261020_050455_9f8e7d6c": {
+            "source": "hermes",
+            "project": null,
+            "model": "hermes-4-405b",
+            "isSubagent": false,
+            "parentId": null,
+            "phase": "idle",
+            "inFlightStartMs": null,
+            "lastLineMs": 1792497912400,
+            "responses": [
+              {
+                "key": "hermes:20261020_050455_9f8e7d6c:1:2026-10-20 05:05:08,000",
+                "startMs": 1792497900000,
+                "endMs": 1792497908000,
+                "input": 9000,
+                "cachedInput": 0,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 0,
+                "reasoning": 0,
+                "model": "hermes-4-405b",
+                "provider": "nous",
+                "fast": false,
+                "final": true
+              },
+              {
+                "key": "hermes:20261020_050455_9f8e7d6c:2:2026-10-20 05:05:12,345",
+                "startMs": 1792497912045,
+                "endMs": 1792497912345,
+                "input": 9100,
+                "cachedInput": 8960,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 120,
+                "reasoning": 0,
+                "model": "hermes-4-405b",
+                "provider": "nous",
+                "fast": false,
+                "final": true
+              }
+            ]
+          },
+          "3f6c1d2e-8a4b-4c5d-9e0f-1a2b3c4d5e6f": {
+            "source": "hermes",
+            "project": null,
+            "model": "claude-sonnet-5-5",
+            "isSubagent": false,
+            "parentId": null,
+            "phase": "generating",
+            "inFlightStartMs": 1792497963000,
+            "lastLineMs": 1792497963000,
+            "responses": []
+          },
+          "": {
+            "source": "hermes",
+            "project": null,
+            "model": "anthropic/claude-opus-5-5",
+            "isSubagent": false,
+            "parentId": null,
+            "phase": "idle",
+            "inFlightStartMs": null,
+            "lastLineMs": 1792498020000,
+            "responses": [
+              {
+                "key": "hermes::5:2026-10-20 05:07:00,000",
+                "startMs": 1792498018800,
+                "endMs": 1792498020000,
+                "input": 700,
+                "cachedInput": 0,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 40,
+                "reasoning": 0,
+                "model": "anthropic/claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true
+              }
+            ]
+          }
+        }
+      },
+      "hermes/home/profiles/work/logs": {
+        "malformedLines": 0,
+        "agents": {
+          "cron_3f2a1b0c9d8e_20261020_051000": {
+            "source": "hermes",
+            "project": null,
+            "model": "claude-sonnet-5-5",
+            "isSubagent": false,
+            "parentId": null,
+            "phase": "idle",
+            "inFlightStartMs": null,
+            "lastLineMs": 1792541404020,
+            "responses": [
+              {
+                "key": "hermes:cron_3f2a1b0c9d8e_20261020_051000:1:2026-10-20 05:10:03,210",
+                "startMs": 1792498200010,
+                "endMs": 1792498203210,
+                "input": 3000,
+                "cachedInput": 0,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 210,
+                "reasoning": 0,
+                "model": "claude-sonnet-5-5",
+                "provider": "anthropic",
+                "fast": false,
+                "final": true
+              },
+              {
+                "key": "hermes:cron_3f2a1b0c9d8e_20261020_051000:1:2026-10-20 17:10:04,000",
+                "startMs": 1792541400500,
+                "endMs": 1792541404000,
+                "input": 3200,
+                "cachedInput": 0,
+                "cacheWriteInput": 3000,
+                "cacheWrite1hInput": 0,
+                "output": 180,
+                "reasoning": 0,
+                "model": "claude-sonnet-5-5",
+                "provider": "anthropic",
+                "fast": false,
+                "final": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    "traces": [
+      {
+        "file": "hermes/home/logs/agent.log.2",
+        "afterLine": 2,
+        "session": "20261020_045958_a1b2c3",
+        "phase": "generating",
+        "inFlightStartMs": 1792497600000
+      },
+      {
+        "file": "hermes/home/logs/agent.log.2",
+        "afterLine": 3,
+        "session": "20261020_045958_a1b2c3",
+        "phase": "generating",
+        "inFlightStartMs": 1792497604321
+      },
+      {
+        "file": "hermes/home/logs/agent.log.1",
+        "afterLine": 2,
+        "session": "20261020_045958_a1b2c3",
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "hermes/home/logs/agent.log.1",
+        "afterLine": 3,
+        "session": "20261020_050019_5d6e7f",
+        "phase": "generating",
+        "inFlightStartMs": 1792497620000
+      },
+      {
+        "file": "hermes/home/logs/agent.log.1",
+        "afterLine": 5,
+        "session": "20261020_050019_5d6e7f",
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "hermes/home/logs/agent.log.1",
+        "afterLine": 7,
+        "session": "20261020_050019_5d6e7f",
+        "phase": "generating",
+        "inFlightStartMs": 1792497640000
+      },
+      {
+        "file": "hermes/home/logs/agent.log.1",
+        "afterLine": 8,
+        "session": "20261020_050019_5d6e7f",
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "hermes/home/logs/agent.log.1",
+        "afterLine": 10,
+        "session": "20261020_045958_a1b2c3",
+        "phase": "generating",
+        "inFlightStartMs": 1792497662000
+      },
+      {
+        "file": "hermes/home/logs/agent.log.1",
+        "afterLine": 11,
+        "session": "20261020_045958_a1b2c3",
+        "phase": "generating",
+        "inFlightStartMs": 1792497680250
+      },
+      {
+        "file": "hermes/home/logs/agent.log.1",
+        "afterLine": 12,
+        "session": "20261020_045958_a1b2c3",
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "hermes/home/logs/agent.log.1",
+        "afterLine": 13,
+        "session": "20261020_045958_a1b2c3",
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "hermes/home/logs/agent.log",
+        "afterLine": 1,
+        "session": "20261020_045958_a1b2c3",
+        "phase": "generating",
+        "inFlightStartMs": 1792497780000
+      },
+      {
+        "file": "hermes/home/logs/agent.log",
+        "afterLine": 3,
+        "session": "20261020_045958_a1b2c3",
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "hermes/home/logs/agent.log",
+        "afterLine": 4,
+        "session": "20261020_050455_9f8e7d6c",
+        "phase": "generating",
+        "inFlightStartMs": 1792497900000
+      },
+      {
+        "file": "hermes/home/logs/agent.log",
+        "afterLine": 5,
+        "session": "20261020_050455_9f8e7d6c",
+        "phase": "generating",
+        "inFlightStartMs": 1792497908000
+      },
+      {
+        "file": "hermes/home/logs/agent.log",
+        "afterLine": 7,
+        "session": "20261020_050455_9f8e7d6c",
+        "phase": "generating",
+        "inFlightStartMs": 1792497908000
+      },
+      {
+        "file": "hermes/home/logs/agent.log",
+        "afterLine": 9,
+        "session": "20261020_050455_9f8e7d6c",
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "hermes/home/logs/agent.log",
+        "afterLine": 11,
+        "session": "3f6c1d2e-8a4b-4c5d-9e0f-1a2b3c4d5e6f",
+        "phase": "generating",
+        "inFlightStartMs": 1792497963000
+      },
+      {
+        "file": "hermes/home/logs/agent.log",
+        "afterLine": 12,
+        "session": "",
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "hermes/home/profiles/work/logs/agent.log",
+        "afterLine": 1,
+        "session": "cron_3f2a1b0c9d8e_20261020_051000",
+        "phase": "generating",
+        "inFlightStartMs": 1792498200000
+      },
+      {
+        "file": "hermes/home/profiles/work/logs/agent.log",
+        "afterLine": 4,
+        "session": "cron_3f2a1b0c9d8e_20261020_051000",
+        "phase": "generating",
+        "inFlightStartMs": 1792541400000
+      },
+      {
+        "file": "hermes/home/profiles/work/logs/agent.log",
+        "afterLine": 5,
+        "session": "cron_3f2a1b0c9d8e_20261020_051000",
+        "phase": "generating",
+        "inFlightStartMs": 1792541404000
+      },
+      {
+        "file": "hermes/home/profiles/work/logs/agent.log",
+        "afterLine": 6,
+        "session": "cron_3f2a1b0c9d8e_20261020_051000",
+        "phase": "idle",
+        "inFlightStartMs": null
+      }
+    ],
+    "wallTimes": [
+      {
+        "timeZone": "America/Los_Angeles",
+        "line": "2026-10-20 05:00:00,000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1792497600000
+      },
+      {
+        "timeZone": "America/Los_Angeles",
+        "line": "2026-11-01 00:59:59,999 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1793519999999
+      },
+      {
+        "timeZone": "America/Los_Angeles",
+        "line": "2026-11-01 01:30:00,250 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1793521800250
+      },
+      {
+        "timeZone": "America/Los_Angeles",
+        "line": "2026-11-01 02:30:00,000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1793529000000
+      },
+      {
+        "timeZone": "America/Los_Angeles",
+        "line": "2026-03-08 01:59:59,999 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1772963999999
+      },
+      {
+        "timeZone": "America/Los_Angeles",
+        "line": "2026-03-08 02:30:00,000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1772965800000
+      },
+      {
+        "timeZone": "America/Los_Angeles",
+        "line": "2026-03-08 03:00:00,000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1772964000000
+      },
+      {
+        "timeZone": "Europe/Berlin",
+        "line": "2026-10-25 02:30:00,000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1792888200000
+      },
+      {
+        "timeZone": "Europe/Berlin",
+        "line": "2026-03-29 02:30:00,000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1774747800000
+      },
+      {
+        "timeZone": "Asia/Shanghai",
+        "line": "2026-10-20 20:00:00,000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1792497600000
+      },
+      {
+        "timeZone": "America/St_Johns",
+        "line": "2026-10-20 09:30:00,000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1792497600000
+      },
+      {
+        "timeZone": "UTC",
+        "line": "2026-10-20 12:00:00,007 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": 1792497600007
+      },
+      {
+        "timeZone": "America/Los_Angeles",
+        "line": "2026-02-29 10:00:00,000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": null
+      },
+      {
+        "timeZone": "America/Los_Angeles",
+        "line": "2026-10-20 24:00:00,000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": null
+      },
+      {
+        "timeZone": "America/Los_Angeles",
+        "line": "1969-12-31 16:00:00,000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": null
+      },
+      {
+        "timeZone": "America/Los_Angeles",
+        "line": "2026-10-20 05:00:00.000 INFO [x] agent.conversation_loop: Turn ended: reason=x",
+        "ms": null
+      }
+    ],
+    "homes": [
+      {
+        "env": {},
+        "platform": "darwin",
+        "home": "/Users/dev",
+        "expected": "/Users/dev/.hermes"
+      },
+      {
+        "env": {
+          "HERMES_HOME": "~/.hermes/profiles/work"
+        },
+        "platform": "darwin",
+        "home": "/Users/dev",
+        "expected": "/Users/dev/.hermes"
+      },
+      {
+        "env": {
+          "HERMES_HOME": "/Users/dev/.hermes"
+        },
+        "platform": "darwin",
+        "home": "/Users/dev",
+        "expected": "/Users/dev/.hermes"
+      },
+      {
+        "env": {
+          "HERMES_HOME": "/srv/hermes/profiles/ops"
+        },
+        "platform": "darwin",
+        "home": "/Users/dev",
+        "expected": "/srv/hermes"
+      },
+      {
+        "env": {
+          "HERMES_HOME": "/srv/agent-home/"
+        },
+        "platform": "darwin",
+        "home": "/Users/dev",
+        "expected": "/srv/agent-home"
+      },
+      {
+        "env": {
+          "HERMES_HOME": "   "
+        },
+        "platform": "darwin",
+        "home": "/Users/dev",
+        "expected": "/Users/dev/.hermes"
+      },
+      {
+        "env": {
+          "HERMES_HOME": "relative/home"
+        },
+        "platform": "darwin",
+        "home": "/Users/dev",
+        "expected": "/Users/dev/.hermes"
+      },
+      {
+        "env": {
+          "LOCALAPPDATA": "C:\\Users\\dev\\AppData\\Local"
+        },
+        "platform": "win32",
+        "home": "C:\\Users\\dev",
+        "expected": "C:\\Users\\dev\\AppData\\Local\\hermes"
+      },
+      {
+        "env": {},
+        "platform": "win32",
+        "home": "C:\\Users\\dev",
+        "expected": "C:\\Users\\dev\\AppData\\Local\\hermes"
+      },
+      {
+        "env": {
+          "LOCALAPPDATA": "C:\\Users\\dev\\AppData\\Local",
+          "HERMES_HOME": "c:\\users\\dev\\appdata\\local\\HERMES\\profiles\\work"
+        },
+        "platform": "win32",
+        "home": "C:\\Users\\dev",
+        "expected": "C:\\Users\\dev\\AppData\\Local\\hermes"
+      },
+      {
+        "env": {
+          "LOCALAPPDATA": "C:\\Users\\dev\\AppData\\Local",
+          "HERMES_HOME": "D:\\hermes-data"
+        },
+        "platform": "win32",
+        "home": "C:\\Users\\dev",
+        "expected": "D:\\hermes-data"
+      },
+      {
+        "env": {
+          "LOCALAPPDATA": "C:\\Users\\dev\\AppData\\Local",
+          "HERMES_HOME": "~\\hermes-x"
+        },
+        "platform": "win32",
+        "home": "C:\\Users\\dev",
+        "expected": "C:\\Users\\dev\\hermes-x"
+      }
+    ],
+    "rotation": {
+      "timeZone": "America/Los_Angeles",
+      "steps": [
+        {
+          "append": "agent.log",
+          "lines": [
+            "2026-10-20 06:00:00,000 INFO [R] agent.turn_context: conversation turn: session=R model=gpt-5.5 provider=openai platform=cli history=0 msg='rotate the logs'",
+            "2026-10-20 06:00:03,000 INFO [R] agent.conversation_loop: API call #1: model=gpt-5.5 provider=openai in=1000 out=100 total=1100 latency=2.9s"
+          ],
+          "mtime": 1792501203000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:R:1:2026-10-20 06:00:03,000"
+          ],
+          "agents": {
+            "R": {
+              "phase": "generating",
+              "inFlightStartMs": 1792501203000,
+              "lastLineMs": 1792501203000
+            }
+          }
+        },
+        {
+          "rename": [
+            "agent.log",
+            "agent.log.1"
+          ]
+        },
+        {
+          "append": "agent.log",
+          "lines": [
+            "2026-10-20 06:00:07,000 INFO [R] agent.conversation_loop: API call #2: model=gpt-5.5 provider=openai in=1200 out=80 total=1280 latency=3.8s",
+            "2026-10-20 06:00:07,010 INFO [R] agent.conversation_loop: Turn ended: reason=text_response(finish_reason=stop) model=gpt-5.5 api_calls=2/90 budget=2/90 tool_turns=0 last_msg_role=assistant response_len=42 session=R"
+          ],
+          "mtime": 1792501207100
+        },
+        {
+          "append": "agent.log.1",
+          "lines": [
+            "2026-10-20 06:00:03,500 INFO [Q] agent.turn_context: conversation turn: session=Q model=gpt-5.5 provider=openai platform=tui history=0 msg='late writer'"
+          ],
+          "mtime": 1792501207200
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:R:1:2026-10-20 06:00:03,000",
+            "hermes:R:2:2026-10-20 06:00:07,000"
+          ],
+          "agents": {
+            "R": {
+              "phase": "idle",
+              "inFlightStartMs": null,
+              "lastLineMs": 1792501207010
+            },
+            "Q": {
+              "phase": "generating",
+              "inFlightStartMs": 1792501203500,
+              "lastLineMs": 1792501203500
+            }
+          }
+        },
+        {
+          "rename": [
+            "agent.log.1",
+            "agent.log.2"
+          ]
+        },
+        {
+          "rename": [
+            "agent.log",
+            "agent.log.1"
+          ]
+        },
+        {
+          "append": "agent.log",
+          "lines": [
+            "2026-10-20 06:00:09,000 INFO [Q] agent.conversation_loop: API call #1: model=gpt-5.5 provider=openai in=500 out=50 total=550 latency=5.4s",
+            "2026-10-20 06:00:09,100 INFO [Q] agent.conversation_loop: Turn ended: reason=text_response(finish_reason=stop) model=gpt-5.5 api_calls=1/90 budget=1/90 tool_turns=0 last_msg_role=assistant response_len=42 session=Q"
+          ],
+          "mtime": 1792501209200
+        },
+        {
+          "delete": "agent.log.2"
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:R:1:2026-10-20 06:00:03,000",
+            "hermes:R:2:2026-10-20 06:00:07,000",
+            "hermes:Q:1:2026-10-20 06:00:09,000"
+          ],
+          "agents": {
+            "R": {
+              "phase": "idle",
+              "inFlightStartMs": null,
+              "lastLineMs": 1792501207010
+            },
+            "Q": {
+              "phase": "idle",
+              "inFlightStartMs": null,
+              "lastLineMs": 1792501209100
+            }
+          }
+        },
+        {
+          "append": "agent.log",
+          "text": "2026-10-20 06:00:12,000 INFO [R] agent.turn_context: conversation turn: session=R model=gpt-5.5 provider=openai platform=cli history=4 msg='next'",
+          "mtime": 1792501212000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:R:1:2026-10-20 06:00:03,000",
+            "hermes:R:2:2026-10-20 06:00:07,000",
+            "hermes:Q:1:2026-10-20 06:00:09,000"
+          ],
+          "agents": {
+            "R": {
+              "phase": "idle",
+              "inFlightStartMs": null,
+              "lastLineMs": 1792501207010
+            }
+          }
+        },
+        {
+          "append": "agent.log",
+          "text": "\n",
+          "mtime": 1792501212100
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:R:1:2026-10-20 06:00:03,000",
+            "hermes:R:2:2026-10-20 06:00:07,000",
+            "hermes:Q:1:2026-10-20 06:00:09,000"
+          ],
+          "agents": {
+            "R": {
+              "phase": "generating",
+              "inFlightStartMs": 1792501212000,
+              "lastLineMs": 1792501212000
+            }
+          }
+        }
+      ]
+    },
+    "runtimeConfigs": [
+      {
+        "name": "block as Hermes writes it",
+        "text": "model:\n  default: gpt-5.5\n  provider: openai-codex\n  openai_runtime: codex_app_server\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "auto",
+        "text": "model:\n  openai_runtime: auto\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "upper case and a comment",
+        "text": "model:\n  openai_runtime: CODEX_APP_SERVER  # via /codex-runtime\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "double quotes with spaces inside",
+        "text": "model:\n  openai_runtime: \" codex_app_server \"\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "single quotes, four spaces",
+        "text": "model:\n    openai_runtime: 'codex_app_server'\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "quoted value and a comment",
+        "text": "model:\n  openai_runtime: \"codex_app_server\" # on\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "quoted value and more text",
+        "text": "model:\n  openai_runtime: \"codex_app_server\" x\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "BOM, CRLF, comments and blank lines",
+        "text": "﻿# Hermes\r\nmodel:   # main model\r\n\r\n  # runtime below\r\n  default: gpt-5.5\r\n\t\r\n\t# tab comment\r\n  openai_runtime: codex_app_server\r\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "quoted keys",
+        "text": "\"model\":\n  'openai_runtime': codex_app_server\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "spaces before the colons",
+        "text": "model :\n  openai_runtime : codex_app_server\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "a tab after the colon",
+        "text": "model:\n  openai_runtime:\tcodex_app_server\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "no space after the colon",
+        "text": "model:\n  openai_runtime:codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "a hash without a space is part of the value",
+        "text": "model:\n  openai_runtime: codex_app_server#on\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "empty value",
+        "text": "model:\n  openai_runtime:\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "a comment as the value",
+        "text": "model:\n  openai_runtime: # codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "YAML 1.1 boolean",
+        "text": "model:\n  openai_runtime: on\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "environment reference",
+        "text": "model:\n  openai_runtime: ${HERMES_RUNTIME}\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "block scalar",
+        "text": "model:\n  openai_runtime: >-\n    codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "nested deeper",
+        "text": "model:\n  providers:\n    openai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "first child sets the indentation",
+        "text": "model:\n    default: gpt-5.5\n  openai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "list item",
+        "text": "model:\n  - openai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "tab indentation",
+        "text": "model:\n\topenai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "another section",
+        "text": "fallback_model:\n  openai_runtime: codex_app_server\nmodel:\n  default: gpt-5.5\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "the block ends at a top-level key",
+        "text": "model:\n  default: gpt-5.5\nagent:\n  openai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "root level",
+        "text": "openai_runtime: codex_app_server\nmodel:\n  default: gpt-5.5\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "scalar model",
+        "text": "model: gpt-5.5\n  openai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "flow mapping",
+        "text": "model: {openai_runtime: codex_app_server}\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "the last key line wins",
+        "text": "model:\n  openai_runtime: codex_app_server\n  openai_runtime: auto\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "the last block wins",
+        "text": "model:\n  openai_runtime: auto\nmodel:\n  openai_runtime: codex_app_server\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "document markers",
+        "text": "---\nmodel:\n  openai_runtime: codex_app_server\n...\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "no final newline",
+        "text": "model:\n  openai_runtime: codex_app_server",
+        "codexRuntime": true
+      },
+      {
+        "name": "empty file",
+        "text": "",
+        "codexRuntime": false
+      }
+    ],
+    "codexRuntime": {
+      "timeZone": "America/Los_Angeles",
+      "logFolders": [
+        "logs",
+        "profiles/p/logs"
+      ],
+      "steps": [
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:00:00,000 INFO [C] agent.turn_context: conversation turn: session=C model=gpt-5.5 provider=openai-codex platform=cli history=0 msg='build the parser'"
+          ],
+          "mtime": 1792504800100
+        },
+        {
+          "append": "profiles/p/logs/agent.log",
+          "lines": [
+            "2026-10-20 07:00:01,000 INFO [P] agent.turn_context: conversation turn: session=P model=gpt-5.5 provider=openai-codex platform=tui history=0 msg='hello'"
+          ],
+          "mtime": 1792504801100
+        },
+        {
+          "read": true,
+          "responseKeys": [],
+          "sets": {
+            "logs": {
+              "codexRuntime": false,
+              "agents": {
+                "C": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792504800000,
+                  "lastLineMs": 1792504800000
+                }
+              }
+            },
+            "profiles/p/logs": {
+              "codexRuntime": false,
+              "agents": {
+                "P": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792504801000,
+                  "lastLineMs": 1792504801000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "config.yaml",
+          "text": "model:\n  default: gpt-5.5\n  provider: openai-codex\n  openai_runtime: codex_app_server\n",
+          "mtime": 1792504810000
+        },
+        {
+          "read": true,
+          "responseKeys": [],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504800000
+                }
+              }
+            },
+            "profiles/p/logs": {
+              "codexRuntime": false,
+              "agents": {
+                "P": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792504801000,
+                  "lastLineMs": 1792504801000
+                }
+              }
+            }
+          }
+        },
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:00:30,000 INFO [C] agent.turn_context: conversation turn: session=C model=gpt-5.5-codex provider=openai-codex platform=cli history=2 msg='now the tests'"
+          ],
+          "mtime": 1792504830100
+        },
+        {
+          "read": true,
+          "responseKeys": [],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504830000,
+                  "model": "gpt-5.5-codex"
+                }
+              }
+            }
+          }
+        },
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:01:00,000 INFO [F] agent.turn_context: conversation turn: session=F model=claude-sonnet-5-5 provider=anthropic platform=cli history=0 msg='review'",
+            "2026-10-20 07:01:03,000 INFO [F] agent.conversation_loop: API call #1: model=claude-sonnet-5-5 provider=anthropic in=1000 out=50 total=1050 latency=2.5s"
+          ],
+          "mtime": 1792504863100
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "F": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504863000
+                }
+              }
+            }
+          }
+        },
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:01:03,020 INFO [F] agent.conversation_loop: Turn ended: reason=text_response(finish_reason=stop) model=claude-sonnet-5-5 api_calls=1/90 budget=1/90 tool_turns=0 last_msg_role=assistant response_len=42 session=F"
+          ],
+          "mtime": 1792504863200
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "F": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504863020
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "config.yaml",
+          "text": "model:\n  default: gpt-5.5\n  openai_runtime: auto\n",
+          "mtime": 1792504890000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": false,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504830000
+                }
+              }
+            }
+          }
+        },
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:02:00,000 INFO [C] agent.turn_context: conversation turn: session=C model=gpt-5.5 provider=openai-codex platform=cli history=4 msg='back to Hermes'"
+          ],
+          "mtime": 1792504920100
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": false,
+              "agents": {
+                "C": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792504920000,
+                  "lastLineMs": 1792504920000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "config.yaml",
+          "text": "﻿model:\r\n  openai_runtime: \"Codex_App_Server\"\r\n",
+          "mtime": 1792504930000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504920000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "profiles/p/config.yaml",
+          "text": "model:\n  providers:\n    openai_runtime: codex_app_server\n",
+          "mtime": 1792504940000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "profiles/p/logs": {
+              "codexRuntime": false,
+              "agents": {
+                "P": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792504801000,
+                  "lastLineMs": 1792504801000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "profiles/p/config.yaml",
+          "text": "model:\n  default: gpt-5.5\n  provider: openai-codex\n  openai_runtime: codex_app_server\n",
+          "mtime": 1792504950000
+        },
+        {
+          "append": "profiles/p/logs/agent.log",
+          "lines": [
+            "2026-10-20 07:03:00,000 INFO [P] agent.turn_context: conversation turn: session=P model=gpt-5.5 provider=openai-codex platform=tui history=2 msg='again'"
+          ],
+          "mtime": 1792504980100
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "profiles/p/logs": {
+              "codexRuntime": true,
+              "agents": {
+                "P": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504980000
+                }
+              }
+            }
+          }
+        },
+        {
+          "remove": "config.yaml"
+        },
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:04:00,000 INFO [C] agent.turn_context: conversation turn: session=C model=gpt-5.5 provider=openai-codex platform=cli history=6 msg='one more'"
+          ],
+          "mtime": 1792505040100
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": false,
+              "agents": {
+                "C": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792505040000,
+                  "lastLineMs": 1792505040000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "config.yaml",
+          "text": "model:\n  default: gpt-5.5\n  provider: openai-codex\n  openai_runtime: codex_app_server\n",
+          "size": 1048576,
+          "mtime": 1792505050000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792505040000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "config.yaml",
+          "text": "model:\n  default: gpt-5.5\n  provider: openai-codex\n  openai_runtime: codex_app_server\n",
+          "size": 1048577,
+          "mtime": 1792505060000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": false,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792505040000
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
   }
 }

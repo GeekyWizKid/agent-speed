@@ -14,6 +14,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import antigravity_fixtures  # noqa: E402
 import gemini_fixtures  # noqa: E402
+import hermes_fixtures  # noqa: E402
 import omp_fixtures  # noqa: E402
 import openclaw_fixtures  # noqa: E402
 import pi_fixtures  # noqa: E402
@@ -677,6 +678,11 @@ order += openclaw["order"]
 files.update(openclaw["files"])
 mtimes.update(openclaw["mtimes"])
 
+# --- Hermes Agent: log folders, one parser state per folder ------------------------
+hermes = hermes_fixtures.write_fixtures(ROOT)
+assert min(hermes["mtimes"].values()) > max(mtimes.values())
+mtimes.update(hermes["mtimes"])
+
 with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the "
                            "Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this "
@@ -701,7 +707,8 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                            "tables; `openclaw.discover` lists the databases discovery finds, `openclaw.codexDiscover` "
                            "the rollouts of the Codex roots next to them (METRICS 2); a trace gives the phase of a "
                            "window after its row `afterSeq`, after the databases before it; reading must not create "
-                           "any file.",
+                           "any file. Hermes Agent: see `hermes._comment`; its log files are not in `order` (one "
+                           "parser state per log folder) but their modification times are in `mtimes`.",
                "order": order, "files": files, "mtimes": mtimes,
                "opencode": {"database": opencode_rel, "agents": opencode_expected},
                "gemini": {"discover": gemini["discover"], "traces": gemini["traces"]},
@@ -712,7 +719,8 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                "pi": {"discover": pi["discover"], "traces": pi["traces"]},
                "openclaw": {"dbOrder": openclaw["dbOrder"], "discover": openclaw["discover"],
                             "codexDiscover": openclaw["codexDiscover"], "databases": openclaw["databases"],
-                            "traces": openclaw["traces"]}},
+                            "traces": openclaw["traces"]},
+               "hermes": hermes},
               f, indent=2, ensure_ascii=False)
     f.write("\n")
 

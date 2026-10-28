@@ -22,6 +22,8 @@ public enum SourceKind: String, CaseIterable, Codable, Sendable, Identifiable {
     case pi
     /// OpenClaw, an agent gateway whose runtime grew out of Pi.
     case openclaw
+    /// Hermes Agent (Nous Research), read from its `agent.log`.
+    case hermes
 
     public var id: String { rawValue }
 }
@@ -404,6 +406,8 @@ public struct MonitorConfiguration: Equatable, Sendable {
     public var piRoot: URL?
     /// One OpenClaw state folder, agent folder or `openclaw-agent.sqlite`; nil reads every state folder (METRICS 2, 4.14).
     public var openclawRoot: URL?
+    /// A Hermes Agent home or one of its `logs` folders; nil reads the automatic home (METRICS 2, 4.15).
+    public var hermesRoot: URL?
     /// Tests: replaces the automatic roots of a family that are otherwise derived from the environment and the home
     /// folder (omp `sessions` roots, Antigravity store folders, WorkBuddy data folders).
     var automaticRoots: [TranscriptFamily: [URL]] = [:]
@@ -411,6 +415,10 @@ public struct MonitorConfiguration: Equatable, Sendable {
     var piHome: PiHome?
     /// Tests: the environment and home folder OpenClaw's state folders are derived from, instead of the process's own.
     var openclawHome: OpenClawHome?
+    /// Tests: the environment and home folder the Hermes home is derived from, instead of the process's own.
+    var hermesHome: HermesHome?
+    /// Tests: the zone Hermes's wall-clock times are read in, instead of this computer's (METRICS 4.15).
+    var hermesTimeZone: TimeZone?
 
     public init(
         enabledSources: Set<SourceKind> = Set(SourceKind.allCases),
@@ -427,7 +435,8 @@ public struct MonitorConfiguration: Equatable, Sendable {
         kimiRoot: URL? = nil,
         grokBuildRoot: URL? = nil,
         piRoot: URL? = nil,
-        openclawRoot: URL? = nil
+        openclawRoot: URL? = nil,
+        hermesRoot: URL? = nil
     ) {
         self.enabledSources = enabledSources
         self.codexRoot = codexRoot
@@ -444,5 +453,6 @@ public struct MonitorConfiguration: Equatable, Sendable {
         self.grokBuildRoot = grokBuildRoot
         self.piRoot = piRoot
         self.openclawRoot = openclawRoot
+        self.hermesRoot = hermesRoot
     }
 }

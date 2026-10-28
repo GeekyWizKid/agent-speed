@@ -619,6 +619,177 @@
        "ppid": 1,
        "start": 9280,
        "exe": "/Applications/OpenClaw.app/Contents/MacOS/OpenClaw"
+      },
+      {
+       "pid": 1400,
+       "ppid": 100,
+       "start": 9200,
+       "exe": "/bin/zsh"
+      },
+      {
+       "pid": 1401,
+       "ppid": 1400,
+       "start": 9210,
+       "exe": "/Users/dev/.local/share/uv/python/cpython-3.14.2-macos-aarch64-none/bin/python3.14",
+       "args": [
+        "/Users/dev/.local/share/uv/python/cpython-3.14.2-macos-aarch64-none/bin/python3.14",
+        "-I",
+        "-c",
+        "import os, re, sys\nimport contextlib, hashlib, io, pathlib, shutil, subprocess\nsys.path.insert(0, '/Users/dev/.hermes/hermes-agent')\nsys._hermes_pin_default_home = True\nimport hermes_bootstrap\nfrom hermes_cli.main import main\nsys.exit(main())\n",
+        "chat"
+       ]
+      },
+      {
+       "pid": 1402,
+       "ppid": 1401,
+       "start": 9220,
+       "exe": "/bin/bash",
+       "args": [
+        "/bin/bash",
+        "-c",
+        "pytest -q"
+       ]
+      },
+      {
+       "pid": 1403,
+       "ppid": 1402,
+       "start": 9230,
+       "exe": "/Users/dev/projects/halo/.venv/bin/python3",
+       "args": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q"
+       ]
+      },
+      {
+       "pid": 1404,
+       "ppid": 1401,
+       "start": 9240,
+       "exe": "/opt/homebrew/bin/codex",
+       "args": [
+        "codex",
+        "app-server"
+       ]
+      },
+      {
+       "pid": 1405,
+       "ppid": 1,
+       "start": 9300,
+       "exe": "/usr/bin/osascript",
+       "args": [
+        "/usr/bin/osascript",
+        "-l",
+        "JavaScript",
+        "-e",
+        "ObjC.import(\"stdlib\")"
+       ]
+      },
+      {
+       "pid": 1406,
+       "ppid": 1405,
+       "start": 9310,
+       "exe": "/bin/sh",
+       "args": [
+        "/bin/sh",
+        "-c",
+        "exec /usr/bin/env XPC_SERVICE_NAME=0 ..."
+       ]
+      },
+      {
+       "pid": 1407,
+       "ppid": 1406,
+       "start": 9320,
+       "exe": "/Users/dev/.local/share/uv/python/cpython-3.14.2-macos-aarch64-none/bin/python3.14",
+       "args": [
+        "/Users/dev/.local/share/uv/python/cpython-3.14.2-macos-aarch64-none/bin/python3.14",
+        "-I",
+        "-c",
+        "import os, re, sys\nimport contextlib, hashlib, io, pathlib, shutil, subprocess\nsys.path.insert(0, '/Users/dev/.hermes/hermes-agent')\nsys._hermes_pin_default_home = True\nimport hermes_bootstrap\nfrom hermes_cli.main import main\nsys.exit(main())\n",
+        "--profile",
+        "default",
+        "gateway",
+        "run",
+        "--external-supervisor"
+       ]
+      },
+      {
+       "pid": 1408,
+       "ppid": 1400,
+       "start": 9330,
+       "exe": "/opt/homebrew/Cellar/python@3.13/3.13.9/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python",
+       "args": [
+        "/opt/homebrew/opt/python@3.13/bin/python3.13",
+        "/Users/dev/.venvs/hermes/bin/hermes",
+        "chat"
+       ]
+      },
+      {
+       "pid": 1409,
+       "ppid": 1,
+       "start": 9400,
+       "exe": "/Applications/Hermes.app/Contents/MacOS/Hermes"
+      },
+      {
+       "pid": 1410,
+       "ppid": 1409,
+       "start": 9410,
+       "exe": "/Users/dev/.local/share/uv/python/cpython-3.14.2-macos-aarch64-none/bin/python3.14",
+       "args": [
+        "/Users/dev/.local/share/uv/python/cpython-3.14.2-macos-aarch64-none/bin/python3.14",
+        "-m",
+        "hermes_cli.main",
+        "dashboard",
+        "--no-open"
+       ]
+      },
+      {
+       "pid": 1411,
+       "ppid": 1400,
+       "start": 9420,
+       "exe": "/usr/bin/python3",
+       "args": [
+        "/usr/bin/python3",
+        "/Users/dev/projects/hermes-notes/app.py"
+       ]
+      },
+      {
+       "pid": 1412,
+       "ppid": 1400,
+       "start": 9430,
+       "exe": "/Users/dev/Library/Android/sdk/hermes-engine/osx-bin/hermes",
+       "args": [
+        "/Users/dev/Library/Android/sdk/hermes-engine/osx-bin/hermes",
+        "bundle.js"
+       ]
+      },
+      {
+       "pid": 1413,
+       "ppid": 1,
+       "start": 9440,
+       "exe": "/Applications/Zed.app/Contents/MacOS/zed"
+      },
+      {
+       "pid": 1414,
+       "ppid": 1413,
+       "start": 9450,
+       "exe": "/Users/dev/.local/share/uv/python/cpython-3.14.2-macos-aarch64-none/bin/python3.14",
+       "args": [
+        "/Users/dev/.local/share/uv/python/cpython-3.14.2-macos-aarch64-none/bin/python3.14",
+        "-I",
+        "-c",
+        "import os, re, sys\nimport contextlib, hashlib, io, pathlib, shutil, subprocess\nsys.path.insert(0, '/Users/dev/.hermes/hermes-agent')\nsys._hermes_pin_default_home = True\nimport hermes_bootstrap\nfrom acp_adapter.entry import main\nsys.exit(main())\n"
+       ]
+      },
+      {
+       "pid": 1415,
+       "ppid": 1400,
+       "start": 9460,
+       "exe": "/opt/homebrew/bin/node",
+       "args": [
+        "node",
+        "/Users/dev/.hermes/hermes-agent/ui-tui/dist/entry.js"
+       ]
       }
      ]
     }
@@ -681,7 +852,23 @@
      "1305": "openclaw/agent",
      "1306": "openclaw/agent",
      "1307": null,
-     "1308": null
+     "1308": null,
+     "1400": null,
+     "1401": "hermes/agent",
+     "1402": "hermes/tool",
+     "1403": "hermes/tool",
+     "1404": "codex/agent",
+     "1405": null,
+     "1406": null,
+     "1407": "hermes/agent",
+     "1408": "hermes/agent",
+     "1409": null,
+     "1410": "hermes/agent",
+     "1411": null,
+     "1412": null,
+     "1413": null,
+     "1414": "hermes/agent",
+     "1415": null
     }
    }
   },
@@ -910,6 +1097,86 @@
        "ppid": 1,
        "start": 5230,
        "exe": "C:\\Users\\dev\\AppData\\Local\\Programs\\OpenClaw Companion\\OpenClawCompanion.exe"
+      },
+      {
+       "pid": 950,
+       "ppid": 4,
+       "start": 4500,
+       "exe": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+      },
+      {
+       "pid": 951,
+       "ppid": 950,
+       "start": 4510,
+       "exe": "C:\\Users\\dev\\AppData\\Local\\hermes\\hermes-agent\\.hermes\\bin\\hermes.exe",
+       "args": [
+        "C:\\Users\\dev\\AppData\\Local\\hermes\\hermes-agent\\.hermes\\bin\\hermes.exe",
+        "chat"
+       ]
+      },
+      {
+       "pid": 952,
+       "ppid": 951,
+       "start": 4520,
+       "exe": "C:\\Users\\dev\\AppData\\Roaming\\uv\\python\\cpython-3.14.2-windows-x86_64-none\\python.exe",
+       "args": [
+        "C:\\Users\\dev\\AppData\\Roaming\\uv\\python\\cpython-3.14.2-windows-x86_64-none\\python.exe",
+        "-I",
+        "C:\\Users\\dev\\AppData\\Local\\hermes\\hermes-agent\\.hermes\\bin\\hermes.exe",
+        "chat"
+       ]
+      },
+      {
+       "pid": 953,
+       "ppid": 952,
+       "start": 4530,
+       "exe": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+       "args": [
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        "npm test"
+       ]
+      },
+      {
+       "pid": 954,
+       "ppid": 4,
+       "start": 4540,
+       "exe": "C:\\Users\\dev\\AppData\\Local\\Programs\\Hermes\\Hermes.exe"
+      },
+      {
+       "pid": 955,
+       "ppid": 954,
+       "start": 4550,
+       "exe": "C:\\Users\\dev\\AppData\\Local\\hermes\\runtime\\PYTHONW.EXE",
+       "args": [
+        "PYTHONW.EXE",
+        "-m",
+        "hermes_cli.main",
+        "serve"
+       ]
+      },
+      {
+       "pid": 956,
+       "ppid": 950,
+       "start": 4560,
+       "exe": "C:\\Users\\dev\\venvs\\hermes\\Scripts\\python.exe",
+       "args": [
+        "C:\\Users\\dev\\venvs\\hermes\\Scripts\\python.exe",
+        "C:\\Users\\dev\\venvs\\hermes\\Scripts\\Hermes.EXE",
+        "gateway",
+        "run"
+       ]
+      },
+      {
+       "pid": 957,
+       "ppid": 950,
+       "start": 4570,
+       "exe": "C:\\Python313\\python.exe",
+       "args": [
+        "python.exe",
+        "C:\\tools\\hermes.py"
+       ]
       }
      ]
     }
@@ -940,7 +1207,15 @@
      "7300": "openclaw/agent",
      "7301": "openclaw/tool",
      "7302": "openclaw/agent",
-     "7303": null
+     "7303": null,
+     "950": null,
+     "951": null,
+     "952": "hermes/agent",
+     "953": "hermes/tool",
+     "954": null,
+     "955": "hermes/agent",
+     "956": "hermes/agent",
+     "957": null
     }
    }
   },

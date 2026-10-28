@@ -3,6 +3,10 @@ import Foundation
 /// The agent-process rows of METRICS 10.5: which source, if any, a process runs.
 struct AgentProcessRules: Sendable {
     static let scriptHosts: Set<String> = ["node", "nodejs", "bun", "deno"]
+    /// Arguments of a Python host that mark Hermes Agent: its launcher bootstrap, `hermes_cli` and its ACP adapter.
+    static let hermesMarkers = ["hermes_bootstrap", "hermes_cli", "acp_adapter"]
+    /// Console scripts that run Hermes Agent on a Python host.
+    static let hermesScripts: Set<String> = ["hermes", "hermes-agent", "hermes-acp"]
 
     let platform: TrafficPlatform
 
@@ -52,7 +56,7 @@ struct AgentProcessRules: Sendable {
     /// WorkBuddy's executables; everything else is decided by the path.
     func needsArguments(executable: String, bundleIdentifier: () -> String?) -> Bool {
         let name = platform.name(executable)
-        return Self.scriptHosts.contains(name.lowercased()) || name == "claude"
+        return Self.scriptHosts.contains(name.lowercased()) || isPythonHost(executable) || name == "claude"
             || platform.isUnder(executable, ["~/.local/share/claude/versions"])
             || workbuddyEdition(executable: executable, bundleIdentifier: bundleIdentifier) != nil
     }
@@ -65,6 +69,27 @@ struct AgentProcessRules: Sendable {
 
     func isScriptHost(_ executable: String) -> Bool {
         Self.scriptHosts.contains(platform.name(executable).lowercased())
+    }
+
+    /// `python`, `pythonw` or `python` followed by digits and dots (`python3`, `python3.14`), with or without `.exe`,
+    /// in any case (macOS framework builds run `Python`).
+    func isPythonHost(_ executable: String) -> Bool {
+        var name = platform.name(executable).lowercased()
+        if name.hasSuffix(".exe") { name.removeLast(4) }
+        guard name.hasPrefix("python") else { return false }
+        let rest = name.utf8.dropFirst(6)
+        if rest.isEmpty || rest.elementsEqual("w".utf8) { return true }
+        guard let first = rest.first, (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(first) else { return false }
+        return rest.allSatisfy { (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) || $0 == UInt8(ascii: ".") }
+    }
+
+    /// A Python host running Hermes Agent: an argument after the first contains one of its module names, or names
+    /// one of its console scripts.
+    private func isHermes(executable: String, arguments: () -> [String]?) -> Bool {
+        guard isPythonHost(executable) else { return false }
+        return (arguments() ?? []).dropFirst().contains { argument in
+            Self.hermesMarkers.contains(where: argument.contains) || Self.hermesScripts.contains(platform.name(argument))
+        }
     }
 
     func isClaudeDesktopApp(_ executable: String) -> Bool {
@@ -128,6 +153,7 @@ struct AgentProcessRules: Sendable {
             return .pi
         }
         if name == "openclaw" || script.contains("/openclaw.mjs") || script.contains("/openclaw/dist/") { return .openclaw }
+        if isHermes(executable: executable, arguments: arguments) { return .hermes }
         // Only the embedded CodeBuddy Code CLI is the agent; the app, its helpers and its daemon are not.
         if let edition = workbuddyEdition(executable: executable, bundleIdentifier: bundleIdentifier),
            (arguments() ?? []).dropFirst().contains(where: { platform.normalize($0).contains(Self.workbuddyCLI) }) {

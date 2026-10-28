@@ -48,7 +48,7 @@ struct ProbeArguments {
                                [--prices PATH] [--codex PATH] [--claude PATH] [--dsh PATH] [--opencode PATH]
                                [--gemini PATH] [--omp PATH] [--antigravity PATH] [--workbuddy PATH] [--workbuddy-ai PATH]
                                [--zcode PATH] [--kimi PATH] [--grok-build PATH] [--pi PATH]
-                               [--openclaw PATH]
+                               [--openclaw PATH] [--hermes PATH]
                AgentSpeedProbe --sync-prices DIR | --sync-rates DIR CURRENCY
         """
 
@@ -157,6 +157,10 @@ struct ProbeArguments {
                 // `reference.py --openclaw`.
                 guard let path = iterator.next() else { return nil }
                 configuration.openclawRoot = URL(fileURLWithPath: path)
+            case "--hermes":
+                // A Hermes Agent home or one logs folder; it replaces the automatic home, as `reference.py --hermes`.
+                guard let path = iterator.next() else { return nil }
+                configuration.hermesRoot = URL(fileURLWithPath: path, isDirectory: true)
             case "--opencode":
                 // The database file (as in reference.py) or the folder that contains it.
                 guard let path = iterator.next() else { return nil }

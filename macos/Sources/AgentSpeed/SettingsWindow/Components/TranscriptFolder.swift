@@ -5,8 +5,8 @@ import AppKit
 /// one that contains `opencode.db`; Gemini CLI reads one `tmp` folder, or by default two (an override replaces both);
 /// omp reads its default `sessions` root and one per named profile, Antigravity three stores, Pi its sessions root and
 /// its own custom session folder, OpenClaw every state folder (an override replaces all; OpenClaw's may also name an
-/// agent folder or one database); each WorkBuddy edition reads the `projects` folder of its data folder, which the
-/// row names.
+/// agent folder or one database), Hermes Agent the log folders of its home (an override names a home or one `logs`
+/// folder); each WorkBuddy edition reads the `projects` folder of its data folder, which the row names.
 enum TranscriptFolder: CaseIterable {
     case codex
     case claude
@@ -22,6 +22,7 @@ enum TranscriptFolder: CaseIterable {
     case grokBuild
     case pi
     case openclaw
+    case hermes
 
     /// Every default location, in reading order.
     var defaultURLs: [URL] {
@@ -40,6 +41,7 @@ enum TranscriptFolder: CaseIterable {
         case .workbuddyAi: [LiveMonitor.defaultWorkBuddyAiDataFolder]
         case .pi: LiveMonitor.defaultPiRoots
         case .openclaw: LiveMonitor.defaultOpenclawRoots
+        case .hermes: [LiveMonitor.defaultHermesHome]
         }
     }
 
@@ -61,6 +63,7 @@ enum TranscriptFolder: CaseIterable {
         case .workbuddyAi: "mac.settings.sources.chooseWorkbuddyAi"
         case .pi: "mac.settings.sources.choosePi"
         case .openclaw: "mac.settings.sources.chooseOpenClaw"
+        case .hermes: "mac.settings.sources.chooseHermes"
         }
     }
 
@@ -81,6 +84,7 @@ enum TranscriptFolder: CaseIterable {
         case .workbuddyAi: "settings.sources.workbuddyAiHint"
         case .pi: "settings.sources.piHint"
         case .openclaw: "settings.sources.openclawHint"
+        case .hermes: "settings.sources.hermesHint"
         }
     }
 
@@ -101,6 +105,7 @@ enum TranscriptFolder: CaseIterable {
         case .workbuddyAi: settings.workbuddyAiRoot
         case .pi: settings.piRoot
         case .openclaw: settings.openclawRoot
+        case .hermes: settings.hermesRoot
         }
     }
 
@@ -132,7 +137,7 @@ enum TranscriptFolder: CaseIterable {
         case .openclaw:
             let found = defaultURLs.filter(isReadable)
             return found.isEmpty ? [defaultURL] : found
-        case .codex, .claude, .dsh, .opencode, .gemini, .workbuddy, .workbuddyAi, .zcode, .kimi, .grokBuild:
+        case .codex, .claude, .dsh, .opencode, .gemini, .workbuddy, .workbuddyAi, .zcode, .kimi, .grokBuild, .hermes:
             return defaultURLs
         }
     }
@@ -171,6 +176,7 @@ enum TranscriptFolder: CaseIterable {
         case .workbuddyAi: settings.workbuddyAiRoot = value
         case .pi: settings.piRoot = value
         case .openclaw: settings.openclawRoot = value
+        case .hermes: settings.hermesRoot = value
         }
     }
 
@@ -180,7 +186,7 @@ enum TranscriptFolder: CaseIterable {
         switch self {
         case .workbuddy, .workbuddyAi:
             Self.isSameFolder(LiveMonitor.workbuddyProjectsFolder(url), LiveMonitor.workbuddyProjectsFolder(defaultURL))
-        case .codex, .claude, .dsh, .opencode, .gemini, .omp, .antigravity, .zcode, .kimi, .grokBuild, .pi, .openclaw:
+        case .codex, .claude, .dsh, .opencode, .gemini, .omp, .antigravity, .zcode, .kimi, .grokBuild, .pi, .openclaw, .hermes:
             Self.isSameFolder(url, defaultURL)
         }
     }

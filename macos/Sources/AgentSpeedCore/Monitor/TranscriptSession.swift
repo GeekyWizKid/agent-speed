@@ -98,6 +98,8 @@ final class TranscriptSession {
     /// OpenClaw's agent databases, when that source is enabled (METRICS 4.14).
     let openclaw: OpenClawSource?
     private var openclawLinks: [String: String] = [:]
+    /// Hermes Agent's log folders, when that source is enabled (METRICS 4.15).
+    let hermes: HermesSource?
     /// Today's start of the last seed or rediscovery, for databases found while running.
     private var todayStartMs: Int64 = 0
     private let zcodeRoot: String
@@ -135,6 +137,10 @@ final class TranscriptSession {
         zcode = configuration.readsZcode ? ZcodeSource(root: zcodeRoot, fileID: Self.zcodeFileID) : nil
         openclaw = configuration.readsOpenclaw
             ? OpenClawSource(roots: configuration.resolvedOpenclawRoots, maxLineBytes: limits.maxLineBytes) : nil
+        let hermesRoot = configuration.resolvedHermesRoot
+        hermes = configuration.readsHermes
+            ? HermesSource(root: hermesRoot.path, isSetting: hermesRoot.isSetting,
+                           timeZone: configuration.resolvedHermesTimeZone, limits: limits) : nil
         refreshAvailability()
     }
 
@@ -142,7 +148,7 @@ final class TranscriptSession {
 
     var hasAvailableRoot: Bool {
         roots.contains { $0.enabled && $0.detected } || opencode?.isReady == true || zcode?.isReady == true
-            || openclaw?.detected == true
+            || openclaw?.detected == true || hermes?.detected == true
     }
 
     var watchedPaths: [String] {
@@ -152,6 +158,7 @@ final class TranscriptSession {
         }
         if let directory = zcode?.watchedDirectory, !paths.contains(directory) { paths.append(directory) }
         for directory in openclaw?.watchedDirectories ?? [] where !paths.contains(directory) { paths.append(directory) }
+        for directory in hermes?.watchedDirectories ?? [] where !paths.contains(directory) { paths.append(directory) }
         return paths
     }
 
@@ -161,6 +168,11 @@ final class TranscriptSession {
     }
 
     var zcodeLocation: (path: String, available: Bool) { (zcodeRoot, zcode?.exists ?? false) }
+
+    /// The Hermes Agent row's path (the home, or the folder of the setting) and whether it exists (METRICS 2).
+    var hermesLocation: (path: String, available: Bool) {
+        (hermes?.root ?? configuration.resolvedHermesRoot.path, hermes?.detected ?? false)
+    }
 
     /// Root path and availability of the OpenCode source (the folder that contains `opencode.db`).
     var opencodeLocation: (path: String, available: Bool, status: OpencodeSource.Status?) {
@@ -302,6 +314,12 @@ final class TranscriptSession {
             summary.filesRead += openclaw.readyDatabaseCount
             summary.bytesRead += openclaw.databaseBytes
         }
+        if let hermes {
+            apply(hermes.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false)
+            summary.filesDiscovered += hermes.filesDiscovered
+            summary.filesRead += hermes.filesRead
+            summary.bytesRead += hermes.bytesRead
+        }
         summary.partialHistory = partialHistory
         summary.durationMs = Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
         return summary
@@ -380,6 +398,7 @@ final class TranscriptSession {
             changed = apply(openclaw.handleChanges(atCanonicalPaths: paths, todayStartMs: todayStartMs, deduper: &deduper), live: true)
                 || changed
         }
+        if let hermes { changed = apply(hermes.handleChanges(atCanonicalPaths: paths, deduper: &deduper), live: true) || changed }
         var handled: Set<String> = []
         for path in paths.sorted() {
             guard let (localPath, root) = localPath(forCanonical: path), handled.insert(localPath).inserted else { continue }
@@ -425,6 +444,7 @@ final class TranscriptSession {
         }
         if let update = zcode?.refreshIfChanged(deduper: &deduper) { changed = apply(update, live: true) || changed }
         if let openclaw { changed = apply(openclaw.refreshIfChanged(deduper: &deduper), live: true) || changed }
+        if let hermes { changed = apply(hermes.poll(nowMs: nowMs, deduper: &deduper), live: true) || changed }
         let hot = files.values.filter { nowMs - $0.lastStat.modifiedMs <= Self.hotWindowMs }
         for file in hot.sorted(by: { $0.path < $1.path }) {
             guard let stat = file.family.stat(file.path) else {
@@ -494,6 +514,7 @@ final class TranscriptSession {
         if let openclaw {
             changed = apply(openclaw.rediscover(todayStartMs: todayStartMs, deduper: &deduper), live: true) || changed
         }
+        if let hermes { changed = apply(hermes.rediscover(deduper: &deduper), live: true) || changed }
         return changed
     }
 
@@ -637,12 +658,12 @@ final class TranscriptSession {
 
     var malformedLines: Int {
         files.values.reduce(removedMalformedLines) { $0 + $1.parser.state.malformedLines } + (opencode?.malformedRows ?? 0)
-            + (openclaw?.malformedRows ?? 0)
+            + (openclaw?.malformedRows ?? 0) + (hermes?.malformedLines ?? 0)
     }
 
     var unreadableFileCount: Int {
         unreadablePaths.count + (opencode?.status == .unreadable ? 1 : 0) + (zcode?.status == .unreadable ? 1 : 0)
-            + (openclaw?.unreadableDatabaseCount ?? 0)
+            + (openclaw?.unreadableDatabaseCount ?? 0) + (hermes?.unreadableFileCount ?? 0)
     }
 
     /// Antigravity databases whose connection is open.
@@ -679,6 +700,7 @@ final class TranscriptSession {
         }
         if let zcode { counts[.zcode] = zcode.activeSessionCount(todayStartMs: todayStartMs) }
         if let openclaw { counts[.openclaw] = openclaw.activeSessionCount(todayStartMs: todayStartMs) }
+        if let hermes { counts[.hermes] = hermes.activeSessionCount(todayStartMs: todayStartMs) }
         return counts
     }
 
@@ -766,6 +788,24 @@ final class TranscriptSession {
         for (id, state) in update.agents {
             if state.lastLineMs != nil, enabledSources.contains(.openclaw) {
                 engine.setAgent(EngineAgent(id: id, state: state, parentId: parentLinks[id]))
+            } else {
+                engine.removeAgent(id: id)
+            }
+        }
+        return true
+    }
+
+    @discardableResult
+    private func apply(_ update: HermesSource.Update, live: Bool) -> Bool {
+        if hermes?.partialHistory == true { partialHistory = true }
+        guard !update.isEmpty else { return false }
+        for (upsert, project) in update.upserts { deliver(upsert, project: project, live: live) }
+        for id in update.removedAgents { engine.removeAgent(id: id) }
+        for (id, state) in update.agents {
+            if state.lastLineMs != nil, enabledSources.contains(.hermes) {
+                var agent = EngineAgent(id: id, state: state)
+                if let project = update.projects[id] { agent.project = project }
+                engine.setAgent(agent)
             } else {
                 engine.removeAgent(id: id)
             }
