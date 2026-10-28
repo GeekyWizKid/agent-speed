@@ -263,6 +263,12 @@ internal sealed class AgentProcessRules
             return SourceKind.Hermes;
         }
 
+        // Factory Droid's CLI binary, also as `droid exec` workers and Factory Desktop's daemon; its npm shim sends nothing.
+        if (name == "droid")
+        {
+            return SourceKind.Droid;
+        }
+
         // WorkBuddy's embedded CLI, never its app, helper or daemon processes (the same executable without the CLI entry).
         if (WorkBuddyEdition(name, bundle ?? (() => null)) is { } edition && arguments() is { Count: > 1 } args
             && args.Skip(1).Any(a => _platform.Normalize(a).Contains(WorkBuddyCli, StringComparison.Ordinal)))

@@ -166,6 +166,7 @@ public class DisplayTextTests
     [InlineData(SourceKind.Pi, "source.pi", "Pi")]
     [InlineData(SourceKind.OpenClaw, "source.openclaw", "OpenClaw")]
     [InlineData(SourceKind.Hermes, "source.hermes", "Hermes Agent")]
+    [InlineData(SourceKind.Droid, "source.droid", "Factory Droid")]
     public void EverySourceHasItsOwnName(SourceKind source, string key, string english)
     {
         Assert.Equal(key, DisplayText.SourceKey(source));
@@ -221,6 +222,20 @@ public class DisplayTextTests
             Assert.Contains("logs/agent.log", hint, StringComparison.Ordinal);
             Assert.Contains("%LOCALAPPDATA%\\hermes", hint, StringComparison.Ordinal);
             Assert.Contains("Codex", hint, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void DroidStringsExistInEveryLanguage()
+    {
+        foreach (var language in LanguageCodes.All)
+        {
+            Assert.True(Embedded.TryGet("source.droid", language, out var name), language);
+            Assert.Equal("Factory Droid", name);
+            Assert.True(Embedded.TryGet("settings.sources.droidHint", language, out var hint), language);
+            Assert.Contains("~/.factory/sessions", hint, StringComparison.Ordinal);
+            Assert.Contains("%USERPROFILE%\\.factory\\sessions", hint, StringComparison.Ordinal);
+            Assert.Contains(".settings.json", hint, StringComparison.Ordinal);
         }
     }
 
