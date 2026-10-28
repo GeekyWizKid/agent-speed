@@ -14,6 +14,8 @@ namespace AgentSpeed.Core.Monitoring;
 /// No Codex folder is chosen: the agent-scoped Codex home next to every OpenClaw agent database is a Codex root too
 /// (METRICS 2, 4.14).
 /// </param>
+/// <param name="HermesRoot">The Hermes home (automatic), or the chosen home or log folder; empty when not available.</param>
+/// <param name="HermesChosen">The Hermes root is the user setting, which replaces the automatic home (METRICS 4.15).</param>
 internal sealed record SourceLocations(
     string CodexRoot,
     string ClaudeRoot,
@@ -32,7 +34,9 @@ internal sealed record SourceLocations(
     bool PiAutomatic = false,
     IReadOnlyList<string>? OpenClawRoots = null,
     bool OpenClawAutomatic = false,
-    bool CodexAutomatic = true)
+    bool CodexAutomatic = true,
+    string HermesRoot = "",
+    bool HermesChosen = false)
 {
     public static SourceLocations Resolve(MonitorConfiguration configuration) => new(
         Normalize(configuration.CodexRoot ?? LiveMonitor.DefaultCodexRoot),
@@ -52,7 +56,13 @@ internal sealed record SourceLocations(
         PiAutomatic: configuration.PiRoot is null,
         OpenClawRoots: configuration.OpenClawRoot is { } openClaw ? NormalizeAll([openClaw]) : NormalizeAll(LiveMonitor.DefaultOpenClawRoots),
         OpenClawAutomatic: configuration.OpenClawRoot is null,
-        CodexAutomatic: configuration.CodexRoot is null);
+        CodexAutomatic: configuration.CodexRoot is null,
+        HermesRoot: Normalize(configuration.HermesRoot ?? LiveMonitor.DefaultHermesRoot),
+        HermesChosen: configuration.HermesRoot is not null);
+
+    /// <summary>The Hermes log folders now: the home's <c>logs</c> and every profile's, or the chosen folder's (METRICS 4.15).</summary>
+    public IReadOnlyList<string> HermesFolders() =>
+        HermesRoot.Length == 0 ? [] : NormalizeAll(Hermes.HermesPaths.FoldersOf(HermesRoot, HermesChosen));
 
     /// <summary>Codex <c>archived_sessions</c>, the sibling of the sessions root (METRICS 8).</summary>
     public string CodexArchiveRoot => ArchiveRootOf(CodexRoot);

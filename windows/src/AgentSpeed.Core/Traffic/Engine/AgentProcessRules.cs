@@ -7,6 +7,12 @@ internal sealed class AgentProcessRules
 {
     private static readonly HashSet<string> ScriptHosts = new(StringComparer.Ordinal) { "node", "nodejs", "bun", "deno" };
 
+    /// <summary>Hermes Agent's launchers and entry modules in a Python host's arguments (METRICS 10.5).</summary>
+    private static readonly string[] HermesMarkers = ["hermes_bootstrap", "hermes_cli", "acp_adapter"];
+
+    /// <summary>Hermes Agent's console scripts and Windows launcher, by file name without <c>.exe</c>.</summary>
+    private static readonly HashSet<string> HermesScripts = new(StringComparer.Ordinal) { "hermes", "hermes-agent", "hermes-acp" };
+
     /// <summary>
     /// Windows desktop apps by location: an executable directly in the <c>app</c> folder of their packages. The tools a package
     /// bundles deeper (<c>app/resources/codex.exe</c>) follow the rows. Matched against normalized (lower-case) paths.
@@ -65,7 +71,8 @@ internal sealed class AgentProcessRules
     public bool NeedsArguments(string executable, Func<string?> bundle)
     {
         var name = _platform.Name(executable);
-        return IsScriptHostName(name) || name == "claude" || _platform.IsUnder(executable, _claudeVersions) || WorkBuddyEdition(name, bundle) is not null;
+        return IsScriptHostName(name) || IsPythonHostName(name) || name == "claude" || _platform.IsUnder(executable, _claudeVersions)
+            || WorkBuddyEdition(name, bundle) is not null;
     }
 
     private static Dictionary<string, SourceKind> Editions(Func<string, SourceKind?> sources, params (string Key, string Source)[] pairs)
@@ -90,6 +97,29 @@ internal sealed class AgentProcessRules
     public bool IsScriptHost(string executable) => IsScriptHostName(_platform.Name(executable));
 
     private static bool IsScriptHostName(string name) => ScriptHosts.Contains(name.ToLowerInvariant());
+
+    /// <summary><c>python</c>, <c>pythonw</c>, or <c>python</c> followed by digits and dots, compared case-insensitively (macOS <c>Python</c>).</summary>
+    private static bool IsPythonHostName(string name)
+    {
+        var lower = name.ToLowerInvariant();
+        if (lower.EndsWith(".exe", StringComparison.Ordinal))
+        {
+            lower = lower[..^4];
+        }
+
+        if (!lower.StartsWith("python", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var rest = lower.AsSpan(6);
+        return rest.IsEmpty || rest is "w" || (char.IsAsciiDigit(rest[0]) && !rest.ContainsAnyExcept("0123456789."));
+    }
+
+    /// <summary>A Python host running Hermes Agent: a launcher bootstrap, <c>-m hermes_cli.main</c>, or a console script.</summary>
+    private bool IsHermes(string name, Func<IReadOnlyList<string>?> arguments) =>
+        IsPythonHostName(name) && arguments() is { Count: > 1 } args
+        && args.Skip(1).Any(a => HermesMarkers.Any(m => a.Contains(m, StringComparison.Ordinal)) || HermesScripts.Contains(_platform.Name(a)));
 
     public bool IsClaudeDesktopApp(string executable)
     {
@@ -225,6 +255,12 @@ internal sealed class AgentProcessRules
             || script.Contains("/openclaw/dist/", StringComparison.Ordinal))
         {
             return SourceKind.OpenClaw;
+        }
+
+        // The Python process sends Hermes's model requests; a launcher sends nothing (`hermes` is also another engine's tool).
+        if (IsHermes(name, arguments))
+        {
+            return SourceKind.Hermes;
         }
 
         // WorkBuddy's embedded CLI, never its app, helper or daemon processes (the same executable without the CLI entry).

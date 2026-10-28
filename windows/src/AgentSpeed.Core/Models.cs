@@ -31,6 +31,9 @@ public enum SourceKind
 
     /// <summary>OpenClaw: agent databases of a Gateway on this computer, one agent per transcript window, METRICS 4.14.</summary>
     OpenClaw,
+
+    /// <summary>Hermes Agent (Nous Research): API-call lines of its <c>logs/agent.log</c>, one agent per session id, METRICS 4.15.</summary>
+    Hermes,
 }
 
 public enum AgentPhase
@@ -250,6 +253,7 @@ public abstract record SpeedEvent
 /// <param name="WorkBuddyAiRoot">The WorkBuddy AI data folder or its <c>projects</c> folder; null uses <c>~/.workbuddy-ai</c>.</param>
 /// <param name="PiRoot">One Pi sessions folder; null reads Pi's default root and the custom session folder of its settings.</param>
 /// <param name="OpenClawRoot">An OpenClaw state folder, agent folder or database; null reads every automatic state folder.</param>
+/// <param name="HermesRoot">A Hermes home or one <c>logs</c> folder; null reads the automatic Hermes home and its profiles.</param>
 public sealed record MonitorConfiguration(
     IReadOnlySet<SourceKind> EnabledSources,
     string? CodexRoot = null,
@@ -265,7 +269,8 @@ public sealed record MonitorConfiguration(
     string? KimiRoot = null,
     string? GrokBuildRoot = null,
     string? PiRoot = null,
-    string? OpenClawRoot = null)
+    string? OpenClawRoot = null,
+    string? HermesRoot = null)
 {
     public static MonitorConfiguration Default { get; } =
         new(new HashSet<SourceKind>(Enum.GetValues<SourceKind>()));
@@ -286,10 +291,11 @@ public sealed record MonitorConfiguration(
         && KimiRoot == other.KimiRoot
         && GrokBuildRoot == other.GrokBuildRoot
         && PiRoot == other.PiRoot
-        && OpenClawRoot == other.OpenClawRoot;
+        && OpenClawRoot == other.OpenClawRoot
+        && HermesRoot == other.HermesRoot;
 
     public override int GetHashCode() => HashCode.Combine(
         HashCode.Combine(EnabledSources.Count, CodexRoot, ClaudeRoot, DshRoot, OpenCodeRoot, GeminiRoot, OmpRoot, AntigravityRoot),
         WorkBuddyRoot,
-        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, PiRoot, OpenClawRoot);
+        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, PiRoot, HashCode.Combine(OpenClawRoot, HermesRoot));
 }

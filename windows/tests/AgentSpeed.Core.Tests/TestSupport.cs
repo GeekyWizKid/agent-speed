@@ -187,6 +187,18 @@ internal static class OpenClawFixture
         OpenClaw.OpenClawPaths.StateFolders(_ => null, Path.Combine(fixtures, "openclaw"));
 }
 
+/// <summary>The fixture folder <c>hermes/home</c> plays the Hermes home (<c>~/.hermes</c>); wall times are in <c>hermes.timeZone</c>.</summary>
+internal static class HermesFixture
+{
+    public static string Home => HomeIn(FixtureLocator.FixturesDirectory);
+
+    public static string HomeIn(string fixtures) => Path.Combine(fixtures, "hermes", "home");
+
+    public static System.Text.Json.JsonElement Expected => ParserFixtureTests.Expected.GetProperty("hermes");
+
+    public static TimeZoneInfo Zone => Hermes.HermesClock.FindZone(Expected.GetProperty("timeZone").GetString()!);
+}
+
 /// <summary>The fixture folder <c>omp</c> plays <c>~/.omp</c>: its automatic roots are the default root and every profile.</summary>
 internal static class OmpFixture
 {

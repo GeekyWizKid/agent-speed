@@ -139,6 +139,12 @@ public sealed class LiveMonitor : IDisposable
     /// </summary>
     public static string DefaultOpenClawRoot => OpenClaw.OpenClawPaths.DefaultStateFolder();
 
+    /// <summary>
+    /// Hermes Agent's home (<c>%HERMES_HOME%</c>, resolved to the root of a profile home; else <c>%LOCALAPPDATA%\hermes</c>,
+    /// macOS <c>~/.hermes</c>); its <c>logs</c> folder and every profile's are read (METRICS 2, 4.15).
+    /// </summary>
+    public static string DefaultHermesRoot => Hermes.HermesPaths.AutomaticHome();
+
     /// <summary>Every automatic OpenClaw state folder: the override alone, else <c>.openclaw</c> and its profiles.</summary>
     public static IReadOnlyList<string> DefaultOpenClawRoots => OpenClaw.OpenClawPaths.AutomaticStateFolders();
 
@@ -425,6 +431,7 @@ public sealed class LiveMonitor : IDisposable
             {
                 TimeZoneInfo.ClearCachedData();
                 zone = TimeZoneInfo.Local;
+                core.HermesZone = zone;
                 nextZoneRefresh = elapsed + TimeZoneRefreshInterval;
             }
 

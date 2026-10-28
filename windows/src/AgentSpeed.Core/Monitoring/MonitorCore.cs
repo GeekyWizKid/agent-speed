@@ -98,6 +98,7 @@ internal sealed partial class MonitorCore : IDisposable
 
         InitializeZCode(locations);
         InitializeOpenClaw(locations);
+        InitializeHermes(locations, zone);
         OpenCodeRootPath = locations.OpenCodeRoot;
         _ompAutomatic = locations.OmpAutomatic;
         _piAutomatic = locations.PiAutomatic;
@@ -152,10 +153,11 @@ internal sealed partial class MonitorCore : IDisposable
     /// <summary>Every folder a file watcher should observe, including the OpenCode database folder.</summary>
     public IEnumerable<SourceRoot> WatchRoots => (_zcodeRoot is { } zcode ? _roots.Append(zcode) : _roots)
         .Concat(OpenCodeRoot is { } openCode ? [openCode] : [])
-        .Concat(_openClawWatchRoots);
+        .Concat(_openClawWatchRoots)
+        .Concat(_hermesWatchRoots);
 
     public bool AnyEnabledRootAvailable => _roots.Any(r => r.Enabled && r.Available) || OpenCodeRoot?.Available == true
-        || _zcodeRoot?.Available == true || _openClaw?.Available == true;
+        || _zcodeRoot?.Available == true || _openClaw?.Available == true || _hermes?.Available == true;
 
     public int TrackedFileCount => _files.Count;
 
@@ -169,6 +171,7 @@ internal sealed partial class MonitorCore : IDisposable
     {
         RefreshZCodeAvailability();
         RefreshOpenClawWatchRoots();
+        RefreshHermesWatchRoots();
         foreach (var root in _roots)
         {
             root.Available = SafeDirectoryExists(root.DetectionPath);
@@ -311,6 +314,7 @@ internal sealed partial class MonitorCore : IDisposable
 
         SeedZCode(todayStartMs);
         SeedOpenClaw(todayStartMs, cancellationToken, ref discovered, ref filesRead, ref bytesRead);
+        SeedHermes(todayStartMs, cancellationToken, ref discovered, ref filesRead, ref bytesRead);
         return new SeedReport(stopwatch.ElapsedMilliseconds, discovered, filesRead, bytesRead, _responsesSeen);
     }
 
@@ -328,6 +332,7 @@ internal sealed partial class MonitorCore : IDisposable
         var zcodeChanged = false;
         var openClawChanged = false;
         var openClawNew = false;
+        var hermesChanged = false;
         foreach (var incoming in paths)
         {
             var path = incoming;
@@ -355,6 +360,12 @@ internal sealed partial class MonitorCore : IDisposable
             {
                 openClawChanged = true;
                 openClawNew |= !_openClaw.IsTracked(path);
+                continue;
+            }
+
+            if (_hermes?.IsWatchedPath(path) == true)
+            {
+                hermesChanged = true;
                 continue;
             }
 
@@ -399,6 +410,11 @@ internal sealed partial class MonitorCore : IDisposable
             changed |= RefreshOpenClaw(discover: openClawNew);
         }
 
+        if (hermesChanged)
+        {
+            changed |= RefreshHermes(discover: false);
+        }
+
         return changed;
     }
 
@@ -415,6 +431,7 @@ internal sealed partial class MonitorCore : IDisposable
         var changed = _openCodeSeeded && _openCode?.RefreshIfChanged() is { } update && ApplyOpenCode(update, seeded: false);
         changed |= _zcodeSeeded && RefreshZCode();
         changed |= RefreshOpenClaw(discover: false);
+        changed |= RefreshHermes(discover: false);
         _connections.CloseIdle();
         List<TrackedFile>? due = null;
         foreach (var tracked in _files.Values)
@@ -491,6 +508,17 @@ internal sealed partial class MonitorCore : IDisposable
             changed |= RefreshOpenClaw(discover: true);
         }
 
+        if (_hermes is not null && !_hermesSeeded && _hermes.Available)
+        {
+            var (discovered, filesRead, bytesRead) = (0, 0, 0L);
+            SeedHermes(todayStartMs, cancellationToken, ref discovered, ref filesRead, ref bytesRead);
+            changed = true;
+        }
+        else
+        {
+            changed |= RefreshHermes(discover: true);
+        }
+
         foreach (var root in _roots.ToList())
         {
             if (!root.Enabled)
@@ -553,6 +581,11 @@ internal sealed partial class MonitorCore : IDisposable
         if (kind == SourceKind.OpenClaw)
         {
             return _openClaw?.ActiveSessionCount(todayStartMs) ?? 0;
+        }
+
+        if (kind == SourceKind.Hermes)
+        {
+            return _hermes?.ActiveSessionCount(todayStartMs) ?? 0;
         }
 
         var mainOnly = WorkBuddyPaths.IsWorkBuddy(kind) || kind is SourceKind.Kimi or SourceKind.GrokBuild or SourceKind.Pi;
@@ -619,13 +652,13 @@ internal sealed partial class MonitorCore : IDisposable
 
     public long MalformedLineCount =>
         _removedMalformedLines + _files.Values.Sum(f => f.Parser.MalformedLines) + (_openCode?.MalformedRows ?? 0)
-        + (_openClaw?.MalformedLines ?? 0);
+        + (_openClaw?.MalformedLines ?? 0) + (_hermes?.MalformedLines ?? 0);
 
-    public long OversizedLineCount => _removedOversizedLines + _files.Values.Sum(f => f.Tailer.OversizedLines);
+    public long OversizedLineCount => _removedOversizedLines + _files.Values.Sum(f => f.Tailer.OversizedLines) + (_hermes?.OversizedLines ?? 0);
 
     public int UnreadableFileCount =>
         _files.Values.Count(f => f.Unreadable) + (_openCode?.Status == OpenCodeStatus.Unreadable ? 1 : 0) + (_zcode?.Unreadable == true ? 1 : 0)
-        + (_openClaw?.UnreadableCount ?? 0);
+        + (_openClaw?.UnreadableCount ?? 0) + (_hermes?.UnreadableCount ?? 0);
 
     public bool PartialHistory => _partialHistory;
 
@@ -756,6 +789,11 @@ internal sealed partial class MonitorCore : IDisposable
         {
             (path, available) = OpenClawStatus();
             rootEnabled = _openClaw is not null;
+        }
+        else if (kind == SourceKind.Hermes)
+        {
+            (path, available) = HermesStatus();
+            rootEnabled = _hermes is not null;
         }
         else if (kind == SourceKind.OpenCode)
         {
