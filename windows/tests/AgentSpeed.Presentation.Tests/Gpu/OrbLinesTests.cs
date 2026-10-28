@@ -42,7 +42,9 @@ public class OrbLinesTests
     private static OrbLinesSample Intelligence(IntelligenceSums sums, Localizer? localizer = null) =>
         OrbLinesText.Intelligence(sums, generating: true, localizer ?? En);
 
-    private readonly record struct DrawnLine(double Left, double Right, double Baseline, double Size);
+    /// <param name="Pieces">Quads in the line: glyph, each character and the unit.</param>
+    /// <param name="Snapped">Every piece starts on a device pixel (2 px per point).</param>
+    private readonly record struct DrawnLine(double Left, double Right, double Baseline, double Size, int Pieces = 1, bool Snapped = true);
 
     /// <summary>
     /// The readout's own quads at <paramref name="size"/> (no stack shift), in lines from the top. FakeGlyphs pads each quad
@@ -56,7 +58,8 @@ public class OrbLinesTests
         orb.Lines.Add(list, ctx, orb.Scene, orb.LinesReading!.Value, OrbLinesPlacement.For(style), 0, OrbLinesColors.Standard(ctx),
             OrbTextClip.None, yieldsToPill: false);
         var quads = list.Texts.ToArray()
-            .Select(q => new DrawnLine(q.Rect.X + 2, q.Rect.X + q.Rect.Z - 2, q.Rect.Y + 2 + 0.75 * (q.Rect.W - 4), q.Rect.W - 4))
+            .Select(q => new DrawnLine(q.Rect.X + 2, q.Rect.X + q.Rect.Z - 2, q.Rect.Y + 2 + 0.75 * (q.Rect.W - 4), q.Rect.W - 4,
+                Snapped: Math.Abs(q.Rect.X * 2 - Math.Round(q.Rect.X * 2)) < 1e-3))
             .OrderBy(q => q.Baseline)
             .ToArray();
         var lines = new List<List<DrawnLine>>();
@@ -70,7 +73,8 @@ public class OrbLinesTests
             lines[^1].Add(quad);
         }
 
-        return lines.Select(l => new DrawnLine(l.Min(q => q.Left), l.Max(q => q.Right), l[0].Baseline, l.Max(q => q.Size))).ToArray();
+        return lines.Select(l => new DrawnLine(l.Min(q => q.Left), l.Max(q => q.Right), l[0].Baseline, l.Max(q => q.Size), l.Count,
+            l.All(q => q.Snapped))).ToArray();
     }
 
     /// <summary>FakeGlyphs' advance of a string at a size (the atlas quantizes sizes to 0.25 pt).</summary>
@@ -199,14 +203,19 @@ public class OrbLinesTests
         Assert.Equal(top, intelligence.Baseline, 3);
         Assert.Equal(bottom, thinking.Baseline, 3);
 
-        // Each line on its own: centered on the orb by its width (within the device pixel its left edge snaps to).
+        // Each line on its own: centered on the orb by its width (within the device pixels its pieces snap to).
         foreach (var line in lines)
         {
-            Assert.InRange((line.Left + line.Right) / 2, 0.75 * 196 - 0.35, 0.75 * 196 + 0.35);
-            Assert.Equal(Math.Round(line.Left * 2), line.Left * 2, 3);
+            Assert.InRange((line.Left + line.Right) / 2, 0.75 * 196 - 0.5, 0.75 * 196 + 0.5);
+            Assert.True(line.Snapped);
         }
 
         Assert.NotEqual(intelligence.Left, thinking.Left, 1);
+
+        // 智力 · 133; 思考 · 176 · tok/s, except in the needle's hub, whose dial prints tok/s.
+        Assert.Equal(1 + 3, intelligence.Pieces);
+        Assert.Equal(style == OrbStyle.Needle ? 1 + 3 : 1 + 3 + 1, thinking.Pieces);
+        Assert.Equal(style == OrbStyle.Needle, orb.UnitOnDial);
 
         // The intelligence number at p = 1.25 t, the thinking number at t.
         Assert.Equal(Math.Round(1.25 * t * 4) / 4, intelligence.Size, 3);
@@ -252,15 +261,40 @@ public class OrbLinesTests
         {
             var t = placement.TextSize(s);
             var p = 1.25 * t;
-            var (intelligence, thinking) = draw.WidestLines(t, shown);
+            var (intelligence, thinking) = draw.WidestLines(placement, s, shown);
+            var unit = placement.ThinkingUnit ? 0.16 * t + Advance("tok/s", 0.82 * t) : 0;
             Assert.Equal(Advance("智力", 0.82 * p) + 0.20 * p + 3 * 0.56 * p, intelligence, 3);
-            Assert.Equal(Advance("思考", 0.82 * t) + 0.16 * t + 3 * 0.56 * t + Advance(".", t) + 0.16 * t + Advance("tok/s", 0.82 * t), thinking, 3);
-            Assert.Equal(Math.Max(intelligence, thinking) <= placement.Fit * s, draw.Fits(placement, s, shown));
+            Assert.Equal(Advance("思考", 0.82 * t) + 0.16 * t + 3 * 0.56 * t + Advance(".", t) + unit, thinking, 3);
+            var (top, bottom) = placement.Baselines(0, s, OrbLinesKind.Intelligence);
+            var inHub = placement.HubReach is not { } reach
+                || (Math.Sqrt(intelligence * intelligence / 4 + top * top) <= reach * s && Math.Sqrt(thinking * thinking / 4 + bottom * bottom) <= reach * s);
+            Assert.Equal(Math.Max(intelligence, thinking) <= placement.Fit * s && inHub, draw.Fits(placement, s, shown));
             Assert.Equal(draw.Fits(placement, s, shown), draw.Fits(placement, s, quiet));
             fits += draw.Fits(placement, s, shown) ? 1 : 0;
         }
 
         Assert.InRange(fits, 1, 128);
+    }
+
+    [Fact]
+    public void TheNeedlesLinesKeepTheirBottomCornersInsideTheHub()
+    {
+        var draw = new OrbLinesDraw(new FakeGlyphs());
+        var needle = OrbLinesPlacement.Needle;
+        var shown = Intelligence(Long, ZhHant).Content!;
+        Assert.False(needle.ThinkingUnit);
+
+        // At 100 pt the widest lines fit the 0.285 S width, but at the 7 pt floor the thinking line sits so low that its
+        // corners leave the 0.223 S reach.
+        var (intelligence, thinking) = draw.WidestLines(needle, 100, shown);
+        Assert.True(Math.Max(intelligence, thinking) <= 0.285 * 100);
+        var (_, bottom) = needle.Baselines(0, 100, OrbLinesKind.Intelligence);
+        Assert.True(Math.Sqrt(thinking * thinking / 4 + bottom * bottom) > 0.223 * 100);
+        Assert.False(draw.Fits(needle, 100, shown));
+        Assert.True(draw.Fits(needle, 196, shown));
+
+        // The network readout keeps its width rule alone.
+        Assert.True(draw.Fits(needle, 140, Traffic(1_280_000, 64_000).Content));
     }
 
     [Fact]
@@ -270,6 +304,12 @@ public class OrbLinesTests
         var (intelligence, thinking) = OrbLinesPlacement.Led.Baselines(100, 148, OrbLinesKind.Intelligence);
         Assert.Equal(100 - 0.245 * 148, thinking, 6);
         Assert.Equal(thinking - 1.32 * 7.4, intelligence, 6);
+
+        // Reactor lowers its thinking line to c − 0.155 S so the larger line clears the core's rim; ↑ stays at c − 0.175 S.
+        var (reactorIntelligence, reactorThinking) = OrbLinesPlacement.Reactor.Baselines(100, 148, OrbLinesKind.Intelligence);
+        Assert.Equal(100 - 0.155 * 148, reactorThinking, 6);
+        Assert.Equal(reactorThinking - 1.32 * 7, reactorIntelligence, 6);
+        Assert.Equal(100 - 0.175 * 148, OrbLinesPlacement.Reactor.Baselines(100, 148, OrbLinesKind.Traffic).Bottom, 6);
 
         // Below it (needle): the intelligence line drops by its extra cap height, the thinking line one pitch below.
         var t = 0.046 * 196;

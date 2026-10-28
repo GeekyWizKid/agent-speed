@@ -251,10 +251,18 @@ internal static class OrbFrameHarness
             var placement = OrbLinesPlacement.For(style);
             foreach (var size in sizes)
             {
-                var (top, bottom) = measure.WidestLines(placement.TextSize(size), intelligence.Content!);
+                var (top, bottom) = measure.WidestLines(placement, size, intelligence.Content!);
                 var drawn = measure.Fits(placement, size, intelligence.Content) ? "drawn" : "not drawn";
+                var hub = string.Empty;
+                if (placement.HubReach is { } reach)
+                {
+                    var (topBaseline, bottomBaseline) = placement.Baselines(0, size, OrbLinesKind.Intelligence);
+                    hub = string.Create(CultureInfo.InvariantCulture,
+                        $", hub corners {Math.Sqrt(top * top / 4 + topBaseline * topBaseline):0.0} / {Math.Sqrt(bottom * bottom / 4 + bottomBaseline * bottomBaseline):0.0} pt, reach {reach * size:0.0} pt");
+                }
+
                 report.AppendLine(CultureInfo.InvariantCulture,
-                    $"intel {OrbStyles.Key(style)} {size:0}: {drawn} (widest lines {top:0.0} / {bottom:0.0} pt, room {placement.Fit * size:0.0} pt)");
+                    $"intel {OrbStyles.Key(style)} {size:0}: {drawn} (widest lines {top:0.0} / {bottom:0.0} pt, room {placement.Fit * size:0.0} pt{hub})");
             }
         }
 

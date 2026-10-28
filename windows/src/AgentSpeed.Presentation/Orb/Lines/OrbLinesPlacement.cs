@@ -17,6 +17,17 @@ namespace AgentSpeed.Presentation.Orb.Lines;
 /// </param>
 public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, double Size, double Fit, bool Recenters = false)
 {
+    /// <summary>
+    /// Intelligence above the value: the thinking line's baseline where it sits lower than the nearest line (<c>reactor</c>,
+    /// so the larger intelligence line clears the core's rim).
+    /// </summary>
+    public double? ThinkingBaseline { get; init; }
+
+    /// <summary>Intelligence: the thinking line ends with <c>tok/s</c>; <c>needle</c> leaves it to its dial legend.</summary>
+    public bool ThinkingUnit { get; init; } = true;
+
+    /// <summary>Intelligence in a round hub (<c>needle</c>): each line's bottom corners stay within this × S of the center.</summary>
+    public double? HubReach { get; init; }
     /// <summary>Line pitch, × t.</summary>
     public const double Pitch = 1.32;
 
@@ -50,9 +61,9 @@ public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, doubl
 
     public static OrbLinesPlacement Liquid { get; } = Led;
 
-    public static OrbLinesPlacement Reactor { get; } = new(-0.175, false, 0.046, 0.32);
+    public static OrbLinesPlacement Reactor { get; } = new(-0.175, false, 0.046, 0.32) { ThinkingBaseline = -0.155 };
 
-    public static OrbLinesPlacement Needle { get; } = new(0.108, true, 0.046, 0.285);
+    public static OrbLinesPlacement Needle { get; } = new(0.108, true, 0.046, 0.285) { ThinkingUnit = false, HubReach = 0.223 };
 
     public static OrbLinesPlacement Minimal { get; } = new(-0.228, false, 0.054, 0.50, Recenters: true);
 
@@ -81,20 +92,21 @@ public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, doubl
         kind == OrbLinesKind.Intelligence ? IntelligenceScale * TextSize(s) : TextSize(s);
 
     /// <summary>
-    /// Baselines of the top and bottom lines, from the center <paramref name="y"/>. Below the value a larger top line drops
-    /// by its extra cap height, so its cap top stays where a t line's would be.
+    /// Baselines of the top and bottom lines, from the center <paramref name="y"/>. Above the value the intelligence
+    /// readout's thinking line may sit lower (<see cref="ThinkingBaseline"/>); below it a larger top line drops by its extra
+    /// cap height, so its cap top stays where a t line's would be.
     /// </summary>
     public (double Top, double Bottom) Baselines(double y, double s, OrbLinesKind kind)
     {
-        var nearest = y + NearestBaseline * s;
         var t = TextSize(s);
         var pitch = Pitch * t;
         if (!Below)
         {
+            var nearest = y + (kind == OrbLinesKind.Intelligence ? ThinkingBaseline ?? NearestBaseline : NearestBaseline) * s;
             return (nearest - pitch, nearest);
         }
 
-        var top = nearest + CapHeight * (TopSize(kind, s) - t);
+        var top = y + NearestBaseline * s + CapHeight * (TopSize(kind, s) - t);
         return (top, top + pitch);
     }
 
@@ -111,7 +123,7 @@ public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, doubl
             return 0;
         }
 
-        var blockTop = NearestBaseline * s - Pitch * TextSize(s) - CapHeight * TopSize(kind, s);
+        var blockTop = Baselines(0, s, kind).Top - CapHeight * TopSize(kind, s);
         var valueTop = (layout.ValueBaseline - CapHeight * layout.ValueSize) * s;
         var centered = Math.Max(0, (valueTop - blockTop) / 2);
         if (layout.DotsY is not { } dots)
