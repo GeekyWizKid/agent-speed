@@ -136,9 +136,24 @@ enum DecodedLines: Sendable {
     case droid([DroidLineRead], start: Int64?)
 }
 
+/// Whether a parser composes the task stream (METRICS 6.9), and how much of it it keeps.
+enum TaskStreamMode: Sendable {
+    case off
+    /// The live engine: the current task only.
+    case live
+    /// The history analysis: every task, with the model notes of 6.11.
+    case history
+}
+
 /// A family-agnostic per-file parser. Exactly one of the machines is set.
 struct TranscriptParser: Sendable {
     let family: TranscriptFamily
+    let fileID: FileID
+    /// The per-file half of the task composer; seeding and history run it on the decoding threads.
+    var taskReader: TaskLineReader?
+    /// The agent's task stream (METRICS 6.9), for a scored source.
+    private(set) var tasks: TaskComposer?
+    private var notedModes: (modes: ExecutionModes, effort: String?)?
     private var codex: CodexParser?
     private var claude: ClaudeParser?
     private var dsh: DshParser?
@@ -153,8 +168,13 @@ struct TranscriptParser: Sendable {
 
     /// `root` is the root folder the file was discovered under (omp and WorkBuddy derive `isSubagent` from it,
     /// METRICS 4.7, 4.9).
-    init(family: TranscriptFamily, agentId: String, fileID: FileID, root: String? = nil) {
+    init(family: TranscriptFamily, agentId: String, fileID: FileID, root: String? = nil, tasks mode: TaskStreamMode = .off) {
         self.family = family
+        self.fileID = fileID
+        if mode != .off, let source = family.sources.first, let reader = TaskLineReader(source: source) {
+            taskReader = reader
+            tasks = TaskComposer(source: reader.source, keepsEveryTask: mode == .history)
+        }
         switch family {
         case .codex: codex = CodexParser(agentId: agentId, fileID: fileID)
         case .claude: claude = ClaudeParser(agentId: agentId, fileID: fileID)
@@ -244,21 +264,35 @@ struct TranscriptParser: Sendable {
         emit: (ResponseUpsert) -> Void
     ) {
         guard let line = decode(bytes, offset: offset) else { return }
+        let taskLine = taskReader?.read(bytes, line)
         consume(line, tools: ToolEventExtractor.events(family, bytes), deduper: &deduper, emit: emit)
+        if let taskLine { feedTask(taskLine, deduper: deduper) }
     }
 
-    mutating func consume(_ lines: DecodedLines, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
+    /// Decoded lines, with the task lines the decoding thread prepared for them (`taskLines[i]` belongs to line `i`).
+    mutating func consume(_ lines: DecodedLines, taskLines: [TaskLine] = [], deduper: inout Deduper,
+                          emit: (ResponseUpsert) -> Void) {
+        let composes = tasks != nil && !taskLines.isEmpty
         switch lines {
         case .codex(let extractions):
-            for extraction in extractions { codex?.consume(extraction, deduper: &deduper, emit: emit) }
+            for (index, extraction) in extractions.enumerated() {
+                codex?.consume(extraction, deduper: &deduper, emit: emit)
+                if composes, index < taskLines.count { feedTask(taskLines[index], deduper: deduper) }
+            }
         case .claude(let extractions):
-            for extraction in extractions { claude?.consume(extraction, deduper: &deduper, emit: emit) }
+            for (index, extraction) in extractions.enumerated() {
+                claude?.consume(extraction, deduper: &deduper, emit: emit)
+                if composes, index < taskLines.count { feedTask(taskLines[index], deduper: deduper) }
+            }
         case .dsh(let extractions):
             for extraction in extractions { dsh?.consume(extraction, deduper: &deduper, emit: emit) }
         case .gemini(let extractions):
             for extraction in extractions { gemini?.consume(extraction, deduper: &deduper, emit: emit) }
         case .omp(let extractions):
-            for extraction in extractions { omp?.consume(extraction, deduper: &deduper, emit: emit) }
+            for (index, extraction) in extractions.enumerated() {
+                omp?.consume(extraction, deduper: &deduper, emit: emit)
+                if composes, index < taskLines.count { feedTask(taskLines[index], deduper: deduper) }
+            }
         case .antigravity(let batch):
             if let batch { antigravity?.consume(batch, deduper: &deduper, emit: emit) }
         case .workbuddy(let extractions):
@@ -268,11 +302,38 @@ struct TranscriptParser: Sendable {
         case .grokBuild(let extractions):
             for extraction in extractions { grokBuild?.consume(extraction, deduper: &deduper, emit: emit) }
         case .pi(let extractions):
-            for extraction in extractions { pi?.consume(extraction, deduper: &deduper, emit: emit) }
+            for (index, extraction) in extractions.enumerated() {
+                pi?.consume(extraction, deduper: &deduper, emit: emit)
+                if composes, index < taskLines.count { feedTask(taskLines[index], deduper: deduper) }
+            }
         case .droid(let lines, let start):
             droid?.noteReadStart(start)
-            for line in lines { droid?.consume(line, deduper: &deduper) }
+            for (index, line) in lines.enumerated() {
+                droid?.consume(line, deduper: &deduper)
+                if composes, index < taskLines.count { feedTask(taskLines[index], deduper: deduper) }
+            }
         }
+    }
+
+    // MARK: - Task stream (METRICS 6.9)
+
+    /// Applies a line's task operations right after the line was parsed; in history, notes the model and effort after
+    /// it (6.11 *Task records*).
+    private mutating func feedTask(_ line: TaskLine, deduper: Deduper) {
+        guard tasks != nil else { return }
+        let fileID = self.fileID
+        guard let t = tasks!.feed(line, isDuplicate: { deduper.isOwnedByOtherFile($0, for: fileID) }),
+              tasks!.keepsEveryTask else { return }
+        let state = self.state
+        let effort: String?
+        if let noted = notedModes, noted.modes == state.modes {
+            effort = noted.effort
+        } else {
+            let attribution = state.modes.attribution(for: .effort)
+            effort = attribution.isUnknown ? nil : attribution.mode
+            notedModes = (state.modes, effort)
+        }
+        tasks!.note(t: t, model: state.model, effort: effort)
     }
 
     // MARK: - Factory Droid read cycles (METRICS 4.16)
@@ -313,62 +374,91 @@ struct TranscriptParser: Sendable {
     }
 }
 
-/// Reads a whole transcript (from the reader's position) and decodes its lines, off the state-machine thread.
+/// Reads a whole transcript (from the reader's position) and decodes its lines, off the state-machine thread. With a
+/// task reader (a scored source, METRICS 6.9) it also prepares each line's task line: `tasks[i]` belongs to line `i`.
 enum TranscriptDecoder {
+    struct Output: Sendable {
+        var lines: DecodedLines
+        var read: FileTailer.ReadResult
+        /// Empty without a task reader.
+        var tasks: [TaskLine] = []
+    }
+
     static func decode(_ family: TranscriptFamily, reader: inout TranscriptReader) -> (lines: DecodedLines, read: FileTailer.ReadResult) {
+        var none: TaskLineReader?
+        let output = decode(family, reader: &reader, tasks: &none)
+        return (output.lines, output.read)
+    }
+
+    static func decode(_ family: TranscriptFamily, reader: inout TranscriptReader, tasks: inout TaskLineReader?) -> Output {
         switch family {
         case .codex:
-            let (lines, read) = extract(CodexLineExtractor.extract, reader: &reader)
-            return (.codex(lines), read)
+            return extract(CodexLineExtractor.extract, reader: &reader, tasks: &tasks, wrap: DecodedLines.codex) { task, bytes, line in
+                task.codex(bytes, line: line)
+            }
         case .claude:
-            let (lines, read) = extract(ClaudeLineExtractor.extract, reader: &reader)
-            return (.claude(lines), read)
+            return extract(ClaudeLineExtractor.extract, reader: &reader, tasks: &tasks, wrap: DecodedLines.claude) { task, bytes, line in
+                task.claude(bytes, line: line)
+            }
         case .dsh:
-            let (lines, read) = extract(DshLineExtractor.extract, reader: &reader)
-            return (.dsh(lines), read)
+            return extract(DshLineExtractor.extract, reader: &reader, tasks: &tasks, wrap: DecodedLines.dsh, task: nil)
         case .gemini:
             let extractor = reader.isDocument ? GeminiLineExtractor.extractDocument : GeminiLineExtractor.extract
-            let (lines, read) = extract(extractor, reader: &reader)
-            return (.gemini(lines), read)
+            return extract(extractor, reader: &reader, tasks: &tasks, wrap: DecodedLines.gemini, task: nil)
         case .omp:
-            let (lines, read) = extract(OmpLineExtractor.extract, reader: &reader)
-            return (.omp(lines), read)
+            return extract(OmpLineExtractor.extract, reader: &reader, tasks: &tasks, wrap: DecodedLines.omp) { task, bytes, _ in
+                task.piFamily(bytes)
+            }
         case .antigravity:
             let (batch, read) = reader.readDatabase()
-            return (.antigravity(batch), read)
+            return Output(lines: .antigravity(batch), read: read)
         case .workbuddy, .workbuddyAi:
-            let (lines, read) = extract(WorkBuddyLineExtractor.extract, reader: &reader)
-            return (.workbuddy(lines), read)
+            return extract(WorkBuddyLineExtractor.extract, reader: &reader, tasks: &tasks, wrap: DecodedLines.workbuddy, task: nil)
         case .kimi:
-            let (lines, read) = extract(KimiLineExtractor.extract, reader: &reader)
-            return (.kimi(lines), read)
+            return extract(KimiLineExtractor.extract, reader: &reader, tasks: &tasks, wrap: DecodedLines.kimi, task: nil)
         case .grokBuild:
-            let (lines, read) = extract(GrokBuildLine.extract, reader: &reader)
-            return (.grokBuild(lines), read)
+            return extract(GrokBuildLine.extract, reader: &reader, tasks: &tasks, wrap: DecodedLines.grokBuild, task: nil)
         case .pi:
-            let (lines, read) = extract(PiLineExtractor.extract, reader: &reader)
-            return (.pi(lines), read)
+            return extract(PiLineExtractor.extract, reader: &reader, tasks: &tasks, wrap: DecodedLines.pi) { task, bytes, _ in
+                task.piFamily(bytes)
+            }
         case .droid:
             var lines: [DroidLineRead] = []
+            var taskLines: [TaskLine] = []
             let read = reader.read(onLineAt: { bytes, offset in
                 let extraction = DroidLineExtractor.extract(bytes)
                 if case .blank = extraction { return }
                 lines.append(DroidLineRead(extraction: extraction, offset: offset, length: bytes.count))
+                if tasks != nil { taskLines.append(extraction.isLine ? tasks!.droid(bytes) : .none) }
             })
-            return (.droid(lines, start: read.startOffset), read)
+            return Output(lines: .droid(lines, start: read.startOffset), read: read, tasks: taskLines)
         }
     }
 
     private static func extract<Line: Sendable>(
         _ extractor: (UnsafeRawBufferPointer) -> LineExtraction<Line>,
-        reader: inout TranscriptReader
-    ) -> ([LineExtraction<Line>], FileTailer.ReadResult) {
+        reader: inout TranscriptReader,
+        tasks: inout TaskLineReader?,
+        wrap: ([LineExtraction<Line>]) -> DecodedLines,
+        task: ((inout TaskLineReader, UnsafeRawBufferPointer, Line) -> TaskLine)?
+    ) -> Output {
         var lines: [LineExtraction<Line>] = []
-        let read = reader.read(onMalformed: { lines.append(.malformed) }) { bytes in
+        var taskLines: [TaskLine] = []
+        let composes = tasks != nil && task != nil
+        let read = reader.read(onMalformed: {
+            lines.append(.malformed)
+            if composes { taskLines.append(.none) }
+        }) { bytes in
             let extraction = extractor(bytes)
             if case .blank = extraction { return }
             lines.append(extraction)
+            guard composes else { return }
+            if case .line(let line) = extraction {
+                taskLines.append(task!(&tasks!, bytes, line))
+            } else {
+                taskLines.append(.none)
+            }
         }
-        return (lines, read)
+        return Output(lines: wrap(lines), read: read, tasks: taskLines)
     }
 }
