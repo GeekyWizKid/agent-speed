@@ -14,7 +14,8 @@ struct TaskOrdinalKey: Hashable, Sendable {
     }
 
     func hash(into hasher: inout Hasher) {
-        for byte in text.utf8 { hasher.combine(byte) }
+        var copy = text
+        copy.withUTF8 { hasher.combine(bytes: UnsafeRawBufferPointer($0)) }
         hasher.combine(0xFF as UInt8)
     }
 }
