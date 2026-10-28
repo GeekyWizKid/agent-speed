@@ -479,12 +479,17 @@ Codex's unified exec returns after `yield_time_ms` (10 s by default) while the c
   `BashOutput` / `TaskOutput` with a non-empty string `bash_id`, `shell_id` or `task_id` (in that order) →
   `claude:<id>`. Otherwise null.
 
-The event layer (METRICS 6.9 *Event stream*) keeps, for the current task only, a map from session key to the command
-action whose result left it running. A result of a continuation call whose session is in the map appends its
-`result_text` to that action's output (in order); when its own `outcome` is in state `done` with an exit code, that
-outcome (with its `t`) becomes the original action's outcome, `failures` is computed over the accumulated output, and
-the key leaves the map. The continuation call itself stays kind `other`. Only digests, counts and the session key are
-held; the accumulated text is released once the outcome is set, and is bounded like any output (5.1).
+The event layer (METRICS 6.9 *Composing the stream*, *Sessions*) keeps, per agent, a map from session key to the action
+whose result left that session running (a call that is not itself a continuation): the action keeps that result's
+outcome (state `running`) and gets no `failures` yet. A result of a continuation call whose session is in the map
+appends its `result_text` to that action's output (the parts joined with LF); when its own `outcome` has a non-null
+`exitCode` and a non-null `failed` (state `done` with an exit code), that outcome (with its `t`) becomes the original
+action's outcome — with `failed` null when the original command is `masked` (3.7) — `failures` is computed over the
+accumulated output with the original command's `info` and `cwd`, and the key leaves the map. The continuation call
+itself stays kind `other`, with its own outcome. A result that leaves the same session running again replaces the
+entry. Only digests, counts and the session key are kept; the accumulated text is held in memory only until the
+outcome is set, and `failures` applies its budget (5.1) to the whole of it. The live engine may drop the entries of
+tasks other than the agent's current one: nothing shows them, and the history analysis reads whole files.
 
 ## 5. `failures`
 
@@ -729,9 +734,11 @@ names from the fixed vocabulary, 16-hex digests, counts, exit codes and times le
 ## 8. Notes for the event layer
 
 - `kind`, `command`, `outcome`, `failures` and `hunks` of METRICS 6.9 are `action_kind`, `command_info` (its four
-  contract fields), `outcome`, `failures(info, result_text(…), cwd, outcome.failed)` and `edit_hunks`.
-- `command_info` and `failures` apply to actions of kind `command`; a `read` or `search` shell command has no
-  `command` field.
+  contract fields), `outcome`, `failures(info, result_text(…), cwd, outcome.failed)` and `edit_hunks`. METRICS 6.9
+  *Composing the stream* says which lines give calls and results per source, and passes every function of one action
+  the agent's `cwd` at the call's line (METRICS 4 `cwdPath`).
+- `command_info` and `failures` apply to actions of kind `command` with command text (3.1); a `read` or `search` shell
+  command has no `command` field, and neither has a shell call without readable text.
 - An edit whose outcome has `failed` true (Claude `<tool_use_error>`, a rejected patch) did not apply; METRICS 6.9
   already treats it as not effective.
 - Continuations (4.3) attach late outcomes to the original command.

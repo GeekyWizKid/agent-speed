@@ -236,6 +236,8 @@ class FileState:
         # workbuddy
         self.cwd = None
         self.open_calls = OrderedDict()
+        # task score (METRICS 6.9): the event composer of task_events.py, when attached
+        self.tasks = None
         if source in WB_FOLDERS:
             self.source_decided = True
             rel = [p for p in re.split(r"[\\/]", os.path.relpath(path, root) if root else path) if p]
@@ -638,6 +640,7 @@ def process_file(state, dedupe, start_offset=0, max_lines=None):
                "workbuddy": workbuddy_line, "workbuddyAi": workbuddy_line}.get(state.source, claude_line)
     if state.source in ("omp", "pi") and start_offset > 0:
         omp_read_header(state, dedupe)
+    composer = state.tasks
     if state.path.endswith(".zstd"):
         lines = zstd_lines(state.path, start_offset)
     elif state.path.endswith(".jsonl.zst"):
@@ -657,6 +660,8 @@ def process_file(state, dedupe, start_offset=0, max_lines=None):
             state.malformed += 1
             continue
         handler(state, obj, dedupe)
+        if composer is not None:
+            composer.feed(state, obj, dedupe, raw)
 
 
 def resolve_parents(states):
@@ -1248,6 +1253,8 @@ def omp_read_header(state, dedupe):
                 continue
             if isinstance(obj, dict) and obj.get("type") == "session":
                 (pi_line if state.source == "pi" else omp_line)(state, obj, dedupe)
+                if state.tasks is not None:
+                    state.tasks.feed(state, obj, dedupe, raw)
                 return
 
 
@@ -1596,8 +1603,16 @@ def openclaw_assistant(state, entry, msg, ts, dedupe):
         state.phase, state.in_flight = "idle", None
 
 
-def openclaw_event(state, text, blob, size):
-    """The entry of one transcript row: event_json, else the zstd frame decoded within event_utf8_bytes."""
+def openclaw_event(state, text, blob, size, with_raw=False):
+    """The entry of one transcript row: event_json, else the zstd frame decoded within event_utf8_bytes (with its raw
+    text when `with_raw`)."""
+    entry = openclaw_entry_raw(state, text, blob, size)
+    if entry is None:
+        return None
+    return entry if with_raw else entry[0]
+
+
+def openclaw_entry_raw(state, text, blob, size):
     if isinstance(text, str):
         raw = text.encode("utf-8", "surrogatepass")
     elif isinstance(blob, bytes) and isinstance(size, int) and 0 < size <= OC_EVENT_MAX:
@@ -1619,10 +1634,10 @@ def openclaw_event(state, text, blob, size):
     if not isinstance(obj, dict):
         state.malformed += 1
         return None
-    return obj
+    return obj, raw
 
 
-def openclaw_states(db_path, dedupe, stop_at=None):
+def openclaw_states(db_path, dedupe, stop_at=None, tasks=False):
     """Parses one agent database (METRICS 4.14): one state per transcript window, in created_at order, or None when the
     database has no session tables. `stop_at` = (session_id, seq) stops after that row (phase traces)."""
     db = sqlite_readonly(db_path)
@@ -1651,12 +1666,17 @@ def openclaw_states(db_path, dedupe, stop_at=None):
             st.oc_mirror_window = acp == 1 or runtime in ("codex", "claude-cli") or runtime.startswith("acp")
             st.is_subagent = isinstance(spawned, str) and spawned != ""
             parent_of[st.path] = current.get(spawned) if st.is_subagent else None
+            if tasks:
+                import task_events
+                task_events.attach(st)
             states.append(st)
             for seq, text, blob, size in db.execute("select seq, event_json, %s from transcript_events "
                                                     "where session_id = ? order by seq" % zstd_cols, (sid,)):
-                obj = openclaw_event(st, text, blob, size)
-                if obj is not None:
-                    openclaw_entry(st, obj, dedupe)
+                entry = openclaw_event(st, text, blob, size, with_raw=True)
+                if entry is not None:
+                    openclaw_entry(st, entry[0], dedupe)
+                    if st.tasks is not None:
+                        st.tasks.feed(st, entry[0], dedupe, entry[1])
                 if stop_at == (sid, seq):
                     break
             if stop_at is not None and stop_at[0] == sid:
