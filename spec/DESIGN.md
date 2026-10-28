@@ -2634,6 +2634,16 @@ instead of network speed. It needs neither the traffic switch nor the Windows he
   - Recentering: the block's top for the stack shift is the nearest baseline − 1.32 t − 0.70 p (`led`, `liquid`,
     `minimal`); everything else of the stack shift is the network readout's.
   - When `intelligence` has no value (nothing generated in the window) both lines are quiet (below).
+  - **Thinking hidden at zero** (user's choice, 2026-10-28; some sources never report reasoning): the thinking line
+    shows only while its displayed value is above 0. When the shown `liveThinking` is `0` it stays drawn for 3 s
+    (a pause between reasoning bursts does not flicker), then fades out (0.25 s) and the intelligence line glides
+    (smoothstep, 0.3 s; Reduce Motion: at once) to the **single-line position**: its baseline on the placement's
+    nearest baseline in every style (`reactor`: the thinking line's c − 0.155 S; `needle`: the nearest baseline
+    + 0.70 (p − t)), so it sits where the line next to the value would be and the gap to the value is unchanged.
+    A value above 0 brings the thinking line back at once (fade in 0.25 s, the intelligence line glides back up).
+    The stack shift (`led`, `liquid`, `minimal`) uses the single line's top (nearest baseline − 0.70 p) while the
+    thinking line is hidden and follows the glide. Fit is unchanged (both lines must fit), so the readout never
+    appears or disappears because of the thinking value. Accessibility then reads `a11y.orb.intel.only`.
 - **Quiet rule**: visible while the orb has an agent in phase `generating` or `Σ w > 0` (METRICS 6.9); after 10 s
   without either it fades out (0.6 s) and fades in (0.25 s) when work resumes — the network readout's timings.
 - **Updates**: on every engine tick (METRICS 6, 500 ms), with the value; characters are replaced in their cells, no
@@ -2677,8 +2687,12 @@ instead of network speed. It needs neither the traffic switch nor the Windows he
     rule for the value.
   - Updates: on every engine tick (500 ms); characters are replaced in their cells, no animation.
   - **Quiet state**: the block stays, like a system meter. While `intelligence` has no value (nothing generated in
-    the window) both numbers are `–` in the secondary color and `tok/s` stays; a zero thinking rate under a live
-    value shows `0` in the secondary color. Chosen over hiding the block: a block that came and went with every
+    the window) both numbers are `–` in the secondary color and `tok/s` stays.
+  - **Thinking hidden at zero** (user's choice, 2026-10-28): with a live value and a displayed thinking rate of `0`
+    for 3 s, line 2 is not drawn and line 1 is centred vertically in the block (its baseline halfway between the two
+    lines' baselines, the item's text centre); the cells and the block's width are unchanged, so nothing beside it
+    moves. A rate above 0 draws line 2 again and puts line 1 back at once (no animation in the bar). Accessibility
+    then reads `a11y.orb.intel.only` (`智力 125`). Chosen over hiding the block: a block that came and went with every
     pause would shift every menu bar item to its left (on Windows, the taskbar's neighbours) whenever an agent
     started or stopped, against section 3's rule that the item never jitters in width; the fixed cells keep it calm,
     and `–` says "nothing right now" without claiming a score of 0.
