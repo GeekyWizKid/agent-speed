@@ -70,6 +70,7 @@ public static class DisplayText
         SourceKind.Kimi => "source.kimi",
         SourceKind.GrokBuild => "source.grokBuild",
         SourceKind.Pi => "source.pi",
+        SourceKind.OpenClaw => "source.openclaw",
         _ => throw new ArgumentOutOfRangeException(nameof(source), source, null),
     };
 

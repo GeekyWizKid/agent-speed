@@ -34,7 +34,8 @@ public sealed class HistoryTests : IDisposable
             Antigravity.AntigravityPaths.Stores(Path.Combine(copy, "antigravity"), null),
             WorkBuddyRoot: SourceLocations.WorkBuddyRootOf(Path.Combine(copy, "workbuddy", ".workbuddy")),
             WorkBuddyAiRoot: SourceLocations.WorkBuddyRootOf(Path.Combine(copy, "workbuddy", ".workbuddy-ai")),
-            PiRoots: PiFixture.RootsIn(copy));
+            PiRoots: PiFixture.RootsIn(copy),
+            OpenClawRoots: OpenClawFixture.StateFoldersIn(copy));
         var document = JsonNode.Parse(File.ReadAllText(Path.Combine(FixtureLocator.FixturesDirectory, "history-expected.json")))!;
         var pricing = document["prices"]!;
         var tables = pricing["tables"]!.AsArray()

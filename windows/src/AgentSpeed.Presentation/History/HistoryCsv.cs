@@ -53,6 +53,7 @@ public static class HistoryCsv
         SourceKind.Kimi => "kimi",
         SourceKind.GrokBuild => "grokBuild",
         SourceKind.Pi => "pi",
+        SourceKind.OpenClaw => "openclaw",
         _ => "unknown",
     };
 

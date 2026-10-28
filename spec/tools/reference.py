@@ -4,7 +4,7 @@
   python3 spec/tools/reference.py --check-fixtures
   python3 spec/tools/reference.py --dump-today [--codex PATH] [--claude PATH] [--dsh PATH] [--gemini PATH]
                                               [--omp PATH] [--pi PATH] [--antigravity PATH] [--workbuddy PATH]
-                                              [--workbuddy-ai PATH] [--hermes PATH]
+                                              [--workbuddy-ai PATH] [--openclaw PATH] [--hermes PATH]
   python3 spec/tools/reference.py --dump-history [--utc] [--prices PATH] [...]
   python3 spec/tools/reference.py --write-history-fixture
 
@@ -222,6 +222,11 @@ class FileState:
         if source == "pi":
             self.source_decided = True
             self.is_subagent = pi_parent_file(path) is not None
+        # openclaw (METRICS 4.14): the window's runtime decides delegated turns
+        self.oc_delegated = False
+        self.oc_mirror_window = False
+        if source == "openclaw":
+            self.source_decided = True
         # workbuddy
         self.cwd = None
         self.open_calls = OrderedDict()
@@ -1448,6 +1453,218 @@ def discover_omp(root, limit=20_000):
     return found[:limit]
 
 
+# ----------------------------------------------------------------------------- OpenClaw (METRICS 4.14)
+
+OC_DB = "openclaw-agent.sqlite"
+OC_PROFILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+OC_EMBEDDED = ("", "openclaw", "pi", "auto", "default")
+OC_STOPS = ("stop", "length", "toolUse", "error", "aborted")
+OC_FAILED = ("error", "aborted")
+OC_EVENT_MAX = 4 * 1024 * 1024
+
+
+def openclaw_state_dirs(env=None, home=None):
+    """The automatic OpenClaw state folders (METRICS 2, 4.14): the override alone, else .openclaw and its profiles."""
+    env = os.environ if env is None else env
+    home = home or os.path.expanduser("~")
+    override = (env.get("OPENCLAW_STATE_DIR") or "").strip()
+    if override:
+        return [os.path.normpath(_expand_home(override, home))]
+    base_raw = (env.get("OPENCLAW_HOME") or "").strip()
+    base = _expand_home(base_raw, home) if base_raw else home
+    try:
+        names = sorted(n for n in os.listdir(base) if os.path.isdir(os.path.join(base, n)))
+    except OSError:
+        names = []
+    roots = [os.path.join(base, ".openclaw")]
+    for name in names:
+        profile = name[len(".openclaw-"):] if name.startswith(".openclaw-") else None
+        if profile and OC_PROFILE.match(profile) and profile.lower() != "default":
+            roots.append(os.path.join(base, name))
+    return list(OrderedDict.fromkeys(os.path.normpath(r) for r in roots))
+
+
+def discover_openclaw(root):
+    """Agent databases under one root: a state folder, an agent folder (it holds the database) or the database."""
+    def regular(path):
+        return os.path.isfile(path) and not os.path.islink(path)
+    if regular(root):
+        return [root] if os.path.basename(root) == OC_DB else []
+    if regular(os.path.join(root, OC_DB)):
+        return [os.path.join(root, OC_DB)]
+    agents = os.path.join(root, "agents")
+    try:
+        names = sorted(os.listdir(agents))
+    except OSError:
+        return []
+    found = []
+    for name in names:
+        folder = os.path.join(agents, name)
+        if name.startswith(".") or os.path.islink(folder) or not os.path.isdir(folder):
+            continue
+        path = os.path.join(folder, "agent", OC_DB)
+        if regular(path):
+            found.append(path)
+    return found
+
+
+def openclaw_codex_roots(databases):
+    """Codex roots OpenClaw adds (METRICS 2): the agent-scoped Codex home next to every agent database."""
+    return [os.path.join(os.path.dirname(db), "codex-home", "sessions") for db in databases]
+
+
+def openclaw_tokens(usage):
+    cr, cw = num(usage.get("cacheRead")), num(usage.get("cacheWrite"))
+    return dict(input=cap(num(usage.get("input")) + cr + cw), cachedInput=cr, cacheWriteInput=cw,
+                cacheWrite1hInput=min(num(usage.get("cacheWrite1h")), cw), output=num(usage.get("output")),
+                reasoning=num(usage.get("reasoningTokens")))
+
+
+def openclaw_entry(state, obj, dedupe):
+    """One transcript entry of an OpenClaw window (METRICS 4.14: the Pi rules of 4.7 and 4.13 with its differences)."""
+    kind = obj.get("type")
+    if kind == "session":
+        if state.header_seen:
+            return
+        state.header_seen = True
+        state.file_created = parse_ts(obj.get("timestamp"))
+        state.project = basename(obj.get("cwd"))
+        if state.file_created is not None:
+            omp_touch(state, state.file_created)
+        return
+    if not state.header_seen or not isinstance(obj.get("id"), str):
+        return
+    ts = parse_ts(obj.get("timestamp"))
+    if ts is None or (state.file_created is not None and ts < state.file_created - OMP_COPY_MS):
+        return
+    omp_touch(state, ts)
+    if kind != "message" or not isinstance(obj.get("message"), dict):
+        return
+    msg = obj["message"]
+    role = msg.get("role")
+    if role == "assistant":
+        openclaw_assistant(state, obj, msg, ts, dedupe)
+    elif state.oc_delegated:
+        return
+    elif role in ("user", "developer"):
+        state.phase, state.in_flight = "generating", ts
+        state.pending_calls.clear()
+    elif role == "toolResult":
+        state.pending_calls.discard(msg.get("toolCallId"))
+        if state.phase == "tools" and not state.pending_calls:
+            state.phase, state.in_flight = "generating", ts
+
+
+def openclaw_assistant(state, entry, msg, ts, dedupe):
+    if not omp_guard(msg):
+        return
+    started = trunc64(msg["timestamp"]) if finite(msg.get("timestamp")) and msg["timestamp"] > 0 else None
+    key = "openclaw:%s:%d" % (entry["id"], started if started is not None else ts)
+    if dedupe.owner(key) not in (None, state.path):
+        return
+    stop = msg.get("stopReason") if msg.get("stopReason") in OC_STOPS else "aborted"
+    meta = msg.get("__openclaw") if isinstance(msg.get("__openclaw"), dict) else {}
+    origin = meta.get("mirrorOrigin")
+    mirror = ((isinstance(origin, str) and origin != "") or (msg["api"] == "cli" and msg["provider"] == "claude-cli")
+              or msg["provider"].startswith("acp-") or state.oc_mirror_window)
+    usage = msg["usage"]
+    report = usage.get("usageReport") if isinstance(usage.get("usageReport"), dict) else {}
+    if not mirror and report.get("state") != "unavailable" and omp_has_usage(usage):
+        timed = not state.oc_delegated and msg["api"] != "cli" and stop not in OC_FAILED
+        dedupe.claim(key, state.path)
+        emit(state, key, started if timed else None, ts, openclaw_tokens(usage), msg["model"],
+             provider=msg["provider"] or None)
+        state.response_facts[key] = []
+        state.model = msg["model"]
+    if state.oc_delegated:
+        return
+    content = msg.get("content") if isinstance(msg.get("content"), list) else []
+    calls = {b["id"] for b in content if isinstance(b, dict) and b.get("type") == "toolCall"
+             and isinstance(b.get("id"), str)}
+    if stop in OC_FAILED:
+        state.phase, state.in_flight = "idle", None
+        state.pending_calls.clear()
+    elif calls and stop in ("toolUse", "stop", "length"):
+        state.phase, state.in_flight, state.pending_calls = "tools", None, calls
+    else:
+        state.phase, state.in_flight = "idle", None
+
+
+def openclaw_event(state, text, blob, size):
+    """The entry of one transcript row: event_json, else the zstd frame decoded within event_utf8_bytes."""
+    if isinstance(text, str):
+        raw = text.encode("utf-8", "surrogatepass")
+    elif isinstance(blob, bytes) and isinstance(size, int) and 0 < size <= OC_EVENT_MAX:
+        out = subprocess.run(["zstd", "-dc", "-q"], input=blob, capture_output=True)
+        if out.returncode != 0 or len(out.stdout) > size:
+            state.malformed += 1
+            return None
+        raw = out.stdout
+    else:
+        state.malformed += 1
+        return None
+    if len(raw) > MAX_LINE:
+        return None
+    try:
+        obj = loads(raw)
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        state.malformed += 1
+        return None
+    if not isinstance(obj, dict):
+        state.malformed += 1
+        return None
+    return obj
+
+
+def openclaw_states(db_path, dedupe, stop_at=None):
+    """Parses one agent database (METRICS 4.14): one state per transcript window, in created_at order, or None when the
+    database has no session tables. `stop_at` = (session_id, seq) stops after that row (phase traces)."""
+    db = sqlite_readonly(db_path)
+    try:
+        tables = {r[0] for r in db.execute("select name from sqlite_master where type='table'")}
+        if not {"session_windows", "transcript_events"} <= tables:
+            return None
+        wcols = {r[1] for r in db.execute("pragma table_info(session_windows)")}
+        ecols = {r[1] for r in db.execute("pragma table_info(transcript_events)")}
+
+        def col(name, default):
+            return name if name in wcols else default
+
+        windows = db.execute("select session_id, created_at, %s, %s, %s from session_windows "
+                             "order by created_at, session_id" % (col("spawned_by", "null"),
+                                                                  col("agent_harness_id", "null"),
+                                                                  col("acp_owned", "0"))).fetchall()
+        current = dict(db.execute("select session_key, current_session_id from session_nodes")) \
+            if "session_nodes" in tables else {}
+        zstd_cols = "event_zstd, event_utf8_bytes" if {"event_zstd", "event_utf8_bytes"} <= ecols else "null, null"
+        states, parent_of = [], {}
+        for sid, _created, spawned, harness, acp in windows:
+            st = FileState("%s#%s" % (db_path, sid), "openclaw")
+            runtime = harness.strip().lower() if isinstance(harness, str) else ""
+            st.oc_delegated = acp == 1 or runtime not in OC_EMBEDDED
+            st.oc_mirror_window = acp == 1 or runtime in ("codex", "claude-cli") or runtime.startswith("acp")
+            st.is_subagent = isinstance(spawned, str) and spawned != ""
+            parent_of[st.path] = current.get(spawned) if st.is_subagent else None
+            states.append(st)
+            for seq, text, blob, size in db.execute("select seq, event_json, %s from transcript_events "
+                                                    "where session_id = ? order by seq" % zstd_cols, (sid,)):
+                obj = openclaw_event(st, text, blob, size)
+                if obj is not None:
+                    openclaw_entry(st, obj, dedupe)
+                if stop_at == (sid, seq):
+                    break
+            if stop_at is not None and stop_at[0] == sid:
+                break
+        tracked = {st.path for st in states}
+        for st in states:
+            parent = parent_of[st.path]
+            st.parent_session = "%s#%s" % (db_path, parent) if parent and "%s#%s" % (db_path, parent) in tracked \
+                else None
+        return states
+    finally:
+        db.close()
+
+
 # ----------------------------------------------------------------------------- Hermes Agent (METRICS 4.15)
 
 HERMES_FILE = re.compile(r"agent\.log(?:\.[0-9]+)?")
@@ -2500,6 +2717,9 @@ def check_fixtures():
     ag = expected.get("antigravity")
     if ag:
         failures += check_antigravity(root, ag, dedupe)
+    ocl = expected.get("openclaw")
+    if ocl:
+        failures += check_openclaw(root, ocl, dedupe)
     wb = expected.get("workbuddy")
     if wb:
         found = sorted(os.path.relpath(p, root).replace(os.sep, "/")
@@ -2572,10 +2792,10 @@ def check_fixtures():
     if failures:
         print("\n".join(failures))
         sys.exit(1)
-    print("reference implementation matches all fixtures (%d files, %d Antigravity databases, %d Hermes log files, "
-          "%d engine cases, price cases, %d model attribution cases)" % (
-              len(expected["order"]), len((ag or {}).get("order", [])), len((hm or {}).get("order", [])),
-              len(cases), len(attribution["cases"])))
+    print("reference implementation matches all fixtures (%d files, %d Antigravity databases, %d OpenClaw databases, "
+          "%d Hermes log files, %d engine cases, price cases, %d model attribution cases)" % (
+        len(expected["order"]), len((ag or {}).get("order", [])), len((ocl or {}).get("dbOrder", [])),
+        len((hm or {}).get("order", [])), len(cases), len(attribution["cases"])))
 
 
 def report_model_id(index, model, provider=None):
@@ -2866,6 +3086,93 @@ def check_antigravity(root, ag, dedupe):
     return failures
 
 
+def check_openclaw(root, oc, dedupe):
+    """OpenClaw agent databases (METRICS 4.14): discovery, the Codex roots next to them, every window, traces."""
+    failures = []
+    home = os.path.join(root, "openclaw")
+    before = sorted(os.path.relpath(os.path.join(d, n), home) for d, _, ns in os.walk(home) for n in ns)
+    dbs = [db for r in fixture_openclaw_dirs(root) for db in discover_openclaw(r)]
+    rel = lambda path: os.path.relpath(path, root).replace(os.sep, "/")  # noqa: E731
+    if sorted(rel(db) for db in dbs) != oc["discover"]:
+        failures.append("openclaw discover: expected %r got %r" % (oc["discover"], sorted(rel(db) for db in dbs)))
+    rollouts = sorted(rel(f) for r in openclaw_codex_roots(dbs) for f in discover(r, codex=True))
+    if rollouts != oc["codexDiscover"]:
+        failures.append("openclaw codex roots: expected %r got %r" % (oc["codexDiscover"], rollouts))
+    main = os.path.join(root, *oc["dbOrder"][0].split("/"))
+    for setting in (os.path.dirname(main), main):
+        if discover_openclaw(setting) != [main]:
+            failures.append("openclaw: the setting %s must name that database" % rel(setting))
+    for db_rel in oc["dbOrder"]:
+        exp_db = oc["databases"][db_rel]
+        states = openclaw_states(os.path.join(root, *db_rel.split("/")), dedupe)
+        if states is None:
+            if exp_db != {"unsupported": True}:
+                failures.append("%s: unexpectedly unsupported" % db_rel)
+            continue
+        if exp_db.get("unsupported"):
+            failures.append("%s: expected unsupported" % db_rel)
+            continue
+        got_ids = [rel(st.path) for st in states]
+        if sorted(got_ids) != sorted(exp_db):
+            failures.append("%s: windows expected %r got %r" % (db_rel, sorted(exp_db), sorted(got_ids)))
+        for st in states:
+            exp = exp_db.get(rel(st.path))
+            if exp is None:
+                continue
+            got = dict(source=st.source, project=st.project, model=st.model, isSubagent=st.is_subagent,
+                       parentId=rel(st.parent_session) if st.parent_session else None, phase=st.phase,
+                       inFlightStartMs=st.in_flight, lastLineMs=st.last_line, malformedLines=st.malformed,
+                       responses=list(st.responses.values()), **mode_fields(st))
+            for k, v in exp.items():
+                if got[k] != v:
+                    failures.append("%s: %s expected %r got %r" % (rel(st.path), k, v, got[k]))
+    for t in oc["traces"]:
+        trace_dedupe = Deduper()
+        for db_rel in oc["dbOrder"]:
+            path = os.path.join(root, *db_rel.split("/"))
+            if db_rel != t["database"]:
+                openclaw_states(path, trace_dedupe)
+                continue
+            st = (openclaw_states(path, trace_dedupe, stop_at=(t["window"], t["afterSeq"])) or [None])[-1]
+            got = (st.phase, st.in_flight) if st and st.path.endswith("#" + t["window"]) else None
+            if got != (t["phase"], t["inFlightStartMs"]):
+                failures.append("%s#%s row %d: expected %s/%r got %r" % (db_rel, t["window"], t["afterSeq"], t["phase"],
+                                                                        t["inFlightStartMs"], got))
+            break
+    failures += check_openclaw_roots()
+    after = sorted(os.path.relpath(os.path.join(d, n), home) for d, _, ns in os.walk(home) for n in ns)
+    if after != before:
+        failures.append("openclaw: reading created files %r" % sorted(set(after) - set(before)))
+    return failures
+
+
+def check_openclaw_roots():
+    """State folders of METRICS 2 / 4.14 on a scratch home."""
+    failures = []
+    with tempfile.TemporaryDirectory() as home:
+        for name in (".openclaw", ".openclaw-work", ".openclaw-Default", ".openclaw-x.y", ".openclaw-_z",
+                     ".openclaw-2nd", "openclaw-play"):
+            os.makedirs(os.path.join(home, name))
+        open(os.path.join(home, ".openclaw-file"), "w").close()
+        oc = os.path.join(home, ".openclaw")
+        cases = [({}, [oc, os.path.join(home, ".openclaw-2nd"), os.path.join(home, ".openclaw-work")]),
+                 ({"OPENCLAW_STATE_DIR": "~/state"}, [os.path.join(home, "state")]),
+                 ({"OPENCLAW_STATE_DIR": "  ", "OPENCLAW_PROFILE": "work"},
+                  [oc, os.path.join(home, ".openclaw-2nd"), os.path.join(home, ".openclaw-work")]),
+                 ({"OPENCLAW_HOME": "/srv/oc"}, [os.path.join("/srv/oc", ".openclaw")]),
+                 ({"OPENCLAW_HOME": "~/.openclaw-work"}, [os.path.join(home, ".openclaw-work", ".openclaw")])]
+        for env, want in cases:
+            got = openclaw_state_dirs(env, home)
+            if got != [os.path.normpath(w) for w in want]:
+                failures.append("openclaw roots %r: expected %r got %r" % (env, want, got))
+    return failures
+
+
+def fixture_openclaw_dirs(root):
+    """The fixture folder `openclaw` plays the home folder: its state folders are .openclaw and .openclaw-work."""
+    return openclaw_state_dirs({}, os.path.join(root, "openclaw"))
+
+
 def check_workbuddy_roots():
     """Both data folders under the home folder; a setting names a data folder or its `projects` folder."""
     failures = []
@@ -2889,6 +3196,8 @@ def fixture_wb_roots(root):
 
 
 def fixture_source(rel):
+    if rel.startswith("openclaw/") and "/codex-home/sessions/" in rel:
+        return "codex"
     for prefix, source in (("codex/", "codex"), ("dsh/", "deepseek"), ("gemini/", "gemini"), ("omp/", "omp"), ("pi/", "pi"),
                            ("workbuddy/.workbuddy/", "workbuddy"), ("workbuddy/.workbuddy-ai/", "workbuddyAi")):
         if rel.startswith(prefix):
@@ -2940,6 +3249,8 @@ def fixture_history(root, expected, config=HISTORY_PRICES):
                                          [os.path.join(copy, "gemini", "tmp")], fixture_omp_roots(copy),
                                          antigravity_stores(gemini_dir=os.path.join(copy, "antigravity")),
                                          fixture_wb_roots(copy), pi_dirs=fixture_pi_roots(copy),
+                                         openclaw_dbs=[db for r in fixture_openclaw_dirs(copy) for db in
+                                                       discover_openclaw(r)],
                                          hermes_dirs=fixture_hermes_dirs(copy), hermes_tz=hermes_zone(expected)),
                              tz=timezone.utc, day_pricing=fixture_pricing(root, config))
 
@@ -2986,13 +3297,19 @@ def discover(root, limit=20_000, deepseek=False, codex=False):
 
 
 def startup_files(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
-                  limit=20_000, include_archived=False, pi_dirs=()):
-    """(time, path, source, root) of every discovered file and Antigravity database, in startup order (5); the root
-    (omp root or WorkBuddy `projects`) decides sub-agents by folder structure."""
-    files = [(p, "codex", None) for p in discover(codex_root, limit=limit, codex=True)]
-    if include_archived:
-        archived = os.path.join(os.path.dirname(codex_root.rstrip(os.sep)), "archived_sessions")
-        files += [(p, "codex", None) for p in discover(archived, limit=limit, codex=True)]
+                  limit=20_000, include_archived=False, pi_dirs=(), openclaw_dbs=(), codex_roots=None):
+    """(time, path, source, root) of every discovered file and Antigravity or OpenClaw database, in startup order (5);
+    the root (omp root or WorkBuddy `projects`) decides sub-agents by folder structure. `codex_roots` replaces the
+    automatic Codex roots (the Codex setting); by default they are `codex_root` and the Codex homes OpenClaw keeps next
+    to its agent databases (METRICS 2)."""
+    files = []
+    if codex_roots is None:
+        codex_roots = [codex_root] + openclaw_codex_roots(openclaw_dbs)
+    for root in OrderedDict.fromkeys(codex_roots):
+        files += [(p, "codex", None) for p in discover(root, limit=limit, codex=True)]
+        if include_archived:
+            archived = os.path.join(os.path.dirname(root.rstrip(os.sep)), "archived_sessions")
+            files += [(p, "codex", None) for p in discover(archived, limit=limit, codex=True)]
     files += [(p, "claudeCode", None) for p in discover(claude_root, limit=limit)]
     files += [(p, "deepseek", None) for p in discover(dsh_root, limit=limit, deepseek=True)]
     files += [(p, "gemini", None) for d in gemini_dirs for p in discover_gemini(d, limit=limit)]
@@ -3001,17 +3318,20 @@ def startup_files(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=()
     files += [(p, "pi", r) for r in OrderedDict.fromkeys(pi_dirs) for p in discover_pi(r, limit=limit)]
     files += [(p, "antigravity", None) for s in ag_stores for p in discover_antigravity(s, limit=limit)]
     files += [(p, s, r) for s, r in wb_roots for p in discover_workbuddy(r, limit=limit)]
-    timed = {(ag_mtime(p) if s == "antigravity" else os.path.getmtime(p), p, s, r) for p, s, r in files}
+    files += [(p, "openclaw", None) for p in OrderedDict.fromkeys(openclaw_dbs)]
+    timed = {(ag_mtime(p) if s in ("antigravity", "openclaw") else os.path.getmtime(p), p, s, r) for p, s, r in files}
     return sorted(timed, key=lambda t: (t[0], t[1]))
 
 
 def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
-               table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(), hermes_dirs=()):
+               table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(), openclaw_dbs=(),
+               codex_roots=None, hermes_dirs=()):
     started = time.time()
     index = pricing.Index(pricing.load(table))
     now = datetime.now().astimezone()
     today_start = int(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
-    files = startup_files(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots, pi_dirs=pi_dirs)
+    files = startup_files(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots, pi_dirs=pi_dirs,
+                          openclaw_dbs=openclaw_dbs, codex_roots=codex_roots)
     dedupe = Deduper()
     rows, read_files, read_bytes = [], 0, 0
     for mtime, path, source, root in files:
@@ -3023,20 +3343,25 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
         if source == "gemini" and path.endswith(".json") and size > GEMINI_LEGACY_MAX:
             continue
         if source == "antigravity":
-            state = antigravity_state(path, dedupe)
-            if state is None:
+            states = [antigravity_state(path, dedupe)]
+            if states[0] is None:
+                continue
+            offset = 0
+        elif source == "openclaw":
+            states = openclaw_states(path, dedupe)
+            if states is None:
                 continue
             offset = 0
         else:
             offset = size - 64 * 1024 * 1024 if size > 256 * 1024 * 1024 and not path.endswith(".jsonl.zst") else 0
-            state = FileState(path, source, root)
-            process_file(state, dedupe, offset)
+            states = [FileState(path, source, root)]
+            process_file(states[0], dedupe, offset)
         read_files += 1
         read_bytes += size - offset
-        for r in state.responses.values():
+        for state, r in [(st, r) for st in states for r in st.responses.values()]:
             if r["endMs"] >= today_start:
                 effort, speed = mode_view(state.response_facts.get(r["key"], []))
-                rows.append(OrderedDict([("key", r["key"]), ("source", state.source), ("agentId", path),
+                rows.append(OrderedDict([("key", r["key"]), ("source", state.source), ("agentId", state.path),
                                          ("model", r["model"]), ("startMs", r["startMs"]), ("endMs", r["endMs"]),
                                          ("input", r["input"]), ("cachedInput", r["cachedInput"]),
                                          ("cacheWriteInput", r["cacheWriteInput"]),
@@ -3080,13 +3405,17 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
 
 def collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs=(), omp_dirs=(), ag_stores=(),
                 wb_roots=(), include_archived=True, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(),
-                hermes_dirs=(), hermes_tz=None):
+                openclaw_dbs=(), codex_roots=None, hermes_dirs=(), hermes_tz=None):
     """Parses every log completely (METRICS 8) and returns all responses with their source and agent."""
     files = startup_files(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots,
-                          limit=10 ** 9, include_archived=include_archived, pi_dirs=pi_dirs)
+                          limit=10 ** 9, include_archived=include_archived, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
+                          codex_roots=codex_roots)
     dedupe = Deduper(limit=10 ** 9)
     out = []
     for _, path, source, root in files:
+        if source == "openclaw":
+            out += [(st.source, st.path, r) for st in openclaw_states(path, dedupe) or [] for r in st.responses.values()]
+            continue
         if source == "antigravity":
             state = antigravity_state(path, dedupe)
             if state is None:
@@ -3178,6 +3507,8 @@ def main():
     parser.add_argument("--workbuddy", default=None, help="WorkBuddy data folder (~/.workbuddy) or its projects folder")
     parser.add_argument("--workbuddy-ai", default=None,
                         help="WorkBuddy AI data folder (~/.workbuddy-ai) or its projects folder")
+    parser.add_argument("--openclaw", default=None,
+                        help="OpenClaw state folder, agent folder or openclaw-agent.sqlite (replaces the automatic roots)")
     parser.add_argument("--write-history-fixture", action="store_true")
     parser.add_argument("--prices", default=pricing.TABLE, help="price table for --dump-history (METRICS 9)")
     args = parser.parse_args()
@@ -3200,13 +3531,16 @@ def main():
     zcode_root = args.zcode or os.path.join(os.environ.get("ZCODE_DATA_BASE_DIR") or home, ".zcode", "cli", "db")
     kimi_root = args.kimi or os.path.join(os.environ.get("KIMI_CODE_HOME") or os.path.join(home, ".kimi-code"), "sessions")
     grok_root = args.grok or os.path.join(os.environ.get("GROK_HOME") or os.path.join(home, ".grok"), "sessions")
+    openclaw_dbs = [db for r in ([args.openclaw] if args.openclaw else openclaw_state_dirs()) for db in discover_openclaw(r)]
+    codex_roots = [args.codex] if args.codex else None
     if args.write_history_fixture:
         write_history_fixture()
         return
     if args.dump_history:
         rows = daily_history(collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs, omp_dirs,
                                          ag_stores, wb_roots, zcode_root=zcode_root, kimi_root=kimi_root,
-                                         grok_root=grok_root, pi_dirs=pi_dirs, hermes_dirs=hermes_dirs),
+                                         grok_root=grok_root, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
+                                         codex_roots=codex_roots, hermes_dirs=hermes_dirs),
                              tz=timezone.utc if args.utc else None,
                              day_pricing=pricing.DayPricing([pricing.load(args.prices)]))
         for row in rows:
@@ -3216,7 +3550,8 @@ def main():
         check_fixtures()
     elif args.dump_today:
         dump_today(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots, args.prices,
-                   zcode_root, kimi_root, grok_root, pi_dirs=pi_dirs, hermes_dirs=hermes_dirs)
+                   zcode_root, kimi_root, grok_root, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs, codex_roots=codex_roots,
+                   hermes_dirs=hermes_dirs)
     else:
         parser.print_help()
 

@@ -20,6 +20,8 @@ public enum SourceKind: String, CaseIterable, Codable, Sendable, Identifiable {
     case grokBuild
     /// Pi (Pi Coding Agent), the upstream of omp.
     case pi
+    /// OpenClaw, an agent gateway whose runtime grew out of Pi.
+    case openclaw
 
     public var id: String { rawValue }
 }
@@ -396,11 +398,15 @@ public struct MonitorConfiguration: Equatable, Sendable {
     public var grokBuildRoot: URL?
     /// One Pi sessions folder; nil reads `<agent dir>/sessions` and Pi's custom session folder (METRICS 2, 4.13).
     public var piRoot: URL?
+    /// One OpenClaw state folder, agent folder or `openclaw-agent.sqlite`; nil reads every state folder (METRICS 2, 4.14).
+    public var openclawRoot: URL?
     /// Tests: replaces the automatic roots of a family that are otherwise derived from the environment and the home
     /// folder (omp `sessions` roots, Antigravity store folders, WorkBuddy data folders).
     var automaticRoots: [TranscriptFamily: [URL]] = [:]
     /// Tests: the environment and home folder Pi's automatic roots are derived from, instead of the process's own.
     var piHome: PiHome?
+    /// Tests: the environment and home folder OpenClaw's state folders are derived from, instead of the process's own.
+    var openclawHome: OpenClawHome?
 
     public init(
         enabledSources: Set<SourceKind> = Set(SourceKind.allCases),
@@ -416,7 +422,8 @@ public struct MonitorConfiguration: Equatable, Sendable {
         zcodeRoot: URL? = nil,
         kimiRoot: URL? = nil,
         grokBuildRoot: URL? = nil,
-        piRoot: URL? = nil
+        piRoot: URL? = nil,
+        openclawRoot: URL? = nil
     ) {
         self.enabledSources = enabledSources
         self.codexRoot = codexRoot
@@ -432,5 +439,6 @@ public struct MonitorConfiguration: Equatable, Sendable {
         self.kimiRoot = kimiRoot
         self.grokBuildRoot = grokBuildRoot
         self.piRoot = piRoot
+        self.openclawRoot = openclawRoot
     }
 }

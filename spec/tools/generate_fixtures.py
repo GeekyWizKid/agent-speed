@@ -16,6 +16,7 @@ import antigravity_fixtures  # noqa: E402
 import gemini_fixtures  # noqa: E402
 import hermes_fixtures  # noqa: E402
 import omp_fixtures  # noqa: E402
+import openclaw_fixtures  # noqa: E402
 import pi_fixtures  # noqa: E402
 import workbuddy_fixtures  # noqa: E402
 
@@ -666,6 +667,13 @@ order += pi["order"]
 files.update(pi["files"])
 mtimes.update(pi["mtimes"])
 
+# --- OpenClaw: agent databases, and a Codex rollout in an agent-scoped Codex home -----
+openclaw = openclaw_fixtures.write_fixtures(ROOT)
+assert min(openclaw["mtimes"].values()) > max(mtimes.values())
+order += openclaw["order"]
+files.update(openclaw["files"])
+mtimes.update(openclaw["mtimes"])
+
 # --- Hermes Agent: log folders, one parser state per folder ------------------------
 hermes = hermes_fixtures.write_fixtures(ROOT)
 assert min(hermes["mtimes"].values()) > max(mtimes.values())
@@ -687,9 +695,16 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                            "discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the "
                            "folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom "
                            "session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both "
-                           "roots; its `traces` work like the omp ones. Hermes Agent: see `hermes._comment`; its log "
-                           "files are not in `order` (one parser state per log folder) but their modification times "
-                           "are in `mtimes`.",
+                           "roots; its `traces` work like the omp ones. OpenClaw: the folder `openclaw` plays the home "
+                           "folder (state folders .openclaw and the profile .openclaw-work); after the OpenCode and "
+                           "Antigravity databases, the agent databases of `openclaw.dbOrder` are read with the same "
+                           "dedupe set, each one agent per transcript window (agent id `<database>#<session id>`, "
+                           "relative to this folder); `{\"unsupported\": true}` marks a database without session "
+                           "tables; `openclaw.discover` lists the databases discovery finds, `openclaw.codexDiscover` "
+                           "the rollouts of the Codex roots next to them (METRICS 2); a trace gives the phase of a "
+                           "window after its row `afterSeq`, after the databases before it; reading must not create "
+                           "any file. Hermes Agent: see `hermes._comment`; its log files are not in `order` (one "
+                           "parser state per log folder) but their modification times are in `mtimes`.",
                "order": order, "files": files, "mtimes": mtimes,
                "opencode": {"database": opencode_rel, "agents": opencode_expected},
                "gemini": {"discover": gemini["discover"], "traces": gemini["traces"]},
@@ -698,6 +713,9 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                                "databases": antigravity["databases"]},
                "workbuddy": {"discover": workbuddy["discover"], "traces": workbuddy["traces"]},
                "pi": {"discover": pi["discover"], "traces": pi["traces"]},
+               "openclaw": {"dbOrder": openclaw["dbOrder"], "discover": openclaw["discover"],
+                            "codexDiscover": openclaw["codexDiscover"], "databases": openclaw["databases"],
+                            "traces": openclaw["traces"]},
                "hermes": hermes},
               f, indent=2, ensure_ascii=False)
     f.write("\n")

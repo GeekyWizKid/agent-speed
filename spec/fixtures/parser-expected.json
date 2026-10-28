@@ -1,5 +1,5 @@
 {
-  "_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this folder. `mtimes` (Unix ms) give the modification times that produce both orders; apply them to a copy of this folder before computing daily history. `traces` (Gemini, omp) give the phase after feeding a file up to and including physical line `afterLine` (after the files before it in `order`). omp: the folder `omp` plays ~/.omp, so its automatic roots are omp/agent/sessions and omp/profiles/*/agent/sessions; `omp.discover` lists what discovery finds there. Antigravity: the folder `antigravity` plays ~/.gemini (stores antigravity-cli, antigravity, antigravity-ide); each database is one agent whose id is its path; `{\"unsupported\": true}` marks a database that contributes no agent; reading must not create any file (no -wal or -shm). WorkBuddy: the folder `workbuddy` plays the home folder (data folders .workbuddy and .workbuddy-ai); `workbuddy.discover` lists what discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both roots; its `traces` work like the omp ones. Hermes Agent: see `hermes._comment`; its log files are not in `order` (one parser state per log folder) but their modification times are in `mtimes`.",
+  "_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this folder. `mtimes` (Unix ms) give the modification times that produce both orders; apply them to a copy of this folder before computing daily history. `traces` (Gemini, omp) give the phase after feeding a file up to and including physical line `afterLine` (after the files before it in `order`). omp: the folder `omp` plays ~/.omp, so its automatic roots are omp/agent/sessions and omp/profiles/*/agent/sessions; `omp.discover` lists what discovery finds there. Antigravity: the folder `antigravity` plays ~/.gemini (stores antigravity-cli, antigravity, antigravity-ide); each database is one agent whose id is its path; `{\"unsupported\": true}` marks a database that contributes no agent; reading must not create any file (no -wal or -shm). WorkBuddy: the folder `workbuddy` plays the home folder (data folders .workbuddy and .workbuddy-ai); `workbuddy.discover` lists what discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both roots; its `traces` work like the omp ones. OpenClaw: the folder `openclaw` plays the home folder (state folders .openclaw and the profile .openclaw-work); after the OpenCode and Antigravity databases, the agent databases of `openclaw.dbOrder` are read with the same dedupe set, each one agent per transcript window (agent id `<database>#<session id>`, relative to this folder); `{\"unsupported\": true}` marks a database without session tables; `openclaw.discover` lists the databases discovery finds, `openclaw.codexDiscover` the rollouts of the Codex roots next to them (METRICS 2); a trace gives the phase of a window after its row `afterSeq`, after the databases before it; reading must not create any file. Hermes Agent: see `hermes._comment`; its log files are not in `order` (one parser state per log folder) but their modification times are in `mtimes`.",
   "order": [
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl",
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-20-subagent.jsonl",
@@ -42,7 +42,8 @@
     "pi/agent/sessions/--Users-dev-projects-ember--/2026-10-20T12-10-00-000Z_01a15937-edc0-7111-bc33-00146526afd1.jsonl",
     "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-20-00-000Z_01a15941-1580-7402-be06-0015035e2982.jsonl",
     "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333.jsonl",
-    "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333/helper.jsonl"
+    "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333/helper.jsonl",
+    "openclaw/.openclaw/agents/main/agent/codex-home/sessions/2026/10/20/rollout-2026-10-20T13-10-00-019a0b1c-2d3e-7f40-8a51-c2d3e4f5a6b7.jsonl"
   ],
   "files": {
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl": {
@@ -2302,6 +2303,49 @@
       "effort": null,
       "speed": null,
       "responseModes": {}
+    },
+    "openclaw/.openclaw/agents/main/agent/codex-home/sessions/2026/10/20/rollout-2026-10-20T13-10-00-019a0b1c-2d3e-7f40-8a51-c2d3e4f5a6b7.jsonl": {
+      "source": "codex",
+      "project": "workspace",
+      "model": "gpt-5.5",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792501840000,
+      "malformedLines": 0,
+      "responses": [
+        {
+          "key": "resp-oc-1",
+          "startMs": 1792501800300,
+          "endMs": 1792501820000,
+          "input": 12000,
+          "cachedInput": 9000,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 300,
+          "reasoning": 120,
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "fast": false,
+          "final": true
+        },
+        {
+          "key": "resp-oc-2",
+          "startMs": 1792501830000,
+          "endMs": 1792501839900,
+          "input": 12500,
+          "cachedInput": 12000,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 210,
+          "reasoning": 0,
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "fast": false,
+          "final": true
+        }
+      ]
     }
   },
   "mtimes": {
@@ -2358,6 +2402,10 @@
     "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-20-00-000Z_01a15941-1580-7402-be06-0015035e2982.jsonl": 1792584004000,
     "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333.jsonl": 1792584005000,
     "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333/helper.jsonl": 1792584006000,
+    "openclaw/.openclaw/agents/main/agent/codex-home/sessions/2026/10/20/rollout-2026-10-20T13-10-00-019a0b1c-2d3e-7f40-8a51-c2d3e4f5a6b7.jsonl": 1792584010000,
+    "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite": 1792584011000,
+    "openclaw/.openclaw-work/agents/ops/agent/openclaw-agent.sqlite": 1792584012000,
+    "openclaw/.openclaw/agents/legacy/agent/openclaw-agent.sqlite": 1792584013000,
     "hermes/home/logs/agent.log.2": 1792584060000,
     "hermes/home/logs/agent.log.1": 1792584061000,
     "hermes/home/logs/agent.log": 1792584062000,
@@ -4266,6 +4314,493 @@
         "afterLine": 2,
         "phase": "generating",
         "inFlightStartMs": 1792499402000
+      }
+    ]
+  },
+  "openclaw": {
+    "dbOrder": [
+      "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+      "openclaw/.openclaw-work/agents/ops/agent/openclaw-agent.sqlite",
+      "openclaw/.openclaw/agents/legacy/agent/openclaw-agent.sqlite"
+    ],
+    "discover": [
+      "openclaw/.openclaw-work/agents/ops/agent/openclaw-agent.sqlite",
+      "openclaw/.openclaw/agents/legacy/agent/openclaw-agent.sqlite",
+      "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite"
+    ],
+    "codexDiscover": [
+      "openclaw/.openclaw/agents/main/agent/codex-home/sessions/2026/10/20/rollout-2026-10-20T13-10-00-019a0b1c-2d3e-7f40-8a51-c2d3e4f5a6b7.jsonl"
+    ],
+    "databases": {
+      "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite": {
+        "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite#0f1c2d3e-0001-4a00-8000-00000000c001": {
+          "source": "openclaw",
+          "project": "workspace",
+          "model": "gemini-3-pro",
+          "isSubagent": false,
+          "parentId": null,
+          "phase": "generating",
+          "inFlightStartMs": 1792501560000,
+          "lastLineMs": 1792501560000,
+          "malformedLines": 2,
+          "responses": [
+            {
+              "key": "openclaw:a1f00005:1792501205010",
+              "startMs": 1792501205010,
+              "endMs": 1792501211300,
+              "input": 18003,
+              "cachedInput": 0,
+              "cacheWriteInput": 18000,
+              "cacheWrite1hInput": 18000,
+              "output": 420,
+              "reasoning": 0,
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "fast": false,
+              "final": true
+            },
+            {
+              "key": "openclaw:a1f00008:1792501212405",
+              "startMs": 1792501212405,
+              "endMs": 1792501216520,
+              "input": 18605,
+              "cachedInput": 18000,
+              "cacheWriteInput": 600,
+              "cacheWrite1hInput": 0,
+              "output": 260,
+              "reasoning": 0,
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "fast": false,
+              "final": true
+            },
+            {
+              "key": "openclaw:a1f0000c:1792501260006",
+              "startMs": 1792501260006,
+              "endMs": 1792501266000,
+              "input": 18604,
+              "cachedInput": 18600,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 300,
+              "reasoning": 0,
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "fast": false,
+              "final": true
+            },
+            {
+              "key": "openclaw:a1f00010:1792501380006",
+              "startMs": null,
+              "endMs": 1792501381200,
+              "input": 18610,
+              "cachedInput": 18600,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 0,
+              "reasoning": 0,
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "fast": false,
+              "final": true
+            },
+            {
+              "key": "openclaw:a1f00014:1792501520000",
+              "startMs": null,
+              "endMs": 1792501520004,
+              "input": 4000,
+              "cachedInput": 3000,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 200,
+              "reasoning": 0,
+              "model": "gemini-3-pro",
+              "provider": "google-gemini-cli",
+              "fast": false,
+              "final": true
+            }
+          ],
+          "effort": null,
+          "speed": null,
+          "responseModes": {
+            "openclaw:a1f00005:1792501205010": {
+              "effort": null,
+              "speed": null
+            },
+            "openclaw:a1f00008:1792501212405": {
+              "effort": null,
+              "speed": null
+            },
+            "openclaw:a1f0000c:1792501260006": {
+              "effort": null,
+              "speed": null
+            },
+            "openclaw:a1f00010:1792501380006": {
+              "effort": null,
+              "speed": null
+            },
+            "openclaw:a1f00014:1792501520000": {
+              "effort": null,
+              "speed": null
+            }
+          }
+        },
+        "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite#0f1c2d3e-0002-4a00-8000-00000000c002": {
+          "source": "openclaw",
+          "project": "workspace",
+          "model": "claude-sonnet-5-5",
+          "isSubagent": true,
+          "parentId": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite#0f1c2d3e-0001-4a00-8000-00000000c001",
+          "phase": "idle",
+          "inFlightStartMs": null,
+          "lastLineMs": 1792501229300,
+          "malformedLines": 0,
+          "responses": [
+            {
+              "key": "openclaw:b2e10002:1792501220106",
+              "startMs": 1792501220106,
+              "endMs": 1792501229300,
+              "input": 2400,
+              "cachedInput": 0,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 310,
+              "reasoning": 0,
+              "model": "claude-sonnet-5-5",
+              "provider": "anthropic",
+              "fast": false,
+              "final": true
+            }
+          ],
+          "effort": null,
+          "speed": null,
+          "responseModes": {
+            "openclaw:b2e10002:1792501220106": {
+              "effort": null,
+              "speed": null
+            }
+          }
+        },
+        "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite#0f1c2d3e-0004-4a00-8000-00000000c004": {
+          "source": "openclaw",
+          "project": "workspace",
+          "model": null,
+          "isSubagent": false,
+          "parentId": null,
+          "phase": "idle",
+          "inFlightStartMs": null,
+          "lastLineMs": 1792501840010,
+          "malformedLines": 0,
+          "responses": [],
+          "effort": null,
+          "speed": null,
+          "responseModes": {}
+        },
+        "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite#0f1c2d3e-0005-4a00-8000-00000000c005": {
+          "source": "openclaw",
+          "project": "workspace",
+          "model": null,
+          "isSubagent": false,
+          "parentId": null,
+          "phase": "idle",
+          "inFlightStartMs": null,
+          "lastLineMs": 1792502130004,
+          "malformedLines": 0,
+          "responses": [],
+          "effort": null,
+          "speed": null,
+          "responseModes": {}
+        },
+        "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite#0f1c2d3e-0006-4a00-8000-00000000c006": {
+          "source": "openclaw",
+          "project": "workspace",
+          "model": "gpt-5.5",
+          "isSubagent": false,
+          "parentId": null,
+          "phase": "idle",
+          "inFlightStartMs": null,
+          "lastLineMs": 1792502185000,
+          "malformedLines": 0,
+          "responses": [
+            {
+              "key": "openclaw:e5b40002:1792502180000",
+              "startMs": null,
+              "endMs": 1792502185000,
+              "input": 2800,
+              "cachedInput": 2000,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 120,
+              "reasoning": 0,
+              "model": "gpt-5.5",
+              "provider": "github-copilot",
+              "fast": false,
+              "final": true
+            }
+          ],
+          "effort": null,
+          "speed": null,
+          "responseModes": {
+            "openclaw:e5b40002:1792502180000": {
+              "effort": null,
+              "speed": null
+            }
+          }
+        },
+        "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite#0f1c2d3e-0003-4a00-8000-00000000c003": {
+          "source": "openclaw",
+          "project": "workspace",
+          "model": "claude-opus-5-5",
+          "isSubagent": false,
+          "parentId": null,
+          "phase": "idle",
+          "inFlightStartMs": null,
+          "lastLineMs": 1792502409000,
+          "malformedLines": 0,
+          "responses": [
+            {
+              "key": "openclaw:f6a50002:1792502405006",
+              "startMs": 1792502405006,
+              "endMs": 1792502409000,
+              "input": 18604,
+              "cachedInput": 18600,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 330,
+              "reasoning": 0,
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "fast": false,
+              "final": true
+            }
+          ],
+          "effort": null,
+          "speed": null,
+          "responseModes": {
+            "openclaw:f6a50002:1792502405006": {
+              "effort": null,
+              "speed": null
+            }
+          }
+        }
+      },
+      "openclaw/.openclaw-work/agents/ops/agent/openclaw-agent.sqlite": {
+        "openclaw/.openclaw-work/agents/ops/agent/openclaw-agent.sqlite#6a7b8c9d-0001-4b00-9000-00000000d001": {
+          "source": "openclaw",
+          "project": "relay",
+          "model": "gpt-5.5",
+          "isSubagent": false,
+          "parentId": null,
+          "phase": "idle",
+          "inFlightStartMs": null,
+          "lastLineMs": 1792503020000,
+          "malformedLines": 0,
+          "responses": [
+            {
+              "key": "openclaw:a7f60002:1792503002005",
+              "startMs": 1792503002005,
+              "endMs": 1792503006400,
+              "input": 5200,
+              "cachedInput": 0,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 900,
+              "reasoning": 300,
+              "model": "gpt-5.5",
+              "provider": "openai",
+              "fast": false,
+              "final": true
+            },
+            {
+              "key": "openclaw:a7f60004:1792503006436",
+              "startMs": 1792503006436,
+              "endMs": 1792503009560,
+              "input": 5400,
+              "cachedInput": 5100,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 410,
+              "reasoning": 0,
+              "model": "gpt-5.5",
+              "provider": "openai",
+              "fast": false,
+              "final": true
+            }
+          ],
+          "effort": null,
+          "speed": null,
+          "responseModes": {
+            "openclaw:a7f60002:1792503002005": {
+              "effort": null,
+              "speed": null
+            },
+            "openclaw:a7f60004:1792503006436": {
+              "effort": null,
+              "speed": null
+            }
+          }
+        },
+        "openclaw/.openclaw-work/agents/ops/agent/openclaw-agent.sqlite#6a7b8c9d-0002-4b00-9000-00000000d002": {
+          "source": "openclaw",
+          "project": "workspace",
+          "model": null,
+          "isSubagent": false,
+          "parentId": null,
+          "phase": "idle",
+          "inFlightStartMs": null,
+          "lastLineMs": 1792501216520,
+          "malformedLines": 0,
+          "responses": [],
+          "effort": null,
+          "speed": null,
+          "responseModes": {}
+        },
+        "openclaw/.openclaw-work/agents/ops/agent/openclaw-agent.sqlite#6a7b8c9d-0003-4b00-9000-00000000d003": {
+          "source": "openclaw",
+          "project": "relay",
+          "model": null,
+          "isSubagent": false,
+          "parentId": null,
+          "phase": "idle",
+          "inFlightStartMs": null,
+          "lastLineMs": 1792503630003,
+          "malformedLines": 0,
+          "responses": [],
+          "effort": null,
+          "speed": null,
+          "responseModes": {}
+        }
+      },
+      "openclaw/.openclaw/agents/legacy/agent/openclaw-agent.sqlite": {
+        "unsupported": true
+      }
+    },
+    "traces": [
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 4,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 5,
+        "phase": "generating",
+        "inFlightStartMs": 1792501205000
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 6,
+        "phase": "tools",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 7,
+        "phase": "tools",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 8,
+        "phase": "generating",
+        "inFlightStartMs": 1792501212400
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 9,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 11,
+        "phase": "tools",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 12,
+        "phase": "generating",
+        "inFlightStartMs": 1792501263000
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 13,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 15,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 18,
+        "phase": "generating",
+        "inFlightStartMs": 1792501440000
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 19,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0001-4a00-8000-00000000c001",
+        "afterSeq": 21,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0004-4a00-8000-00000000c004",
+        "afterSeq": 2,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0006-4a00-8000-00000000c006",
+        "afterSeq": 2,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw/agents/main/agent/openclaw-agent.sqlite",
+        "window": "0f1c2d3e-0003-4a00-8000-00000000c003",
+        "afterSeq": 6,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw-work/agents/ops/agent/openclaw-agent.sqlite",
+        "window": "6a7b8c9d-0001-4b00-9000-00000000d001",
+        "afterSeq": 3,
+        "phase": "tools",
+        "inFlightStartMs": null
+      },
+      {
+        "database": "openclaw/.openclaw-work/agents/ops/agent/openclaw-agent.sqlite",
+        "window": "6a7b8c9d-0001-4b00-9000-00000000d001",
+        "afterSeq": 4,
+        "phase": "generating",
+        "inFlightStartMs": 1792503006430
       }
     ]
   },

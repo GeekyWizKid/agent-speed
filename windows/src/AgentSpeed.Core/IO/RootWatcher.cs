@@ -57,6 +57,7 @@ internal sealed class RootWatcher : IDisposable
         TranscriptNaming.GeminiSession => ["*.jsonl", "*.json"],
         TranscriptNaming.OpenCodeDatabase => [OpenCode.OpenCodeDatabase.FileName, OpenCode.OpenCodeDatabase.FileName + "-wal"],
         TranscriptNaming.ZCodeDatabase => ["db.sqlite", "db.sqlite-wal"],
+        TranscriptNaming.OpenClawDatabase => [OpenClaw.OpenClawPaths.DatabaseName, OpenClaw.OpenClawPaths.DatabaseName + "-wal"],
         TranscriptNaming.KimiSession => ["wire.jsonl"],
         TranscriptNaming.GrokBuildSession => ["updates.jsonl", "summary.json"],
 

@@ -545,5 +545,11 @@
     "zh-Hans": "选择 Pi 的 sessions 文件夹",
     "en": "Choose the Pi sessions folder",
     "ja": "Pi の sessions フォルダを選択"
+  },
+  "mac.settings.sources.chooseOpenClaw": {
+    "zh-Hant": "選擇 OpenClaw 的狀態資料夾、agent 資料夾或 openclaw-agent.sqlite",
+    "zh-Hans": "选择 OpenClaw 的状态文件夹、agent 文件夹或 openclaw-agent.sqlite",
+    "en": "Choose OpenClaw's state folder, an agent folder or openclaw-agent.sqlite",
+    "ja": "OpenClaw の状態フォルダ、エージェントのフォルダ、または openclaw-agent.sqlite を選択"
   }
 }

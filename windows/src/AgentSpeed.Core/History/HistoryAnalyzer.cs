@@ -172,17 +172,19 @@ internal sealed partial class HistoryAnalyzer
         var priceVersion = Pricing.CurrentVersion.ToString(CultureInfo.InvariantCulture);
         var repricing = _entries.Count > 0 && !string.Equals(_store.Meta(PriceVersionMeta), priceVersion, StringComparison.Ordinal);
         var plan = BuildPlan(locations, enabled, zoneChanged, repricing, zoneId, cancellationToken);
-        var state = new HistoryProgress(0, plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count, 0, plan.Files.Sum(f => f.Size));
+        var state = new HistoryProgress(0, plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count + plan.OpenClawDatabases.Count, 0,
+            plan.Files.Sum(f => f.Size));
         progress?.Invoke(state);
         int analyzed = 0, sessions = 0, unreadable = (plan.OpenCodeFailed ? 1 : 0) + (plan.ZCodeFailed ? 1 : 0);
         long bytes = 0;
         var cancelled = false;
         try
         {
-            if (plan.Files.Count > 0 || plan.Sessions.Count > 0 || plan.ZCodeSessions.Count > 0)
+            if (plan.Files.Count > 0 || plan.Sessions.Count > 0 || plan.ZCodeSessions.Count > 0 || plan.OpenClawDatabases.Count > 0)
             {
                 var ledger = new KeyLedger();
                 var replaced = plan.Files.Select(f => f.Previous?.Id ?? 0).Concat(plan.Sessions.Select(s => s.Previous?.Id ?? 0)).Concat(plan.ZCodeSessions.Select(s => s.Previous?.Id ?? 0))
+                    .Concat(OpenClawReplacedIds(plan))
                     .Where(id => id != 0).ToHashSet();
                 _store.LoadKeys(ledger, replaced);
                 var labeler = new DayLabeler(zone);
@@ -203,6 +205,12 @@ internal sealed partial class HistoryAnalyzer
                 {
                     cancelled = !AnalyzeFiles(plan.Files, ledger, labeler, pending, Flush, ref state, ref analyzed, ref bytes, ref unreadable,
                         progress, cancellationToken);
+                    if (!cancelled)
+                    {
+                        cancelled = !AnalyzeOpenClaw(plan.OpenClawDatabases, ledger, labeler, pending, Flush, ref state, ref analyzed, ref bytes,
+                            ref unreadable, progress, cancellationToken);
+                    }
+
                     if (!cancelled)
                     {
                         cancelled = !AnalyzeZCodeSessions(plan.ZCodeSessions, ledger, labeler, pending, Flush, ref state, ref sessions,
@@ -237,7 +245,8 @@ internal sealed partial class HistoryAnalyzer
             plan.Database?.Dispose();
         }
 
-        return new HistoryReport(plan.Discovered, plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count, analyzed, bytes, sessions, unreadable,
+        return new HistoryReport(plan.Discovered, plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count + plan.OpenClawDatabases.Count,
+            analyzed, bytes, sessions, unreadable,
             stopwatch.ElapsedMilliseconds, cancelled);
     }
 
@@ -305,6 +314,7 @@ internal sealed partial class HistoryAnalyzer
         }
 
         PlanZCode(plan, locations, enabled, zoneChanged, repricing, cancellationToken);
+        PlanOpenClaw(plan, locations, enabled, zoneChanged, repricing);
         return plan;
     }
 
@@ -381,7 +391,7 @@ internal sealed partial class HistoryAnalyzer
             }
 
             yield return (family, path);
-            if (family == RootFamily.Codex && locations.CodexArchiveRoot is { Length: > 0 } archive)
+            if (family == RootFamily.Codex && SourceLocations.ArchiveRootOf(path) is { Length: > 0 } archive)
             {
                 yield return (family, archive);
             }
@@ -563,6 +573,8 @@ internal sealed partial class HistoryAnalyzer
         public List<PlannedSession> Sessions { get; } = [];
 
         public List<PlannedZCodeSession> ZCodeSessions { get; } = [];
+
+        public List<PlannedOpenClawDatabase> OpenClawDatabases { get; } = [];
 
         public bool ZCodeFailed { get; set; }
 

@@ -24,6 +24,7 @@ internal enum ProbeMode
 /// <param name="WorkBuddyRoot">The WorkBuddy data folder or its <c>projects</c> folder; null uses <c>~/.workbuddy</c>.</param>
 /// <param name="WorkBuddyAiRoot">The WorkBuddy AI data folder or its <c>projects</c> folder; null uses <c>~/.workbuddy-ai</c>.</param>
 /// <param name="PiRoot">One Pi sessions folder (replaces every automatic Pi root); null uses Pi's automatic roots.</param>
+/// <param name="OpenClawRoot">An OpenClaw state folder, agent folder or database (replaces every automatic state folder).</param>
 internal sealed record ProbeOptions(
     ProbeMode Mode,
     int WatchSeconds,
@@ -45,12 +46,13 @@ internal sealed record ProbeOptions(
     string? ZCodeRoot = null,
     string? KimiRoot = null,
     string? GrokBuildRoot = null,
-    string? PiRoot = null)
+    string? PiRoot = null,
+    string? OpenClawRoot = null)
 {
     public const string Usage =
         "usage: AgentSpeed.Probe (--dump-today [--since UNIXMS] | --dump-history [--utc] [--store PATH] | --watch N | --sync-prices DIR | --sync-rates DIR CURRENCY) [--prices PATH] " +
         "[--codex PATH] [--claude PATH] [--dsh PATH] [--opencode PATH] [--gemini PATH]... [--omp PATH]... [--antigravity PATH]... " +
-        "[--workbuddy PATH] [--workbuddy-ai PATH] [--zcode PATH] [--kimi PATH] [--grok-build PATH] [--pi PATH]";
+        "[--workbuddy PATH] [--workbuddy-ai PATH] [--zcode PATH] [--kimi PATH] [--grok-build PATH] [--pi PATH] [--openclaw PATH]";
 
     public MonitorConfiguration Configuration => new(
         new HashSet<SourceKind>(Enum.GetValues<SourceKind>()),
@@ -62,7 +64,7 @@ internal sealed record ProbeOptions(
         OmpRoots is { Count: > 0 } omp ? omp[0] : null,
         AntigravityRoots is { Count: > 0 } antigravity ? antigravity[0] : null,
         WorkBuddyRoot,
-        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, PiRoot);
+        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, PiRoot, OpenClawRoot);
 
     /// <summary>Resolved roots; several <c>--gemini</c>, <c>--omp</c> or <c>--antigravity</c> folders are all read (like the reference).</summary>
     public SourceLocations Locations
@@ -124,7 +126,7 @@ internal sealed record ProbeOptions(
         var seconds = 0;
         var utc = false;
         string? codex = null, claude = null, dsh = null, opencode = null, store = null, prices = null, sync = null, currency = null;
-        string? workBuddy = null, workBuddyAi = null, zcode = null, kimi = null, grokBuild = null, pi = null;
+        string? workBuddy = null, workBuddyAi = null, zcode = null, kimi = null, grokBuild = null, pi = null, openClaw = null;
         long? since = null;
         var gemini = new List<string>();
         var omp = new List<string>();
@@ -186,6 +188,9 @@ internal sealed record ProbeOptions(
                 case "--pi" when i + 1 < args.Length:
                     pi = args[++i];
                     break;
+                case "--openclaw" when i + 1 < args.Length:
+                    openClaw = args[++i];
+                    break;
                 case "--store" when i + 1 < args.Length:
                     store = args[++i];
                     break;
@@ -219,6 +224,6 @@ internal sealed record ProbeOptions(
 
         return new ProbeOptions(
             mode.Value, seconds, codex, claude, dsh, opencode, gemini, utc, store, since, omp, antigravity, prices, sync, currency,
-            workBuddy, workBuddyAi, zcode, kimi, grokBuild, pi);
+            workBuddy, workBuddyAi, zcode, kimi, grokBuild, pi, openClaw);
     }
 }

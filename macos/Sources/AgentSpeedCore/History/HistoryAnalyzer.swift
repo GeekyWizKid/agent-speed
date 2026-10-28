@@ -14,6 +14,9 @@ final class HistoryAnalyzer {
     /// analysed again (METRICS 9.7).
     static let priceVersionKey = "priceTableVersion"
     static let opencodeFamily = "opencode"
+    static let openclawFamily = "openclaw"
+    /// Meta key prefix of an analysed OpenClaw database's identity.
+    static let openclawMetaPrefix = "openclaw:"
     static let maxWorkers = 4
 
     struct Options: Sendable {
@@ -106,6 +109,21 @@ final class HistoryAnalyzer {
         var previous: HistoryDatabase.Entry?
     }
 
+    /// One OpenClaw transcript window to analyse again (METRICS 4.14): its responses were read during planning.
+    private struct PlannedOpenClawWindow {
+        var agentId: String
+        var records: [ResponseRecord]
+        var keys: [String]
+        var identity: (rows: Int64, modified: Int64)
+        var previous: HistoryDatabase.Entry?
+    }
+
+    private struct PlannedOpenClawDatabase {
+        var path: String
+        var identity: String
+        var windows: [PlannedOpenClawWindow] = []
+    }
+
     private struct Plan {
         var files: [PlannedFile] = []
         var discovered = 0
@@ -113,6 +131,9 @@ final class HistoryAnalyzer {
         var opencodeIdentity: String?
         var zcode: [PlannedZcodeSession] = []
         var zcodeIdentity: String?
+        var openclaw: [PlannedOpenClawDatabase] = []
+
+        var openclawWindows: Int { openclaw.reduce(0) { $0 + $1.windows.count } }
 
         var bytes: Int64 { files.reduce(0) { $0 + $1.stat.size } }
     }
@@ -149,7 +170,72 @@ final class HistoryAnalyzer {
         if configuration.readsZcode {
             try planZcode(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing, into: &plan)
         }
+        if configuration.readsOpenclaw {
+            try planOpenclaw(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing, into: &plan)
+        }
         return plan
+    }
+
+    /// OpenClaw's agent databases in startup order (METRICS 4.14, 8). A database whose files did not change is not
+    /// opened; otherwise every window whose highest `seq` or `transcript_updated_at` changed is parsed completely.
+    /// Responses are read here and claimed in `run`, in this order, with the shared dedupe set.
+    private func planOpenclaw(configuration: MonitorConfiguration, options: Options, zoneChanged: Bool,
+                              repricing: Bool, into plan: inout Plan) throws {
+        var seen: Set<String> = []
+        let paths = configuration.resolvedOpenclawRoots.flatMap(OpenClawHome.databases(in:)).filter { seen.insert($0).inserted }
+        let reprices = repricing && entries.values.contains { $0.family == Self.openclawFamily && $0.hasUnpriced }
+        for path in OpenClawSource.startupOrder(paths) {
+            guard let stat = FileStat.lstat(path), stat.isRegularFile else { continue }
+            plan.discovered += 1
+            let wal = FileStat.lstat(path + "-wal")
+            let identity = [path, "\(stat.identity.device):\(stat.identity.inode)", "\(stat.size):\(stat.modifiedNs)",
+                            wal.map { "\($0.size):\($0.modifiedNs)" } ?? "-", "v\(options.analysisVersion)"].joined(separator: "|")
+            if !zoneChanged, !reprices, try database.meta(Self.openclawMetaPrefix + path) == identity { continue }
+            var planned = PlannedOpenClawDatabase(path: path, identity: identity)
+            let source: OpenClawDatabase
+            do {
+                source = try OpenClawDatabase(path: path)
+            } catch .unsupported {
+                // No session tables (2026.7 and older): opened again only once its files change.
+                plan.openclaw.append(planned)
+                continue
+            } catch {
+                // A busy or unreadable database is tried again on the next run.
+                continue
+            }
+            do {
+                try source.read {
+                    for window in try source.windows() {
+                        let agentId = OpenClawSource.agentId(path, window.sessionId)
+                        let rows = try source.maxSeq(session: window.sessionId) ?? 0
+                        let previous = entries[agentId]
+                        if let previous, !zoneChanged, previous.version == options.analysisVersion, previous.size == rows,
+                           previous.modified == window.activityMs, !(repricing && previous.hasUnpriced) {
+                            continue
+                        }
+                        // The window's own dedupe set orders its keys; ownership across windows is decided in `run`.
+                        var local = Deduper(capacity: .max)
+                        var parser = OpenClawParser(agentId: agentId, fileID: 0, window: window)
+                        var latest: [String: ResponseRecord] = [:]
+                        var order: [String] = []
+                        try source.rows(session: window.sessionId, after: .min, maxLineBytes: FileTailer.defaultMaxLineBytes,
+                                        readsTools: false) { row in
+                            guard let entry = row.entry else { return }
+                            parser.consume(entry, deduper: &local) { upsert in
+                                if latest[upsert.record.key] == nil { order.append(upsert.record.key) }
+                                latest[upsert.record.key] = upsert.record
+                            }
+                        }
+                        planned.windows.append(PlannedOpenClawWindow(
+                            agentId: agentId, records: order.compactMap { latest[$0] }, keys: order,
+                            identity: (rows, window.activityMs), previous: previous))
+                    }
+                }
+            } catch {
+                continue
+            }
+            plan.openclaw.append(planned)
+        }
     }
 
     private func planZcode(configuration: MonitorConfiguration, options: Options, zoneChanged: Bool,
@@ -213,7 +299,7 @@ final class HistoryAnalyzer {
         var roots: [(TranscriptFamily, String)] = []
         for root in configuration.allRoots() where configuration.reads(root.family) {
             if root.readable { roots.append((root.family, root.path)) }
-            if root.family == .codex { roots.append((root.family, configuration.resolvedCodexArchiveRoot)) }
+            if root.family == .codex { roots.append((root.family, MonitorConfiguration.codexArchiveRoot(of: root.path))) }
         }
         return roots
     }
@@ -239,18 +325,20 @@ final class HistoryAnalyzer {
         let plan = try plan(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing)
         report.filesDiscovered = plan.discovered
         let sessions = plan.opencode?.sessions ?? []
-        var state = Progress(filesTotal: plan.files.count + sessions.count + plan.zcode.count, bytesTotal: plan.bytes)
+        var state = Progress(filesTotal: plan.files.count + sessions.count + plan.zcode.count + plan.openclawWindows,
+                             bytesTotal: plan.bytes)
         progress(state)
         func elapsedMs() -> Double { Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000 }
 
-        if plan.files.isEmpty && sessions.isEmpty && plan.zcode.isEmpty {
+        if plan.files.isEmpty && sessions.isEmpty && plan.zcode.isEmpty && plan.openclaw.isEmpty {
             try finish(plan: plan, zone: zone, priceVersion: priceVersion)
             report.durationMs = elapsedMs()
             return report
         }
 
         var deduper = Deduper.hashed()
-        let replaced = Set(plan.files.compactMap(\.previous?.id) + sessions.compactMap(\.previous?.id) + plan.zcode.compactMap(\.previous?.id))
+        let replaced = Set(plan.files.compactMap(\.previous?.id) + sessions.compactMap(\.previous?.id) + plan.zcode.compactMap(\.previous?.id)
+            + plan.openclaw.flatMap { $0.windows.compactMap(\.previous?.id) })
         try database.loadKeys(excluding: replaced, into: &deduper)
         var labeler = DayLabeler(timeZone: options.timeZone)
         var pending: [(path: String, entry: HistoryDatabase.Entry, keys: [UInt64])] = []
@@ -375,6 +463,31 @@ final class HistoryAnalyzer {
             }
         }
 
+        if !report.cancelled {
+            // Each window owns its keys like a file (METRICS 3.4, 8); window ids only need to differ from each other.
+            var windowID = OpenClawSource.firstFileID
+            for database in plan.openclaw {
+                for window in database.windows {
+                    if isCancelled() { report.cancelled = true; break }
+                    let fileID = windowID
+                    windowID &+= 1
+                    let records = window.records.filter { deduper.claim($0.key, for: fileID) != .otherFile }
+                    let keys = deduper.finishFile()
+                    let entry = HistoryDatabase.Entry(
+                        id: window.previous?.id, family: Self.openclawFamily, size: window.identity.rows,
+                        modified: window.identity.modified, version: options.analysisVersion,
+                        days: DayAggregate.contributions(of: records, source: .openclaw, labeler: &labeler, pricing: pricing))
+                    entries[window.agentId] = entry
+                    pending.append((window.agentId, entry, keys))
+                    report.sessionsAnalyzed += 1
+                    state.filesDone += 1
+                    try flush(force: false)
+                    progress(state)
+                }
+                if report.cancelled { break }
+            }
+        }
+
         try flush(force: true)
         try saveBindings()
         if !report.cancelled {
@@ -389,6 +502,7 @@ final class HistoryAnalyzer {
         try database.setMeta(Self.priceVersionKey, priceVersion)
         if opencodeComplete, let identity = plan.opencodeIdentity { try database.setMeta("opencode", identity) }
         if let identity = plan.zcodeIdentity { try database.setMeta("zcode", identity) }
+        for planned in plan.openclaw { try database.setMeta(Self.openclawMetaPrefix + planned.path, planned.identity) }
     }
 
     // MARK: - Results

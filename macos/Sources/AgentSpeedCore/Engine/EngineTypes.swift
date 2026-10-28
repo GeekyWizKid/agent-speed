@@ -63,8 +63,15 @@ struct EngineAgent: Equatable, Sendable {
 
     /// Project name from the transcript location when the transcript never named a working directory. Gemini CLI
     /// sessions (`<project>/chats/[<dir>/]<file>`) use the project folder, Antigravity conversations without a
-    /// workspace (`<store>/conversations/<id>.db`) their store.
+    /// workspace (`<store>/conversations/<id>.db`) their store, OpenClaw windows (`<…>/<agentId>/agent/
+    /// openclaw-agent.sqlite#<session>`) their OpenClaw agent.
     static func fallbackProject(for path: String) -> String {
+        if let database = OpenClawSource.databasePath(ofAgent: path) {
+            let folder = (database as NSString).deletingLastPathComponent
+            let name = (folder as NSString).lastPathComponent
+            let agent = name == "agent" ? ((folder as NSString).deletingLastPathComponent as NSString).lastPathComponent : name
+            if !agent.isEmpty { return agent }
+        }
         if let project = GeminiProjects.projectDirectory(ofSessionAt: path) {
             let name = (project as NSString).lastPathComponent
             if !name.isEmpty { return name }

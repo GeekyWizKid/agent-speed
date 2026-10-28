@@ -68,6 +68,7 @@ extension SourceKind {
         case .kimi: .kimi
         case .grokBuild: .grokBuild
         case .pi: .pi
+        case .openclaw: .openclaw
         }
     }
 }
@@ -179,10 +180,10 @@ private struct SourceFolderRow: View {
         let l10n = model.l10n
         let urls = folder.urls(in: settings)
         let shown = folder.shownURLs(in: settings)
-        let url = urls.first(where: folder.isReadable) ?? urls.first(where: TranscriptFolder.exists) ?? shown[0]
+        let url = urls.first(where: folder.isReadable) ?? urls.first(where: folder.locationExists) ?? shown[0]
         let isCustom = folder.customURL(in: settings) != nil
         let readable = urls.contains(where: folder.isReadable)
-        let exists = TranscriptFolder.exists(url)
+        let exists = folder.locationExists(url)
         let paths = shown.map(TranscriptFolder.displayPath)
         HStack(spacing: Spacing.s) {
             Image(nsImage: Self.folderIcon)
@@ -240,7 +241,8 @@ private struct SourceFolderRow: View {
                     message: l10n(folder.chooseMessageKey),
                     prompt: l10n("mac.settings.sources.choosePrompt"),
                     startingAt: url,
-                    window: host.window ?? NSApp.keyWindow
+                    window: host.window ?? NSApp.keyWindow,
+                    acceptsDatabaseFile: folder.acceptsDatabaseFile
                 ) { chosen in
                     folder.setURL(chosen, in: settings)
                 }

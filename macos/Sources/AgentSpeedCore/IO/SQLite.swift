@@ -171,6 +171,11 @@ final class SQLiteStatement {
         sqlite3_column_type(statement, column) == SQLITE_NULL
     }
 
+    /// `SQLITE_INTEGER`, `SQLITE_FLOAT`, `SQLITE_TEXT`, `SQLITE_BLOB` or `SQLITE_NULL`.
+    func type(_ column: Int32) -> Int32 {
+        sqlite3_column_type(statement, column)
+    }
+
     func int64(_ column: Int32) -> Int64 {
         sqlite3_column_int64(statement, column)
     }

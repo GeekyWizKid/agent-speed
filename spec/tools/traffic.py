@@ -28,7 +28,7 @@ PYTHON_HOST = re.compile(r"python(?:w|[0-9][0-9.]*)?")
 HERMES_MARKERS = ("hermes_bootstrap", "hermes_cli", "acp_adapter")
 HERMES_SCRIPTS = {"hermes", "hermes-agent", "hermes-acp"}
 SOURCES = ("codex", "claudeCode", "claudeDesktop", "deepseek", "opencode", "gemini", "omp", "antigravity", "workbuddy",
-           "workbuddyAi", "zcode", "kimi", "grokBuild", "pi", "hermes")
+           "workbuddyAi", "zcode", "kimi", "grokBuild", "pi", "openclaw", "hermes")
 
 
 # ---------------------------------------------------------------------------------------------------- formatting
@@ -207,6 +207,8 @@ def match_source(env: Env, proc: dict, ancestors: list[dict]) -> str | None:
         return "grokBuild"
     if name == "pi" or "/@earendil-works/pi-coding-agent/" in script or "/@mariozechner/pi-coding-agent/" in script:
         return "pi"
+    if name == "openclaw" or "/openclaw.mjs" in script or "/openclaw/dist/" in script:
+        return "openclaw"
     if _is_hermes(env, proc):
         return "hermes"
     edition = WORKBUDDY_APPS[env.platform].get(proc.get("bundle") if env.platform == "macos" else name)

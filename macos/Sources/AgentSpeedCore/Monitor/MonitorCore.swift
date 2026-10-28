@@ -96,7 +96,7 @@ final class MonitorCore: @unchecked Sendable {
 
     private func retryBootstrap() {
         guard let session, !isLive else { return }
-        if session.piRootsChanged { return restart() }
+        if session.piRootsChanged || session.openclawRootsChanged { return restart() }
         session.refreshAvailability()
         guard session.hasAvailableRoot else { return }
         cancelTimers()
@@ -221,8 +221,9 @@ final class MonitorCore: @unchecked Sendable {
 
     private func rediscover() {
         guard let session, isLive else { return }
-        // A new or removed Pi folder is read like at startup: older files from their end, with one dedupe set.
-        if session.piRootsChanged { return restart() }
+        // A new or removed Pi folder, OpenClaw state folder or agent-scoped Codex home is read like at startup: older
+        // files from their end, with one dedupe set.
+        if session.piRootsChanged || session.openclawRootsChanged { return restart() }
         let began = Clock.monotonicMs()
         let changed = session.rediscover(todayStartMs: Self.todayStartMs(for: Date()))
         updateWatcher()

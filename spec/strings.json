@@ -4806,6 +4806,12 @@
     "en": "Pi",
     "ja": "Pi"
   },
+  "source.openclaw": {
+    "zh-Hant": "OpenClaw",
+    "zh-Hans": "OpenClaw",
+    "en": "OpenClaw",
+    "ja": "OpenClaw"
+  },
   "source.hermes": {
     "zh-Hant": "Hermes Agent",
     "zh-Hans": "Hermes Agent",
@@ -4835,6 +4841,12 @@
     "zh-Hans": "Pi（Pi Coding Agent）的 sessions 文件夹，通常是 ~/.pi/agent/sessions。未选择文件夹时，也会读取 Pi 设置里的自定义会话文件夹。",
     "en": "The sessions folder of Pi (Pi Coding Agent), usually ~/.pi/agent/sessions. Unless you choose a folder, the custom session folder in Pi's settings is included too.",
     "ja": "Pi（Pi Coding Agent）の sessions フォルダです。通常は ~/.pi/agent/sessions です。フォルダを選ばない場合は、Pi の設定にあるカスタムのセッションフォルダも読み込みます。"
+  },
+  "settings.sources.openclawHint": {
+    "zh-Hant": "OpenClaw 的狀態資料夾，通常是 ~/.openclaw；也可以選擇某個 agent 資料夾或 openclaw-agent.sqlite。交給 Claude Code、Codex 或 ACP agent 執行的對話，會算在那些工具底下。",
+    "zh-Hans": "OpenClaw 的状态文件夹，通常是 ~/.openclaw；也可以选择某个 agent 文件夹或 openclaw-agent.sqlite。交给 Claude Code、Codex 或 ACP agent 执行的对话，会计入这些工具。",
+    "en": "OpenClaw's state folder, usually ~/.openclaw. You can also choose one agent folder or openclaw-agent.sqlite. Turns OpenClaw hands to Claude Code, Codex or ACP agents count under those agents.",
+    "ja": "OpenClaw の状態フォルダです。通常は ~/.openclaw です。エージェントのフォルダや openclaw-agent.sqlite も選べます。OpenClaw が Claude Code、Codex、ACP エージェントに任せた会話は、それぞれのツールで集計されます。"
   },
   "settings.sources.hermesHint": {
     "zh-Hant": "讀取 Hermes Agent 的 logs/agent.log 裡每次模型呼叫的紀錄，包含輪替後的舊檔與每個設定檔（profile），通常位於 ~/.hermes（Windows 為 %LOCALAPPDATA%\\hermes）。交給 Codex 執行環境的對話回合計入 Codex。",

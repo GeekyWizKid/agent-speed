@@ -108,7 +108,7 @@ struct PiTests {
     }
 
     @Test func sourceOrderAndProcessRow() {
-        #expect(SourceKind.allCases.last == .pi)
+        #expect(SourceKind.allCases.firstIndex(of: .pi) == 13)
         #expect(SourceSet(.pi).rawValue == 1 << 13)
         #expect(TranscriptFamily(.pi) == .pi && TranscriptFamily.pi.sources == [.pi])
         let mac = AgentProcessRules(platform: TrafficPlatform(kind: .macos, home: "/Users/dev"))

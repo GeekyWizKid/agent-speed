@@ -227,6 +227,7 @@ public static class ReportBody
         SourceKind.Kimi => "kimi",
         SourceKind.GrokBuild => "grokBuild",
         SourceKind.Pi => "pi",
+        SourceKind.OpenClaw => "openclaw",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
