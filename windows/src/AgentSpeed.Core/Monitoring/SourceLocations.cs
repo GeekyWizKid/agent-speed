@@ -8,6 +8,12 @@ namespace AgentSpeed.Core.Monitoring;
 /// <param name="WorkBuddyAiRoot">The WorkBuddy AI <c>projects</c> folder; empty when not available.</param>
 /// <param name="PiRoots">Pi session folders: the default root and Pi's custom session folder, or the one chosen.</param>
 /// <param name="PiAutomatic">The Pi roots follow Pi's settings (no folder chosen), so a custom session folder set later joins.</param>
+/// <param name="OpenClawRoots">OpenClaw state folders (every automatic one), or the one chosen folder or database.</param>
+/// <param name="OpenClawAutomatic">The OpenClaw roots follow the profiles on disk (nothing chosen), so new profiles join later.</param>
+/// <param name="CodexAutomatic">
+/// No Codex folder is chosen: the agent-scoped Codex home next to every OpenClaw agent database is a Codex root too
+/// (METRICS 2, 4.14).
+/// </param>
 internal sealed record SourceLocations(
     string CodexRoot,
     string ClaudeRoot,
@@ -23,7 +29,10 @@ internal sealed record SourceLocations(
     string KimiRoot = "",
     string GrokBuildRoot = "",
     IReadOnlyList<string>? PiRoots = null,
-    bool PiAutomatic = false)
+    bool PiAutomatic = false,
+    IReadOnlyList<string>? OpenClawRoots = null,
+    bool OpenClawAutomatic = false,
+    bool CodexAutomatic = true)
 {
     public static SourceLocations Resolve(MonitorConfiguration configuration) => new(
         Normalize(configuration.CodexRoot ?? LiveMonitor.DefaultCodexRoot),
@@ -40,21 +49,34 @@ internal sealed record SourceLocations(
         KimiRoot: Normalize(Harnesses.HarnessPaths.SessionsOf(configuration.KimiRoot ?? LiveMonitor.DefaultKimiRoot)),
         GrokBuildRoot: Normalize(Harnesses.HarnessPaths.SessionsOf(configuration.GrokBuildRoot ?? LiveMonitor.DefaultGrokBuildRoot)),
         PiRoots: configuration.PiRoot is { } pi ? [Normalize(pi)] : NormalizeAll(LiveMonitor.DefaultPiRoots),
-        PiAutomatic: configuration.PiRoot is null);
+        PiAutomatic: configuration.PiRoot is null,
+        OpenClawRoots: configuration.OpenClawRoot is { } openClaw ? NormalizeAll([openClaw]) : NormalizeAll(LiveMonitor.DefaultOpenClawRoots),
+        OpenClawAutomatic: configuration.OpenClawRoot is null,
+        CodexAutomatic: configuration.CodexRoot is null);
 
     /// <summary>Codex <c>archived_sessions</c>, the sibling of the sessions root (METRICS 8).</summary>
-    public string CodexArchiveRoot
+    public string CodexArchiveRoot => ArchiveRootOf(CodexRoot);
+
+    /// <summary>The <c>archived_sessions</c> sibling of a Codex <c>sessions</c> root; empty when it has no parent.</summary>
+    public static string ArchiveRootOf(string codexRoot)
     {
-        get
-        {
-            var trimmed = Path.TrimEndingDirectorySeparator(CodexRoot);
-            var parent = trimmed.Length > 0 ? Path.GetDirectoryName(trimmed) : null;
-            return string.IsNullOrEmpty(parent) ? string.Empty : Path.Combine(parent, "archived_sessions");
-        }
+        var trimmed = Path.TrimEndingDirectorySeparator(codexRoot);
+        var parent = trimmed.Length > 0 ? Path.GetDirectoryName(trimmed) : null;
+        return string.IsNullOrEmpty(parent) ? string.Empty : Path.Combine(parent, "archived_sessions");
     }
 
     /// <summary>
-    /// Transcript roots in family order; Gemini, omp and Pi may contribute several, Antigravity one <c>conversations</c>
+    /// The Codex roots OpenClaw adds while no Codex folder is chosen: <c>&lt;agent folder&gt;/codex-home/sessions</c> of every
+    /// agent database found now (METRICS 2, 4.14), without the main Codex root.
+    /// </summary>
+    public IReadOnlyList<string> CodexHomeRoots() => CodexAutomatic
+        ? [.. Distinct(OpenClaw.OpenClawPaths.CodexRoots(OpenClaw.OpenClawPaths.Databases(OpenClawRoots ?? [])).Select(Normalize))
+            .Where(root => !string.Equals(Path.TrimEndingDirectorySeparator(root), Path.TrimEndingDirectorySeparator(CodexRoot),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))]
+        : [];
+
+    /// <summary>
+    /// Transcript roots in family order; Codex (OpenClaw's agent-scoped Codex homes), Gemini, omp and Pi may contribute several, Antigravity one <c>conversations</c>
     /// folder per store, each WorkBuddy edition its <c>projects</c> folder. A path listed twice within a family is returned
     /// once; an omp root that is a Pi root or lies inside one is Pi's only (METRICS 4.7).
     /// </summary>
@@ -62,6 +84,11 @@ internal sealed record SourceLocations(
     {
         var piRoots = Distinct(PiRoots ?? []).ToList();
         yield return (RootFamily.Codex, CodexRoot);
+        foreach (var home in CodexHomeRoots())
+        {
+            yield return (RootFamily.Codex, home);
+        }
+
         yield return (RootFamily.Claude, ClaudeRoot);
         yield return (RootFamily.DeepSeek, DshRoot);
         foreach (var root in GeminiRoots)

@@ -36,6 +36,9 @@ internal enum TranscriptNaming
 
     /// <summary><c>*.jsonl</c> in a root or below it, nothing starting with <c>.</c> (Pi, METRICS 4.13).</summary>
     PiSession,
+
+    /// <summary><c>openclaw-agent.sqlite</c> and its WAL below an <c>agents</c> folder (OpenClaw, METRICS 4.14); not enumerated.</summary>
+    OpenClawDatabase,
 }
 
 /// <summary>Recursive transcript enumeration that never follows reparse points or symlinks (METRICS 2).</summary>
@@ -55,7 +58,7 @@ internal static class TranscriptDiscovery
             TranscriptNaming.CodexRollout => fileName.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase)
                 || fileName.EndsWith(".jsonl.zst", StringComparison.OrdinalIgnoreCase),
             TranscriptNaming.GeminiSession => Gemini.GeminiDiscovery.IsSessionFileName(fileName),
-            TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase => false,
+            TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase or TranscriptNaming.OpenClawDatabase => false,
             TranscriptNaming.KimiSession => fileName.SequenceEqual("wire.jsonl"),
             TranscriptNaming.GrokBuildSession => fileName.SequenceEqual("updates.jsonl"),
             TranscriptNaming.OmpSession or TranscriptNaming.PiSession => Omp.OmpDiscovery.IsSessionFileName(fileName),
@@ -97,7 +100,7 @@ internal static class TranscriptDiscovery
             return Gemini.GeminiDiscovery.Enumerate(root, limit, cancellationToken);
         }
 
-        if (naming is TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase)
+        if (naming is TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase or TranscriptNaming.OpenClawDatabase)
         {
             return [];
         }

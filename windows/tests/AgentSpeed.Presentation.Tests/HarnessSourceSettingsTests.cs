@@ -62,11 +62,42 @@ public sealed class HarnessSourceSettingsTests
         Assert.Null(config.PiRoot);
     }
 
+    [Fact]
+    public void TheOpenClawFolderAndToggleRoundTripAndReachTheMonitor()
+    {
+        var database = Path.Combine(Path.GetTempPath(), ".openclaw", "agents", "main", "agent", "openclaw-agent.sqlite");
+        var settings = AppSettings.Default.WithSourceEnabled(SourceKind.OpenClaw, false) with { OpenClawRoot = $"  {database}  " };
+        var back = SettingsSerializer.Deserialize(SettingsSerializer.Serialize(settings.Validated()));
+
+        Assert.Equal((false, database), (back.OpenClawEnabled, back.OpenClawRoot));
+        var config = back.ToMonitorConfiguration();
+        Assert.Equal(database, config.OpenClawRoot);
+        Assert.DoesNotContain(SourceKind.OpenClaw, config.EnabledSources);
+        Assert.NotEqual(AppSettings.Default.ToMonitorConfiguration(),
+            (AppSettings.Default with { OpenClawRoot = database }).ToMonitorConfiguration());
+        Assert.Null((AppSettings.Default with { OpenClawRoot = Path.Combine("relative", ".openclaw") }).Validated().OpenClawRoot);
+    }
+
+    [Fact]
+    public void OlderSettingsFilesKeepOpenClawOnWithItsAutomaticRoots()
+    {
+        var s = SettingsSerializer.Deserialize("""
+            { "version": 1, "sources": { "codex": true, "pi": false, "piRoot": null } }
+            """);
+
+        Assert.True(s.OpenClawEnabled);
+        Assert.Null(s.OpenClawRoot);
+        var config = s.ToMonitorConfiguration();
+        Assert.Contains(SourceKind.OpenClaw, config.EnabledSources);
+        Assert.Null(config.OpenClawRoot);
+    }
+
     [Theory]
     [InlineData(SourceKind.ZCode, "zcode")]
     [InlineData(SourceKind.Kimi, "kimi")]
     [InlineData(SourceKind.GrokBuild, "grokBuild")]
     [InlineData(SourceKind.Pi, "pi")]
+    [InlineData(SourceKind.OpenClaw, "openclaw")]
     public void EverySurfaceUsesTheSameStableSourceIdentifier(SourceKind kind, string id)
     {
         Assert.Equal(id, ReportBody.SourceId(kind));

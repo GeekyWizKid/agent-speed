@@ -174,6 +174,9 @@ internal sealed class SettingsViewModel : ObservableObject
             () => _settings.Current.GrokBuildRoot is not null);
         ChangePiCommand = new RelayCommand(() => ChangeFolder(PiPath, (s, path) => s with { PiRoot = path }));
         ResetPiCommand = new RelayCommand(() => _settings.Update(s => s with { PiRoot = null }), () => _settings.Current.PiRoot is not null);
+        ChangeOpenClawCommand = new RelayCommand(() => ChangeFolder(OpenClawFolder, (s, path) => s with { OpenClawRoot = path }));
+        ResetOpenClawCommand = new RelayCommand(() => _settings.Update(s => s with { OpenClawRoot = null }),
+            () => _settings.Current.OpenClawRoot is not null);
         OpenHistoryCommand = new RelayCommand(openHistory);
         ClearHistoryCommand = new RelayCommand(() =>
         {
@@ -335,6 +338,10 @@ internal sealed class SettingsViewModel : ObservableObject
     public RelayCommand ChangePiCommand { get; }
 
     public RelayCommand ResetPiCommand { get; }
+
+    public RelayCommand ChangeOpenClawCommand { get; }
+
+    public RelayCommand ResetOpenClawCommand { get; }
 
     public RelayCommand OpenHistoryCommand { get; }
 
@@ -561,6 +568,20 @@ internal sealed class SettingsViewModel : ObservableObject
     /// <summary>Main session files of every Pi root with a line today; sub-agent files are not sessions (DESIGN 5).</summary>
     public string PiStatus => StatusFor(SourceKind.Pi);
 
+    /// <summary>The chosen OpenClaw folder or database, else the state folders found (<c>~/.openclaw</c> first), one per line.</summary>
+    public string OpenClawPath => S.OpenClawRoot
+        ?? (LiveMonitor.DefaultOpenClawRoots.Where(Directory.Exists).ToList() is { Count: > 0 } found
+            ? string.Join(Environment.NewLine, found)
+            : LiveMonitor.DefaultOpenClawRoot);
+
+    /// <summary>Transcript windows of every agent database with an entry today that are not sub-agents (DESIGN 5).</summary>
+    public string OpenClawStatus => StatusFor(SourceKind.OpenClaw);
+
+    // The picker starts in the chosen folder (a chosen database: its agent folder), else the default state folder.
+    private string OpenClawFolder => S.OpenClawRoot is { } chosen && File.Exists(chosen)
+        ? Path.GetDirectoryName(chosen) ?? chosen
+        : S.OpenClawRoot ?? LiveMonitor.DefaultOpenClawRoot;
+
     public string CodexStatus => StatusFor(SourceKind.Codex);
 
     public string DshStatus => StatusFor(SourceKind.DeepSeek);
@@ -720,6 +741,8 @@ internal sealed class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(KimiStatus));
         OnPropertyChanged(nameof(GrokBuildStatus));
         OnPropertyChanged(nameof(PiStatus));
+        OnPropertyChanged(nameof(OpenClawStatus));
+        OnPropertyChanged(nameof(OpenClawPath));
         OnPropertyChanged(nameof(UpdateLastCheckedText));
     }
 

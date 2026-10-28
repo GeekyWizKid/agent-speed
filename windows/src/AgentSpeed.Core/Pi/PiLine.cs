@@ -59,6 +59,15 @@ internal struct PiCall
     /// <summary>One of <c>input</c>, <c>output</c>, <c>cacheRead</c>, <c>cacheWrite</c> is above 0.</summary>
     public bool HasUsage;
 
+    /// <summary><c>api == "cli"</c>: a CLI backend's turn (OpenClaw, METRICS 4.14).</summary>
+    public bool ApiIsCli;
+
+    /// <summary><c>usage.reasoningTokens</c>, OpenClaw's reasoning count (METRICS 4.14); Pi reads <c>usage.reasoning</c>.</summary>
+    public long ReasoningTokens;
+
+    /// <summary><c>usage.usageReport.state == "unavailable"</c>: provisional stream counters (OpenClaw, METRICS 4.14).</summary>
+    public bool UsageUnavailable;
+
     /// <summary>The guard of METRICS 4.7 step 1: <c>model</c>, <c>provider</c> and <c>api</c> are strings, <c>usage</c> an object.</summary>
     public readonly bool IsGuardedMessage => Model is not null && HasProvider && HasApi && HasUsageObject;
 
@@ -105,6 +114,9 @@ internal struct PiLine
 
     /// <summary>The line's tool calls or tool result (METRICS 6.10), read with the omp format's shared reader.</summary>
     public Work.LineTools Tools;
+
+    /// <summary><c>message.__openclaw.mirrorOrigin</c> is a non-empty string: a mirrored delegated turn (METRICS 4.14).</summary>
+    public bool Mirrored;
 
     /// <summary><c>error</c>, <c>aborted</c>, <c>pending</c> and <c>deferred</c>: totals only, phase idle.</summary>
     public readonly bool Failed => Stop is PiStop.Aborted or PiStop.Error or PiStop.Pending or PiStop.Deferred;

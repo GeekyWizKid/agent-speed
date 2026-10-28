@@ -32,6 +32,9 @@ internal enum RootFamily
 
     /// <summary>Pi's sessions folder and the custom session folder of its settings (METRICS 4.13).</summary>
     Pi,
+
+    /// <summary>Agent databases read by <see cref="OpenClaw.OpenClawSource"/>; its roots are watched only (METRICS 4.14).</summary>
+    OpenClaw,
 }
 
 /// <summary>Per-family file rules: names, parser and the sources it can produce (METRICS 2 and 4).</summary>
@@ -57,6 +60,7 @@ internal static class Families
         RootFamily.Kimi => TranscriptNaming.KimiSession,
         RootFamily.GrokBuild => TranscriptNaming.GrokBuildSession,
         RootFamily.Pi => TranscriptNaming.PiSession,
+        RootFamily.OpenClaw => TranscriptNaming.OpenClawDatabase,
         _ => TranscriptNaming.Jsonl,
     };
 
@@ -98,6 +102,7 @@ internal static class Families
         RootFamily.Kimi => enabled.Contains(SourceKind.Kimi),
         RootFamily.GrokBuild => enabled.Contains(SourceKind.GrokBuild),
         RootFamily.Pi => enabled.Contains(SourceKind.Pi),
+        RootFamily.OpenClaw => enabled.Contains(SourceKind.OpenClaw),
         _ => false,
     };
 
@@ -115,6 +120,7 @@ internal static class Families
         SourceKind.Kimi => RootFamily.Kimi,
         SourceKind.GrokBuild => RootFamily.GrokBuild,
         SourceKind.Pi => RootFamily.Pi,
+        SourceKind.OpenClaw => RootFamily.OpenClaw,
         _ => RootFamily.Claude,
     };
 }

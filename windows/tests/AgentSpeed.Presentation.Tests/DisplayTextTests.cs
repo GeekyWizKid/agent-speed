@@ -164,6 +164,7 @@ public class DisplayTextTests
     [InlineData(SourceKind.Kimi, "source.kimi", "Kimi Code CLI")]
     [InlineData(SourceKind.GrokBuild, "source.grokBuild", "Grok Build")]
     [InlineData(SourceKind.Pi, "source.pi", "Pi")]
+    [InlineData(SourceKind.OpenClaw, "source.openclaw", "OpenClaw")]
     public void EverySourceHasItsOwnName(SourceKind source, string key, string english)
     {
         Assert.Equal(key, DisplayText.SourceKey(source));
@@ -192,6 +193,19 @@ public class DisplayTextTests
             Assert.Equal("Pi", pi);
             Assert.True(Embedded.TryGet("settings.sources.piHint", language, out var hint), language);
             Assert.Contains("~/.pi/agent/sessions", hint, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void OpenClawStringsExistInEveryLanguage()
+    {
+        foreach (var language in LanguageCodes.All)
+        {
+            Assert.True(Embedded.TryGet("source.openclaw", language, out var name), language);
+            Assert.Equal("OpenClaw", name);
+            Assert.True(Embedded.TryGet("settings.sources.openclawHint", language, out var hint), language);
+            Assert.Contains("~/.openclaw", hint, StringComparison.Ordinal);
+            Assert.Contains("openclaw-agent.sqlite", hint, StringComparison.Ordinal);
         }
     }
 

@@ -80,6 +80,7 @@ internal static class PiLineReader
                 result.ToolCallIds = PiFamilyTools.Ids(message.ToolCalls);
                 result.ToolCallId = message.ToolCallId;
                 result.ThinkingLevel = message.ThinkingLevel;
+                result.Mirrored = message.Mirrored;
                 result.Tools = message.Role switch
                 {
                     PiRole.Assistant => new LineTools(message.ToolCalls),
@@ -211,6 +212,12 @@ internal static class PiLineReader
                 reader.Read();
                 message.ThinkingLevel = JsonScan.ReadToken(ref reader);
             }
+            else if (reader.ValueTextEquals("__openclaw"u8))
+            {
+                reader.Read();
+                message.Mirrored = reader.TokenType == JsonTokenType.StartObject && ReadMirrorOrigin(ref reader);
+                JsonScan.SkipValue(ref reader);
+            }
             else if (!TryReadCallProperty(ref reader, ref call))
             {
                 reader.Read();
@@ -242,6 +249,7 @@ internal static class PiLineReader
         {
             reader.Read();
             call.HasApi = reader.TokenType == JsonTokenType.String;
+            call.ApiIsCli = call.HasApi && reader.ValueTextEquals("cli"u8);
             JsonScan.SkipValue(ref reader);
         }
         else if (reader.ValueTextEquals("usage"u8))
@@ -295,6 +303,17 @@ internal static class PiLineReader
                 reader.Read();
                 usage.Reasoning = JsonScan.ReadCount(ref reader);
             }
+            else if (reader.ValueTextEquals("reasoningTokens"u8))
+            {
+                reader.Read();
+                usage.ReasoningTokens = JsonScan.ReadCount(ref reader);
+            }
+            else if (reader.ValueTextEquals("usageReport"u8))
+            {
+                reader.Read();
+                usage.Unavailable = reader.TokenType == JsonTokenType.StartObject && ReadUnavailable(ref reader);
+                JsonScan.SkipValue(ref reader);
+            }
             else
             {
                 reader.Read();
@@ -303,6 +322,44 @@ internal static class PiLineReader
         }
 
         return usage;
+    }
+
+    // The reader is on the __openclaw object; it ends on its EndObject. The last mirrorOrigin wins, like json.loads.
+    private static bool ReadMirrorOrigin(ref Utf8JsonReader reader)
+    {
+        var mirrored = false;
+        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+        {
+            var origin = reader.ValueTextEquals("mirrorOrigin"u8);
+            reader.Read();
+            if (origin)
+            {
+                mirrored = reader.TokenType == JsonTokenType.String && (reader.ValueIsEscaped || !reader.ValueSpan.IsEmpty);
+            }
+
+            JsonScan.SkipValue(ref reader);
+        }
+
+        return mirrored;
+    }
+
+    // The reader is on the usageReport object; it ends on its EndObject.
+    private static bool ReadUnavailable(ref Utf8JsonReader reader)
+    {
+        var unavailable = false;
+        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+        {
+            var state = reader.ValueTextEquals("state"u8);
+            reader.Read();
+            if (state)
+            {
+                unavailable = reader.TokenType == JsonTokenType.String && reader.ValueTextEquals("unavailable"u8);
+            }
+
+            JsonScan.SkipValue(ref reader);
+        }
+
+        return unavailable;
     }
 
     private static double? ReadFinite(ref Utf8JsonReader reader)
@@ -338,6 +395,8 @@ internal static class PiLineReader
         public long CacheWrite;
         public long CacheWrite1h;
         public long Reasoning;
+        public long ReasoningTokens;
+        public bool Unavailable;
     }
 
     private struct CallFields
@@ -346,6 +405,7 @@ internal static class PiLineReader
         public bool HasProvider;
         public string? Provider;
         public bool HasApi;
+        public bool ApiIsCli;
         public bool HasUsageObject;
         public Usage Usage;
 
@@ -355,6 +415,9 @@ internal static class PiLineReader
             HasProvider = HasProvider,
             Provider = Provider,
             HasApi = HasApi,
+            ApiIsCli = ApiIsCli,
+            ReasoningTokens = Usage.ReasoningTokens,
+            UsageUnavailable = Usage.Unavailable,
             HasUsageObject = HasUsageObject,
             HasUsage = Usage.Input > 0 || Usage.Output > 0 || Usage.CacheRead > 0 || Usage.CacheWrite > 0,
             Tokens = new TokenCounts(
@@ -378,6 +441,7 @@ internal static class PiLineReader
         public string? ToolCallId;
         public bool IsErrorTrue;
         public string? ThinkingLevel;
+        public bool Mirrored;
     }
 
     private struct TopLevel

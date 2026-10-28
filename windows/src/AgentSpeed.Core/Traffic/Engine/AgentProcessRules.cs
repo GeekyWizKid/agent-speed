@@ -220,6 +220,13 @@ internal sealed class AgentProcessRules
             return SourceKind.Pi;
         }
 
+        // The Gateway sends OpenClaw's own requests; the agents it starts for delegated turns match their own rows.
+        if (name == "openclaw" || script.Contains("/openclaw.mjs", StringComparison.Ordinal)
+            || script.Contains("/openclaw/dist/", StringComparison.Ordinal))
+        {
+            return SourceKind.OpenClaw;
+        }
+
         // WorkBuddy's embedded CLI, never its app, helper or daemon processes (the same executable without the CLI entry).
         if (WorkBuddyEdition(name, bundle ?? (() => null)) is { } edition && arguments() is { Count: > 1 } args
             && args.Skip(1).Any(a => _platform.Normalize(a).Contains(WorkBuddyCli, StringComparison.Ordinal)))

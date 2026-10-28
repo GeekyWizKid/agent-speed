@@ -178,6 +178,15 @@ internal static class PiFixture
         name => name == "PI_CODING_AGENT_DIR" ? Path.Combine(fixtures, "pi", "agent") : null, fixtures);
 }
 
+/// <summary>The fixture folder <c>openclaw</c> plays the home folder: its state folders are <c>.openclaw</c> and <c>.openclaw-work</c>.</summary>
+internal static class OpenClawFixture
+{
+    public static string Home => FixtureLocator.PathOf("openclaw");
+
+    public static IReadOnlyList<string> StateFoldersIn(string fixtures) =>
+        OpenClaw.OpenClawPaths.StateFolders(_ => null, Path.Combine(fixtures, "openclaw"));
+}
+
 /// <summary>The fixture folder <c>omp</c> plays <c>~/.omp</c>: its automatic roots are the default root and every profile.</summary>
 internal static class OmpFixture
 {

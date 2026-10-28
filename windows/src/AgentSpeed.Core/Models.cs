@@ -28,6 +28,9 @@ public enum SourceKind
 
     /// <summary>Pi (Pi Coding Agent), the upstream of omp, METRICS 4.13.</summary>
     Pi,
+
+    /// <summary>OpenClaw: agent databases of a Gateway on this computer, one agent per transcript window, METRICS 4.14.</summary>
+    OpenClaw,
 }
 
 public enum AgentPhase
@@ -246,6 +249,7 @@ public abstract record SpeedEvent
 /// <param name="WorkBuddyRoot">The WorkBuddy data folder or its <c>projects</c> folder; null uses <c>~/.workbuddy</c>.</param>
 /// <param name="WorkBuddyAiRoot">The WorkBuddy AI data folder or its <c>projects</c> folder; null uses <c>~/.workbuddy-ai</c>.</param>
 /// <param name="PiRoot">One Pi sessions folder; null reads Pi's default root and the custom session folder of its settings.</param>
+/// <param name="OpenClawRoot">An OpenClaw state folder, agent folder or database; null reads every automatic state folder.</param>
 public sealed record MonitorConfiguration(
     IReadOnlySet<SourceKind> EnabledSources,
     string? CodexRoot = null,
@@ -260,7 +264,8 @@ public sealed record MonitorConfiguration(
     string? ZCodeRoot = null,
     string? KimiRoot = null,
     string? GrokBuildRoot = null,
-    string? PiRoot = null)
+    string? PiRoot = null,
+    string? OpenClawRoot = null)
 {
     public static MonitorConfiguration Default { get; } =
         new(new HashSet<SourceKind>(Enum.GetValues<SourceKind>()));
@@ -280,10 +285,11 @@ public sealed record MonitorConfiguration(
         && ZCodeRoot == other.ZCodeRoot
         && KimiRoot == other.KimiRoot
         && GrokBuildRoot == other.GrokBuildRoot
-        && PiRoot == other.PiRoot;
+        && PiRoot == other.PiRoot
+        && OpenClawRoot == other.OpenClawRoot;
 
     public override int GetHashCode() => HashCode.Combine(
         HashCode.Combine(EnabledSources.Count, CodexRoot, ClaudeRoot, DshRoot, OpenCodeRoot, GeminiRoot, OmpRoot, AntigravityRoot),
         WorkBuddyRoot,
-        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, PiRoot);
+        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, PiRoot, OpenClawRoot);
 }
