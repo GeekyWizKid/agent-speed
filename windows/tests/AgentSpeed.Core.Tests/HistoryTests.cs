@@ -36,7 +36,8 @@ public sealed class HistoryTests : IDisposable
             WorkBuddyAiRoot: SourceLocations.WorkBuddyRootOf(Path.Combine(copy, "workbuddy", ".workbuddy-ai")),
             PiRoots: PiFixture.RootsIn(copy),
             OpenClawRoots: OpenClawFixture.StateFoldersIn(copy),
-            HermesRoot: HermesFixture.HomeIn(copy));
+            HermesRoot: HermesFixture.HomeIn(copy),
+            DroidRoot: DroidFixture.RootIn(copy));
         var document = JsonNode.Parse(File.ReadAllText(Path.Combine(FixtureLocator.FixturesDirectory, "history-expected.json")))!;
         var pricing = document["prices"]!;
         var tables = pricing["tables"]!.AsArray()

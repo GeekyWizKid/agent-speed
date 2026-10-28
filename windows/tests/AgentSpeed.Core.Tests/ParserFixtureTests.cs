@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AgentSpeed.Core.Droid;
 using AgentSpeed.Core.Gemini;
 using AgentSpeed.Core.IO;
 using AgentSpeed.Core.Monitoring;
@@ -131,6 +132,7 @@ public sealed class ParserFixtureTests
         SourceKind.WorkBuddyAi => "workbuddyAi",
         SourceKind.Pi => "pi",
         SourceKind.OpenClaw => "openclaw",
+        SourceKind.Droid => "droid",
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 
@@ -248,7 +250,41 @@ public sealed class ParserFixtureTests
             return workBuddy;
         }
 
+        // A Factory Droid session is read from its start with its sidecar, through the tailer like the app (METRICS 4.16).
+        if (relative.StartsWith("droid/", StringComparison.Ordinal))
+        {
+            var droid = new DroidParser(path, deduper);
+            if (maxLines is { } lines)
+            {
+                foreach (var (offset, raw) in PositionedLines(content).Take(lines))
+                {
+                    var length = raw.Length;
+                    var text = length > 0 && raw[^1] == (byte)'\r' ? raw.AsSpan(0, length - 1) : raw;
+                    droid.Feed(DroidLineReader.Read(text, offset, length));
+                }
+
+                return droid;
+            }
+
+            var batch = droid.NewBatch();
+            new DroidTailer(path).ReadAppended(batch);
+            batch.ApplyTo(sink);
+            return droid;
+        }
+
         throw new InvalidOperationException("Unknown fixture source: " + relative);
+    }
+
+    /// <summary>Newline-terminated lines with their byte offsets, as the reference's <c>droid_lines</c> yields them.</summary>
+    internal static IEnumerable<(long Offset, byte[] Line)> PositionedLines(byte[] content)
+    {
+        var start = 0;
+        int newline;
+        while ((newline = Array.IndexOf(content, (byte)'\n', start)) >= 0)
+        {
+            yield return (start, content.AsSpan(start, newline - start).ToArray());
+            start = newline + 1;
+        }
     }
 
     private static TranscriptParser FeedLines<TLine>(TranscriptParser<TLine> parser, byte[] content, IResponseSink sink, int? maxLines)

@@ -44,6 +44,9 @@ internal enum LinkKind : byte
 
     /// <summary>OpenClaw: a window names its parent window's agent id, resolved in its database (METRICS 4.14).</summary>
     OpenClawWindow,
+
+    /// <summary>Factory Droid: a Task worker names <c>&lt;folder&gt;/&lt;callingSessionId&gt;.jsonl</c> in its own folder (METRICS 4.16).</summary>
+    DroidPath,
 }
 
 /// <summary>What one transcript says about its parent (METRICS 6.7).</summary>
@@ -61,6 +64,7 @@ internal readonly record struct AgentLink(
         GeminiParser gemini => OfGemini(gemini),
         OmpParser omp => new AgentLink(omp.AgentId, LinkKind.OmpPath, null, omp.ParentPath, omp.HeaderMs),
         Pi.PiParser pi => new AgentLink(pi.AgentId, LinkKind.PiPath, null, pi.ParentPath, pi.HeaderMs),
+        Droid.DroidParser droid => new AgentLink(droid.AgentId, LinkKind.DroidPath, null, droid.ParentPath, null),
         OpenClaw.OpenClawParser openClaw => new AgentLink(openClaw.AgentId, LinkKind.OpenClawWindow, openClaw.AgentId, openClaw.ParentId, openClaw.HeaderMs),
         AntigravityParser antigravity => new AgentLink(
             antigravity.AgentId,
@@ -167,7 +171,7 @@ internal static class ParentLinks
                     }
 
                     break;
-                case LinkKind.OmpPath or LinkKind.PiPath:
+                case LinkKind.OmpPath or LinkKind.PiPath or LinkKind.DroidPath:
                     if (agent.ParentThreadId is { } folder && byPath.TryGetValue(folder, out var session) && session.Kind == agent.Kind)
                     {
                         parent = session.Id;
@@ -233,7 +237,8 @@ internal static class ParentLinks
     }
 
     private static bool IsPathKind(LinkKind kind) =>
-        kind is LinkKind.Path or LinkKind.OmpPath or LinkKind.PiPath or LinkKind.WorkBuddyPath or LinkKind.WorkBuddyAiPath;
+        kind is LinkKind.Path or LinkKind.OmpPath or LinkKind.PiPath or LinkKind.WorkBuddyPath or LinkKind.WorkBuddyAiPath
+            or LinkKind.DroidPath;
 
     // Copies of one conversation in several stores: the one in the child's own conversations folder, then ordinal path.
     private static AgentLink PreferredCopy(List<AgentLink> copies, string child, bool group = false)

@@ -715,6 +715,7 @@ internal static class SourceNames
         SourceKind.Pi => "pi",
         SourceKind.OpenClaw => "openclaw",
         SourceKind.Hermes => "hermes",
+        SourceKind.Droid => "droid",
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 
@@ -736,6 +737,7 @@ internal static class SourceNames
         "pi" => SourceKind.Pi,
         "openclaw" => SourceKind.OpenClaw,
         "hermes" => SourceKind.Hermes,
+        "droid" => SourceKind.Droid,
         _ => null,
     };
 }

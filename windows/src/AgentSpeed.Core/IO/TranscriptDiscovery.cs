@@ -42,6 +42,9 @@ internal enum TranscriptNaming
 
     /// <summary><c>agent.log</c> and its rotated copies directly in a log folder (Hermes Agent, METRICS 4.15); not enumerated.</summary>
     HermesLog,
+
+    /// <summary><c>*.jsonl</c> directly in a root or one folder below it, nothing starting with <c>.</c> (Factory Droid, METRICS 4.16).</summary>
+    DroidSession,
 }
 
 /// <summary>Recursive transcript enumeration that never follows reparse points or symlinks (METRICS 2).</summary>
@@ -68,6 +71,7 @@ internal static class TranscriptDiscovery
             TranscriptNaming.OmpSession or TranscriptNaming.PiSession => Omp.OmpDiscovery.IsSessionFileName(fileName),
             TranscriptNaming.AntigravityDatabase => Antigravity.AntigravityPaths.IsDatabaseName(fileName),
             TranscriptNaming.WorkBuddySession => WorkBuddy.WorkBuddyDiscovery.IsSessionFileName(fileName),
+            TranscriptNaming.DroidSession => Droid.DroidPaths.IsTranscriptName(fileName),
             _ => fileName.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase),
         };
 
@@ -128,6 +132,11 @@ internal static class TranscriptDiscovery
         if (naming is TranscriptNaming.KimiSession or TranscriptNaming.GrokBuildSession)
         {
             return Harnesses.HarnessDiscovery.Enumerate(root, naming == TranscriptNaming.KimiSession, limit, cancellationToken);
+        }
+
+        if (naming == TranscriptNaming.DroidSession)
+        {
+            return Droid.DroidDiscovery.Enumerate(root, limit, cancellationToken);
         }
 
         var scanCap = limit == int.MaxValue ? int.MaxValue : MaxScannedEntries;
@@ -210,6 +219,11 @@ internal static class TranscriptDiscovery
         if (naming is TranscriptNaming.KimiSession or TranscriptNaming.GrokBuildSession)
         {
             return Harnesses.HarnessDiscovery.IsSessionPath(root, path, naming == TranscriptNaming.KimiSession);
+        }
+
+        if (naming == TranscriptNaming.DroidSession)
+        {
+            return Droid.DroidDiscovery.IsSessionPath(root, path);
         }
 
         if (!IsTranscriptName(System.IO.Path.GetFileName(path.AsSpan()), naming))
