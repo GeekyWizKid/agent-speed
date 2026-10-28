@@ -17,12 +17,13 @@ struct TaskModelTableView: View {
     var body: some View {
         let columns = TaskModelColumn.visible(width)
         let sorted = TaskModelTable.sort(rows, by: sort)
+        let dotsWidth = TaskModelDots.width(rows.map(\.sources.count).max() ?? 1)
         VStack(alignment: .leading, spacing: 0) {
             TaskModelTableHeader(columns: columns, width: width, sort: sort, l10n: l10n) {
                 sort = sort.toggled($0)
             }
             ForEach(Array(sorted.enumerated()), id: \.element.id) { index, row in
-                TaskModelTableRow(row: row, index: index, columns: columns, width: width,
+                TaskModelTableRow(row: row, index: index, columns: columns, width: width, dotsWidth: dotsWidth,
                                   hovered: hovered == row.id, l10n: l10n)
                     .onHover { inside in
                         if inside { hovered = row.id } else if hovered == row.id { hovered = nil }
@@ -94,6 +95,7 @@ private struct TaskModelTableRow: View {
     let index: Int
     let columns: [TaskModelColumn]
     let width: TaskPerformanceWidth
+    let dotsWidth: CGFloat
     let hovered: Bool
     let l10n: Localizer
 
@@ -130,7 +132,7 @@ private struct TaskModelTableRow: View {
         let low = TaskPerformanceText.isLowSample(row.stats)
         switch column {
         case .model:
-            TaskModelNameCell(row: row, low: low, l10n: l10n)
+            TaskModelNameCell(row: row, low: low, l10n: l10n, dotsWidth: dotsWidth)
         case .median:
             HStack(spacing: 7) {
                 Text(TaskModelTable.cell(row, .median, l10n))
@@ -156,15 +158,17 @@ private struct TaskModelTableRow: View {
 }
 
 /// The model cell: the overlapping source dots, the id (middle truncation; an unknown model `cost.noModelName`) and
-/// the low-sample chip, which moves under the id when the column is too narrow for both.
+/// the low-sample chip, which moves under the id when the column is too narrow for both. The dots take the width of
+/// the table's widest stack, so the ids line up.
 struct TaskModelNameCell: View {
     let row: TaskPerformanceModelRow
     let low: Bool
     let l10n: Localizer
     var font = TaskPerformanceFont.modelID
+    var dotsWidth: CGFloat?
 
     var body: some View {
-        TaskChipWrapLayout(indent: TaskModelDots.width(row.sources.count) + 7) {
+        TaskChipWrapLayout(indent: (dotsWidth ?? TaskModelDots.width(row.sources.count)) + 7) {
             HStack(spacing: 7) {
                 dots
                 name
@@ -176,6 +180,7 @@ struct TaskModelNameCell: View {
 
     private var dots: some View {
         TaskModelDots(sources: row.sources)
+            .frame(width: dotsWidth ?? TaskModelDots.width(row.sources.count), alignment: .leading)
     }
 
     @ViewBuilder

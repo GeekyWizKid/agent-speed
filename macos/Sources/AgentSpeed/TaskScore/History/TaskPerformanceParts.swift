@@ -219,13 +219,21 @@ struct TaskScoreDistribution: View {
         let counts = Self.normalized(stats.histogram)
         let peak = max(1, counts.max() ?? 1)
         let medianBin = TaskPerformanceText.medianBin(stats)
-        return HStack(alignment: .bottom, spacing: 2) {
+        let columns = HStack(alignment: .bottom, spacing: 2) {
             ForEach(0..<10, id: \.self) { index in
                 let count = counts[index]
                 UnevenRoundedRectangle(topLeadingRadius: 1.5, topTrailingRadius: 1.5, style: .continuous)
                     .fill(TaskPerformancePalette.bar(source, median: index == medianBin, dark: dark, increasedContrast: increased))
                     .frame(height: count > 0 ? max(1.5, CGFloat(count) / CGFloat(peak) * Self.height) : 0)
                     .frame(maxWidth: .infinity)
+            }
+        }
+        // Bars spring to their new heights; with Reduce Motion the old and new sets crossfade.
+        return ZStack(alignment: .bottom) {
+            if reduceMotion {
+                columns.id(counts).transition(.opacity)
+            } else {
+                columns
             }
         }
         .frame(height: Self.height, alignment: .bottom)

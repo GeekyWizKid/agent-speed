@@ -8,10 +8,11 @@ struct TaskModelListView: View {
     let l10n: Localizer
 
     var body: some View {
+        let dotsWidth = TaskModelDots.width(rows.map(\.sources.count).max() ?? 1)
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(TaskModelTable.sort(rows, by: .standard).enumerated()), id: \.element.id) { index, row in
                 if index > 0 { Hairline() }
-                TaskModelListRow(row: row, l10n: l10n)
+                TaskModelListRow(row: row, dotsWidth: dotsWidth, l10n: l10n)
             }
         }
     }
@@ -19,6 +20,7 @@ struct TaskModelListView: View {
 
 private struct TaskModelListRow: View {
     let row: TaskPerformanceModelRow
+    let dotsWidth: CGFloat
     let l10n: Localizer
 
     var body: some View {
@@ -26,7 +28,7 @@ private struct TaskModelListRow: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 7) {
                 TaskModelNameCell(row: row, low: low, l10n: l10n,
-                                  font: .system(size: 12.5, weight: low ? .medium : .semibold))
+                                  font: .system(size: 12.5, weight: low ? .medium : .semibold), dotsWidth: dotsWidth)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 HStack(spacing: 8) {
                     let median = TaskPerformanceText.median(row.stats)

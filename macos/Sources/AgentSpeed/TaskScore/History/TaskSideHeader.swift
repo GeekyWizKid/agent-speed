@@ -35,8 +35,6 @@ struct TaskSideHeader: View {
             }
         }
         .multilineTextAlignment(mirrored ? .trailing : .leading)
-        .contentTransition(.opacity)
-        .animation(TaskPerformanceMotion.fade, value: source)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(TaskPerformanceText.sideWords(source, stats, l10n))
     }

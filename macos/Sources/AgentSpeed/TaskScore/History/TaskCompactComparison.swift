@@ -15,8 +15,13 @@ struct TaskCompactComparison: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: Spacing.xs) {
                 TaskSummaryCard(source: pair.first, stats: first, l10n: l10n, reduceMotion: reduceMotion)
+                    .id(pair.first)
+                    .transition(.opacity)
                 TaskSummaryCard(source: pair.second, stats: second, l10n: l10n, reduceMotion: reduceMotion)
+                    .id(pair.second)
+                    .transition(.opacity)
             }
+            .animation(TaskPerformanceMotion.fade, value: pair)
             .fixedSize(horizontal: false, vertical: true)
             header
                 .padding(.top, Spacing.s)
@@ -60,6 +65,8 @@ private struct TaskCompactSourceName: View {
             .multilineTextAlignment(.trailing)
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
+            .contentTransition(.opacity)
+            .animation(TaskPerformanceMotion.fade, value: source)
     }
 }
 

@@ -16,16 +16,22 @@ struct TaskButterfly: View {
         let second = comparison.stats(for: pair.second)
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: TaskPerformanceStyle.gap) {
+                // A newly picked source's header crossfades in as a whole.
                 TaskSideHeader(source: pair.first, stats: first, side: .first, distributionWidth: width.distribution,
                                l10n: l10n, reduceMotion: reduceMotion)
+                    .id(pair.first)
+                    .transition(.opacity)
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
                 Color.clear
                     .frame(width: width.centre, height: 1)
                     .accessibilityHidden(true)
                 TaskSideHeader(source: pair.second, stats: second, side: .second, distributionWidth: width.distribution,
                                l10n: l10n, reduceMotion: reduceMotion)
+                    .id(pair.second)
+                    .transition(.opacity)
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             }
+            .animation(TaskPerformanceMotion.fade, value: pair)
             .padding(.bottom, 14)
             Hairline()
                 .padding(.bottom, 6)
