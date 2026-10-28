@@ -87,7 +87,7 @@ public sealed class BoardLiveFeed
         var readouts = board.Readouts;
         var open = expanded is not null && data.Groups.Any(g => string.Equals(g.Id, expanded, StringComparison.Ordinal)) ? expanded : null;
         var entries = BoardReadoutRows.Word(BoardLayoutPlan.Arrange(data.Groups, BoardSizes.Limits(board.Size),
-            BoardMetrics.For(board.Style, board.Size, readouts), metric, open), readouts, metric, texts);
+            BoardMetrics.For(board.Style, board.Size, readouts), metric, open), readouts, texts);
         var gauge = texts.Hero(data.Intelligence, data.Cost);
         if (time is { } now)
         {

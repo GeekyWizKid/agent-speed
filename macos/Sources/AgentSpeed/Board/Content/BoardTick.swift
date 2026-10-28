@@ -37,7 +37,7 @@ struct BoardTick: Equatable {
     var peak: Double = 0
     /// Today's cost is `cost.subscription.tag` (every source excluded, while 費用 is on): drawn quietly.
     var costIsTag = false
-    /// The live metrics (DESIGN 2c Live metrics): switches, the hero's values, the rows' cost lines.
+    /// The live metrics (DESIGN 2c Live metrics): switches and the hero's values.
     var metrics = BoardMetricsTick()
 }
 

@@ -139,7 +139,6 @@ struct LiveWindow: Sendable {
     /// METRICS 9.5, in the same units as the rates (per second).
     private(set) var cost = LiveCost.zero
     private(set) var costBySource: [SourceKind: LiveCost] = [:]
-    private(set) var costByAgent: [String: LiveCost] = [:]
     /// METRICS 6.9, per second like the rates.
     private(set) var intelligence = IntelligenceSums.zero
     private(set) var intelligenceBySource: [SourceKind: IntelligenceSums] = [:]
@@ -167,7 +166,6 @@ struct LiveWindow: Sendable {
         var agentTokens: [String: Rate] = [:]
         // Cost in micro-USD and known output tokens inside the window, before dividing by its length.
         var sourceCost: [SourceKind: LiveCost] = [:]
-        var agentCost: [String: LiveCost] = [:]
         var sourceIntelligence: [SourceKind: IntelligenceSums] = [:]
         var agentIntelligence: [String: IntelligenceSums] = [:]
 
@@ -189,9 +187,8 @@ struct LiveWindow: Sendable {
                 source: response.record.source, agentId: response.record.agentId
             )
             if let microUsd = response.record.costMicroUsd {
-                let known = LiveCost(microUsdPerSecond: Double(microUsd) * share, knownOutput: tokens.output)
-                sourceCost[response.record.source, default: .zero].add(known)
-                agentCost[response.record.agentId, default: .zero].add(known)
+                sourceCost[response.record.source, default: .zero]
+                    .add(LiveCost(microUsdPerSecond: Double(microUsd) * share, knownOutput: tokens.output))
             }
         }
 
@@ -210,9 +207,7 @@ struct LiveWindow: Sendable {
                 source: estimate.source, agentId: estimate.agentId
             )
             if let costRate = estimate.reference.costRate {
-                let known = LiveCost(microUsdPerSecond: costRate * overlap, knownOutput: tokens.output)
-                sourceCost[estimate.source, default: .zero].add(known)
-                agentCost[estimate.agentId, default: .zero].add(known)
+                sourceCost[estimate.source, default: .zero].add(LiveCost(microUsdPerSecond: costRate * overlap, knownOutput: tokens.output))
             }
         }
 
@@ -244,7 +239,6 @@ struct LiveWindow: Sendable {
             LiveCost(microUsdPerSecond: value.microUsdPerSecond / seconds, knownOutput: value.knownOutput / seconds)
         }
         costBySource = sourceCost.mapValues(perSecond)
-        costByAgent = agentCost.mapValues(perSecond)
         var all = LiveCost.zero
         for kind in SourceKind.allCases {
             if let value = sourceCost[kind] { all.add(value) }

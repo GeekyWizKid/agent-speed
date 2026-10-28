@@ -1286,7 +1286,7 @@ Persisted next to the orbs as one JSON value (key `boards`), written atomically 
 { "version": 1,
   "boards": [ { "id": "…", "style": "neon", "size": "M", "sources": "all", "opacity": 1.0, "alwaysOnTop": true,
                 "clickThrough": false, "allSpaces": true, "visible": true,
-                "readouts": { "intelligence": true, "thinking": true, "cost": true, "rowCost": true } } ],
+                "readouts": { "intelligence": true, "thinking": true, "cost": true } } ],
   "layouts": { "<arrangement key>": { "<board id>": { "display": "…", "xAnchor": "high", "x": 12, "yAnchor": "fraction", "y": 0.2 } } } }
 ```
 
@@ -1297,7 +1297,7 @@ Persisted next to the orbs as one JSON value (key `boards`), written atomically 
 | `size` | `S` 280 × 280, `M` 340 × 340 (default), `L` 420 × 420 pt/DIP; unknown → `M`. |
 | `sources` | As an orb's (2b): `"all"` or METRICS 1 keys; the board counts only those sources (METRICS 6.8). |
 | `opacity`, `alwaysOnTop`, `clickThrough`, `allSpaces`, `visible` | As an orb's. |
-| `readouts` | The live metrics switches (*Live metrics*, below): `intelligence`, `thinking`, `cost`, `rowCost`; a missing field or key, or a value that is not a boolean, reads as `true`. |
+| `readouts` | The live metrics switches (*Live metrics*, below): `intelligence`, `thinking`, `cost`; a missing field or key, or a value that is not a boolean, reads as `true`. A `rowCost` key saved by an earlier version is ignored and no longer written. |
 | `layouts` | As the orbs' (2b, arrangement keys, position records, at most 16 arrangements). |
 
 Global settings shared with the orbs: Appearance, Language, metric, General redline, title theme, Effects intensity,
@@ -1326,8 +1326,8 @@ All three styles show the same content; the style decides its look (Styles, belo
    Under a group, its fastest generating sub-agents (smaller rows with their own capsule and value), then
    `boards.moreSubs` (`+97 個子 agent · 8.6k`) for the rest. When groups do not fit, the last line is
    `boards.moreGroups` with their summed speed. With the live metrics on, every group and sub row also shows its
-   intelligence in a column before the value, and at M and L each group row a second line with its model and cost per
-   second (*Live metrics*).
+   intelligence in a column before the value. At M and L each group row has a second line with its model and
+   `boards.subCount` under the project (*Live metrics*, *The second line*).
 3. **Footer**: `boards.today` (today's output of the board's sources), today's cost (section 9) and `boards.peak` (`peakToday_A`).
 
 **Layout per size.** S: up to 4 groups (3 fit with the live metrics on), no sub rows, capsule without its word. M: up to 6 groups; sub rows two for #1,
@@ -1349,9 +1349,12 @@ Sub rows sort by live value, latest activity, id; they emit nothing. Shared case
 
 User's choice (2026-10-28): layout **B, 副錶**, in every style. The right side of the hero becomes a small
 sub-gauge — the board's live intelligence large, its thinking rate and its cost per second smaller beneath it — every
-ranking row gets an intelligence column, and at M and L each group row gets a second line with its model and its cost
-per second. Reference: `spec/prototypes/board/board-metrics.html`, which opens on B with every switch on (its options
-A and C are the alternatives that were not chosen); where it and this section differ, this section wins. Numbers are
+ranking row gets an intelligence column, and at M and L each group row gets a second line with its model. 費用 is
+the board's only live cost: no row, sub row or tooltip carries a cost of its own (user's choice, 2026-10-28: the board
+does not need a live cost per agent; the earlier `rowCost` switch, the cost on the second line and the tooltip's cost
+lines are retired). Reference: `spec/prototypes/board/board-metrics.html`, which opens on B with every switch on (its
+options A and C are the alternatives that were not chosen); where it and this section differ, this section wins.
+Numbers are
 pt (DIP on Windows) on boards of side S 280, M 340, L 420, from the board's top-left corner unless a row says
 otherwise; baselines are rounded to 0.5 pt from the macOS fonts of the prototype.
 
@@ -1363,21 +1366,19 @@ otherwise; baselines are rounded to 0.5 pt from the macOS fonts of the prototype
 | 思考 | METRICS 6.9 `liveThinking` over `A` | METRICS 7 · `unit.tokS` | `intel.thinking.glyph` (思考 / 思考 / TH / 思考) |
 | 費用 | METRICS 9.5 `liveCost` and `liveCostKnownShare` over the billable sources of `A` | section 9 rate form in the display currency (METRICS 9.8) · `cost.unitPerSecond` | `cost.glyph` (費用 / 费用 / Cost / 費用) |
 | row 智力 | group row: METRICS 6.9 *Group intelligence*; sub row: the sub-agent's *Agent intelligence* | live, resting or none, as section 4's column | caption `intel.glyph` |
-| row cost | group row: METRICS 9.5 *Per group* | as 費用 | — |
 
 - Every cost on a board follows `settings.cost.includeSubscriptions`, like every other displayed cost (METRICS 9.4):
-  with it off (the default) a source marked as a subscription adds nothing to 費用, to a row's cost or to the
-  footer's today cost.
+  with it off (the default) a source marked as a subscription adds nothing to 費用 or to the footer's today cost.
 - `≥` precedes a cost whose known share is below 0.995 and which is not 0 (section 9), at 0.85 × the number's size in
   `ink-3` — the orb's 60 % is meant for its large value and would fall under 7 pt here. Nothing priced (output > 0,
   known share 0) → `–`. A free or local model is a real `0`.
 - When every source of `A` is excluded as a subscription, 費用 and the footer's today cost show
-  `cost.subscription.tag` in place of a number (UI font, weight 600, 0.8 × the number's size, `ink-3`, no unit), and a
-  group row whose source is excluded shows the tag on its second line. The orb shows `0` and explains it in its hover
-  line; a board's hero has no hover line, and `0 US$/s` beside busy agents would read as free.
+  `cost.subscription.tag` in place of a number (UI font, weight 600, 0.8 × the number's size, `ink-3`, no unit). The
+  orb shows `0` and explains it in its hover line; a board's hero has no hover line, and `0 US$/s` beside busy agents
+  would read as free.
 - None of these values drives heat, tiers, titles, peaks or celebrations.
 
-**Switches.** `readouts` (data model) holds four independent switches, all on for a new board and for a board saved
+**Switches.** `readouts` (data model) holds three independent switches, all on for a new board and for a board saved
 by an earlier version:
 
 | Key | Item (menu and editor) | Shows |
@@ -1385,17 +1386,16 @@ by an earlier version:
 | `intelligence` | `boards.readouts.intel` | 智力 in the sub-gauge, and the rows' 智力 column with its captions line |
 | `thinking` | `boards.readouts.thinking` | 思考 in the sub-gauge |
 | `cost` | `boards.readouts.cost` | 費用 in the sub-gauge |
-| `rowCost` | `boards.readouts.rowCost` | the group rows' second line (M and L) |
 
-- Context menu: `boards.readouts` ▸ the four items in this order, each with a check, after `orbs.sources` ▸; choosing
-  one toggles it and saves at once. Settings → 懸浮窗, board editor: a `boards.readouts` group with the same four
+- Context menu: `boards.readouts` ▸ the three items in this order, each with a check, after `orbs.sources` ▸; choosing
+  one toggles it and saves at once. Settings → 懸浮窗, board editor: a `boards.readouts` group with the same three
   checkboxes and the caption `boards.readouts.hint`; the style thumbnail shows the readouts as switched. Add copies
   nothing: a new board has every switch on.
 - A readout switched off takes no room; what remains closes up and re-centres (*Folding*, below). With `intelligence`,
   `thinking` and `cost` off the hero is exactly the board without metrics (history on the right, neon's hero
   82 / 92 / 100); with `intelligence` off the rows lose the 智力 column and the captions line and take the columns of
-  the boards without metrics again (value 46; timing's interval 38); with all four off the board is exactly as before
-  this section.
+  the boards without metrics again (value 46; timing's interval 38); with all three off the board is exactly as before
+  this section, except that group rows at M and L keep their second line (S is exactly as before).
 - A change applies at once: the hero crossfades in 0.2 s and rows move to their new places with the style's spring
   (rows that enter fade in, as always). Reduce Motion: the crossfade only.
 
@@ -1535,8 +1535,8 @@ every pause. The cells and widths stay, so nothing moves sideways:
   characters, or between `–` or the tag and a number, crossfades in 0.15 s instead. The arc's end and tip move to a
   new value in 0.24 s on the same curve and the meter's segments crossfade in 0.24 s, so everything shares the frames
   of the hero's roll. Reduce Motion: 0.15 s crossfades; the arc and the meter jump.
-- Row values (the 智力 cell and the cost line) change in place on the tick with the row, without roll or flash; a
-  change between live and resting crossfades the color in 0.2 s (an opacity change, kept with Reduce Motion).
+- Row values (the 智力 cell) change in place on the tick with the row, without roll or flash; a change between live
+  and resting crossfades the color in 0.2 s (an opacity change, kept with Reduce Motion).
 - Quiet (`Σ w = 0` over `A`): 智力 and 思考 read `–`, the arc and the meter are empty (track and unlit segments only),
   費用 shows its real `0`. `–`, `0` and the tag are drawn in `ink-3` without glow. The sub-gauge stays, like a system
   meter (section 10, *Menu bar and taskbar*), so the hero never changes its layout when work stops.
@@ -1566,34 +1566,29 @@ while `intelligence` is on:
   (it replaces glass's top hairline). Glass: UI font 9, weight 600, tracking 0.06 em; timing: mono 8.5, weight 700,
   tracking 0.1 em, upper-case; neon: mono 8.5, weight 600, tracking 0.12 em.
 
-The second line — group rows at M and L while `rowCost` is on:
+The second line — every group row at M and L, whatever the switches:
 
 - Row height `row` + 8 (38 at M, 40 at L; glass and neon then leave out their 2 pt between group rows). Line 1, its
   baseline 16 under the row's top: rank, badge, project name, capsule, 智力, value; the capsule sits in the first 16 pt
   band starting 4 under the top, outside the baseline group, so every first line shares one baseline. Line 2, its
-  baseline 31 under the top (glass 32): the detail (model · `boards.subCount`) under the name, truncating at its tail,
-  and the cost, right-aligned on the value column's right edge and free to extend left over the capsule and 智力
-  columns. Timing's position block (26 tall) and stripe (24) span both lines.
-- Cost: glass SF Pro 10.5, weight 500, `ink-2`, unit 9 `ink-3`; timing mono 9.5, weight 700, `ink-2`, unit 8
-  upper-case `ink-3`; neon mono 10, weight 600, `ink-2`, unit 8.5 `ink-3`; the unit 3 after the number, `≥` before
-  it. Nothing priced → `–` in `ink-3`, no unit; excluded → the tag (UI font, weight 600, `ink-3`). While the row's
-  value shows `–` (an idle group) no cost is drawn; the detail stays.
-- S never draws the second line, whatever the switch: rows stay one line.
+  baseline 31 under the top (glass 32): the detail (model · `boards.subCount`) alone, starting under the name and
+  running to the value column's right edge (under the capsule, 智力 and value columns, which line 2 leaves empty),
+  truncating at its tail. Timing's position block (26 tall) and stripe (24) span both lines.
+- Nothing else is drawn on line 2: rows show no cost, whatever the readouts.
+- S never draws the second line: rows stay one line.
 
 **Rows kept** with the readouts on, by the existing rule (groups first while they fit, sub rows only in the room
 left; the `team` scenario of `sim.js`, as the prototype shows it):
 
-| | S | M | L |
-| --- | --- | --- | --- |
-| `rowCost` on (default) | 3 groups + `boards.moreGroups` | 4 + `boards.moreGroups` | 5 (timing: and 1 sub row) |
-| `rowCost` off | 3 + `boards.moreGroups` | 5 | 5 + 2 sub rows |
+| S | M | L |
+| --- | --- | --- |
+| 3 groups + `boards.moreGroups` | 4 + `boards.moreGroups` | 5 (timing: and 1 sub row) |
 
 **Tooltip** (a group row, after its existing lines): while `intelligence` is on, `intel.tooltip` with the group's live
 index and thinking share (whole percent, rounded half away from zero; `–` instead when no member's source records
 reasoning apart from output, METRICS 4.3) while the group is live, and `intel.grade` with the root's grade and class
-when the root has one; while `cost` or `rowCost` is on and the group is live, `boards.tooltip.cost` with the rate as
-shown and its unit (`費用 0.012 US$/s（API 等值）`), then `cost.partial` when part is unpriced, or `cost.unknown` in place of the rate when nothing is priced, or only `boards.tooltip.subscription` with the
-source's name when the group is excluded; last, while `intelligence` is on, the caption `intel.disclaimer`.
+when the root has one; last, while `intelligence` is on, the caption `intel.disclaimer`. The tooltip names no cost,
+whatever the switches.
 
 **Accessibility.**
 
@@ -1604,8 +1599,7 @@ source's name when the group is excluded; last, while `intelligence` is on, the 
   `a11y.board.costUnknown` or `cost.subscriptionOnly`. Example: `排行看板，全部來源：每秒 707 個 token，噴射客機，智力
   123，思考每秒 174 個 token，費用每秒 0.024 美元（API 等值）`. The 1-second update limit stays.
 - A row's label (`a11y.board.row`) adds `a11y.agent.intel` or `a11y.agent.grade` right after its speed (nothing for
-  none) while `intelligence` is on, and, while its second line shows a cost, `a11y.board.rowCost`, `cost.unknown` or
-  `cost.subscription.tag` at its end. Sub rows add the same intelligence words.
+  none) while `intelligence` is on; it names no cost. Sub rows add the same intelligence words.
 - Nothing relies on color: resting values are also announced as grades, `≥` as `a11y.orb.costAtLeast`.
 - Increase Contrast: no glows (arc, tip, LED digits, meter, row digits) and no ghost segments; quiet values (`–`,
   resting grades, `0`, the tag) in `ink-2` instead of `ink-3`; glass's track `ink-3`, its value arc and tip `ink`
@@ -1688,7 +1682,7 @@ memory the board owns (layer textures, swap chain or drawable surfaces, instance
   lines), group speed and its sub-agents' share, today's output of the group, then the live metrics lines (*Live
   metrics*, Tooltip). Hover lifts the row tint only.
 - Context menu: header (style name and the board's sources); `boards.style` ▸ the three styles; `orbs.sources` ▸ as
-  an orb's; `boards.readouts` ▸ the four live metrics switches (*Live metrics*); `menu.size` ▸ S / M / L; `menu.effects` ▸ (global); `menu.alwaysOnTop`, `menu.clickThrough`;
+  an orb's; `boards.readouts` ▸ the three live metrics switches (*Live metrics*); `menu.size` ▸ S / M / L; `menu.effects` ▸ (global); `menu.alwaysOnTop`, `menu.clickThrough`;
   `boards.add`, `boards.remove` (asks `boards.remove.confirm`); `menu.dashboard`; `boards.settings` (Settings →
   懸浮窗, Boards).
 - Settings → 懸浮窗 gains a Boards list under the orbs: one row per board (style preview thumbnail, style name,
@@ -2726,8 +2720,8 @@ The unit is `cost.unitPerSecond` (`%@/s` with the symbol: `US$/s`, `¥/s`). Wher
   amounts with colour dots and thin share bars (sorted by cost), `cost.unpriced` when today has unpriced responses,
   `cost.subscriptionExcluded` listing excluded sources, and the rate line (`rates.status`) for a non-USD currency.
 - **Metric info** (ⓘ in the footer): `cost.info` is appended as a second paragraph.
-- **Boards**: 費用 in the sub-gauge, each group row's cost per second and the footer's today cost (section 2c, *Live
-  metrics*).
+- **Boards**: 費用 in the sub-gauge and the footer's today cost (section 2c, *Live metrics*); no cost per row, group
+  or agent.
 
 ### Usage history
 

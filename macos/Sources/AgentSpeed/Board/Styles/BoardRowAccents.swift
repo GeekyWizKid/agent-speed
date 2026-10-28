@@ -43,7 +43,6 @@ extension BoardRowModel {
         body.interval = ""
         body.intel = intel == nil ? nil : ""
         body.intelLive = false
-        body.cost = nil
         if let rank { body.kind = .group(rank: rank == 1 ? 1 : 0) }
         return body
     }

@@ -44,12 +44,12 @@ public class BoardMenuModelTests
         var board = new BoardDefinition("b0") { Readouts = BoardReadouts.All with { Thinking = false } };
         var items = Row(Menu(With(board)), "boards.readouts").Submenu!.Rows.ToArray();
         Assert.Equal(
-            [En["boards.readouts.intel"], En["boards.readouts.thinking"], En["boards.readouts.cost"], En["boards.readouts.rowCost"]],
+            [En["boards.readouts.intel"], En["boards.readouts.thinking"], En["boards.readouts.cost"]],
             items.Select(r => r.Label));
-        Assert.Equal([true, false, true, true], items.Select(r => r.IsChecked));
+        Assert.Equal([true, false, true], items.Select(r => r.IsChecked));
         Assert.Equal(new MenuAction.SetBoardReadout("b0", BoardReadout.Intelligence, false), items[0].Action);
         Assert.Equal(new MenuAction.SetBoardReadout("b0", BoardReadout.Thinking, true), items[1].Action);
-        Assert.Equal(new MenuAction.SetBoardReadout("b0", BoardReadout.RowCost, false), items[3].Action);
+        Assert.Equal(new MenuAction.SetBoardReadout("b0", BoardReadout.Cost, false), items[2].Action);
     }
 
     [Fact]

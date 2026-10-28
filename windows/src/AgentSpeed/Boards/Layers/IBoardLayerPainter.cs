@@ -46,15 +46,6 @@ internal enum BoardLayerKind
 
     /// <summary>The captions line at the top of the ranking (智力, tok/s, timing's 間隔 and the hairline).</summary>
     Captions,
-
-    /// <summary>A two-line row's cost unit, white (<c>BoardScene.RowUnitKey</c>).</summary>
-    RowUnit,
-
-    /// <summary>A two-line row's <c>≥</c>, white.</summary>
-    RowAtLeast,
-
-    /// <summary>A two-line row's subscription tag, white.</summary>
-    RowTag,
 }
 
 /// <summary>Which layer a painter describes or draws: the row, glyph or callout it is for, and the scene's current tick.</summary>

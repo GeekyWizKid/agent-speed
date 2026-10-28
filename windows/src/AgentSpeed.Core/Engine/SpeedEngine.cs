@@ -140,7 +140,7 @@ internal sealed class SpeedEngine
 
         var windowStart = nowMs - WindowMs;
         var measured = new Accumulator(SourceCount);
-        var costs = new CostAccumulator(SourceCount);
+        var sourceCosts = new LiveCost[SourceCount];
         var intelligence = new IntelligenceSums[SourceCount];
         var agentIntelligence = new Dictionary<string, IntelligenceSums>(StringComparer.Ordinal);
 
@@ -187,7 +187,7 @@ internal sealed class SpeedEngine
                 measured.Add(response.Source, response.AgentId, output, response.Tokens.Total * fraction);
                 if (response.CostMicroUsd is { } cost)
                 {
-                    costs.Add(response.Source, response.AgentId, new LiveCost(cost * fraction, output));
+                    sourceCosts[(int)response.Source] += new LiveCost(cost * fraction, output);
                 }
 
                 AddIntelligence(response.Source, response.AgentId, output, ReasoningOf(response.Tokens) * fraction, Grade(response));
@@ -208,7 +208,7 @@ internal sealed class SpeedEngine
             estimated.Add(source, agentId, output, reference.Total * overlap / 1000.0);
             if (reference.CostRate is { } rate)
             {
-                costs.Add(source, agentId, new LiveCost(rate * overlap / 1000.0, output));
+                sourceCosts[(int)source] += new LiveCost(rate * overlap / 1000.0, output);
             }
 
             AddIntelligence(source, agentId, output, output * reference.ThinkingShare, grade);
@@ -271,12 +271,12 @@ internal sealed class SpeedEngine
         var liveCost = LiveCost.Zero;
         for (var i = 0; i < SourceCount; i++)
         {
-            sourceLiveCost[i] = PerSecond(costs.Source[i], seconds);
-            liveCost += costs.Source[i];
+            sourceLiveCost[i] = PerSecond(sourceCosts[i], seconds);
+            liveCost += sourceCosts[i];
         }
 
         liveCost = PerSecond(liveCost, seconds);
-        var agents = BuildAgents(nowMs, measured, estimated, costs, agentIntelligence, recent, seconds, out var generating, out var tools);
+        var agents = BuildAgents(nowMs, measured, estimated, agentIntelligence, recent, seconds, out var generating, out var tools);
         var history = BuildHistory(nowMs, valid, estimates);
         var events = DrainCompletions(nowMs);
         var peak = UpdatePeak(nowMs, live, observeLive, events);
@@ -572,7 +572,6 @@ internal sealed class SpeedEngine
         long nowMs,
         Accumulator measured,
         Accumulator estimated,
-        CostAccumulator costs,
         Dictionary<string, IntelligenceSums> intelligence,
         Dictionary<string, SpeedPair> recent,
         double seconds,
@@ -588,7 +587,6 @@ internal sealed class SpeedEngine
             var grade = AgentGrade(agent);
             return new AgentFrame(agent, phase, live, recentSpeed)
             {
-                LiveCost = costs.Agent.TryGetValue(agent.Id, out var cost) ? PerSecond(cost, seconds) : LiveCost.Zero,
                 Grade = grade,
                 Intelligence = new AgentIntelligence(intelligence.GetValueOrDefault(agent.Id), grade),
                 Work = WorkSignals.Of(agent.Work, nowMs),
@@ -759,19 +757,6 @@ internal sealed class SpeedEngine
                 HasCost && CostSeconds > 0 ? CostMicroUsd / CostSeconds : null,
                 Output > 0 ? Reasoning / Output : 0)
             : null;
-    }
-
-    private sealed class CostAccumulator(int sourceCount)
-    {
-        public LiveCost[] Source { get; } = new LiveCost[sourceCount];
-
-        public Dictionary<string, LiveCost> Agent { get; } = new(StringComparer.Ordinal);
-
-        public void Add(SourceKind source, string agentId, LiveCost cost)
-        {
-            Source[(int)source] += cost;
-            Agent[agentId] = Agent.GetValueOrDefault(agentId) + cost;
-        }
     }
 
     private sealed class Stored

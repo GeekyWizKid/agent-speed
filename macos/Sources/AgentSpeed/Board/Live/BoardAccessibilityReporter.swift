@@ -42,47 +42,34 @@ final class BoardAccessibilityReporter {
             NSAccessibility.post(element: host, notification: .titleChanged)
         }
         host.setAccessibilityHelp(l10n("boards.title"))
-        rows = rowElements(tick: tick, layout: layout, frameInScreen: frameInScreen, l10n: l10n, parent: host,
-                           size: runtime.config.size, currency: model.cost.currencyName)
+        rows = rowElements(tick: tick, layout: layout, frameInScreen: frameInScreen, l10n: l10n, parent: host)
         host.setAccessibilityChildren(rows)
     }
 
     private func rowElements(tick: BoardTick, layout: BoardContentLayout?, frameInScreen: CGRect, l10n: Localizer,
-                             parent: NSView, size: BoardSize, currency: String) -> [NSAccessibilityElement] {
+                             parent: NSView) -> [NSAccessibilityElement] {
         tick.rows.compactMap { row -> NSAccessibilityElement? in
             guard case .group(let index) = row.kind, index < tick.groups.count else { return nil }
             let group = tick.groups[index]
             let box = layout?.groupRows[group.id]?.row ?? .zero
             let frame = CGRect(x: frameInScreen.minX + box.minX, y: frameInScreen.maxY - box.maxY,
                                width: box.width, height: box.height)
-            let cost = tick.metrics.readouts.twoLineRows(size) && group.live > BoardGrouping.idle ? tick.metrics.rowCosts[group.id] : nil
             let element = NSAccessibilityElement.element(withRole: .staticText, frame: frame,
                                                          label: Self.rowLabel(group, rank: index + 1, l10n: l10n,
-                                                                              intelligence: tick.metrics.readouts.intelligence,
-                                                                              cost: cost, currency: currency),
+                                                                              intelligence: tick.metrics.readouts.intelligence),
                                                          parent: parent) as? NSAccessibilityElement
             return element
         }
     }
 
-    /// `第 1 名，tihu，每秒 7.88k 個 token，智力 123，推理強度 xhigh，加速 Fast，100 個子 agent，費用每秒 0.012 美元`: with 智力
-    /// on, its live index or grade right after the speed; with a cost line, the cost at the end.
-    static func rowLabel(_ group: BoardGroup, rank: Int, l10n: Localizer, intelligence: Bool = false, cost: BoardMoney? = nil,
-                         currency: String = "") -> String {
+    /// `第 1 名，tihu，每秒 7.88k 個 token，智力 123，推理強度 xhigh，加速 Fast，100 個子 agent`: with 智力 on, its live index
+    /// or grade right after the speed. Rows name no cost (the board's label carries 費用).
+    static func rowLabel(_ group: BoardGroup, rank: Int, l10n: Localizer, intelligence: Bool = false) -> String {
         var parts = [l10n("a11y.board.row", rank, project(of: group, l10n), SpeedFormat.speed(group.live))]
         if intelligence, let words = AgentSignalText.intelligenceAccessibility(group.intelligence, l10n) { parts.append(words) }
         let capsule = EffortCapsule(group.root.modes)
         if capsule.effort != nil || capsule.speed != nil { parts.append(capsule.accessibilityText(l10n)) }
         if !group.subs.isEmpty { parts.append(l10n("boards.subCount", group.subs.count)) }
-        if let cost {
-            switch cost.state {
-            case .value:
-                let number = cost.atLeast ? l10n("a11y.orb.costAtLeast", cost.number) : cost.number
-                parts.append(l10n("a11y.board.rowCost", number, currency))
-            case .unknown: parts.append(l10n("cost.unknown"))
-            case .tag: parts.append(l10n("cost.subscription.tag"))
-            }
-        }
         return join(parts, l10n)
     }
 

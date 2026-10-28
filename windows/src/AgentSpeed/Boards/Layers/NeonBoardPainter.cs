@@ -73,10 +73,7 @@ internal sealed class NeonBoardPainter : BoardStylePainter
             BoardReadoutFont.IntelGroup or BoardReadoutFont.IntelGroupRest => new(BoardFont.Mono, 11, FontWeight.SemiBold),
             BoardReadoutFont.IntelSub or BoardReadoutFont.IntelSubRest => new(BoardFont.Mono, 10, FontWeight.SemiBold),
             BoardReadoutFont.Captions => new(BoardFont.Mono, 8.5f, FontWeight.SemiBold, 0.12f),
-            BoardReadoutFont.RowUnit => new(BoardFont.Mono, 8.5f, FontWeight.SemiBold),
-            BoardReadoutFont.RowAtLeast => new(BoardFont.Mono, 8.5f, FontWeight.SemiBold),
-            BoardReadoutFont.RowTag => new(BoardFont.Ui, 10, FontWeight.SemiBold),
-            _ => new(BoardFont.Mono, 10, FontWeight.SemiBold),
+            _ => throw new ArgumentOutOfRangeException(nameof(font)),
         };
     }
 

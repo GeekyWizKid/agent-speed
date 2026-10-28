@@ -47,15 +47,6 @@ internal enum BoardReadoutFont
 
     /// <summary>The captions line.</summary>
     Captions,
-
-    /// <summary>A two-line row's cost, its unit, its <c>≥</c> and its tag.</summary>
-    RowCost,
-
-    RowUnit,
-
-    RowAtLeast,
-
-    RowTag,
 }
 
 /// <summary>What a row layer shows, resolved once per row from the tick.</summary>
@@ -148,7 +139,6 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
         BoardValueSet.IntelSub => ReadoutStyle(scene, BoardReadoutFont.IntelSub),
         BoardValueSet.IntelGroupRest => ReadoutStyle(scene, BoardReadoutFont.IntelGroupRest),
         BoardValueSet.IntelSubRest => ReadoutStyle(scene, BoardReadoutFont.IntelSubRest),
-        BoardValueSet.RowCost => ReadoutStyle(scene, BoardReadoutFont.RowCost),
         BoardValueSet.GaugeMain or BoardValueSet.GaugeMainPlain => ReadoutStyle(scene, BoardReadoutFont.GaugeMain),
         BoardValueSet.GaugeTable or BoardValueSet.GaugeTablePlain => ReadoutStyle(scene, BoardReadoutFont.GaugeTable),
         _ => ValueStyle(set, dim),
@@ -175,11 +165,13 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             case BoardLayerKind.RowBody when request.Row is { } row:
             {
                 var content = Content(scene, tick, row.Entry, row.Live);
-                var width = metrics.ListWidth - (row.Entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub ? ValueWidth(scene.Size) : 0);
+                var columns = BodyColumns(scene, row.Entry);
+                // A two-line group row's detail runs on under the value column, so its body spans the list.
+                var width = row.Entry.TwoLine ? metrics.ListWidth : columns;
                 var more = row.Entry.Kind is BoardEntryKind.MoreSubs or BoardEntryKind.MoreGroups ? MoreText(row.Entry, row.Live) : string.Empty;
                 return new BoardLayerSpec(width, scene.RowHeight(row.Entry), string.Join('|', theme, "b", row.Entry.Kind, row.Entry.Rank, row.Entry.TwoLine,
                     content.Name, content.Detail, content.Source, content.Capsule.Effort, content.Capsule.Speed,
-                    content.Column.ToString("0.#", CultureInfo.InvariantCulture), content.Interval, more, BodyKey(content)), MeterX(content, (float)width));
+                    content.Column.ToString("0.#", CultureInfo.InvariantCulture), content.Interval, more, BodyKey(content)), MeterX(content, (float)columns));
             }
 
             case BoardLayerKind.Badge when request.Row is { } row && BoardPulses.Badge(row.Entry) is { } badge:
@@ -212,15 +204,6 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
                 return scene.Metrics.IntelligenceColumn
                     ? new BoardLayerSpec(metrics.ListWidth, scene.Metrics.CaptionsHeight, string.Join('|', theme, "cap", Capsules(scene, tick)))
                     : null;
-
-            case BoardLayerKind.RowUnit:
-                return TextLayer(tick.Gauge.Cost.Unit, ReadoutStyle(scene, BoardReadoutFont.RowUnit), theme, "ru");
-
-            case BoardLayerKind.RowAtLeast:
-                return TextLayer(CostDisplayAtLeast, ReadoutStyle(scene, BoardReadoutFont.RowAtLeast), theme, "rg");
-
-            case BoardLayerKind.RowTag:
-                return TextLayer(Loc["cost.subscription.tag"], ReadoutStyle(scene, BoardReadoutFont.RowTag), theme, "rt");
 
             case BoardLayerKind.Hero:
             {
@@ -287,7 +270,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
                 switch (row.Entry.Kind)
                 {
                     case BoardEntryKind.Group:
-                        PaintGroup(context, content, width, height);
+                        PaintGroup(context, content, (float)BodyColumns(scene, row.Entry), height);
                         break;
                     case BoardEntryKind.Sub:
                         PaintSub(context, content, width, height);
@@ -367,15 +350,6 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
                 break;
             case BoardLayerKind.Captions:
                 PaintCaptions(context, scene, tick, width, height);
-                break;
-            case BoardLayerKind.RowUnit:
-                PaintText(context, tick.Gauge.Cost.Unit, ReadoutStyle(scene, BoardReadoutFont.RowUnit), height);
-                break;
-            case BoardLayerKind.RowAtLeast:
-                PaintText(context, CostDisplayAtLeast, ReadoutStyle(scene, BoardReadoutFont.RowAtLeast), height);
-                break;
-            case BoardLayerKind.RowTag:
-                PaintText(context, Loc["cost.subscription.tag"], ReadoutStyle(scene, BoardReadoutFont.RowTag), height);
                 break;
         }
     }
@@ -549,29 +523,33 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
         return _column.ToString("0.#", CultureInfo.InvariantCulture);
     }
 
+    // The width a row body lays its columns out in: the list less the value column for group and sub rows.
+    private double BodyColumns(BoardScene scene, BoardEntry entry) =>
+        scene.Metrics.ListWidth - (entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub ? ValueWidth(scene.Size) : 0);
+
     /// <summary>The capsule column's right end in a row body <paramref name="width"/> wide, moved left by the 智力 column.</summary>
     protected float RowCapsuleRight(in BoardRowContent row, float width) =>
         row.Scene.Metrics.IntelligenceColumn ? width - (float)(row.Scene.Columns.CapsuleRight - ValueWidth(row.Scene.Size)) : CapsuleRight(row, width);
 
     /// <summary>
-    /// A two-line group row's name on the first baseline (16) and its detail on the second, both trimmed at their tail to the
-    /// name column (DESIGN 2c, Ranking rows: The second line).
+    /// A two-line group row's name on the first baseline (16), trimmed at its tail to the name column, and its detail alone on the
+    /// second, trimmed at its tail to the value column's right edge (DESIGN 2c, Ranking rows: The second line).
     /// </summary>
     protected void DrawTwoLines(ID2D1DeviceContext context, in BoardRowContent row, in BoardTextStyle nameStyle, Rgba nameColor, in BoardTextStyle detailStyle,
         Rgba detailColor, float x, float right)
     {
         var room = right - x;
-        if (room <= 4)
+        if (room > 4)
         {
-            return;
+            using var nameBrush = BoardPaint.Brush(context, nameColor);
+            Text.DrawOnBaseline(context, row.Name, nameStyle, x, (float)BoardScene.FirstBaseline, nameBrush, room);
         }
 
-        using var nameBrush = BoardPaint.Brush(context, nameColor);
-        Text.DrawOnBaseline(context, row.Name, nameStyle, x, (float)BoardScene.FirstBaseline, nameBrush, room);
-        if (!string.IsNullOrEmpty(row.Detail))
+        var detailRoom = (float)row.Scene.Columns.DetailRight(row.Scene.Metrics.ListWidth) - x;
+        if (!string.IsNullOrEmpty(row.Detail) && detailRoom > 4)
         {
             using var detailBrush = BoardPaint.Brush(context, detailColor);
-            Text.DrawOnBaseline(context, row.Detail, detailStyle, x, Style == BoardStyle.Glass ? 32 : 31, detailBrush, room);
+            Text.DrawOnBaseline(context, row.Detail, detailStyle, x, (float)BoardScene.SecondBaseline(Style), detailBrush, detailRoom);
         }
     }
 
