@@ -211,6 +211,8 @@ def match_source(env: Env, proc: dict, ancestors: list[dict]) -> str | None:
         return "openclaw"
     if _is_hermes(env, proc):
         return "hermes"
+    if name == "droid":
+        return "droid"
     edition = WORKBUDDY_APPS[env.platform].get(proc.get("bundle") if env.platform == "macos" else name)
     if edition and any(WORKBUDDY_CLI in env.norm(a) for a in args[1:]):
         return edition

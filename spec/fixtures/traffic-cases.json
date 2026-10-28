@@ -790,6 +790,143 @@
         "node",
         "/Users/dev/.hermes/hermes-agent/ui-tui/dist/entry.js"
        ]
+      },
+      {
+       "pid": 1500,
+       "ppid": 100,
+       "start": 9500,
+       "exe": "/bin/zsh"
+      },
+      {
+       "pid": 1501,
+       "ppid": 1500,
+       "start": 9510,
+       "exe": "/Users/dev/.local/bin/droid",
+       "args": [
+        "droid"
+       ]
+      },
+      {
+       "pid": 1502,
+       "ppid": 1501,
+       "start": 9520,
+       "exe": "/Users/dev/.local/bin/droid",
+       "args": [
+        "droid",
+        "exec",
+        "--input-format",
+        "stream-jsonrpc",
+        "--output-format",
+        "stream-jsonrpc"
+       ]
+      },
+      {
+       "pid": 1503,
+       "ppid": 1502,
+       "start": 9530,
+       "exe": "/bin/zsh",
+       "args": [
+        "/bin/zsh",
+        "-c",
+        "npm test"
+       ]
+      },
+      {
+       "pid": 1504,
+       "ppid": 1502,
+       "start": 9540,
+       "exe": "/opt/homebrew/bin/rg",
+       "args": [
+        "rg",
+        "--json",
+        "TODO"
+       ]
+      },
+      {
+       "pid": 1505,
+       "ppid": 1500,
+       "start": 9550,
+       "exe": "/opt/homebrew/Caskroom/droid/0.251.0/droid",
+       "args": [
+        "droid",
+        "exec",
+        "-o",
+        "json",
+        "fix the build"
+       ]
+      },
+      {
+       "pid": 1506,
+       "ppid": 1,
+       "start": 9560,
+       "exe": "/Applications/Factory.app/Contents/MacOS/Factory"
+      },
+      {
+       "pid": 1507,
+       "ppid": 1506,
+       "start": 9570,
+       "exe": "/Applications/Factory.app/Contents/Resources/bin/droid",
+       "args": [
+        "droid",
+        "daemon",
+        "--enable-child-ipc",
+        "--listen",
+        "ipc"
+       ]
+      },
+      {
+       "pid": 1508,
+       "ppid": 1507,
+       "start": 9580,
+       "exe": "/Applications/Factory.app/Contents/Resources/bin/droid",
+       "args": [
+        "droid",
+        "exec",
+        "--input-format",
+        "stream-jsonrpc",
+        "--output-format",
+        "stream-jsonrpc"
+       ]
+      },
+      {
+       "pid": 1509,
+       "ppid": 1508,
+       "start": 9590,
+       "exe": "/usr/bin/git",
+       "args": [
+        "git",
+        "status"
+       ]
+      },
+      {
+       "pid": 1510,
+       "ppid": 1500,
+       "start": 9600,
+       "exe": "/opt/homebrew/bin/node",
+       "args": [
+        "node",
+        "/Users/dev/.npm-global/lib/node_modules/droid-cli-helper/index.js"
+       ]
+      },
+      {
+       "pid": 1511,
+       "ppid": 1500,
+       "start": 9610,
+       "exe": "/Users/dev/Library/Android/sdk/platform-tools/android-droid",
+       "args": [
+        "android-droid"
+       ]
+      },
+      {
+       "pid": 1512,
+       "ppid": 1501,
+       "start": 9620,
+       "exe": "/opt/homebrew/bin/codex",
+       "args": [
+        "codex",
+        "exec",
+        "review"
+       ]
       }
      ]
     }
@@ -868,7 +1005,20 @@
      "1412": null,
      "1413": null,
      "1414": "hermes/agent",
-     "1415": null
+     "1415": null,
+     "1500": null,
+     "1501": "droid/agent",
+     "1502": "droid/self",
+     "1503": "droid/tool",
+     "1504": "droid/tool",
+     "1505": "droid/agent",
+     "1506": null,
+     "1507": "droid/agent",
+     "1508": "droid/self",
+     "1509": "droid/tool",
+     "1510": null,
+     "1511": null,
+     "1512": "codex/agent"
     }
    }
   },
@@ -1177,6 +1327,85 @@
         "python.exe",
         "C:\\tools\\hermes.py"
        ]
+      },
+      {
+       "pid": 960,
+       "ppid": 950,
+       "start": 4600,
+       "exe": "C:\\Users\\dev\\bin\\droid.exe",
+       "args": [
+        "C:\\Users\\dev\\bin\\droid.exe"
+       ]
+      },
+      {
+       "pid": 961,
+       "ppid": 960,
+       "start": 4610,
+       "exe": "C:\\Users\\dev\\bin\\droid.exe",
+       "args": [
+        "C:\\Users\\dev\\bin\\droid.exe",
+        "exec",
+        "--input-format",
+        "stream-jsonrpc",
+        "--output-format",
+        "stream-jsonrpc"
+       ]
+      },
+      {
+       "pid": 962,
+       "ppid": 961,
+       "start": 4620,
+       "exe": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+       "args": [
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        "dotnet test"
+       ]
+      },
+      {
+       "pid": 963,
+       "ppid": 950,
+       "start": 4630,
+       "exe": "C:\\Program Files\\nodejs\\node.exe",
+       "args": [
+        "node.exe",
+        "C:\\Users\\dev\\AppData\\Roaming\\npm\\node_modules\\droid\\bin\\droid"
+       ]
+      },
+      {
+       "pid": 964,
+       "ppid": 963,
+       "start": 4640,
+       "exe": "C:\\Users\\dev\\AppData\\Roaming\\npm\\node_modules\\droid\\node_modules\\@factory\\cli-win32-x64\\bin\\DROID.EXE",
+       "args": [
+        "droid.exe"
+       ]
+      },
+      {
+       "pid": 965,
+       "ppid": 4,
+       "start": 4650,
+       "exe": "C:\\Users\\dev\\AppData\\Local\\Factory\\Factory.exe"
+      },
+      {
+       "pid": 966,
+       "ppid": 965,
+       "start": 4660,
+       "exe": "C:\\Users\\dev\\AppData\\Local\\Factory\\app-0.190.0\\resources\\bin\\droid.exe",
+       "args": [
+        "droid.exe",
+        "daemon",
+        "--enable-child-ipc",
+        "--listen",
+        "ipc"
+       ]
+      },
+      {
+       "pid": 967,
+       "ppid": 950,
+       "start": 4670,
+       "exe": "C:\\tools\\droidcam\\DroidCam.exe"
       }
      ]
     }
@@ -1215,7 +1444,15 @@
      "954": null,
      "955": "hermes/agent",
      "956": "hermes/agent",
-     "957": null
+     "957": null,
+     "960": "droid/agent",
+     "961": "droid/self",
+     "962": "droid/tool",
+     "963": null,
+     "964": "droid/agent",
+     "965": null,
+     "966": "droid/agent",
+     "967": null
     }
    }
   },
