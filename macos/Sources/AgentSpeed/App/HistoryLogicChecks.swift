@@ -174,6 +174,9 @@ enum HistoryLogicChecks {
               HistoryCSV.sourceID(.workbuddy) == "workbuddy" && HistoryCSV.sourceID(.workbuddyAi) == "workbuddy-ai")
         check("csv source id of Pi", HistoryCSV.sourceID(.pi) == "pi")
         check("settings saved before Pi load with Pi on and its default folder", piSettingsUpgrade())
+        check("csv source id of OpenClaw", HistoryCSV.sourceID(.openclaw) == "openclaw")
+        check("settings saved before OpenClaw load with OpenClaw on and its state folders", openclawSettingsUpgrade())
+        check("an OpenClaw database chosen as the folder stays a file", openclawDatabaseSetting())
         let risky = DaySummary(
             day: today, requests: 0, input: 0, cachedInput: 0, cacheWriteInput: 0, output: 0, reasoning: 0,
             measuredOutput: 0, measuredMs: 0, unfinalized: 0, agents: 0, peak: nil,
@@ -394,6 +397,35 @@ enum HistoryLogicChecks {
         return settings.isEnabled(.pi) && !settings.isEnabled(.gemini) && settings.piRoot == nil
             && settings.monitorConfiguration.piRoot == nil && settings.ompRoot?.path == "/Users/dev/.omp/agent/sessions"
             && TranscriptFolder.pi.urls(in: settings) == LiveMonitor.defaultPiRoots
+    }
+
+    /// Settings saved by a version before OpenClaw: OpenClaw starts enabled and reads every state folder.
+    private static func openclawSettingsUpgrade() -> Bool {
+        let suite = "AgentSpeedOpenClawUpgradeCheck"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        guard let defaults = UserDefaults(suiteName: suite) else { return false }
+        let before = SourceKind.allCases.filter { $0 != .openclaw }.map(\.rawValue)
+        defaults.set(before.filter { $0 != "omp" }, forKey: "enabledSources")
+        defaults.set(before, forKey: "knownSources")
+        let settings = AppSettings(defaults: defaults)
+        return settings.isEnabled(.openclaw) && !settings.isEnabled(.omp) && settings.openclawRoot == nil
+            && settings.monitorConfiguration.openclawRoot == nil
+            && TranscriptFolder.openclaw.urls(in: settings) == LiveMonitor.defaultOpenclawRoots
+    }
+
+    /// `openclaw-agent.sqlite` picked in Sources is stored and read back as that file, not as a folder.
+    private static func openclawDatabaseSetting() -> Bool {
+        let suite = "AgentSpeedOpenClawDatabaseCheck"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        guard let defaults = UserDefaults(suiteName: suite) else { return false }
+        let database = "/Users/dev/.openclaw/agents/main/agent/openclaw-agent.sqlite"
+        AppSettings(defaults: defaults).openclawRoot = URL(fileURLWithPath: database, isDirectory: false)
+        let reloaded = AppSettings(defaults: defaults)
+        return reloaded.openclawRoot?.path == database && reloaded.openclawRoot?.hasDirectoryPath == false
+            && reloaded.monitorConfiguration.openclawRoot?.path == database
+            && TranscriptFolder.openclaw.acceptsDatabaseFile && !TranscriptFolder.pi.acceptsDatabaseFile
     }
 }
 

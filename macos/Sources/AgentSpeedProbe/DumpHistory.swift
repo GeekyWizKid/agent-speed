@@ -51,7 +51,7 @@ enum DumpHistory {
         }
         FileHandle.standardOutput.write(Data(output.utf8))
         let summary = "history: \(report.days.count) rows, \(report.filesDiscovered) files discovered, "
-            + "\(report.filesAnalyzed) files (\(report.bytesAnalyzed) bytes) and \(report.sessionsAnalyzed) OpenCode sessions "
+            + "\(report.filesAnalyzed) files (\(report.bytesAnalyzed) bytes) and \(report.sessionsAnalyzed) database sessions "
             + "analysed in \(Int(report.durationMs.rounded())) ms\n"
         FileHandle.standardError.write(Data(summary.utf8))
     }
