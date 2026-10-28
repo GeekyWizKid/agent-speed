@@ -23,6 +23,7 @@ internal sealed partial class TodayLedger
     private readonly Dictionary<string, ParsedResponse> _unpriced = new(StringComparer.Ordinal);
     private readonly Dictionary<UnpricedFact, long>[] _unpricedFacts =
         [.. Enum.GetValues<SourceKind>().Select(_ => new Dictionary<UnpricedFact, long>())];
+    private readonly IReadOnlyList<UnpricedCount>?[] _sortedFacts = new IReadOnlyList<UnpricedCount>?[Enum.GetValues<SourceKind>().Length];
     private double _validOutput;
     private double _validSeconds;
     private long _validCount;
@@ -75,7 +76,8 @@ internal sealed partial class TodayLedger
     }
 
     /// <summary>A source's unpriced facts of today (METRICS 9.10 <i>Live</i>), in the fact order.</summary>
-    public IReadOnlyList<UnpricedCount> UnpricedFacts(SourceKind source) => Unpriced.UnpricedFacts.Sorted(_unpricedFacts[(int)source]);
+    public IReadOnlyList<UnpricedCount> UnpricedFacts(SourceKind source) =>
+        _sortedFacts[(int)source] ??= Unpriced.UnpricedFacts.Sorted(_unpricedFacts[(int)source]);
 
     /// <summary>Sources with measured buckets today (METRICS 6.6).</summary>
     public SourceSet MeasuredSources => _sourceOutput.Allocated;
@@ -109,6 +111,8 @@ internal sealed partial class TodayLedger
         {
             facts.Clear();
         }
+
+        Array.Clear(_sortedFacts);
 
         ResetModes();
         Cost = default;
@@ -177,6 +181,7 @@ internal sealed partial class TodayLedger
         if (entry.Cost is null)
         {
             Unpriced.UnpricedFacts.Add(_unpricedFacts[(int)entry.Source], entry.Fact, sign * entry.Requests);
+            _sortedFacts[(int)entry.Source] = null;
         }
 
         var modelKey = (entry.Source, entry.Model);

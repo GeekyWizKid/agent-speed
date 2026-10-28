@@ -140,6 +140,34 @@ public sealed class UnpricedHistoryTests : IDisposable
         Assert.Equal(HistoryStore.SchemaVersion, Scalar("PRAGMA user_version"));
     }
 
+    [Fact]
+    public void TheEngineFramesCarryTodaysFactsAndRepricingMovesThem()
+    {
+        const long dayStart = 1_792_454_400_000;
+        const long end = 1_792_490_405_000;
+        var (v1, v2) = (PriceTableTests.Fixture("prices/v1.json"), PriceTableTests.Fixture("prices/v2.json"));
+        var book = new PriceBook([v1]);
+        var engine = new Engine.SpeedEngine(dayStart, book, TimeZoneInfo.Utc);
+        engine.Upsert(new Parsing.ParsedResponse("a", SourceKind.Codex, "x", "gpt-6.1-sol-mini", end - 4000, end,
+            new Parsing.TokenCounts(Input: 5000, Output: 500), Provider: "openai"), isCompletion: true, seeded: true);
+        engine.Upsert(new Parsing.ParsedResponse("b", SourceKind.Codex, "x", "neko-model-1", end - 3000, end + 1,
+            new Parsing.TokenCounts(Input: 50, Output: 5), Provider: "custom", RequestCount: 2), isCompletion: true, seeded: true);
+
+        var before = engine.Compute(end + 1000, dayStart, observeLive: true);
+        Assert.Equal(
+            [
+                new UnpricedCount(new UnpricedFact("gpt-6.1-sol-mini", "openai", false), 1),
+                new UnpricedCount(new UnpricedFact("neko-model-1", "custom", false), 2),
+            ],
+            before.SourceUnpricedFacts[(int)SourceKind.Codex]);
+        Assert.Empty(before.SourceUnpricedFacts[(int)SourceKind.ClaudeCode]);
+
+        book.Add(v2);
+        var after = engine.Compute(end + 1500, dayStart, observeLive: true);
+        Assert.Equal([new UnpricedCount(new UnpricedFact("neko-model-1", "custom", false), 2)], after.SourceUnpricedFacts[(int)SourceKind.Codex]);
+        Assert.Equal(2, after.SourceTodayCost[(int)SourceKind.Codex].UnpricedRequests);
+    }
+
     private (HistoryReport Report, List<DailyUsage> Days) Launch()
     {
         using var store = HistoryStore.Open(StorePath);
