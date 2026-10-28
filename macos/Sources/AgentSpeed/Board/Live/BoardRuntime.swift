@@ -130,8 +130,9 @@ final class BoardRuntime {
         }
         // The preview has no prices: its costs read `–`.
         let hero = cost.map(format.money) ?? BoardMoney(number: "–", unit: "", state: .unknown)
+        // Every group's cost: the second line draws it, the tooltip tells it while 費用 is on.
         var rowCosts: [String: BoardMoney] = [:]
-        if readouts.twoLineRows(config.size) {
+        if readouts.twoLineRows(config.size) || readouts.cost {
             for group in frame.groups {
                 rowCosts[group.id] = cost == nil ? BoardMoney(number: "–", unit: "", state: .unknown) : format.money(group.sums)
             }

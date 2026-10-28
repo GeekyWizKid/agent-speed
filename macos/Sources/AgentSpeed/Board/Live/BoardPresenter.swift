@@ -195,10 +195,12 @@ final class BoardPresenter {
             return
         }
         tooltipGroup = id
-        let lines = BoardTooltip.lines(group, metric: tick.metric, l10n: model.l10n)
+        let lines = BoardTooltip.lines(group, metric: tick.metric, l10n: model.l10n, readouts: tick.metrics.readouts,
+                                       money: tick.metrics.rowCosts[id])
         let board = window.panel.frame
         let screen = (window.panel.screen ?? NSScreen.main)?.visibleFrame ?? board
-        tooltip.show(BoardTooltipView(lines: lines), level: NSWindow.Level(rawValue: window.panel.level.rawValue + 1),
+        let caption = BoardTooltip.caption(readouts: tick.metrics.readouts, l10n: model.l10n)
+        tooltip.show(BoardTooltipView(lines: lines, caption: caption), level: NSWindow.Level(rawValue: window.panel.level.rawValue + 1),
                      appearance: NSAppearance(named: look.dark ? .darkAqua : .aqua)) { size in
             let rowTop = board.maxY - row.minY
             var x = board.maxX + 4

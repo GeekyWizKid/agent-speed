@@ -39,7 +39,7 @@ struct BoardStyleSection: View {
             model.boards.setStyle(style, of: board.id)
         } label: {
             VStack(spacing: Spacing.s) {
-                BoardStyleThumbnail(style: style, size: Self.thumbnail)
+                BoardStyleThumbnail(style: style, size: Self.thumbnail, readouts: board.readouts)
                 Text(l10n(style.titleKey))
                     .font(.system(size: 12, weight: selected ? .semibold : .medium))
                     .foregroundStyle(selected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))

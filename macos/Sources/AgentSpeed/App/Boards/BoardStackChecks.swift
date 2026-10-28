@@ -65,9 +65,88 @@ enum BoardStackChecks {
         check("Celebrate new peaks off drops celebration decals", decals(peak.layer) == 0)
 
         window.close()
+        liveMetrics(check)
         let text = lines.joined(separator: "\n") + "\n"
         try? text.write(to: directory.appendingPathComponent("board-checks.txt"), atomically: true, encoding: .utf8)
         print(text, terminator: "")
+    }
+
+    /// The live metrics' motion (DESIGN 2c Live metrics): 思考 hiding fades its row in place while the sub-gauge glides
+    /// (at once with Reduce Motion), a new 智力 moves the arc's end and tip and rolls its digits, a switch change
+    /// crossfades the hero while rows spring, and an equal tick adds nothing.
+    private static func liveMetrics(_ check: (String, Bool) -> Void) {
+        let l10n = BoardSimFeed.harnessLocalizer()
+        let feed = BoardSimFeed(simulation: BoardSimulation(scenario: "team"), style: .glass, size: .medium, dark: true, l10n: l10n,
+                                metrics: .init(readouts: .all))
+        for _ in 0..<40 { feed.step() }
+        let shown = feed.tick
+        var hidden = shown
+        hidden.metrics.thinkingHidden = true
+        for reduceMotion in [false, true] {
+            let builder = BoardContentBuilders.make(style: .glass, size: .medium, dark: true, l10n: l10n, capsule: nil, highContrast: false)
+            let stack = BoardContentStack()
+            stack.setBoard(side: 340, corner: 26)
+            stack.reduceMotion = reduceMotion
+            var first = builder.layout(shown)
+            stack.apply(first.takeItems(), animated: false)
+            clear(stack.layer)
+            var second = builder.layout(hidden)
+            stack.apply(second.takeItems(), animated: true)
+            let glides = moves(stack.layer, duration: BoardContentStack.glideSeconds)
+            let fades = animations(stack.layer, key: "leave").filter { abs($0.duration - 0.25) < 0.001 || abs($0.duration - 0.15) < 0.001 }
+            if reduceMotion {
+                check("Reduce Motion: 思考 hides at once", glides == 0 && fades.isEmpty)
+            } else {
+                check("思考 hiding glides the sub-gauge (0.3 s smoothstep)", glides >= 4)
+                check("思考 hiding fades its row in place", fades.count >= 2)
+            }
+        }
+
+        // A new 智力: the arc's mask and the tip move on the roll's curve, changed digits roll.
+        let builder = BoardContentBuilders.make(style: .glass, size: .medium, dark: true, l10n: l10n, capsule: nil, highContrast: false)
+        let stack = BoardContentStack()
+        stack.setBoard(side: 340, corner: 26)
+        var base = builder.layout(shown)
+        stack.apply(base.takeItems(), animated: false)
+        clear(stack.layer)
+        var next = shown
+        next.metrics.intelligence = 129
+        next.metrics.thinking = "175"
+        var moved = builder.layout(next)
+        stack.apply(moved.takeItems(), animated: true)
+        check("a new 智力 sweeps the arc", !animations(stack.layer, key: "sweep").isEmpty)
+        check("a new 智力 turns the tip", !animations(stack.layer, key: "turn").isEmpty)
+        // Core Animation files the rolls' push transitions under "transition".
+        let pushes = animations(stack.layer, key: "transition").compactMap { $0 as? CATransition }.filter { $0.type == .push }
+        check("changed readout digits roll", pushes.count >= 2)
+        clear(stack.layer)
+        var again = builder.layout(next)
+        stack.apply(again.takeItems(), animated: true)
+        check("an equal tick adds no animation",
+              count(stack.layer, keys: ["transition", "sweep", "turn", "move", "leave", "enter", "change"]) == 0)
+
+        // A switch change: the hero crossfades as a whole, rows spring to their new places.
+        var off = next
+        off.metrics.readouts = BoardReadouts(intelligence: false, thinking: true, cost: true, rowCost: false)
+        off.rows = BoardLayoutPlanner.plan(off.groups.map { group in BoardPlanGroup(group) { _ in 0 } },
+                                           metrics: BoardLayoutMetrics(BoardGeometry(.glass, .medium, readouts: off.metrics.readouts)))
+        var switched = builder.layout(off)
+        stack.apply(switched.takeItems(), animated: true, crossfade: BoardPresenter.switchCrossfade)
+        let hero = stack.layer.sublayers?.first { layer in (layer.animationKeys() ?? []).contains("transition") && layer.sublayers?.isEmpty == false }
+        check("a switch change crossfades the hero", hero != nil)
+        check("a switch change springs the rows", count(stack.layer, keys: ["move"]) > 0)
+    }
+
+    private static func animations(_ root: CALayer, key: String) -> [CAAnimation] {
+        var found = root.animation(forKey: key).map { [$0] } ?? []
+        if let mask = root.mask { found += animations(mask, key: key) }
+        for child in root.sublayers ?? [] { found += animations(child, key: key) }
+        return found
+    }
+
+    /// Position moves of `duration` (the sub-gauge's glide; rows spring with their settling time instead).
+    private static func moves(_ root: CALayer, duration: Double) -> Int {
+        animations(root, key: "move").filter { !($0 is CASpringAnimation) && abs($0.duration - duration) < 0.001 }.count
     }
 
     private static func count(_ root: CALayer, keys: Set<String>) -> Int {
@@ -83,6 +162,7 @@ enum BoardStackChecks {
 
     private static func clear(_ root: CALayer) {
         root.removeAllAnimations()
+        root.mask?.removeAllAnimations()
         root.sublayers?.forEach(clear)
     }
 }

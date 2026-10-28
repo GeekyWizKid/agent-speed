@@ -5,10 +5,14 @@ import SwiftUI
 /// A still miniature of a board style (DESIGN 2c Settings: the Boards list's style preview): the style's panel fill,
 /// a hero value with its heat title, and four ranked rows with source accents, in the style's own language — glass
 /// an aurora behind frosted rows and glowing share lines, timing position blocks under a heat rail, neon a lit tube
-/// and an LED bar. Drawn once with Core Graphics paths; nothing animates.
+/// and an LED bar. With the live metrics switched on (DESIGN 2c Live metrics) the hero's right side is the style's
+/// sub-gauge (glass a pearl arc over a strip, timing a data box over its bars, neon LED digits and a meter), the rows
+/// show their 智力 column and, with 每列費用, a cost line. Drawn once with Core Graphics paths; nothing animates.
 struct BoardStyleThumbnail: View {
     let style: BoardStyle
     var size: CGFloat = 38
+    /// The board's switches; a new board's (all on) for a style picker.
+    var readouts: BoardReadouts = .all
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -83,12 +87,14 @@ struct BoardStyleThumbnail: View {
 
     private func drawHero(_ context: inout GraphicsContext, side: CGFloat, dark: Bool) {
         let pad = side * 0.1
-        let number = CGRect(x: pad, y: pad * 1.15, width: side * 0.36, height: side * 0.11)
+        // Beside a sub-gauge the value and its title keep to the left column.
+        let number = CGRect(x: pad, y: pad * 1.15, width: side * (readouts.hero ? 0.3 : 0.36), height: side * 0.11)
         context.fill(Path(roundedRect: number, cornerRadius: number.height * 0.3), with: .color(ink(dark, 0.92)))
-        let title = CGRect(x: number.maxX + side * 0.04, y: number.minY + number.height * 0.3, width: side * 0.16,
+        let title = CGRect(x: number.maxX + side * 0.04, y: number.minY + number.height * 0.3, width: side * (readouts.hero ? 0.11 : 0.16),
                            height: number.height * 0.55)
         context.fill(Path(roundedRect: title, cornerRadius: title.height / 2), with: .color(heat))
         let top = number.maxY + side * 0.05
+        if readouts.hero { return drawGauge(&context, side: side, dark: dark, top: top) }
         switch style {
         case .glass:
             var spark = Path()
@@ -116,6 +122,73 @@ struct BoardStyleThumbnail: View {
         }
     }
 
+    private var pearl: [Color] {
+        [Color(red: 0.65, green: 0.95, blue: 0.99), Color(red: 0.78, green: 0.82, blue: 1), Color(red: 0.96, green: 0.82, blue: 1)]
+    }
+
+    /// The hero's right side as the style's sub-gauge, the history as a strip under the hero (glass, timing).
+    private func drawGauge(_ context: inout GraphicsContext, side: CGFloat, dark: Bool, top: CGFloat) {
+        let pad = side * 0.1
+        let line = max(0.75, side * 0.014)
+        switch style {
+        case .glass:
+            let center = CGPoint(x: side - pad - side * 0.13, y: pad + side * 0.13)
+            let radius = side * 0.105
+            var track = Path()
+            track.addArc(center: center, radius: radius, startAngle: .degrees(150), endAngle: .degrees(390), clockwise: false)
+            context.stroke(track, with: .color(ink(dark, 0.14)), style: StrokeStyle(lineWidth: line * 1.6, lineCap: .round))
+            var arc = Path()
+            arc.addArc(center: center, radius: radius, startAngle: .degrees(150), endAngle: .degrees(150 + 240 * 0.66), clockwise: false)
+            let colors = dark ? pearl : [Color(red: 0.1, green: 0.64, blue: 0.77), Color(red: 0.43, green: 0.49, blue: 0.94),
+                                         Color(red: 0.75, green: 0.36, blue: 0.85)]
+            context.stroke(arc, with: .linearGradient(Gradient(colors: colors), startPoint: CGPoint(x: center.x - radius, y: center.y + radius),
+                                                      endPoint: CGPoint(x: center.x + radius, y: center.y - radius)),
+                           style: StrokeStyle(lineWidth: line * 1.6, lineCap: .round))
+            let value = CGRect(x: center.x - side * 0.05, y: center.y - side * 0.025, width: side * 0.1, height: side * 0.05)
+            context.fill(Path(roundedRect: value, cornerRadius: value.height / 2), with: .color(ink(dark, 0.85)))
+            var strip = Path()
+            let values: [CGFloat] = [0.35, 0.4, 0.55, 0.6, 0.58, 0.5, 0.45, 0.42, 0.4]
+            for (index, level) in values.enumerated() {
+                let point = CGPoint(x: pad + CGFloat(index) / CGFloat(values.count - 1) * (side - 2 * pad), y: top + side * 0.035 * (1 - level))
+                index == 0 ? strip.move(to: point) : strip.addLine(to: point)
+            }
+            context.stroke(strip, with: .color(heat.opacity(0.9)), style: StrokeStyle(lineWidth: max(0.6, side * 0.012), lineCap: .round))
+        case .timing:
+            let box = CGRect(x: side - pad - side * 0.33, y: pad * 0.9, width: side * 0.33, height: side * 0.2)
+            context.fill(Path(roundedRect: box, cornerRadius: side * 0.03), with: .color(ink(dark, dark ? 0.08 : 0.05)))
+            context.fill(Path(CGRect(x: box.minX, y: box.minY, width: box.width * 0.28, height: box.height)), with: .color(ink(dark, dark ? 0.1 : 0.08)))
+            for row in 0..<3 {
+                let height = box.height / 3
+                let bar = CGRect(x: box.maxX - box.width * (row == 0 ? 0.36 : 0.3) - side * 0.02, y: box.minY + CGFloat(row) * height + height * 0.3,
+                                 width: box.width * (row == 0 ? 0.36 : 0.3), height: height * 0.4)
+                context.fill(Path(roundedRect: bar, cornerRadius: bar.height / 2), with: .color(ink(dark, row == 0 ? 0.85 : 0.6)))
+            }
+            for index in 0..<16 {
+                let height = side * 0.03 * CGFloat([0.5, 0.6, 0.7, 0.8, 0.9, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.45, 0.4, 0.4, 0.35, 0.35][index])
+                let bar = CGRect(x: pad + CGFloat(index) * (side - 2 * pad - side * 0.015) / 15, y: top + side * 0.035 - height,
+                                 width: side * 0.015, height: height)
+                context.fill(Path(bar), with: .color(heat.opacity(0.85)))
+            }
+        case .neon:
+            let digits = CGRect(x: side - pad - side * 0.24, y: pad * 0.95, width: side * 0.2, height: side * 0.09)
+            context.fill(Path(roundedRect: digits, cornerRadius: digits.height * 0.25),
+                         with: .color(dark ? Color(red: 0.92, green: 0.95, blue: 1) : Color(red: 0.08, green: 0.1, blue: 0.2)))
+            for index in 0..<12 {
+                let width = side * 0.24 / 12
+                let segment = CGRect(x: digits.midX - side * 0.12 + CGFloat(index) * width, y: digits.maxY + side * 0.025,
+                                     width: width * 0.7, height: max(0.6, side * 0.012))
+                let mind = dark ? Color(red: 0.81, green: 0.88, blue: 1) : Color(red: 0.24, green: 0.31, blue: 0.6)
+                context.fill(Path(segment), with: .color(index < 8 ? mind : ink(dark, 0.14)))
+            }
+            for index in 0..<12 {
+                let segment = CGRect(x: pad + CGFloat(index) * (side - 2 * pad) / 12, y: top - side * 0.015,
+                                     width: (side - 2 * pad) / 12 - side * 0.012, height: side * 0.03)
+                let color = index < 5 ? Color(red: 0.2, green: 0.83, blue: 0.6) : index < 8 ? heat : ink(dark, 0.12)
+                context.fill(Path(segment), with: .color(color))
+            }
+        }
+    }
+
     private func drawRows(_ context: inout GraphicsContext, side: CGFloat, dark: Bool) {
         let pad = side * 0.1
         let rowHeight = side * 0.135
@@ -139,6 +212,14 @@ struct BoardStyleThumbnail: View {
             context.fill(Path(roundedRect: name, cornerRadius: name.height / 2), with: .color(ink(dark, rank == 0 ? 0.72 : 0.5)))
             let value = CGRect(x: side - pad - side * 0.13, y: mid - side * 0.024, width: side * 0.13, height: side * 0.048)
             context.fill(Path(roundedRect: value, cornerRadius: value.height / 2), with: .color(ink(dark, rank == 0 ? 0.85 : 0.6)))
+            if readouts.intelligence {
+                let intel = CGRect(x: value.minX - side * 0.11, y: mid - side * 0.02, width: side * 0.08, height: side * 0.04)
+                context.fill(Path(roundedRect: intel, cornerRadius: intel.height / 2), with: .color(ink(dark, 0.32)))
+            }
+            if readouts.rowCost {
+                let cost = CGRect(x: side - pad - side * 0.1, y: mid + side * 0.034, width: side * 0.1, height: max(0.6, side * 0.022))
+                context.fill(Path(roundedRect: cost, cornerRadius: cost.height / 2), with: .color(ink(dark, 0.28)))
+            }
             if style != .timing {
                 let line = CGRect(x: nameX, y: y + rowHeight - side * 0.016, width: (side - pad - nameX) * row.share,
                                   height: max(0.75, side * 0.012))
