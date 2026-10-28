@@ -1654,9 +1654,15 @@ none) the session model. An open response is emitted (4.4) when tokens are alloc
 - **Own counters**: a session with a `parent` (a fork, or a successor started by droid 0.226's `/compress` or by
   `/handoff`) starts from its parent's counters: a recorded `/compress` successor began at its parent's 60/37
   input/output tokens, while its `assistantActiveTimeMs` started over; forks are assumed alike. Its own counters are,
-  field by field, `max(0, counter − parent counter)`, the parent's counters read from the sidecar
-  `<parent>.settings.json` in the same folder (no counters → 0). Every other session's own counters are its counters.
-  Then own `thinkingTokens` = `min(thinkingTokens, outputTokens)` of the own counters.
+  field by field, `max(0, counter − parent counter)`. The parent's counters come from the sidecar
+  `<parent>.settings.json` in the same folder, read by the rules above whether or not the parent's transcript exists:
+  no such file, or a readable one without counters, gives 0. One that exists but is unreadable (droid may be replacing
+  it) leaves the own counters *unknown*: the session's sidecar read changes nothing in that read cycle, exactly as when
+  the session's own sidecar is unreadable, and the next read cycle tries again. The session remembers the signature of
+  that parent sidecar (size, modification time and identity: macOS device and inode, Windows volume serial number and
+  file index); when a later attempt finds it unreadable with the same signature, the file is not being rewritten and
+  will not mend, so it gives 0 from then on (a readable parent sidecar clears the memory). Every other session's own
+  counters are its counters. Then own `thinkingTokens` = `min(thinkingTokens, outputTokens)` of the own counters.
 - **Tokens** of a call, from its shares of the own counters:
 
   | Field | Value |
@@ -1692,17 +1698,17 @@ yet allocated (0), and the open calls.
 
 **Read cycle.** Whenever a session is read — its startup read, appended transcript lines, a changed sidecar — the parser
 (1) feeds the new transcript lines; (2) reads the sidecar when it is new, its size, modification time or identity
-changed, or its last read found it unreadable, and when it has counters adds `max(0, own_f − H_f)` to `P_f` and sets
-`H_f = max(H_f, own_f)`, for each field; (3) when `P` is not zero and calls are open, allocates `P` to the open calls,
-emits them, and sets `P = 0` (no call is open any more).
+changed, or its last read found it unreadable or the own counters unknown, and when it has counters and the own counters
+are known adds `max(0, own_f − H_f)` to `P_f` and sets `H_f = max(H_f, own_f)`, for each field; (3) when `P` is not zero
+and calls are open, allocates `P` to the open calls, emits them, and sets `P = 0` (no call is open any more).
 
 - One call per rewrite: the call gets exactly its own tokens, whichever of the two files droid writes first (a rewrite
   read before its call's line waits in `P`). Calls that share a rewrite (a late read, a sidecar written once per turn)
   split it by their weights.
 - Growth while no call is open (a session title, a compaction summary, a retry) waits in `P` for the next call.
 - Lower counters (a restored `.bak`, a recount) add nothing: `H` keeps the highest value, so growth counts again only
-  above it. A sidecar without counters (missing, unreadable, droid before 0.123) adds nothing. A new session is a new
-  file with its own state.
+  above it. A sidecar without counters (missing, unreadable, droid before 0.123) or with unknown own counters adds
+  nothing. A new session is a new file with its own state.
 - A transcript that shrinks or changes identity resets the session (section 5): `H`, `P` and the open calls start
   over, and its lines are read again (the same keys update their responses, 4.4).
 
@@ -1710,10 +1716,15 @@ emits them, and sets `P = 0` (no call is open any more).
 running, and in the history analysis) feeds its whole transcript before its first sidecar read, so its own counters are
 allocated over all its calls at once — the *history rule*. A session whose transcript starts at its end (older than the
 startup window) has no open calls and takes `H` from its sidecar at that moment, without adding to `P` (no sidecar or no
-counters: `H` stays 0): only later growth counts. After the history rule the history analysis (8) emits what is left in
-`P` (own counters but no call, for example every call failed before writing a message) as one response with the key
-`"droid:" + session id + ":session"`, `startMs = null`, `endMs = lastLineMs` (nothing when `lastLineMs` is null), the
-session model and `P`'s tokens; the live parser keeps such growth in `P`.
+counters: `H` stays 0): only later growth counts. When the sidecar is unreadable or its own counters are unknown at that
+moment, `H` is taken the same way at the first later read cycle that reads it with known own counters (or finds no
+sidecar, or one without counters). In the history analysis a session whose own counters are unknown contributes nothing
+to that analysis and its result is not stored (its stored contributions and identity stay, section 8), so the next
+analysis tries again; the remembered parent signature carries over to that analysis (in memory: a relaunch starts
+without it). After the history rule the history analysis (8) emits what is left in `P` (own counters but no call, for
+example every call failed before writing a message) as one response with the key `"droid:" + session id + ":session"`,
+`startMs = null`, `endMs = lastLineMs` (nothing when `lastLineMs` is null), the session model and `P`'s tokens; the live
+parser keeps such growth in `P`.
 
 **Live and history.** Both count the same calls (keys, times, models, effort) and, once `P` is empty and the counters
 never went down, the same total per session. They can differ in how a session's tokens are split between its calls:
@@ -2176,10 +2187,11 @@ and triggers a full recomputation that keeps previously stored days for which no
 the store and recomputes from the current logs.
 
 Factory Droid (4.16): a session's identity adds its sidecar's size and modification time and, for a session with a
-`parent`, those of the parent's sidecar, whose counters it subtracts; the history rule of 4.16 makes its contributions
-a function of these files alone. Adding the source needs no new analysis version: no earlier build read its files, so
-the first analysis finds them as new files (this covers the `custom` step of 9.2 too, which in practice only Droid's
-ids reach).
+`parent`, those of the parent's sidecar, whose counters it subtracts; the history rule of 4.16 makes its contributions a
+function of these files alone; a session whose parent sidecar is unreadable is not stored by that analysis and is
+analysed again by the next one (4.16 *Own counters*). Adding the source needs no new analysis version: no earlier build
+read its files, so the first analysis finds them as new files (this covers the `custom` step of 9.2 too, which in
+practice only Droid's ids reach).
 
 Cost (9.7): every row also has `costMicroUsd` and `unpricedRequests`, every model `costMicroUsd` and
 `unpricedRequests`, and every date a `priceVersion`. The cost feature bumps the store version; days kept from an

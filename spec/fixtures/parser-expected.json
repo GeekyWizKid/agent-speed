@@ -6572,7 +6572,7 @@
     }
   },
   "droid": {
-    "_comment": "Factory Droid (METRICS 4.16). The folder `droid` plays the home folder; `discover` lists the sessions discovery finds under droid/.factory/sessions. Its sessions are in `order` and `files` (each read from the start: the history rule); the history analysis also emits the own counters of a session without calls (I) as `droid:<session id>:session`. `roots`: create the folders `make` in a scratch folder, resolve the setting (null: the automatic root of the scratch folder as home) and compare with `expected` (relative). `sidecars`: a sidecar's text (`size`: padded with spaces to that many bytes) and whether it is readable, its counters and session model (`encoding`: the text's bytes in that encoding instead of UTF-8). `allocations`: the largest-remainder split of `total` by `weights`. `live`: scripted read cycles in a scratch home (see its _comment).",
+    "_comment": "Factory Droid (METRICS 4.16). The folder `droid` plays the home folder; `discover` lists the sessions discovery finds under droid/.factory/sessions. Its sessions are in `order` and `files` (each read from the start: the history rule); the history analysis also emits the own counters of a session without calls (I) as `droid:<session id>:session`. `roots`: create the folders `make` in a scratch folder, resolve the setting (null: the automatic root of the scratch folder as home) and compare with `expected` (relative). `sidecars`: a sidecar's text (`size`: padded with spaces to that many bytes) and whether it is readable, its counters and session model (`encoding`: the text's bytes in that encoding instead of UTF-8). `allocations`: the largest-remainder split of `total` by `weights`. `live`: scripted read cycles in a scratch home (see its _comment). `history`: scripted history analyses in a scratch home (see its _comment).",
     "discover": [
       "droid/.factory/sessions/-C-Users-dev-projects-halo/c3d2e5f4-2d80-4e3c-9f90-4b5c6d7e8f92.jsonl",
       "droid/.factory/sessions/-C-Users-dev-projects-halo/f6a5b8c7-5ab3-4f6f-8c23-7e8f9a0b1c25.jsonl",
@@ -6877,7 +6877,7 @@
       }
     ],
     "live": {
-      "_comment": "Steps, in order, in a scratch home: `append` writes `lines` (each followed by \\n) to a transcript; `rewrite` replaces it with `lines` through a new file (a new identity); `sidecar` writes the transcript's sidecar (`doc` as JSON) and sets its modification time (ms); `open` starts following a transcript (`atEnd`: it starts at its end, older than the startup window); `read` runs one read cycle of that transcript and compares every response emitted so far (the latest version of each key, in first-emission order), the growth still waiting (P) and, when given, the phase.",
+      "_comment": "Steps, in order, in a scratch home: `append` writes `lines` (each followed by \\n) to a transcript; `rewrite` replaces it with `lines` through a new file (a new identity); `sidecar` writes the transcript's sidecar (`doc` as JSON) and sets its modification time (ms); `open` starts following a transcript (`atEnd`: it starts at its end, older than the startup window); a `sidecar` step with `text` writes that text instead of `doc`; `read` runs one read cycle of that transcript and compares every response emitted so far (the latest version of each key, in first-emission order), the growth still waiting (P) and, when given, the phase.",
       "steps": [
         {
           "append": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
@@ -8415,6 +8415,896 @@
             "outputTokens": 0,
             "thinkingTokens": 0
           }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/7a1b2c3d-0000-4000-8000-000000000001.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "7a1b2c3d-0000-4000-8000-000000000001",
+              "title": "Parent",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a"
+            },
+            {
+              "type": "message",
+              "id": "p-7a1b",
+              "timestamp": "2026-10-20T14:00:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Start"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T14:00:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Started."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "pm-7a1b"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "p-7a1b",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/7a1b2c3d-0000-4000-8000-000000000001.jsonl",
+          "mtime": 1792504803100,
+          "text": "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":4"
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/8b2c3d4e-0000-4000-8000-000000000002.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "8b2c3d4e-0000-4000-8000-000000000002",
+              "title": "Continue",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a",
+              "parent": "7a1b2c3d-0000-4000-8000-000000000001"
+            },
+            {
+              "type": "compaction_state",
+              "id": "fc-8b2c",
+              "timestamp": "2026-10-20T14:01:00.000Z",
+              "summaryText": "USER: earlier work",
+              "summaryTokens": 1800,
+              "summaryKind": "auto",
+              "removedCount": 3
+            },
+            {
+              "type": "message",
+              "id": "f-8b2c",
+              "timestamp": "2026-10-20T14:01:01.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continue"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T14:01:04.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continued."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "fm-8b2c"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "f-8b2c",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/8b2c3d4e-0000-4000-8000-000000000002.jsonl",
+          "mtime": 1792504864050,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 5600,
+              "outputTokens": 520,
+              "cacheCreationTokens": 1000,
+              "cacheReadTokens": 41000,
+              "thinkingTokens": 60,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 5600,
+              "outputTokens": 520,
+              "cacheCreationTokens": 1000,
+              "cacheReadTokens": 41000,
+              "thinkingTokens": 60,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "open": ".factory/sessions/-Users-dev-p/8b2c3d4e-0000-4000-8000-000000000002.jsonl",
+          "atEnd": false
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/8b2c3d4e-0000-4000-8000-000000000002.jsonl",
+          "responses": [],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/7a1b2c3d-0000-4000-8000-000000000001.jsonl",
+          "mtime": 1792504865000,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 5000,
+              "outputTokens": 400,
+              "cacheCreationTokens": 1000,
+              "cacheReadTokens": 20000,
+              "thinkingTokens": 50,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 5000,
+              "outputTokens": 400,
+              "cacheCreationTokens": 1000,
+              "cacheReadTokens": 20000,
+              "thinkingTokens": 50,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/8b2c3d4e-0000-4000-8000-000000000002.jsonl",
+          "responses": [
+            {
+              "key": "droid:fm-8b2c",
+              "startMs": 1792504861000,
+              "endMs": 1792504864000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 21600,
+              "cachedInput": 21000,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 120,
+              "reasoning": 10
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/9c3d4e5f-0000-4000-8000-000000000003.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "9c3d4e5f-0000-4000-8000-000000000003",
+              "title": "Parent",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a"
+            },
+            {
+              "type": "message",
+              "id": "p-9c3d",
+              "timestamp": "2026-10-20T14:10:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Start"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T14:10:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Started."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "pm-9c3d"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "p-9c3d",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/9c3d4e5f-0000-4000-8000-000000000003.jsonl",
+          "mtime": 1792505403100,
+          "text": "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":4"
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/ad4e5f60-0000-4000-8000-000000000004.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "ad4e5f60-0000-4000-8000-000000000004",
+              "title": "Continue",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a",
+              "parent": "9c3d4e5f-0000-4000-8000-000000000003"
+            },
+            {
+              "type": "compaction_state",
+              "id": "fc-ad4e",
+              "timestamp": "2026-10-20T14:11:00.000Z",
+              "summaryText": "USER: earlier work",
+              "summaryTokens": 1800,
+              "summaryKind": "auto",
+              "removedCount": 3
+            },
+            {
+              "type": "message",
+              "id": "f-ad4e",
+              "timestamp": "2026-10-20T14:11:01.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continue"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T14:11:04.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continued."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "fm-ad4e"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "f-ad4e",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/ad4e5f60-0000-4000-8000-000000000004.jsonl",
+          "mtime": 1792505464050,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 1500,
+              "outputTokens": 90,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 6000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 1500,
+              "outputTokens": 90,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 6000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "open": ".factory/sessions/-Users-dev-p/ad4e5f60-0000-4000-8000-000000000004.jsonl",
+          "atEnd": false
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/ad4e5f60-0000-4000-8000-000000000004.jsonl",
+          "responses": [],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/ad4e5f60-0000-4000-8000-000000000004.jsonl",
+          "responses": [
+            {
+              "key": "droid:fm-ad4e",
+              "startMs": 1792505461000,
+              "endMs": 1792505464000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 7500,
+              "cachedInput": 6000,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 90,
+              "reasoning": 0
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/be5f6071-0000-4000-8000-000000000005.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "be5f6071-0000-4000-8000-000000000005",
+              "title": "Parent",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a"
+            },
+            {
+              "type": "message",
+              "id": "p-be5f",
+              "timestamp": "2026-10-20T08:00:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Start"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T08:00:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Started."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "pm-be5f"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "p-be5f",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/be5f6071-0000-4000-8000-000000000005.jsonl",
+          "mtime": 1792483203100,
+          "text": "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":4"
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "cf607182-0000-4000-8000-000000000006",
+              "title": "Continue",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a",
+              "parent": "be5f6071-0000-4000-8000-000000000005"
+            },
+            {
+              "type": "compaction_state",
+              "id": "fc-cf60",
+              "timestamp": "2026-10-20T08:01:00.000Z",
+              "summaryText": "USER: earlier work",
+              "summaryTokens": 1800,
+              "summaryKind": "auto",
+              "removedCount": 3
+            },
+            {
+              "type": "message",
+              "id": "f-cf60",
+              "timestamp": "2026-10-20T08:01:01.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continue"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T08:01:04.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continued."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "fm-cf60"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "f-cf60",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "mtime": 1792483264050,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 4500,
+              "outputTokens": 380,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 18000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 4500,
+              "outputTokens": 380,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 18000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "open": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "atEnd": true
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/be5f6071-0000-4000-8000-000000000005.jsonl",
+          "mtime": 1792506000000,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 4000,
+              "outputTokens": 300,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 10000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 4000,
+              "outputTokens": 300,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 10000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "responses": [],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "lines": [
+            {
+              "type": "message",
+              "id": "g-k3",
+              "timestamp": "2026-10-20T14:30:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "More"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T14:30:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "More done."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "gm-k3"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "mtime": 1792506603050,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 4900,
+              "outputTokens": 460,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 30000,
+              "thinkingTokens": 5,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 4900,
+              "outputTokens": 460,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 30000,
+              "thinkingTokens": 5,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "responses": [
+            {
+              "key": "droid:gm-k3",
+              "startMs": 1792506600000,
+              "endMs": 1792506603000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 12400,
+              "cachedInput": 12000,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 80,
+              "reasoning": 5
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        }
+      ]
+    },
+    "history": {
+      "_comment": "Steps in a scratch home with only Factory Droid sessions: `write` sets a file's `text` and modification time (ms); `analyze` runs a history analysis of the home's sessions (METRICS 8, the history rule of 4.16), keeping the remembered parent signatures from the analyses before, and compares the responses per session file and the session files skipped because their own counters are unknown.",
+      "steps": [
+        {
+          "write": ".factory/sessions/-Users-dev-h/1a2b3c4d-0000-4000-8000-00000000000a.jsonl",
+          "mtime": 1792512004000,
+          "text": "{\"type\":\"session_start\",\"id\":\"1a2b3c4d-0000-4000-8000-00000000000a\",\"title\":\"Parent\",\"owner\":\"dev\",\"version\":2,\"cwd\":\"/Users/dev/h\",\"hostId\":\"host-7f3a\"}\n{\"type\":\"message\",\"id\":\"p-1a2b\",\"timestamp\":\"2026-10-20T16:00:00.000Z\",\"parentId\":null,\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Start\"}]}}\n{\"type\":\"message\",\"timestamp\":\"2026-10-20T16:00:03.000Z\",\"parentId\":null,\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Started.\"}],\"modelId\":\"claude-opus-5-5\",\"reasoningEffort\":\"high\"},\"id\":\"pm-1a2b\"}\n{\"type\":\"agent_turn_outcome\",\"turnId\":\"p-1a2b\",\"reason\":\"completed\",\"resultKind\":\"text\"}\n"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/1a2b3c4d-0000-4000-8000-00000000000a.settings.json",
+          "mtime": 1792512005000,
+          "text": "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":4"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/2b3c4d5e-0000-4000-8000-00000000000b.jsonl",
+          "mtime": 1792512065000,
+          "text": "{\"type\":\"session_start\",\"id\":\"2b3c4d5e-0000-4000-8000-00000000000b\",\"title\":\"Continue\",\"owner\":\"dev\",\"version\":2,\"cwd\":\"/Users/dev/h\",\"hostId\":\"host-7f3a\",\"parent\":\"1a2b3c4d-0000-4000-8000-00000000000a\"}\n{\"type\":\"compaction_state\",\"id\":\"fc-2b3c\",\"timestamp\":\"2026-10-20T16:01:00.000Z\",\"summaryText\":\"USER: earlier work\",\"summaryTokens\":1800,\"summaryKind\":\"auto\",\"removedCount\":3}\n{\"type\":\"message\",\"id\":\"f-2b3c\",\"timestamp\":\"2026-10-20T16:01:01.000Z\",\"parentId\":null,\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Continue\"}]}}\n{\"type\":\"message\",\"timestamp\":\"2026-10-20T16:01:04.000Z\",\"parentId\":null,\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Continued.\"}],\"modelId\":\"claude-opus-5-5\",\"reasoningEffort\":\"high\"},\"id\":\"fm-2b3c\"}\n{\"type\":\"agent_turn_outcome\",\"turnId\":\"f-2b3c\",\"reason\":\"completed\",\"resultKind\":\"text\"}\n"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/2b3c4d5e-0000-4000-8000-00000000000b.settings.json",
+          "mtime": 1792512065500,
+          "text": "{\n  \"model\": \"claude-opus-5-5\",\n  \"reasoningEffort\": \"high\",\n  \"interactionMode\": \"auto\",\n  \"autonomyLevel\": \"medium\",\n  \"assistantActiveTimeMs\": 61000,\n  \"tokenUsage\": {\n    \"inputTokens\": 3800,\n    \"outputTokens\": 450,\n    \"cacheCreationTokens\": 0,\n    \"cacheReadTokens\": 20000,\n    \"thinkingTokens\": 20,\n    \"factoryCredits\": 0\n  },\n  \"inclusiveTokenUsage\": {\n    \"inputTokens\": 3800,\n    \"outputTokens\": 450,\n    \"cacheCreationTokens\": 0,\n    \"cacheReadTokens\": 20000,\n    \"thinkingTokens\": 20,\n    \"factoryCredits\": 0\n  },\n  \"childInclusiveTokenUsageBySessionId\": {},\n  \"lastCallTokenUsage\": {\n    \"inputTokens\": 10,\n    \"outputTokens\": 5,\n    \"cacheReadTokens\": 0\n  }\n}"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/3c4d5e6f-0000-4000-8000-00000000000c.jsonl",
+          "mtime": 1792512604000,
+          "text": "{\"type\":\"session_start\",\"id\":\"3c4d5e6f-0000-4000-8000-00000000000c\",\"title\":\"Parent\",\"owner\":\"dev\",\"version\":2,\"cwd\":\"/Users/dev/h\",\"hostId\":\"host-7f3a\"}\n{\"type\":\"message\",\"id\":\"p-3c4d\",\"timestamp\":\"2026-10-20T16:10:00.000Z\",\"parentId\":null,\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Start\"}]}}\n{\"type\":\"message\",\"timestamp\":\"2026-10-20T16:10:03.000Z\",\"parentId\":null,\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Started.\"}],\"modelId\":\"claude-opus-5-5\",\"reasoningEffort\":\"high\"},\"id\":\"pm-3c4d\"}\n{\"type\":\"agent_turn_outcome\",\"turnId\":\"p-3c4d\",\"reason\":\"completed\",\"resultKind\":\"text\"}\n"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/3c4d5e6f-0000-4000-8000-00000000000c.settings.json",
+          "mtime": 1792512605000,
+          "text": "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":4"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/4d5e6f70-0000-4000-8000-00000000000d.jsonl",
+          "mtime": 1792512665000,
+          "text": "{\"type\":\"session_start\",\"id\":\"4d5e6f70-0000-4000-8000-00000000000d\",\"title\":\"Continue\",\"owner\":\"dev\",\"version\":2,\"cwd\":\"/Users/dev/h\",\"hostId\":\"host-7f3a\",\"parent\":\"3c4d5e6f-0000-4000-8000-00000000000c\"}\n{\"type\":\"compaction_state\",\"id\":\"fc-4d5e\",\"timestamp\":\"2026-10-20T16:11:00.000Z\",\"summaryText\":\"USER: earlier work\",\"summaryTokens\":1800,\"summaryKind\":\"auto\",\"removedCount\":3}\n{\"type\":\"message\",\"id\":\"f-4d5e\",\"timestamp\":\"2026-10-20T16:11:01.000Z\",\"parentId\":null,\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Continue\"}]}}\n{\"type\":\"message\",\"timestamp\":\"2026-10-20T16:11:04.000Z\",\"parentId\":null,\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Continued.\"}],\"modelId\":\"claude-opus-5-5\",\"reasoningEffort\":\"high\"},\"id\":\"fm-4d5e\"}\n{\"type\":\"agent_turn_outcome\",\"turnId\":\"f-4d5e\",\"reason\":\"completed\",\"resultKind\":\"text\"}\n"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/4d5e6f70-0000-4000-8000-00000000000d.settings.json",
+          "mtime": 1792512665500,
+          "text": "{\n  \"model\": \"claude-opus-5-5\",\n  \"reasoningEffort\": \"high\",\n  \"interactionMode\": \"auto\",\n  \"autonomyLevel\": \"medium\",\n  \"assistantActiveTimeMs\": 61000,\n  \"tokenUsage\": {\n    \"inputTokens\": 2500,\n    \"outputTokens\": 180,\n    \"cacheCreationTokens\": 100,\n    \"cacheReadTokens\": 7000,\n    \"thinkingTokens\": 10,\n    \"factoryCredits\": 0\n  },\n  \"inclusiveTokenUsage\": {\n    \"inputTokens\": 2500,\n    \"outputTokens\": 180,\n    \"cacheCreationTokens\": 100,\n    \"cacheReadTokens\": 7000,\n    \"thinkingTokens\": 10,\n    \"factoryCredits\": 0\n  },\n  \"childInclusiveTokenUsageBySessionId\": {},\n  \"lastCallTokenUsage\": {\n    \"inputTokens\": 10,\n    \"outputTokens\": 5,\n    \"cacheReadTokens\": 0\n  }\n}"
+        },
+        {
+          "analyze": true,
+          "responses": {},
+          "skipped": [
+            ".factory/sessions/-Users-dev-h/2b3c4d5e-0000-4000-8000-00000000000b.jsonl",
+            ".factory/sessions/-Users-dev-h/4d5e6f70-0000-4000-8000-00000000000d.jsonl"
+          ]
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/1a2b3c4d-0000-4000-8000-00000000000a.settings.json",
+          "mtime": 1792513200000,
+          "text": "{\n  \"model\": \"claude-opus-5-5\",\n  \"reasoningEffort\": \"high\",\n  \"interactionMode\": \"auto\",\n  \"autonomyLevel\": \"medium\",\n  \"assistantActiveTimeMs\": 61000,\n  \"tokenUsage\": {\n    \"inputTokens\": 3000,\n    \"outputTokens\": 300,\n    \"cacheCreationTokens\": 0,\n    \"cacheReadTokens\": 9000,\n    \"thinkingTokens\": 0,\n    \"factoryCredits\": 0\n  },\n  \"inclusiveTokenUsage\": {\n    \"inputTokens\": 3000,\n    \"outputTokens\": 300,\n    \"cacheCreationTokens\": 0,\n    \"cacheReadTokens\": 9000,\n    \"thinkingTokens\": 0,\n    \"factoryCredits\": 0\n  },\n  \"childInclusiveTokenUsageBySessionId\": {},\n  \"lastCallTokenUsage\": {\n    \"inputTokens\": 10,\n    \"outputTokens\": 5,\n    \"cacheReadTokens\": 0\n  }\n}"
+        },
+        {
+          "analyze": true,
+          "responses": {
+            ".factory/sessions/-Users-dev-h/1a2b3c4d-0000-4000-8000-00000000000a.jsonl": [
+              {
+                "key": "droid:pm-1a2b",
+                "startMs": 1792512000000,
+                "endMs": 1792512003000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 12000,
+                "cachedInput": 9000,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 300,
+                "reasoning": 0
+              }
+            ],
+            ".factory/sessions/-Users-dev-h/2b3c4d5e-0000-4000-8000-00000000000b.jsonl": [
+              {
+                "key": "droid:fm-2b3c",
+                "startMs": 1792512061000,
+                "endMs": 1792512064000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 11800,
+                "cachedInput": 11000,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 150,
+                "reasoning": 20
+              }
+            ],
+            ".factory/sessions/-Users-dev-h/4d5e6f70-0000-4000-8000-00000000000d.jsonl": [
+              {
+                "key": "droid:fm-4d5e",
+                "startMs": 1792512661000,
+                "endMs": 1792512664000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 9600,
+                "cachedInput": 7000,
+                "cacheWriteInput": 100,
+                "cacheWrite1hInput": 0,
+                "output": 180,
+                "reasoning": 10
+              }
+            ]
+          },
+          "skipped": []
+        },
+        {
+          "analyze": true,
+          "responses": {
+            ".factory/sessions/-Users-dev-h/1a2b3c4d-0000-4000-8000-00000000000a.jsonl": [
+              {
+                "key": "droid:pm-1a2b",
+                "startMs": 1792512000000,
+                "endMs": 1792512003000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 12000,
+                "cachedInput": 9000,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 300,
+                "reasoning": 0
+              }
+            ],
+            ".factory/sessions/-Users-dev-h/2b3c4d5e-0000-4000-8000-00000000000b.jsonl": [
+              {
+                "key": "droid:fm-2b3c",
+                "startMs": 1792512061000,
+                "endMs": 1792512064000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 11800,
+                "cachedInput": 11000,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 150,
+                "reasoning": 20
+              }
+            ],
+            ".factory/sessions/-Users-dev-h/4d5e6f70-0000-4000-8000-00000000000d.jsonl": [
+              {
+                "key": "droid:fm-4d5e",
+                "startMs": 1792512661000,
+                "endMs": 1792512664000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 9600,
+                "cachedInput": 7000,
+                "cacheWriteInput": 100,
+                "cacheWrite1hInput": 0,
+                "output": 180,
+                "reasoning": 10
+              }
+            ]
+          },
+          "skipped": []
         }
       ]
     },
