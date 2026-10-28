@@ -1817,7 +1817,7 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
    captions, each right-aligned to its column's right edge: `intel.glyph` (智力 / 智力 / IQ / 知, the word of the
    orb's and the menu bar's readout) over the 智力 column and `unit.tokS` over the live value. Captions:
    10.5 pt medium (Windows 11 px medium), secondary color, one line, never truncated or scaled, hidden from
-   accessibility (every row says its values in words). Hovering the intelligence caption shows `agents.intel.hint`.
+   accessibility (every row says its values in words). Hovering the 智力 caption shows `agents.intel.hint`.
    The empty state has no captions.
    A live value below 0.05 (it would display as `0` or `0.0`) is never shown as a number: `tools` shows a small hourglass glyph (SF
    Symbol `hourglass` / Segoe Fluent `HourGlass`, 11 pt, secondary color, slow 2 s opacity breathing 55–100 %, static
@@ -3838,11 +3838,13 @@ over its records only.
 **Widths** (the section's content width): **wide** from 860 — as above. **Medium** 600–860 (the window's minimum
 720 lands here): centre column 120, distributions 96 wide; the table merges tasks and scored into
 `history.tasks.column.scoredOfTasks` (`96 / 128`). **Narrow** below 600 (large text sizes and any future smaller
-minimum): the pickers wrap under the title; each side header becomes one compact row (dot, name, median 22 pt,
-counts), without the distribution; the comparison becomes a three-column table — the metric (wraps), then the two
+minimum): the pickers take a line of their own under the title, sharing it equally; the side headers become two equal
+cards side by side (radius 10, the label color at 5 %, padding 10: dot and name, median 24 pt with its caption,
+counts wrapping, the distribution at the card's full width); the comparison becomes a three-column table under a
+header row of the two source names — the metric (wraps, with `history.tasks.lowerBetter` under it), then the two
 values right-aligned in 72 pt columns, the better one semibold; the model table becomes a list of rows: line 1 the
-dots, the id and the median; line 2 (11 pt, secondary) success · stall · fix failure; line 3 attempts · first pass ·
-scored / tasks. Nothing scrolls sideways at any width.
+dots, the id, the median and its strip; line 2 (11 pt, secondary) success · stall · fix failure; line 3 scored and
+tasks · attempts · first pass. Nothing scrolls sideways at any width.
 
 **States.**
 
