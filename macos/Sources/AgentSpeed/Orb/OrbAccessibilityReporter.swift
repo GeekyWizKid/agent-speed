@@ -151,7 +151,7 @@ final class OrbAccessibilityReporter {
     }
 
     /// While the readout is visible (DESIGN 10, Accessibility): `a11y.orb.traffic` with rates read as words and units as
-    /// written, or `a11y.orb.intel` (`a11y.orb.intel.only` while the thinking line is hidden).
+    /// written, or `a11y.orb.intel` with the score words (`a11y.orb.intel.only` while the thinking line is hidden).
     private func lineSentence(_ l10n: Localizer) -> String? {
         let config = runtime.config
         guard let lines = runtime.feed.lines, let reading = lines.reading, !runtime.isUnavailable else { return nil }
@@ -162,9 +162,23 @@ final class OrbAccessibilityReporter {
         switch reading.content {
         case .traffic(let rx, let tx):
             return l10n("a11y.orb.traffic", TrafficText.spoken(rx), TrafficText.spoken(tx))
-        case .intelligence(let index, let thinking):
-            guard !reading.thinking.isHidden(at: now) else { return l10n("a11y.orb.intel.only", String(index)) }
-            return l10n("a11y.orb.intel", String(index), thinking)
+        case .intelligence(let score, let thinking):
+            return Self.intelligenceSentence(TaskScoreValue(score), thinking: reading.thinking.isHidden(at: now) ? nil : thinking, l10n)
         }
+    }
+
+    /// The intelligence readout's words (DESIGN 12, *Accessibility*): the score words in `a11y.orb.intel` with the
+    /// thinking rate, or in `a11y.orb.intel.only` without it (`thinking` nil); while the value is none `intel.none`
+    /// replaces the 智力 words and the thinking words stay.
+    static func intelligenceSentence(_ value: TaskScoreValue, thinking: String?, _ l10n: Localizer) -> String {
+        guard let words = TaskScoreText.words(value, l10n) else {
+            guard let thinking else { return l10n("intel.none") }
+            let marker = "\u{E000}"
+            let full = l10n("a11y.orb.intel", marker, thinking)
+            let intelligence = l10n("a11y.orb.intel.only", marker)
+            guard let range = full.range(of: intelligence) else { return l10n("intel.none") }
+            return full.replacingCharacters(in: range, with: l10n("intel.none"))
+        }
+        return thinking.map { l10n("a11y.orb.intel", words, $0) } ?? l10n("a11y.orb.intel.only", words)
     }
 }
