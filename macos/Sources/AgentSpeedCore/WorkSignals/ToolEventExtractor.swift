@@ -8,6 +8,7 @@ enum ToolEventExtractor {
         case .claude: scan(bytes, claudeLine)
         case .codex: scan(bytes, codexLine)
         case .omp, .pi: scan(bytes, piFamilyLine)
+        case .droid: scan(bytes, droidLine)
         default: []
         }
     }
@@ -70,6 +71,46 @@ enum ToolEventExtractor {
         case 1: return resultId.map { .result(id: $0, failed: isError) }
         default: return nil
         }
+    }
+
+    // MARK: - Factory Droid
+
+    /// A `message` line: the assistant's `tool_use` blocks, or the user's `tool_result` blocks (`is_error`).
+    private static func droidLine(_ scanner: inout JSONScanner) throws(JSONScanError) -> [ToolEvent] {
+        var isMessage = false
+        var role: Int?
+        var blocks: [ToolEvent] = []
+        while let key = try scanner.nextMember() {
+            if scanner.key(key, is: "type") {
+                isMessage = try scanner.readStringMatch(["message"]) == 0
+            } else if scanner.key(key, is: "message") {
+                (role, blocks) = try droidMessage(&scanner)
+            } else {
+                try scanner.skipValue()
+            }
+        }
+        guard isMessage else { return [] }
+        switch role {
+        case 0: return blocks.filter(\.isCall)
+        case 1: return blocks.filter { !$0.isCall }
+        default: return []
+        }
+    }
+
+    private static func droidMessage(_ scanner: inout JSONScanner) throws(JSONScanError) -> (Int?, [ToolEvent]) {
+        guard try scanner.beginObjectIfPresent() else { return (nil, []) }
+        var role: Int?
+        var blocks: [ToolEvent] = []
+        while let key = try scanner.nextMember() {
+            if scanner.key(key, is: "role") {
+                role = try scanner.readStringMatch(["assistant", "user"])
+            } else if scanner.key(key, is: "content") {
+                blocks = try objects(of: &scanner, claudeBlock)
+            } else {
+                try scanner.skipValue()
+            }
+        }
+        return (role, blocks)
     }
 
     // MARK: - Codex

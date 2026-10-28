@@ -57,6 +57,7 @@ struct WorkSignalCaseTests {
             case "claude": .claude
             case "codex": .codex
             case "pi": .pi
+            case "droid": .droid
             default: .omp
             }
             var log = ActionLog()
