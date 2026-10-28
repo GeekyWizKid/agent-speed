@@ -1777,9 +1777,10 @@ contributes nothing (the orb shows it as unavailable).
 
 ### 6.9 Live intelligence
 
-An index of this app, shown on floating orbs next to tok/s (DESIGN 2b, *Floating orb readout*): how strong the models
-that are generating right now are, and how much of what they write is reasoning. It is derived from the logs only and
-is not a benchmark score. `spec/tools/intelligence.py` implements this section and checks
+An index of this app, shown on floating orbs next to tok/s (DESIGN 10, *Intelligence readout*), in the menu bar or
+taskbar (DESIGN 10, *Menu bar and taskbar*) and per agent on the dashboard and boards (*Agent intelligence*, below):
+how strong the models that are generating right now are, and how much of what they write is reasoning. It is derived
+from the logs only and is not a benchmark score. `spec/tools/intelligence.py` implements this section and checks
 `spec/fixtures/intelligence-cases.json`.
 
 **Grade** of a model at an effort: `grade = class + 6 × level`, 60 – 136.
@@ -1792,7 +1793,9 @@ is not a benchmark score. `spec/tools/intelligence.py` implements this section a
   unknown effort, or a token without a level, counts as 2 (medium, the providers' common default).
 
 A response's grade uses its own model, provider and effort (its effort attribution, EXECUTION-MODES); an agent's grade
-uses its current model and current effort.
+uses its current model, the provider of its latest response that names one (the one read last; null when none) and
+its current effort. An agent whose current model is unknown (null or empty) has no grade of its own (*Agent
+intelligence*, below); its in-flight contribution still weighs with the unknown class, 80 + 6 × level.
 
 **Window sums**, with the window, intervals and estimates of 6.3, over the responses and agents of a set (all enabled
 sources, or an orb's `A`, 6.8):
@@ -1815,6 +1818,29 @@ left out of `w'`.
 
 Every sum is additive over sources, so an orb adds the per-source sums of its `A` (6.8). Claude Opus 5.5 at `xhigh`
 writing 44 % reasoning: 100 + 24 + 20 × 0.44 ≈ 133. The value never drives heat, tiers, titles or peaks.
+
+**Agent intelligence.** The same index for one agent `a`, shown on its dashboard row (DESIGN 4) and reused by boards
+(DESIGN 2c). It is evaluated on every engine tick (500 ms) with that tick's `nowMs`, together with the agents list
+(6.7).
+
+*Agent sums* are the window sums above restricted to the contributions of `a`: its own measured and unmeasured
+responses (`agentId` = `a`) and its own in-flight estimate (6.3). Only the contributions are restricted:
+`estimatedSpeed`, `share_ref` and the grades are exactly those of the all-sources sums (the reference set may hold
+other agents' responses, 6.2). A sub-agent is an agent of its own, so a parent's sums never include its sub-agents'.
+The sums of all agents add up to the all-sources sums, so a set of agents (a board group: a root and its
+descendants) adds its members' sums.
+
+The agent's intelligence has exactly one of three forms:
+
+- **live** when `Σ w_a > 0`: `intelligence_a = Σ (w × g) / Σ w + 20 × thinkingShare_a` over the agent sums, with
+  `thinkingShare_a = Σ ρ / Σ w'` (0 when `Σ w' = 0`) and `liveThinking_a = Σ ρ / (W / 1000)`.
+- **resting** when `Σ w_a = 0` and `a` has a grade (a known current model): its grade, `class + 6 × level`, an
+  integer from 60 to 136. An agent that is `generating` but has no estimate (no reference set, 6.2) rests too.
+- **none** when `Σ w_a = 0` and `a` has no grade: no value.
+
+Shown as an integer, rounded half away from zero (a grade is one already). The forms are never mixed: a live value is
+the formula above even when it is lower than the agent's grade. The `agentWindows` cases of
+`spec/fixtures/intelligence-cases.json` check every form.
 
 ### 6.10 Work signals
 
