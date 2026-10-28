@@ -290,51 +290,42 @@ public class BoardLiveMetricsTests
         {
             Grade = new ModelGrade(ModelClass.Flagship, 4),
             Intelligence = new AgentIntelligence(new IntelligenceSums(360, 360 * 124, 90, 360), new ModelGrade(ModelClass.Flagship, 4)),
-            LiveCost = new LiveCost(6_000, 120),
         };
         var group = BoardGrouping.Group([root], SpeedMetric.Output)[0];
         var entry = new BoardEntry(BoardEntryKind.Group, "r", group, root, 1, 0, 38) { TwoLine = true };
-        var row = texts.Row(entry, BoardReadouts.All, group.Live)!;
+        var row = texts.Row(entry, BoardReadouts.All)!;
         Assert.Equal("129", row.Intelligence);
         Assert.Equal(AgentIntelligenceForm.Live, row.Form);
         Assert.Equal(En.Format("a11y.agent.intel", "129"), row.Spoken);
         Assert.Equal(
             [
-                En.Format("intel.tooltip", "129", "25%"), En.Format("intel.grade", "124", En["intel.class.flagship"]),
-                En.Format("boards.tooltip.cost", "0.006 " + En.Format("cost.unitPerSecond", "$")), En["intel.disclaimer"],
+                En.Format("intel.tooltip", "129", "25%"), En.Format("intel.grade", "124", En["intel.class.flagship"]), En["intel.disclaimer"],
             ],
             row.TooltipLines);
+        Assert.Empty(CostLines(row.TooltipLines));
         // The row's label names no cost: it ends with the 智力 words.
         Assert.Equal(En.Format("a11y.board.row", 1, root.Project, SpeedFormat.Speed(group.Live)) + ", " + row.Spoken,
             BoardAccessibility.Row(entry with { Readout = row }, En));
 
-        // An idle group: no cost line, its root's grade at rest.
+        // An idle group: its root's grade at rest.
         var idle = root with { Live = Rate.Zero, Intelligence = new AgentIntelligence(IntelligenceSums.Zero, root.Grade) };
         var resting = BoardGrouping.Group([idle], SpeedMetric.Output)[0];
-        var quiet = texts.Row(new BoardEntry(BoardEntryKind.Group, "r", resting, idle, 1, 0, 38), BoardReadouts.All, 0)!;
+        var quiet = texts.Row(new BoardEntry(BoardEntryKind.Group, "r", resting, idle, 1, 0, 38), BoardReadouts.All)!;
         Assert.Equal(("124", AgentIntelligenceForm.Resting), (quiet.Intelligence, quiet.Form));
-        Assert.DoesNotContain(quiet.TooltipLines, l => l.StartsWith(En.Format("boards.tooltip.cost", string.Empty).TrimEnd(), StringComparison.Ordinal));
+        Assert.Empty(CostLines(quiet.TooltipLines));
 
-        // 費用 off: the group's cost leaves the tooltip too.
-        Assert.DoesNotContain(En.Format("boards.tooltip.cost", "0.006 " + En.Format("cost.unitPerSecond", "$")),
-            texts.Row(entry, BoardReadouts.All with { Cost = false }, group.Live)!.TooltipLines);
-
-        // 智力 off: no words, no intelligence tooltip lines.
-        var off = texts.Row(entry, BoardReadouts.All with { Intelligence = false }, group.Live)!;
+        // 智力 off: no words and no tooltip lines; the switches never add a cost line.
+        var off = texts.Row(entry, BoardReadouts.All with { Intelligence = false })!;
         Assert.Empty(off.Spoken);
-        Assert.Single(off.TooltipLines);
+        Assert.Empty(off.TooltipLines);
+        Assert.Empty(texts.Row(entry, BoardReadouts.None with { Cost = true })!.TooltipLines);
     }
 
-    [Fact]
-    public void AnExcludedGroupShowsTheTagAndNamesItsSource()
-    {
-        var texts = new BoardTexts(En, TitleTheme.Vehicles);
-        var root = Agent("r", 120) with { LiveCost = new LiveCost(6_000, 120) };
-        var group = BoardGrouping.Group([root], SpeedMetric.Output, SourceSet.Empty)[0];
-        Assert.True(group.Cost.Excluded);
-        var row = texts.Row(new BoardEntry(BoardEntryKind.Group, "r", group, root, 1, 0, 38), BoardReadouts.All, 120)!;
-        Assert.Contains(En.Format("boards.tooltip.subscription", "Claude Code"), row.TooltipLines);
-    }
+    // Lines that would carry a cost: the 費用 label or the cost words, the subscription tag, a currency unit.
+    private static IEnumerable<string> CostLines(IEnumerable<string> lines) =>
+        lines.Where(l => l.Contains(En["cost.glyph"], StringComparison.Ordinal) || l.Contains(En["cost.unknown"], StringComparison.Ordinal) ||
+            l.Contains(En["cost.partial"], StringComparison.Ordinal) || l.Contains(En["cost.subscription.tag"], StringComparison.Ordinal) ||
+            (l.Contains("/s", StringComparison.Ordinal) && !l.Contains("tok/s", StringComparison.Ordinal)));
 
     [Fact]
     public void ABoardWhoseSourcesAreAllSubscriptionsShowsTheTag()
@@ -344,15 +335,37 @@ public class BoardLiveMetricsTests
         var board = new BoardDefinition("b");
         var feed = new BoardLiveFeed(board);
         feed.Configure(board, SpeedMetric.Output, 2000, 0);
-        var agent = Agent("a", 300) with { LiveCost = new LiveCost(9_000, 300) };
+        var agent = Agent("a", 300);
         var tick = feed.Update(BoardLiveFeedTests.Snapshot(0, agent), 0, texts);
         Assert.Equal(En["cost.subscription.tag"], tick.CostText);
         Assert.Equal(BoardMoneyState.Tag, tick.Gauge.Cost.State);
-        Assert.Contains(En.Format("boards.tooltip.subscription", "Claude Code"), tick.Entries.First(e => e.Kind == BoardEntryKind.Group).Readout!.TooltipLines);
+        // The tag is the hero's alone: the group's tooltip names no cost and no subscription.
+        Assert.Empty(CostLines(tick.Entries.First(e => e.Kind == BoardEntryKind.Group).Readout!.TooltipLines));
 
         // Including subscriptions counts them again.
         display.Settings = display.Settings with { IncludeSubscriptions = true };
         Assert.Equal("$12.34", feed.Update(BoardLiveFeedTests.Snapshot(1, agent), 1, texts).CostText);
+    }
+
+    // The demo's hero after 40 ticks of the team story, as board-metrics.html?scenario=team&steps=40 shows it; its 費用 comes
+    // from the sim's agents, the engine keeping no cost per agent.
+    [Fact]
+    public void TheDemoHeroShowsThePrototypesNumbers()
+    {
+        var feed = new BoardDemoFeed(BoardSimScenario.Team) { Localizer = Zh, Readouts = BoardReadouts.All };
+        BoardTick tick = null!;
+        for (var i = 0; i < 40; i++)
+        {
+            tick = feed.Step(BoardStyle.Glass, BoardSize.M);
+        }
+
+        Assert.Equal("707", tick.ValueText);
+        Assert.Equal(("123", "174"), (tick.Gauge.Intelligence, tick.Gauge.Thinking));
+        Assert.Equal(("0.024", BoardMoneyState.Value), (tick.Gauge.Cost.Number, tick.Gauge.Cost.State));
+        Assert.All(tick.Entries.Where(e => e.Kind == BoardEntryKind.Group), e => Assert.Empty(CostLines(e.Readout!.TooltipLines)));
+
+        var subscriptions = new BoardDemoFeed(BoardSimScenario.Team) { Localizer = Zh, Readouts = BoardReadouts.All, Billable = SourceSet.Empty };
+        Assert.Equal(BoardMoneyState.Tag, subscriptions.Step(BoardStyle.Glass, BoardSize.M).Gauge.Cost.State);
     }
 
     // Rows kept with the readouts on (the team story as the prototype shows it: five groups).

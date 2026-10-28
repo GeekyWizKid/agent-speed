@@ -63,14 +63,10 @@ struct BoardMoneyFormat {
     func money(_ reading: CostReading) -> BoardMoney {
         money(reading.microUsdPerSecond, state: reading.state)
     }
-
-    func money(_ group: AgentGroupSums) -> BoardMoney {
-        money(group.cost.microUsdPerSecond, state: group.costState)
-    }
 }
 
-/// The live metrics of one tick (DESIGN 2c Live metrics): the switches and the hero's values, formatted, and each
-/// group's cost for its tooltip. The rows' 智力 comes from the groups themselves.
+/// The live metrics of one tick (DESIGN 2c Live metrics): the switches and the hero's values, formatted. The rows'
+/// 智力 comes from the groups themselves; nothing on a board shows a cost per group.
 struct BoardMetricsTick: Equatable {
     var readouts = BoardReadouts.none
     /// 智力 as shown, rounded half away from zero; nil while there is no value (`–`).
@@ -82,8 +78,6 @@ struct BoardMetricsTick: Equatable {
     var cost = BoardMoney.zero
     /// The display currency's `cost.unitPerSecond` (the table measures its unit cell with it, whatever 費用 shows).
     var costUnit = ""
-    /// Each group's cost per second for its tooltip, by group id; empty while 費用 is off.
-    var groupCosts: [String: BoardMoney] = [:]
 
     /// Σ w = 0 over the board's sources: 智力 and 思考 read `–`.
     var quiet: Bool { intelligence == nil }
@@ -92,11 +86,10 @@ struct BoardMetricsTick: Equatable {
 
     /// Formats the hero's values from the board's sums and cost reading.
     static func make(readouts: BoardReadouts, intelligence sums: IntelligenceSums, cost: BoardMoney, costUnit: String,
-                     groupCosts: [String: BoardMoney], thinkingHidden: Bool) -> BoardMetricsTick {
+                     thinkingHidden: Bool) -> BoardMetricsTick {
         let shown = sums.shownIndex
         return BoardMetricsTick(readouts: readouts, intelligence: shown,
                                 thinking: shown == nil ? "–" : SpeedFormat.speed(sums.thinking),
-                                thinkingHidden: thinkingHidden && readouts.thinkingMayHide, cost: cost, costUnit: costUnit,
-                                groupCosts: groupCosts)
+                                thinkingHidden: thinkingHidden && readouts.thinkingMayHide, cost: cost, costUnit: costUnit)
     }
 }

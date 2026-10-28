@@ -5472,18 +5472,6 @@
     "en": "GAP",
     "ja": "差"
   },
-  "boards.tooltip.cost": {
-    "zh-Hant": "費用 %@（API 等值）",
-    "zh-Hans": "费用 %@（API 等值）",
-    "en": "Cost %@ (API-equivalent)",
-    "ja": "費用 %@（API 換算）"
-  },
-  "boards.tooltip.subscription": {
-    "zh-Hant": "%@ 標記為訂閱，不計入費用",
-    "zh-Hans": "%@ 已标记为订阅，不计入费用",
-    "en": "%@ is marked as a subscription and not counted",
-    "ja": "%@ はサブスクリプションとして除外されています"
-  },
   "a11y.board.thinking": {
     "zh-Hant": "思考每秒 %@ 個 token",
     "zh-Hans": "思考每秒 %@ 个 token",

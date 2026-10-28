@@ -195,8 +195,7 @@ final class BoardPresenter {
             return
         }
         tooltipGroup = id
-        let lines = BoardTooltip.lines(group, metric: tick.metric, l10n: model.l10n, readouts: tick.metrics.readouts,
-                                       money: tick.metrics.groupCosts[id])
+        let lines = BoardTooltip.lines(group, metric: tick.metric, l10n: model.l10n, readouts: tick.metrics.readouts)
         let board = window.panel.frame
         let screen = (window.panel.screen ?? NSScreen.main)?.visibleFrame ?? board
         let caption = BoardTooltip.caption(readouts: tick.metrics.readouts, l10n: model.l10n)

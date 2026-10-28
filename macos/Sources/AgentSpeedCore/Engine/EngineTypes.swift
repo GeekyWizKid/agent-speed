@@ -96,8 +96,6 @@ struct EngineAgentStatus: Equatable, Sendable {
     var recentSpeed: Double?
     /// The parent's id when the parent is listed too; nil for a root.
     var parentId: String?
-    /// The agent's live cost rate (METRICS 9.5).
-    var liveCost: LiveCost = .zero
     /// Its current model and effort's grade (METRICS 6.9); nil without a model.
     var grade: IntelligenceGrade?
     /// Its own live intelligence sums (METRICS 6.9, Agent intelligence).

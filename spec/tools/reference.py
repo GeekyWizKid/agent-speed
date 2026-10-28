@@ -2982,20 +2982,14 @@ def cost_rate(refs):
     return sum(r["costMicroUsd"] for r in known) / secs if known and secs > 0 else None
 
 
-def live_cost(responses, agents, now, only=None):
-    """(live cost in micro-USD per second, share of live output tokens whose cost is known) - METRICS 9.5.
-
-    `only` restricts the contributions to those agents (9.5 per agent and per group); reference sets and cost rates
-    stay those of every given response, so the agents' values add up to the unrestricted one."""
+def live_cost(responses, agents, now):
+    """(live cost in micro-USD per second, share of live output tokens whose cost is known) - METRICS 9.5."""
     w0 = now - WINDOW_MS
     valid = [r for r in responses if interval(r) is not None and is_final(r)]
     unmeasured = [r for r in responses if interval(r) is not None and not is_final(r)]
     by_id = {a["id"]: a for a in agents}
-    counts = (lambda agent_id: True) if only is None else (lambda agent_id: agent_id in only)
     cost = known_tokens = all_tokens = 0.0
     for r in valid:
-        if not counts(r["agentId"]):
-            continue
         s, e = interval(r)
         frac = overlap(w0, now, s, e) / (e - s)
         all_tokens += r["output"] * frac
@@ -3004,15 +2998,13 @@ def live_cost(responses, agents, now, only=None):
             known_tokens += r["output"] * frac
     estimates = []
     for r in unmeasured:
-        if not counts(r["agentId"]):
-            continue
         agent = by_id.get(r["agentId"], {"id": r["agentId"], "model": r.get("model"), "source": r["source"]})
         s, e = interval(r)
         estimates.append((agent, overlap(w0, now, s, e) / 1000))
     for a in agents:
         if a["phase"] != "generating" or a.get("inFlightStartMs") is None or a.get("lastLineMs") is None:
             continue
-        if now - a["lastLineMs"] > 300_000 or not counts(a["id"]):
+        if now - a["lastLineMs"] > 300_000:
             continue
         start = max([a["inFlightStartMs"]] + [r["endMs"] for r in responses if r["agentId"] == a["id"]])
         estimates.append((a, overlap(w0, now, start, now) / 1000))
@@ -3217,12 +3209,6 @@ def check_fixtures():
                     if abs(val - q[name]) > 1e-6:
                         failures.append("%s @%d: %s expected %r got %r" % (case["name"], q["nowMs"], name, q[name],
                                                                            val))
-            for grp in q.get("groups", []):
-                cost, share = live_cost(case["responses"], case["agents"], q["nowMs"], set(grp["agents"]))
-                for name, val in (("liveCost", cost), ("liveCostKnownShare", share)):
-                    if abs(val - grp[name]) > 1e-6:
-                        failures.append("%s @%d %s: %s expected %r got %r" % (case["name"], q["nowMs"], grp["agents"],
-                                                                              name, grp[name], val))
             if "todayCostMicroUsd" in q:
                 st = today_stats(case["responses"], case.get("todayStartMs", 0), q["nowMs"])
                 for name, val in (("todayCostMicroUsd", st["cost"]), ("todayUnpricedRequests", st["unpriced"])):

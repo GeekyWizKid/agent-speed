@@ -7,7 +7,6 @@ using AgentSpeed.Presentation.Formatting;
 using AgentSpeed.Presentation.Heat;
 using AgentSpeed.Presentation.History;
 using AgentSpeed.Presentation.Localization;
-using AgentSpeed.Presentation.Settings.Orbs;
 using AgentSpeed.Presentation.Titles;
 
 namespace AgentSpeed.Presentation.Boards.Live;
@@ -72,10 +71,10 @@ public sealed class BoardTexts
     }
 
     /// <summary>
-    /// A row's 智力 cell, with the tooltip lines of a group row for the switched-on readouts (DESIGN 2c, Ranking rows and Tooltip):
-    /// a live group's cost per second shows only there, while 費用 is on.
+    /// A row's 智力 cell, with the tooltip lines of a group row while 智力 is on (DESIGN 2c, Ranking rows and Tooltip). Neither
+    /// names a cost: 費用 is the board's only live cost.
     /// </summary>
-    public BoardRowReadout? Row(BoardEntry entry, BoardReadouts readouts, double live)
+    public BoardRowReadout? Row(BoardEntry entry, BoardReadouts readouts)
     {
         ArgumentNullException.ThrowIfNull(entry);
         if (entry.Kind is not (BoardEntryKind.Group or BoardEntryKind.Sub))
@@ -110,28 +109,6 @@ public sealed class BoardTexts
             }
         }
 
-        if (group && readouts.Cost && live > 0.05)
-        {
-            var money = GroupMoney(entry.Group.Cost);
-            switch (money.State)
-            {
-                case BoardMoneyState.Tag:
-                    lines.Add(Localizer.Format("boards.tooltip.subscription", OrbNaming.SourceName(entry.Group.Root.Source, Localizer)));
-                    break;
-                case BoardMoneyState.Unknown:
-                    lines.Add(Localizer["cost.unknown"]);
-                    break;
-                default:
-                    lines.Add(Localizer.Format("boards.tooltip.cost", (money.AtLeast ? CostDisplay.AtLeastSign : string.Empty) + money.Number + " " + money.Unit));
-                    if (money.AtLeast)
-                    {
-                        lines.Add(Localizer["cost.partial"]);
-                    }
-
-                    break;
-            }
-        }
-
         if (group && readouts.Intelligence)
         {
             lines.Add(Localizer["intel.disclaimer"]);
@@ -139,13 +116,6 @@ public sealed class BoardTexts
 
         return new BoardRowReadout(text, intelligence.Form, spoken, lines);
     }
-
-    private BoardMoney GroupMoney(GroupCost cost) => cost.State switch
-    {
-        CostState.SubscriptionOnly => Tag(),
-        CostState.NothingPriced => Unknown(),
-        _ => Money(cost.MicroUsdPerSecond, cost.State == CostState.Partial),
-    };
 
     private BoardMoney Money(double microUsdPerSecond, bool partial)
     {

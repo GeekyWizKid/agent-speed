@@ -134,11 +134,10 @@ struct BoardGeometryTests {
     }
 }
 
-/// METRICS 6.9 *Group intelligence* and 9.5 *Per group* as the board's grouping fills them.
+/// METRICS 6.9 *Group intelligence* as the board's grouping fills it.
 @Suite("Board group sums")
 struct BoardGroupSumsTests {
-    static func agent(_ id: String, parent: String? = nil, source: SourceKind = .claudeCode, output: Double, grade: Int?,
-                      cost: Double = 0, known: Double? = nil) -> AgentStatus {
+    static func agent(_ id: String, parent: String? = nil, source: SourceKind = .claudeCode, output: Double, grade: Int?) -> AgentStatus {
         var sums = IntelligenceSums()
         sums.output = output
         sums.gradedOutput = output * Double(grade ?? 80)
@@ -147,18 +146,15 @@ struct BoardGroupSumsTests {
         return AgentStatus(id: id, source: source, project: id, model: grade == nil ? nil : "m", phase: output > 0 ? .generating : .idle,
                            isSubagent: parent != nil, live: Rate(output: output, total: output), recentSpeed: nil,
                            lastActivity: Date(), parentId: parent,
-                           liveCost: LiveCost(microUsdPerSecond: cost, knownOutput: known ?? output),
                            grade: grade.map { IntelligenceGrade(modelClass: .standard, level: ($0 - 80) / 6) }, intelligence: sums)
     }
 
     @Test func membersWeighByTheirTokens() throws {
-        let agents = [Self.agent("r", output: 30, grade: 98, cost: 600), Self.agent("s", parent: "r", output: 10, grade: 80, cost: 0, known: 0)]
+        let agents = [Self.agent("r", output: 30, grade: 98), Self.agent("s", parent: "r", output: 10, grade: 80)]
         let group = try #require(BoardGrouping.groups(agents, metric: .output).first)
         #expect(group.sums.intelligence.output == 40)
         // (30 × 98 + 10 × 80) / 40 + 20 × 0.25.
         #expect(group.intelligence == .live(93.5 + 5))
-        #expect(group.sums.cost.microUsdPerSecond == 600 && group.sums.costOutput == 40)
-        #expect(group.sums.costKnownShare == 0.75 && group.sums.costState == .partial)
     }
 
     @Test func atRestTheGroupShowsItsRootsGradeOrNone() throws {
@@ -166,17 +162,6 @@ struct BoardGroupSumsTests {
         #expect(try #require(BoardGrouping.groups(resting, metric: .output).first).intelligence == .resting(IntelligenceGrade(modelClass: .standard, level: 2)))
         let unknownRoot = [Self.agent("r", output: 0, grade: nil), Self.agent("s", parent: "r", output: 0, grade: 110)]
         #expect(try #require(BoardGrouping.groups(unknownRoot, metric: .output).first).intelligence == .none)
-    }
-
-    @Test func excludedMembersAddNoCost() throws {
-        let agents = [Self.agent("r", source: .codex, output: 20, grade: 92, cost: 300), Self.agent("x", source: .claudeCode, output: 5, grade: 92, cost: 100)]
-        let groups = BoardGrouping.groups(agents, metric: .output, billable: SourceSet(.claudeCode))
-        let codex = try #require(groups.first { $0.id == "r" })
-        #expect(codex.sums.costState == .subscriptionOnly && codex.sums.cost == .zero && codex.sums.intelligence.output == 20)
-        let claude = try #require(groups.first { $0.id == "x" })
-        #expect(claude.sums.costState == .priced && claude.sums.cost.microUsdPerSecond == 100)
-        let unpriced = [Self.agent("u", output: 5, grade: 92, cost: 0, known: 0)]
-        #expect(BoardGrouping.groups(unpriced, metric: .output).first?.sums.costState == .nothingPriced)
     }
 
     /// The groups of `spec/fixtures/intelligence-cases.json` `groupWindows`: a root and all its descendants.

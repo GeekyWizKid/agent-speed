@@ -82,8 +82,6 @@ enum StringTable {
         "boards.subCount": Entry("%d 個子 agent", "%d 个子 agent", "%d sub-agents", "サブ agent %d 個"),
         "boards.title": Entry("排行看板", "排行看板", "Leaderboard", "ランキングボード"),
         "boards.today": Entry("今日 %@", "今日 %@", "Today %@", "今日 %@"),
-        "boards.tooltip.cost": Entry("費用 %@（API 等值）", "费用 %@（API 等值）", "Cost %@ (API-equivalent)", "費用 %@（API 換算）"),
-        "boards.tooltip.subscription": Entry("%@ 標記為訂閱，不計入費用", "%@ 已标记为订阅，不计入费用", "%@ is marked as a subscription and not counted", "%@ はサブスクリプションとして除外されています"),
         "chart.estimated": Entry("估算中", "估算中", "Estimating", "推定中"),
         "cost.apiEquivalent": Entry("API 等值", "API 等值", "API-equivalent", "API 換算"),
         "cost.apiEquivalent.hint": Entry("以各模型官方 API 牌價乘上 token 數估算，不是你的實際帳單；訂閱方案、免費額度與折扣都不計入。", "按各模型官方 API 标价乘以 token 数估算，并非你的实际账单；订阅方案、免费额度和折扣均不计入。", "Estimated from each model's official API list prices × tokens. It is not your actual bill: subscriptions, free tiers and discounts are not included.", "各モデルの公式 API 定価 × トークン数で見積もった金額で、実際の請求額ではありません。サブスクリプション、無料枠、割引は含みません。"),

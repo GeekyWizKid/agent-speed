@@ -596,11 +596,11 @@
       const r = g.root, e = r.effort, cls = S.classOf(r.model);
       const klass = cls === 100 ? "旗艦" : cls === 80 ? "標準" : "輕量";
       const rate = F.rate(g.costRate, g.costKnownShare, o.currency, o.lang);
-      // DESIGN 2c Live metrics, Tooltip: the intelligence lines follow 智力, the cost lines 費用.
+      // DESIGN 2c Live metrics, Tooltip: the intelligence lines follow 智力; B names no cost (only C's cost rows do).
       const iq = !on("intel") ? "" : (g.intelligence === null ? ""
         : `<br>智力 ${Math.round(plain(g.intelligence, g.thinkingShare))} · 思考 ${o.noReasoning ? "–" : Math.round(g.thinkingShare * 100) + "%"}`) +
         (r.grade !== null && r.grade !== undefined ? `<br>等級 ${r.grade} · ${klass}` : "");
-      const cost = !on("cost") || !(g.live > 0.05) ? "" : o.subscriptionOnly ? `<br>${r.sourceName} 標記為訂閱，不計入費用`
+      const cost = !rowCost || !(g.live > 0.05) ? "" : o.subscriptionOnly ? `<br>${r.sourceName} 標記為訂閱，不計入費用`
         : `<br>費用 ${rate.unknown ? "價格未知" : (rate.partial ? "≥" : "") + rate.number + " " + rate.unit}（API 等值）` + (rate.partial ? "<br>部分模型價格未知，未計入" : "");
       return `<b>${r.project}</b> · ${r.sourceName}<br>${r.model}<br>推理強度：${e ? e.value : "未記錄"}` +
         `<br>速度 <b>${S.formatSpeed(g.live)}</b> tok/s${iq}${cost}` + (on("intel") ? `<span class="cap-note">估算指數，不是測驗分數</span>` : "");

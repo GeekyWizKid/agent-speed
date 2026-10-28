@@ -153,9 +153,9 @@ enum BoardSimTick {
 
     static func make(_ snapshot: BoardSimulation.Snapshot, style: BoardStyle, size: BoardSize, redline: Double, previousPeak: Double?,
                      l10n: Localizer, metrics: BoardSimFeed.Metrics = .init(), fold: inout BoardThinkingFold) -> BoardTick {
-        let agents = snapshot.groups.flatMap { [$0.root] + $0.subs }.map(status)
-        let billable: SourceSet = metrics.subscriptions ? SourceSet(rawValue: 0) : .everything
-        let grouped = Dictionary(uniqueKeysWithValues: BoardGrouping.groups(agents, metric: .output, billable: billable).map { ($0.id, $0) })
+        let simulated = snapshot.groups.flatMap { [$0.root] + $0.subs }
+        let agents = simulated.map(status)
+        let grouped = Dictionary(uniqueKeysWithValues: BoardGrouping.groups(agents, metric: .output).map { ($0.id, $0) })
         let groups = snapshot.groups.compactMap { grouped[$0.id] }
         let liveByID = Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0.live.output) })
         let geometry = BoardGeometry(style, size, readouts: metrics.readouts)
@@ -188,23 +188,25 @@ enum BoardSimTick {
         guard readouts.hero else { return tick }
         // The board's sums: every agent's, as the engine adds the per-source sums (METRICS 6.8, 6.9, 9.5).
         var sums = AgentGroupSums()
-        for agent in agents { sums.add(agent, billable: !metrics.subscriptions) }
+        for agent in agents { sums.add(agent) }
+        var cost = LiveCost.zero
+        var costOutput = 0.0
+        for agent in simulated where !metrics.subscriptions {
+            cost.add(LiveCost(microUsdPerSecond: agent.costRate, knownOutput: agent.priced ? agent.live : 0))
+            costOutput += agent.live
+        }
         let state: CostReading.State = metrics.subscriptions ? .subscriptionOnly
-            : sums.costOutput > 0 && sums.cost.knownOutput <= 0 ? .nothingPriced
-            : sums.costKnownShare < CostReading.partialThreshold && sums.cost.microUsdPerSecond > 0 ? .partial : .priced
+            : costOutput > 0 && cost.knownOutput <= 0 ? .nothingPriced
+            : cost.knownShare(liveOutput: costOutput) < CostReading.partialThreshold && cost.microUsdPerSecond > 0 ? .partial : .priced
         if readouts.cost, metrics.subscriptions {
             tick.costText = format.tag
             tick.costIsTag = true
         }
-        var groupCosts: [String: BoardMoney] = [:]
-        if readouts.cost {
-            for group in groups { groupCosts[group.id] = format.money(group.sums) }
-        }
         fold.update(eligible: readouts.thinkingMayHide, quiet: sums.intelligence.shownIndex == nil,
                     shown: SpeedFormat.speed(sums.intelligence.thinking), at: snapshot.time)
         tick.metrics = .make(readouts: readouts, intelligence: sums.intelligence,
-                             cost: format.money(sums.cost.microUsdPerSecond, state: state), costUnit: format.unit,
-                             groupCosts: groupCosts, thinkingHidden: fold.hidden)
+                             cost: format.money(cost.microUsdPerSecond, state: state), costUnit: format.unit,
+                             thinkingHidden: fold.hidden)
         return tick
     }
 
@@ -219,7 +221,7 @@ enum BoardSimTick {
         case .tools: .tools
         case .idle: .idle
         }
-        // sim.js `aggregate`: the agent's own METRICS 6.9 sums and its cost rate, as the engine's per-agent values.
+        // sim.js `aggregate`: the agent's own METRICS 6.9 sums, as the engine's per-agent values.
         var intelligence = IntelligenceSums()
         intelligence.output = agent.live
         intelligence.gradedOutput = agent.live * Double(agent.grade.value)
@@ -231,8 +233,6 @@ enum BoardSimTick {
                            project: agent.parentID == nil ? agent.project : agent.label, model: agent.model, phase: phase,
                            isSubagent: agent.parentID != nil, live: Rate(output: agent.live, total: agent.live * 1.6),
                            recentSpeed: nil, lastActivity: Date(timeIntervalSince1970: 1_800_000_000 + agent.lastActive),
-                           parentId: agent.parentID,
-                           liveCost: LiveCost(microUsdPerSecond: agent.costRate, knownOutput: agent.priced ? agent.live : 0),
-                           modes: ExecutionModes(facts), grade: agent.grade, intelligence: intelligence)
+                           parentId: agent.parentID, modes: ExecutionModes(facts), grade: agent.grade, intelligence: intelligence)
     }
 }

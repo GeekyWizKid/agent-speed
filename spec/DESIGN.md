@@ -1349,11 +1349,12 @@ Sub rows sort by live value, latest activity, id; they emit nothing. Shared case
 
 User's choice (2026-10-28): layout **B, 副錶**, in every style. The right side of the hero becomes a small
 sub-gauge — the board's live intelligence large, its thinking rate and its cost per second smaller beneath it — every
-ranking row gets an intelligence column, and at M and L each group row gets a second line with its model. The rows
-carry no cost of their own (user's choice, 2026-10-28: the board does not need a live cost per agent; the earlier
-`rowCost` switch and the cost on the second line are retired). Reference: `spec/prototypes/board/board-metrics.html`,
-which opens on B with every switch on (its options A and C are the alternatives that were not chosen); where it and
-this section differ, this section wins. Numbers are
+ranking row gets an intelligence column, and at M and L each group row gets a second line with its model. 費用 is
+the board's only live cost: no row, sub row or tooltip carries a cost of its own (user's choice, 2026-10-28: the board
+does not need a live cost per agent; the earlier `rowCost` switch, the cost on the second line and the tooltip's cost
+lines are retired). Reference: `spec/prototypes/board/board-metrics.html`, which opens on B with every switch on (its
+options A and C are the alternatives that were not chosen); where it and this section differ, this section wins.
+Numbers are
 pt (DIP on Windows) on boards of side S 280, M 340, L 420, from the board's top-left corner unless a row says
 otherwise; baselines are rounded to 0.5 pt from the macOS fonts of the prototype.
 
@@ -1367,8 +1368,7 @@ otherwise; baselines are rounded to 0.5 pt from the macOS fonts of the prototype
 | row 智力 | group row: METRICS 6.9 *Group intelligence*; sub row: the sub-agent's *Agent intelligence* | live, resting or none, as section 4's column | caption `intel.glyph` |
 
 - Every cost on a board follows `settings.cost.includeSubscriptions`, like every other displayed cost (METRICS 9.4):
-  with it off (the default) a source marked as a subscription adds nothing to 費用, to a group's cost in its tooltip
-  or to the footer's today cost.
+  with it off (the default) a source marked as a subscription adds nothing to 費用 or to the footer's today cost.
 - `≥` precedes a cost whose known share is below 0.995 and which is not 0 (section 9), at 0.85 × the number's size in
   `ink-3` — the orb's 60 % is meant for its large value and would fall under 7 pt here. Nothing priced (output > 0,
   known share 0) → `–`. A free or local model is a real `0`.
@@ -1574,7 +1574,7 @@ The second line — every group row at M and L, whatever the switches:
   baseline 31 under the top (glass 32): the detail (model · `boards.subCount`) alone, starting under the name and
   running to the value column's right edge (under the capsule, 智力 and value columns, which line 2 leaves empty),
   truncating at its tail. Timing's position block (26 tall) and stripe (24) span both lines.
-- Nothing else is drawn on line 2: no cost, whatever the readouts (the group's cost per second is in its tooltip).
+- Nothing else is drawn on line 2: rows show no cost, whatever the readouts.
 - S never draws the second line: rows stay one line.
 
 **Rows kept** with the readouts on, by the existing rule (groups first while they fit, sub rows only in the room
@@ -1587,10 +1587,8 @@ left; the `team` scenario of `sim.js`, as the prototype shows it):
 **Tooltip** (a group row, after its existing lines): while `intelligence` is on, `intel.tooltip` with the group's live
 index and thinking share (whole percent, rounded half away from zero; `–` instead when no member's source records
 reasoning apart from output, METRICS 4.3) while the group is live, and `intel.grade` with the root's grade and class
-when the root has one; while `cost` is on and the group is live, `boards.tooltip.cost` with the group's rate
-(METRICS 9.5 *Per group*, in the 費用 form) and its unit (`費用 0.012 US$/s（API 等值）`), then `cost.partial` when part
-is unpriced, or `cost.unknown` in place of the rate when nothing is priced, or only `boards.tooltip.subscription` with
-the source's name when the group is excluded; last, while `intelligence` is on, the caption `intel.disclaimer`.
+when the root has one; last, while `intelligence` is on, the caption `intel.disclaimer`. The tooltip names no cost,
+whatever the switches.
 
 **Accessibility.**
 
@@ -1684,7 +1682,7 @@ memory the board owns (layer textures, swap chain or drawable surfaces, instance
   lines), group speed and its sub-agents' share, today's output of the group, then the live metrics lines (*Live
   metrics*, Tooltip). Hover lifts the row tint only.
 - Context menu: header (style name and the board's sources); `boards.style` ▸ the three styles; `orbs.sources` ▸ as
-  an orb's; `boards.readouts` ▸ the four live metrics switches (*Live metrics*); `menu.size` ▸ S / M / L; `menu.effects` ▸ (global); `menu.alwaysOnTop`, `menu.clickThrough`;
+  an orb's; `boards.readouts` ▸ the three live metrics switches (*Live metrics*); `menu.size` ▸ S / M / L; `menu.effects` ▸ (global); `menu.alwaysOnTop`, `menu.clickThrough`;
   `boards.add`, `boards.remove` (asks `boards.remove.confirm`); `menu.dashboard`; `boards.settings` (Settings →
   懸浮窗, Boards).
 - Settings → 懸浮窗 gains a Boards list under the orbs: one row per board (style preview thumbnail, style name,
@@ -2722,8 +2720,8 @@ The unit is `cost.unitPerSecond` (`%@/s` with the symbol: `US$/s`, `¥/s`). Wher
   amounts with colour dots and thin share bars (sorted by cost), `cost.unpriced` when today has unpriced responses,
   `cost.subscriptionExcluded` listing excluded sources, and the rate line (`rates.status`) for a non-USD currency.
 - **Metric info** (ⓘ in the footer): `cost.info` is appended as a second paragraph.
-- **Boards**: 費用 in the sub-gauge, a group's cost per second in its tooltip and the footer's today cost (section 2c,
-  *Live metrics*); the rows show no cost.
+- **Boards**: 費用 in the sub-gauge and the footer's today cost (section 2c, *Live metrics*); no cost per row, group
+  or agent.
 
 ### Usage history
 

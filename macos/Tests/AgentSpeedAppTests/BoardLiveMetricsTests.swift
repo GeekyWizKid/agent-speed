@@ -39,7 +39,6 @@ struct BoardLiveMetricsTests {
         #expect(tick.costText == "US$42.71")
         let first = tick.groups[0]
         #expect(first.root.project == "opencdn" && first.intelligence.shown == 135)
-        #expect(tick.metrics.groupCosts[first.id]?.number == "0.0056")
         #expect(tick.groups.map { SpeedFormat.speed($0.live) } == ["177", "197", "168", "139", "25"])
     }
 
@@ -132,7 +131,7 @@ struct BoardLiveMetricsTests {
 
     @Test func everySwitchOffIsTheBoardBefore() {
         let off = Self.feed(.glass, .medium, readouts: .none)
-        #expect(off.tick.metrics == BoardMetricsTick() && off.tick.metrics.groupCosts.isEmpty)
+        #expect(off.tick.metrics == BoardMetricsTick())
         #expect(Self.item(off.layout, "hero.spark") != nil && Self.item(off.layout, "hero.strip") == nil)
         #expect(Self.keys(off.layout, prefix: "gauge.").isEmpty && Self.item(off.layout, "rule") != nil)
     }
@@ -140,24 +139,28 @@ struct BoardLiveMetricsTests {
     @Test func subscriptionsShowTheTag() {
         let feed = Self.feed(.glass, .medium, subscriptions: true)
         #expect(feed.tick.metrics.cost.state == .tag && feed.tick.costIsTag && feed.tick.costText == "訂閱")
-        #expect(feed.tick.metrics.groupCosts.values.allSatisfy { $0.state == .tag })
+        // Only the hero says so: a group's tooltip names neither a cost nor the subscription.
+        #expect(feed.tick.groups.allSatisfy { group in
+            BoardTooltip.lines(group, metric: .output, l10n: Self.l10n, readouts: .all).allSatisfy { !$0.contains("訂閱") && !$0.contains("費用") }
+        })
     }
 
     @Test func tooltipAndAccessibilityWords() {
         let tick = Self.feed(.glass, .medium).tick
         let group = tick.groups[0]
-        let lines = BoardTooltip.metricLines(group, l10n: Self.l10n, readouts: .all, money: tick.metrics.groupCosts[group.id])
+        let lines = BoardTooltip.metricLines(group, l10n: Self.l10n, readouts: .all)
         #expect(lines.first?.hasPrefix("智力 135 · 思考 ") == true)
-        #expect(lines.contains("等級 130 · 旗艦"))
-        #expect(lines.last == "費用 0.0056 US$/s（API 等值）")
+        #expect(lines.last == "等級 130 · 旗艦")
         #expect(BoardTooltip.caption(readouts: .all, l10n: Self.l10n) == "估算指數，不是測驗分數")
         let words = BoardAccessibilityReporter.metricWords(tick.metrics, currency: "美元", l10n: Self.l10n)
         #expect(words == ["智力 123，思考每秒 174 個 token", "費用每秒 0.024 美元（API 等值）"])
-        // The tooltip's cost follows 費用: off, no cost line, and the feed keeps no group costs.
-        let noCost = Self.feed(.glass, .medium, readouts: BoardReadouts(intelligence: true, thinking: true, cost: false)).tick
-        #expect(noCost.metrics.groupCosts.isEmpty)
-        #expect(!BoardTooltip.metricLines(noCost.groups[0], l10n: Self.l10n, readouts: noCost.metrics.readouts, money: nil)
-            .contains { $0.hasPrefix("費用") })
+        // No tooltip names a cost, whatever the switches (費用 is the board's only live cost).
+        for readouts in [BoardReadouts.all, BoardReadouts(intelligence: false, thinking: false, cost: true)] {
+            for group in Self.feed(.glass, .medium, readouts: readouts).tick.groups {
+                let all = BoardTooltip.lines(group, metric: .output, l10n: Self.l10n, readouts: readouts)
+                #expect(!all.contains { $0.contains("費用") || $0.contains("US$") }, "\(readouts) \(group.id)")
+            }
+        }
         // Rows name no cost.
         let row = BoardAccessibilityReporter.rowLabel(group, rank: 1, l10n: Self.l10n, intelligence: true)
         #expect(row.hasPrefix("第 1 名，opencdn，每秒 177 個 token，智力 135，") && !row.contains("費用") && !row.contains("美元"))

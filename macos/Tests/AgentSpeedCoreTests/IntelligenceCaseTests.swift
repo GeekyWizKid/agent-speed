@@ -144,7 +144,7 @@ struct IntelligenceCaseTests {
                 let members = try #require(expected["members"] as? [String])
                 var sums = AgentGroupSums()
                 for id in members {
-                    sums.add(try #require(snapshot.agents.first { $0.id == id }, "\(label) \(id) listed"), billable: true)
+                    sums.add(try #require(snapshot.agents.first { $0.id == id }, "\(label) \(id) listed"))
                 }
                 added.add(sums.intelligence)
                 let rootGrade = try #require(snapshot.agents.first { $0.id == root }).grade

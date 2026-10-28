@@ -167,36 +167,6 @@ public sealed class EngineCaseTests
                 }
             }
 
-            if (query.TryGetProperty("groups", out var groups))
-            {
-                var byId = frame.Agents.ToDictionary(a => a.Info.Id, StringComparer.Ordinal);
-                var agentsCost = frame.Agents.Aggregate(LiveCost.Zero, (sum, a) => sum + a.LiveCost);
-                AssertClose(frame.LiveCost.MicroUsdPerSecond, agentsCost.MicroUsdPerSecond, at + " agents' live cost");
-                AssertClose(frame.LiveCost.KnownOutput, agentsCost.KnownOutput, at + " agents' known output");
-                foreach (var group in groups.EnumerateArray())
-                {
-                    var members = group.GetProperty("agents").EnumerateArray().Select(e => e.GetString()!).ToArray();
-                    var label = $"{at} group [{string.Join(", ", members)}]";
-                    var cost = GroupCost.None;
-                    foreach (var id in members)
-                    {
-                        var agent = byId[id];
-                        cost = cost.Add(agent.Info.Source, agent.LiveCost, agent.Live.Output, SourceSet.Everything);
-                    }
-
-                    AssertClose(group.GetProperty("liveCost").GetDouble(), cost.MicroUsdPerSecond, label + " liveCost");
-                    AssertClose(group.GetProperty("liveCostKnownShare").GetDouble(), cost.KnownShare, label + " liveCostKnownShare");
-                    Assert.False(cost.Excluded, label);
-
-                    // Subscriptions apply per member: an excluded source adds nothing and an all-excluded group has no cost.
-                    var none = members.Aggregate(GroupCost.None, (sum, id) =>
-                        sum.Add(byId[id].Info.Source, byId[id].LiveCost, byId[id].Live.Output, SourceSet.Empty));
-                    Assert.True(none.Excluded, label + " excluded");
-                    Assert.Equal(CostState.SubscriptionOnly, none.State);
-                    Assert.Equal(0, none.MicroUsdPerSecond);
-                }
-            }
-
             if (query.TryGetProperty("historyMeasuredOutput", out var history))
             {
                 Assert.Equal(SpeedEngine.HistorySeconds, frame.History.Count);

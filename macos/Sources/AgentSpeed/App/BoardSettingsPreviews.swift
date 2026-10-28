@@ -78,8 +78,7 @@ enum BoardSettingsPreviews {
                                                                     intelligence: config.readouts.intelligence) + "\n"
             }
             guard let group = tick.groups.first else { continue }
-            let lines = BoardTooltip.lines(group, metric: tick.metric, l10n: model.l10n, readouts: config.readouts,
-                                           money: tick.metrics.groupCosts[group.id])
+            let lines = BoardTooltip.lines(group, metric: tick.metric, l10n: model.l10n, readouts: config.readouts)
             let caption = BoardTooltip.caption(readouts: config.readouts, l10n: model.l10n)
             text += "  tooltip: " + (lines + [caption].compactMap { $0 }).joined(separator: " | ") + "\n"
             for dark in [false, true] {
