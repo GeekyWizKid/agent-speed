@@ -1,5 +1,4 @@
 import AgentSpeedCore
-import AppKit
 import SwiftUI
 
 @MainActor
@@ -24,9 +23,6 @@ enum ExecutionModePreviews {
                         AgentsSection(model: model, rowWidth: width).padding(20).frame(width: width + 40).appEnvironment(model),
                         dark: dark, to: directory.appendingPathComponent("modes-agents\(suffix)-\(name)-\(scheme).png"))
                 }
-                PreviewSnapshot.writeHosted(
-                    menuPreview(model: model, agents: snapshot.agents).appEnvironment(model),
-                    dark: dark, background: .clear, to: directory.appendingPathComponent("modes-menu-\(name)-\(scheme).png"))
                 for kind in [ExecutionModeKind.effort, .speed] {
                     storage.set(kind.rawValue, forKey: "historyModeKind")
                     PreviewSnapshot.writeHosted(
@@ -111,47 +107,4 @@ enum ExecutionModePreviews {
             ]
         )]
     }
-
-    /// The orb context menu's header with the capsule row, a mixed row and a following item, on the menu material.
-    private static func menuPreview(model: AppModel, agents: [AgentStatus]) -> some View {
-        let l10n = model.l10n
-        let rows: [(String, SharedEffortCapsule)] = [
-            (l10n(SourceKind.codex.titleKey), SharedEffortCapsule(agents: agents.filter { $0.source == .codex })),
-            (l10n(SourceKind.claudeCode.titleKey), SharedEffortCapsule(agents: agents.filter { $0.id.hasSuffix("nebula.jsonl") })),
-            (l10n("orbs.sources.all"), SharedEffortCapsule(agents: agents)),
-        ].compactMap { title, shared in shared.map { (title, $0) } }
-        return VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                let (title, shared) = row
-                Text(verbatim: title)
-                    .font(Font(NSFont.menuFont(ofSize: 0)))
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, EffortCapsuleMenuRow.leadingInset)
-                    .frame(height: 22)
-                EffortCapsuleMenuRow(shared: shared, l10n: l10n)
-                Divider().padding(.vertical, 5).padding(.horizontal, 10)
-                Text(l10n("orbs.style"))
-                    .font(Font(NSFont.menuFont(ofSize: 0)))
-                    .padding(.leading, EffortCapsuleMenuRow.leadingInset)
-                    .frame(height: 22)
-                Divider().padding(.vertical, 5).padding(.horizontal, 10)
-            }
-        }
-        .padding(.vertical, 5)
-        .frame(width: 240, alignment: .leading)
-        .background { VisualEffect().clipShape(RoundedRectangle(cornerRadius: 8)) }
-        .padding(16)
-    }
-}
-
-/// The menu material behind the context menu preview.
-private struct VisualEffect: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .menu
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }

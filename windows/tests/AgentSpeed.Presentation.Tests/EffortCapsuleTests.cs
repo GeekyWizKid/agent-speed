@@ -13,9 +13,6 @@ public sealed class EffortCapsuleTests
     /// <summary>Six DIP per character, so widths are easy to read.</summary>
     private static double Word(string word) => word.Length * 6;
 
-    private static AgentStatus Agent(AgentPhase phase, ExecutionModes modes) =>
-        new("a" + Guid.NewGuid(), SourceKind.Codex, "p", "gpt-5", phase, false, default, null, DateTimeOffset.UnixEpoch) { Modes = modes };
-
     private static ExecutionModes Modes(string? effort, string? tier = null) =>
         ExecutionModes.Of(ExecutionModeNative.Effort(effort, ExecutionModeEvidence.Recorded, ExecutionModeScope.Turn))
             .Merge(ExecutionModeNative.OpenAiTier(tier, ExecutionModeEvidence.Selected, ExecutionModeScope.Session));
@@ -115,19 +112,5 @@ public sealed class EffortCapsuleTests
         Assert.Equal("Reasoning effort: ultracode, Speed: Fast", capsule.AccessibilityText(En));
         var zh = new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
         Assert.Equal("推理強度：ultracode，加速：Fast", capsule.AccessibilityText(zh));
-    }
-
-    [Fact]
-    public void AGroupSharesTheGeneratingAgentsCapsuleOrReadsMixed()
-    {
-        var shared = SharedEffortCapsule.Of([Agent(AgentPhase.Generating, Modes("xhigh", "ultrafast")), Agent(AgentPhase.Idle, Modes("max"))]);
-        Assert.Equal(new EffortCapsule("xhigh", "ultrafast"), shared!.Capsule);
-        Assert.False(shared.Mixed);
-        Assert.True(SharedEffortCapsule.Of([Agent(AgentPhase.Idle, Modes("xhigh")), Agent(AgentPhase.Tools, Modes("max"))])!.Mixed);
-        Assert.Equal(new EffortCapsule("high", null),
-            SharedEffortCapsule.Of([Agent(AgentPhase.Idle, Modes("high")), Agent(AgentPhase.Idle, ExecutionModes.Empty)])!.Capsule);
-        Assert.Null(SharedEffortCapsule.Of([Agent(AgentPhase.Idle, ExecutionModes.Empty)]));
-        Assert.Null(SharedEffortCapsule.Of([Agent(AgentPhase.Generating, Modes(null, "default"))]));
-        Assert.Null(SharedEffortCapsule.Of([]));
     }
 }

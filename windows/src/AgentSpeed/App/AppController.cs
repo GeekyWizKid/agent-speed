@@ -1433,8 +1433,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         }
 
         var menu = kind == "menu-orb" && Settings.Orbs.Orbs.FirstOrDefault() is { } orb
-            ? OrbMenu.Build(this, orb.Id, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable, _speed.Snapshot.Agents,
-                CapsuleAppearance)
+            ? OrbMenu.Build(this, orb.Id, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable)
             : AppMenu.Build(this, Settings, _loc, _updates.Available, SourceAvailability.From(_speed.Snapshot.Sources), SourceTrafficAvailable,
                 ReportMenuState());
         if (menu is null)
@@ -1455,8 +1454,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         }
 
         HideTooltip();
-        if (OrbMenu.Build(this, orbId, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable, _speed.Snapshot.Agents,
-                CapsuleAppearance) is { } menu)
+        if (OrbMenu.Build(this, orbId, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable) is { } menu)
         {
             _menu.Show(menu);
         }

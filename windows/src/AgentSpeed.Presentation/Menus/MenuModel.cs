@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using AgentSpeed.Core;
-using AgentSpeed.Presentation.Modes;
 
 namespace AgentSpeed.Presentation.Menus;
 
@@ -90,12 +89,6 @@ public sealed record MenuRow(string Label) : MenuEntry
     public string? ToolTip { get; init; }
 
     public MenuLevel? Submenu { get; init; }
-
-    /// <summary>A disabled informational row whose label reads in secondary text (DESIGN 2b, item 1: <c>mode.mixed</c>).</summary>
-    public bool IsSecondary { get; init; }
-
-    /// <summary>An effort capsule drawn in place of the label, which stays the row's accessible name (DESIGN 2b, item 1).</summary>
-    public EffortCapsule? Capsule { get; init; }
 }
 
 /// <summary>

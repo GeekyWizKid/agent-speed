@@ -1,10 +1,7 @@
 using AgentSpeed.Core;
 using AgentSpeed.Presentation.History;
 using AgentSpeed.Presentation.Localization;
-using AgentSpeed.Presentation.Menus;
 using AgentSpeed.Presentation.Modes;
-using AgentSpeed.Presentation.Settings;
-using AgentSpeed.Presentation.Settings.Orbs;
 
 namespace AgentSpeed.Presentation.Tests;
 
@@ -106,29 +103,5 @@ public sealed class ModeHistoryTests
         Assert.Equal(ModeHistoryTone.Unknown, section.Tone(Row("unknown")));
         Assert.Null(section.Glyph(Row("unknown")));
         Assert.Equal(new EffortCapsule("max", null), section.Glyph(Row("max")));
-    }
-
-    [Fact]
-    public void TheOrbMenuCarriesTheCapsuleUnderItsHeaderOrMixedOrNothing()
-    {
-        var settings = AppSettings.Default with { Orbs = new OrbsDocument([new OrbDefinition("o0")]) };
-        AgentStatus Agent(string effort) => new("a" + effort, SourceKind.Codex, "p", "gpt-5", AgentPhase.Generating, false, default, null,
-            DateTimeOffset.UnixEpoch) { Modes = ExecutionModes.Of(ExecutionModeNative.Effort(effort, ExecutionModeEvidence.Recorded, ExecutionModeScope.Turn)) };
-
-        var menu = OrbMenuModel.Build("o0", settings, SourceAvailability.All, En, agents: [Agent("ultra")])!;
-        var row = Assert.IsType<MenuRow>(menu.Entries[1]);
-        Assert.Equal(new EffortCapsule("ultra", null), row.Capsule);
-        Assert.False(row.IsEnabled);
-        Assert.Equal("Reasoning effort: ultra, Speed: Not recorded", row.Label);
-        Assert.Contains(En["effort.ultra.detail"], row.ToolTip, StringComparison.Ordinal);
-
-        var mixed = Assert.IsType<MenuRow>(OrbMenuModel.Build("o0", settings, SourceAvailability.All, En, agents: [Agent("high"), Agent("max")])!.Entries[1]);
-        Assert.Null(mixed.Capsule);
-        Assert.Equal(En["mode.mixed"], mixed.Label);
-        Assert.True(mixed.IsSecondary);
-        Assert.False(mixed.IsEnabled);
-
-        Assert.IsType<MenuSeparator>(OrbMenuModel.Build("o0", settings, SourceAvailability.All, En, agents: [Agent("auto")])!.Entries[1]);
-        Assert.IsType<MenuSeparator>(OrbMenuModel.Build("o0", settings, SourceAvailability.All, En)!.Entries[1]);
     }
 }

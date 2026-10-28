@@ -1,6 +1,4 @@
-using AgentSpeed.Core;
 using AgentSpeed.Presentation.Localization;
-using AgentSpeed.Presentation.Modes;
 using AgentSpeed.Presentation.Orb;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Presentation.Settings.Orbs;
@@ -20,8 +18,7 @@ public static class OrbMenuModel
     /// <summary>The menu of <paramref name="orbId"/>; null when no such orb exists.</summary>
     /// <param name="sources">Source availability (split, the sources' secondary text and faded dots).</param>
     /// <param name="sourceTraffic">Per-process traffic can be measured now (else the sources choice says it is unavailable).</param>
-    public static MenuLevel? Build(string orbId, AppSettings settings, SourceAvailability sources, Localizer localizer, bool sourceTraffic = true,
-        IReadOnlyList<AgentStatus>? agents = null)
+    public static MenuLevel? Build(string orbId, AppSettings settings, SourceAvailability sources, Localizer localizer, bool sourceTraffic = true)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(localizer);
@@ -32,7 +29,6 @@ public static class OrbMenuModel
         }
 
         var id = orb.Id;
-        var modeAgents = agents?.Where(a => orb.Sources.Tracks(a.Source)) ?? [];
         var limit = localizer.Format("orbs.limit", OrbsDocument.MaxOrbs);
         var canAdd = document.CanAdd;
         var canSplit = OrbEditing.CanSplit(document, id, sources.Available);
@@ -45,7 +41,6 @@ public static class OrbMenuModel
         return new MenuLevel(
         [
             new MenuRow(OrbNaming.DisplayName(orb, localizer)) { Icon = DotsOf(orb, sources), IsHeader = true, IsEnabled = false },
-            .. EffortRow(modeAgents, localizer),
             MenuSeparator.Instance,
             StyleMenu(orb, localizer),
             SourcesMenu(orb, sources, localizer),
@@ -72,20 +67,6 @@ public static class OrbMenuModel
             Command(localizer["menu.quit"], new MenuAction.Quit(), MenuGlyph.Quit),
         ]);
     }
-
-    /// <summary>
-    /// Under the header, the capsule of the orb's generating agents (all of them when none is), or <c>mode.mixed</c> when
-    /// they differ; nothing when nothing is known (DESIGN 2b, Context menu item 1).
-    /// </summary>
-    internal static MenuEntry[] EffortRow(IEnumerable<AgentStatus> agents, Localizer localizer) => SharedEffortCapsule.Of(agents) switch
-    {
-        null => [],
-        { Capsule: { } capsule } => [new MenuRow(capsule.AccessibilityText(localizer))
-        {
-            Capsule = capsule, IsEnabled = false, ToolTip = string.Join(Environment.NewLine, capsule.TooltipLines(localizer)),
-        }],
-        _ => [new MenuRow(localizer["mode.mixed"]) { IsSecondary = true, IsEnabled = false }],
-    };
 
     /// <summary>The size preset a size checks (0 small, 1 medium, 2 large): the nearest one within 8; else −1.</summary>
     public static int PresetIndex(double size)

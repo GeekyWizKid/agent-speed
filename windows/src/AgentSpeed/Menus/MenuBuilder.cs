@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Shapes;
-using AgentSpeed.Modes;
 using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Menus;
 using AgentSpeed.Theme;
@@ -17,8 +16,7 @@ internal static class MenuBuilder
 {
     public const string ItemStyleKey = "AppMenuItemStyle";
 
-    /// <param name="capsule">How an effort capsule row draws (DESIGN 2b, item 1).</param>
-    public static ContextMenu Build(MenuLevel level, IAppCommands commands, Localizer localizer, CapsuleAppearance capsule = default)
+    public static ContextMenu Build(MenuLevel level, IAppCommands commands, Localizer localizer)
     {
         ArgumentNullException.ThrowIfNull(level);
         ArgumentNullException.ThrowIfNull(commands);
@@ -26,7 +24,7 @@ internal static class MenuBuilder
         var menu = new ContextMenu { UseLayoutRounding = true };
         menu.SetResourceReference(Control.FontFamilyProperty, AppFonts.UiFontKey);
         menu.Language = AppFonts.XmlLanguageFor(localizer.LanguageCode);
-        Fill(menu.Items, level, commands, new ItemContext(localizer.LanguageCode, capsule));
+        Fill(menu.Items, level, commands);
         return menu;
     }
 
@@ -152,17 +150,17 @@ internal static class MenuBuilder
         }
     }
 
-    private static void Fill(ItemCollection items, MenuLevel level, IAppCommands commands, ItemContext context)
+    private static void Fill(ItemCollection items, MenuLevel level, IAppCommands commands)
     {
         var iconColumn = level.ReservesIconColumn;
         var trailingColumn = level.ReservesTrailingColumn;
         foreach (var entry in level.Entries)
         {
-            items.Add(entry is MenuRow row ? Item(row, iconColumn, trailingColumn, commands, context) : new Separator());
+            items.Add(entry is MenuRow row ? Item(row, iconColumn, trailingColumn, commands) : new Separator());
         }
     }
 
-    private static MenuItem Item(MenuRow row, bool iconColumn, bool trailingColumn, IAppCommands commands, ItemContext context)
+    private static MenuItem Item(MenuRow row, bool iconColumn, bool trailingColumn, IAppCommands commands)
     {
         var item = new MenuItem
         {
@@ -180,20 +178,6 @@ internal static class MenuBuilder
         if (row.IsDefault)
         {
             item.FontWeight = FontWeights.SemiBold;
-        }
-
-        if (row.Capsule is { } capsule)
-        {
-            // The capsule replaces the label, which stays the row's accessible name.
-            item.Header = new EffortCapsuleView { Capsule = capsule, Appearance = context.Capsule, LanguageCode = context.LanguageCode };
-            AutomationProperties.SetName(item, row.Label);
-        }
-        else if (row.IsSecondary)
-        {
-            var text = new TextBlock { Text = row.Label };
-            text.SetResourceReference(TextBlock.ForegroundProperty, CapsuleBrushes.SecondaryKey);
-            item.Header = text;
-            AutomationProperties.SetName(item, row.Label);
         }
 
         if (row.Detail is { Length: > 0 } detail)
@@ -215,7 +199,7 @@ internal static class MenuBuilder
 
         if (row.Submenu is { } submenu)
         {
-            Fill(item.Items, submenu, commands, context);
+            Fill(item.Items, submenu, commands);
         }
         else if (row.Action is { } action)
         {
@@ -275,7 +259,4 @@ internal static class MenuBuilder
         dot.SetResourceReference(Shape.FillProperty, "AccentFillColorDefaultBrush");
         return dot;
     }
-
-    /// <summary>What every row of one menu shares.</summary>
-    private readonly record struct ItemContext(string LanguageCode, CapsuleAppearance Capsule);
 }
