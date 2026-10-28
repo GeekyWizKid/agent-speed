@@ -45,20 +45,22 @@ public sealed class UnpricedHistoryTests : IDisposable
             WorkBuddyRoot: SourceLocations.WorkBuddyRootOf(Path.Combine(copy, "workbuddy", ".workbuddy")),
             WorkBuddyAiRoot: SourceLocations.WorkBuddyRootOf(Path.Combine(copy, "workbuddy", ".workbuddy-ai")),
             PiRoots: PiFixture.RootsIn(copy),
-            OpenClawRoots: OpenClawFixture.StateFoldersIn(copy));
+            OpenClawRoots: OpenClawFixture.StateFoldersIn(copy),
+            HermesRoot: HermesFixture.HomeIn(copy));
         var document = JsonNode.Parse(File.ReadAllText(Path.Combine(FixtureLocator.FixturesDirectory, "history-expected.json")))!;
         var pricing = document["prices"]!;
         var tables = pricing["tables"]!.AsArray()
             .Select(t => PriceTable.Load(File.ReadAllBytes(FixtureLocator.PathOf(t!.GetValue<string>()))).Table!)
             .ToList();
         var bindings = pricing["bindings"]!.AsObject().ToDictionary(b => b.Key, b => b.Value!.GetValue<int>());
+        var options = new HistoryOptions { HermesZone = HermesFixture.Zone };
         using (var store = HistoryStore.Open(StorePath))
         {
-            new HistoryAnalyzer(store, pricing: new PriceBook(tables, bindings)).Run(locations, All, TimeZoneInfo.Utc, CancellationToken.None);
+            new HistoryAnalyzer(store, options, new PriceBook(tables, bindings)).Run(locations, All, TimeZoneInfo.Utc, CancellationToken.None);
         }
 
         using var reopened = HistoryStore.Open(StorePath);
-        var days = new HistoryAnalyzer(reopened, pricing: new PriceBook(tables, bindings)).Days();
+        var days = new HistoryAnalyzer(reopened, options, new PriceBook(tables, bindings)).Days();
         var expected = document["days"]!;
         var actual = new JsonArray([.. days.Select(HistoryJson.Row)]);
         Assert.True(JsonNode.DeepEquals(expected, actual), actual.ToJsonString());
