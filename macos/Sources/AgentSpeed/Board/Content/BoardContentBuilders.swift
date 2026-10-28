@@ -14,4 +14,9 @@ enum BoardContentBuilders {
         case .neon: BoardNeonContent(size: size, dark: dark, highContrast: highContrast, l10n: l10n, capsules: capsules)
         }
     }
+
+    /// The board's geometry for a tick (its switches travel with the tick).
+    static func geometry(_ style: BoardStyle, _ size: BoardSize, _ tick: BoardTick) -> BoardGeometry {
+        BoardGeometry(style, size, readouts: tick.metrics.readouts)
+    }
 }

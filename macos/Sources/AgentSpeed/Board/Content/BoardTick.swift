@@ -1,6 +1,7 @@
 import AgentSpeedCore
 import AgentSpeedOrbModel
 import CoreGraphics
+import Foundation
 
 /// What one engine tick tells a board (DESIGN 2c Content). The live feed (the app's boards controller, from the
 /// snapshot) and the demo feed make it; a style's `BoardContentBuilding` draws it. Fields are only ever added. An equal
@@ -34,6 +35,10 @@ struct BoardTick: Equatable {
     var peakText: String
     /// `peakToday_A` (neon marks it on its LED bar); 0 when unknown.
     var peak: Double = 0
+    /// Today's cost is `cost.subscription.tag` (every source excluded, while 費用 is on): drawn quietly.
+    var costIsTag = false
+    /// The live metrics (DESIGN 2c Live metrics): switches, the hero's values, the rows' cost lines.
+    var metrics = BoardMetricsTick()
 }
 
 /// A board's content for one tick, with the anchors the effects need (board points, y down).
@@ -55,6 +60,19 @@ struct BoardContentLayout {
 
 /// Draws a style's hero, rows and footer (DESIGN 2c Styles; prototypes in spec/prototypes/board).
 @MainActor
-protocol BoardContentBuilding {
+protocol BoardContentBuilding: AnyObject {
     func layout(_ tick: BoardTick) -> BoardContentLayout
+    /// When a fixed cell of the sub-gauge narrows back (a later layout differs even if the tick does not).
+    var wakeAt: TimeInterval? { get }
+}
+
+extension Array where Element == BoardContentItem {
+    /// Puts the items in the hero's layer (DESIGN 2c Live metrics: a switch change crossfades the hero as a whole).
+    func inHero() -> [BoardContentItem] {
+        map { item in
+            var item = item
+            item.group = .hero
+            return item
+        }
+    }
 }

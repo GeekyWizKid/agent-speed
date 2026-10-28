@@ -11,7 +11,10 @@ extension BoardContentStack {
         if reduceMotion {
             let fade = CATransition()
             fade.type = .fade
-            fade.duration = 0.2
+            fade.duration = item.accents.lazy.compactMap { accent -> Double? in
+                if case .crossfade(let seconds) = accent { return seconds }
+                return nil
+            }.first ?? 0.2
             layer.add(fade, forKey: "change")
             return
         }
@@ -33,6 +36,11 @@ extension BoardContentStack {
                 dim.duration = 0.8
                 dim.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 layer.add(dim, forKey: "dim")
+            case .crossfade(let seconds):
+                let fade = CATransition()
+                fade.type = .fade
+                fade.duration = seconds
+                layer.add(fade, forKey: "change")
             case .punch, .decal:
                 break
             }
@@ -60,7 +68,7 @@ extension BoardContentStack {
             case .decal(let decal):
                 guard celebrations || !decal.celebration else { continue }
                 add(decal, to: layer, itemHeight: item.frame.height)
-            case .roll, .warm, .dim:
+            case .roll, .warm, .dim, .crossfade:
                 break
             }
         }

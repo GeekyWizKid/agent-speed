@@ -1780,12 +1780,16 @@ contributes nothing (the orb shows it as unavailable).
   known share over the same sources (9.5); its hover line uses `Σ todayCost_s` (9.6). Heat, titles and `newPeak_A`
   still use `live_A`.
 - The history store (8) is unaffected: its `peak` stays the all-sources `peakToday`.
+- **Boards** (DESIGN 2c) are evaluated exactly like orbs, each with its own `A`, `peakToday_A` and `newPeak_A`. A
+  board's hero adds the 6.9 sums of `A` (live intelligence and thinking) and the cost above; its group rows use the
+  group forms of 6.9 (*Group intelligence*) and 9.5 (*Per group*).
 
 ### 6.9 Live intelligence
 
 An index of this app, shown on floating orbs next to tok/s (DESIGN 10, *Intelligence readout*), in the menu bar or
-taskbar (DESIGN 10, *Menu bar and taskbar*) and per agent on the dashboard and boards (*Agent intelligence*, below):
-how strong the models that are generating right now are, and how much of what they write is reasoning. It is derived
+taskbar (DESIGN 10, *Menu bar and taskbar*), on a board's hero (DESIGN 2c), per agent on the dashboard and boards
+(*Agent intelligence*, below) and per group on boards (*Group intelligence*): how strong the models that are
+generating right now are, and how much of what they write is reasoning. It is derived
 from the logs only and is not a benchmark score. `spec/tools/intelligence.py` implements this section and checks
 `spec/fixtures/intelligence-cases.json`.
 
@@ -1847,6 +1851,28 @@ The agent's intelligence has exactly one of three forms:
 Shown as an integer, rounded half away from zero (a grade is one already). The forms are never mixed: a live value is
 the formula above even when it is lower than the agent's grade. The `agentWindows` cases of
 `spec/fixtures/intelligence-cases.json` check every form.
+
+**Group intelligence.** A board (DESIGN 2c) ranks groups: a root agent `r` and all its descendants in the board's
+agents list (6.7 filtered by 6.8; a sub-agent whose parent is not listed is a root of its own). A group row shows the
+index of the whole group, over the same agents as the row's speed (user's choice, 2026-10-28). *Group sums* add the
+members' agent sums: `Σ w_G = Σ_{a ∈ G} Σ w_a`, and the same for `Σ (w × g)`, `Σ ρ` and `Σ w'`. Evaluated on every
+engine tick with the agent values. Exactly one form:
+
+- **live** when `Σ w_G > 0`: `intelligence_G = Σ (w × g) / Σ w + 20 × thinkingShare_G` over the group sums, with
+  `thinkingShare_G = Σ ρ / Σ w'` (0 when `Σ w' = 0`) and `liveThinking_G = Σ ρ / (W / 1000)`. Never an average of the
+  members' values: a member weighs by the tokens it writes.
+- **resting** when `Σ w_G = 0` and the root `r` has a grade: **the root's grade** (`class + 6 × level` of its current
+  model, latest named provider and current effort, as *Agent intelligence*).
+- **none** when `Σ w_G = 0` and the root has no grade (no known current model), even when a sub-agent has one.
+
+The resting value is the root's grade rather than the grade of the member active last, for three reasons: the group
+row shows the root's model and the root's effort capsule, and the root's grade is exactly what those two say, so the
+row never shows a number that its own model and capsule contradict; it equals the dashboard's resting value for the
+same root (DESIGN 4), so an idle root reads the same on both surfaces; and it depends on one agent's current model and
+effort only, so it does not change when sub-agents start, stop or leave the list and needs no tie-break between
+activity times. A sub row shows its sub-agent's own *Agent intelligence*. The groups of a board partition its agents,
+so the groups' sums add up to the board's (the 6.8 set `A`). The `groupWindows` cases of
+`spec/fixtures/intelligence-cases.json` check every form and that sum.
 
 ### 6.10 Work signals
 
@@ -2072,12 +2098,13 @@ periods and off-peak hours follow its `endMs`. Cases: `spec/fixtures/price-cases
 
 Settings can mark sources as used through a subscription (DESIGN 9). Costs of every source are always computed and
 stored; marks apply only when values are shown: with `includeSubscriptions` off (the default) every displayed cost
-(live, today, orb, history totals) sums only the *billable* sources, the ones not marked; with it on, all sources. A
-mark is a current setting, not data: changing it rewrites nothing.
+(live, today, orb, board, history totals) sums only the *billable* sources, the ones not marked; with it on, all
+sources. A mark is a current setting, not data: changing it rewrites nothing.
 
 ### 9.5 Live cost rate
 
-The money unit of the orb, menu bar and dashboard (DESIGN 9). Window, intervals and estimates are those of 6.3.
+The money unit of the orb, menu bar and dashboard (DESIGN 9) and the cost readouts of a board (DESIGN 2c). Window,
+intervals and estimates are those of 6.3.
 
 - Measured: for every measured response with a known cost, `costMicroUsd * overlap(interval, [start', end]) /
   (end - start')`.
@@ -2089,11 +2116,25 @@ The money unit of the orb, menu bar and dashboard (DESIGN 9). Window, intervals 
 - `liveCost = (measured + estimated) / (W / 1000)` micro-USD per second.
 - `liveCostKnownShare` = the output tokens of 6.3 (measured and estimated) that carry a known cost ÷ all of them (1
   when there are none): a measured response counts when its cost is known, an estimate when `costRate` exists.
-- Per source and per agent: the same formula restricted to them. Both values are additive over sources, so an orb or
-  the billable sum (9.4) adds per-source values: `knownShare = Σ known tokens / Σ tokens`.
+- Per source: the same formula restricted to the source's responses and agents. Both values are additive over
+  sources, so an orb or a board (6.8) and the billable sum (9.4) add per-source values:
+  `knownShare = Σ known tokens / Σ tokens`.
+- **Per agent** (a board's rows, DESIGN 2c): the sums above restricted to the contributions of agent `a` — its own
+  measured and unmeasured responses (`agentId` = `a`) and its own in-flight estimate. As for 6.9's agent sums, only the
+  contributions are restricted: `costRate`, the reference set and the tokens of every estimate are exactly those of
+  the unrestricted value (a reference set may hold other agents' responses, 6.2), so the agents' sums add up to the
+  value of their set. A sub-agent is an agent of its own. `liveCost_a = (measured_a + estimated_a) / (W / 1000)`;
+  `liveCostKnownShare_a` = its known tokens ÷ its tokens (1 when it has none).
+- **Per group** (a board group `G`: a root and its descendants in the board's agents list, 6.9 *Group
+  intelligence*): `liveCost_G = Σ_{a ∈ G} liveCost_a` and `liveCostKnownShare_G = Σ known tokens_a / Σ tokens_a` over
+  the members (1 when the tokens add up to 0) — never an average of the members' shares. Subscriptions (9.4) apply per
+  member: a member whose source is excluded adds nothing, neither cost nor tokens; a group with no billable member has
+  no displayed cost (DESIGN 2c shows the subscription tag). Every 6.7 parent link stays within one source, so a group
+  is either billable or excluded as a whole.
 - The money value never drives heat, tiers, titles, peaks or `newPeak`; those follow the token metric.
 
-Engine cases with `liveCost` in `spec/fixtures/engine-cases.json` give responses their `costMicroUsd` directly.
+Engine cases with `liveCost` in `spec/fixtures/engine-cases.json` give responses their `costMicroUsd` directly; their
+`groups` queries check the per-agent and per-group forms (a group of one agent is that agent).
 
 ### 9.6 Today
 

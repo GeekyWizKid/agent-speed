@@ -21,6 +21,7 @@ struct IntelligenceCaseTests {
 
     static var windowNames: [String] { names("windows") }
     static var agentWindowNames: [String] { names("agentWindows") }
+    static var groupWindowNames: [String] { names("groupWindows") }
 
     @Test func grades() throws {
         let grader = IntelligenceGrader(table: try Self.table(), agentProviders: [:])
@@ -122,6 +123,47 @@ struct IntelligenceCaseTests {
                 EngineCaseTests.expectClose(agent.intelligence.thinking, expected.double("liveThinking"), "\(label) liveThinking")
                 EngineCaseTests.expectClose(agent.intelligence.thinkingShare, expected.double("thinkingShare"), "\(label) thinkingShare")
                 #expect(agent.grade?.value == (expected["grade"] as? NSNumber)?.intValue, "\(label) grade")
+            }
+        }
+    }
+
+    /// METRICS 6.9, Group intelligence: a group adds its members' agent sums (never an average of their values), rests
+    /// on its root's grade, and the groups of a set add up to the set's sums.
+    @Test(arguments: groupWindowNames)
+    func groupWindow(_ name: String) throws {
+        var (engine, queries) = try Self.engine("groupWindows", name)
+        for query in queries {
+            let now = try #require(query.int64("nowMs"))
+            let output = engine.advance(nowMs: now, todayStartMs: 0, emitsEvents: false)
+            let snapshot = SnapshotBuilder.running(output, context: .fixture(todayStartMs: 0))
+            Self.expect(snapshot.intelligence, try #require(query["expect"] as? [String: Any]), "\(name) @ \(now)")
+            let groups = try #require(query["groups"] as? [String: [String: Any]])
+            var added = IntelligenceSums.zero
+            for (root, expected) in groups {
+                let label = "\(name) @ \(now) group \(root)"
+                let members = try #require(expected["members"] as? [String])
+                var sums = AgentGroupSums()
+                for id in members {
+                    sums.add(try #require(snapshot.agents.first { $0.id == id }, "\(label) \(id) listed"), billable: true)
+                }
+                added.add(sums.intelligence)
+                let rootGrade = try #require(snapshot.agents.first { $0.id == root }).grade
+                let form = sums.intelligence(rootGrade: rootGrade)
+                let kind = switch form {
+                case .live: "live"
+                case .resting: "resting"
+                case .none: "none"
+                }
+                #expect(kind == expected.string("form"), "\(label) form")
+                EngineCaseTests.expectClose(form.value, expected.double("intelligence"), "\(label) intelligence")
+                #expect(form.shown == (expected["shown"] as? NSNumber)?.intValue, "\(label) shown")
+                EngineCaseTests.expectClose(sums.intelligence.thinking, expected.double("liveThinking"), "\(label) liveThinking")
+                EngineCaseTests.expectClose(sums.intelligence.thinkingShare, expected.double("thinkingShare"), "\(label) thinkingShare")
+                #expect(rootGrade?.value == (expected["grade"] as? NSNumber)?.intValue, "\(label) root grade")
+            }
+            for (key, value) in [("output", \IntelligenceSums.output), ("graded", \.gradedOutput), ("thinking", \.thinking),
+                                 ("thinkingBase", \.thinkingBase)] {
+                EngineCaseTests.expectClose(added[keyPath: value], snapshot.intelligence[keyPath: value], "\(name) @ \(now) groups add up: \(key)")
             }
         }
     }

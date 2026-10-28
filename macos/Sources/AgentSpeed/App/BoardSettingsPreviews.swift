@@ -24,6 +24,8 @@ enum BoardSettingsPreviews {
         boards.setSources(.explicit([.codex]), of: timing)
         boards.setSize(.small, of: timing)
         boards.setVisible(false, of: timing)
+        // The glass board's editor shows independent switches: 思考 and 每列費用 off.
+        boards.setReadouts(BoardReadouts(intelligence: true, thinking: false, cost: true, rowCost: false), of: glass)
         boards.settingsSelection = glass
         for step in 1...3 {
             PreviewRenderer.publish(model, snapshot: PreviewData.snapshot(
@@ -55,7 +57,39 @@ enum BoardSettingsPreviews {
                              to: directory.appendingPathComponent("boards-live-\(runtime.config.style.rawValue)-\(dark ? "dark" : "light").png"))
             }
         }
+        writeMetricTexts(model, ids: [neon, glass, timing], into: directory)
         for id in [neon, glass, timing] { boards.remove(id) }
+    }
+
+    /// The live metrics' words (DESIGN 2c Live metrics, *Tooltip* and *Accessibility*): each board's top group tooltip
+    /// as a card, and every board's and row's accessibility label in a text file.
+    private static func writeMetricTexts(_ model: AppModel, ids: [String], into directory: URL) {
+        var text = ""
+        for id in ids {
+            guard let runtime = model.boards.runtime(id), let tick = runtime.tick else { continue }
+            let config = runtime.config
+            let currency = model.cost.currencyName
+            text += "[\(config.style.rawValue) \(config.size.rawValue)]\n"
+            text += BoardAccessibilityReporter.join([model.l10n("a11y.board", model.boards.sourcesText(of: config, l10n: model.l10n),
+                                                                tick.valueText, tick.title)]
+                + BoardAccessibilityReporter.metricWords(tick.metrics, currency: currency, l10n: model.l10n), model.l10n) + "\n"
+            for (rank, group) in tick.groups.prefix(3).enumerated() {
+                let cost = config.readouts.twoLineRows(config.size) ? tick.metrics.rowCosts[group.id] : nil
+                text += "  " + BoardAccessibilityReporter.rowLabel(group, rank: rank + 1, l10n: model.l10n,
+                                                                    intelligence: config.readouts.intelligence, cost: cost,
+                                                                    currency: currency) + "\n"
+            }
+            guard let group = tick.groups.first else { continue }
+            let lines = BoardTooltip.lines(group, metric: tick.metric, l10n: model.l10n, readouts: config.readouts,
+                                           money: tick.metrics.rowCosts[group.id])
+            let caption = BoardTooltip.caption(readouts: config.readouts, l10n: model.l10n)
+            text += "  tooltip: " + (lines + [caption].compactMap { $0 }).joined(separator: " | ") + "\n"
+            for dark in [false, true] {
+                PreviewSnapshot.writeHosted(BoardTooltipView(lines: lines, caption: caption), dark: dark,
+                                            to: directory.appendingPathComponent("boards-tooltip-\(config.style.rawValue)-\(dark ? "dark" : "light").png"))
+            }
+        }
+        try? text.write(to: directory.appendingPathComponent("boards-a11y.txt"), atomically: true, encoding: .utf8)
     }
 
     private static func settle() {
@@ -108,7 +142,7 @@ enum BoardSettingsPreviews {
                 context.setFillColor(plate.color)
                 context.fillPath()
             }
-            BoardRaster.tinted(item.draw, with: item.tint)(context, item.frame.size)
+            item.composited(context, item.frame.size)
             context.restoreGState()
         }
         NSGraphicsContext.restoreGraphicsState()

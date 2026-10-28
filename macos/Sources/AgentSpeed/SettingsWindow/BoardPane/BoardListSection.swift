@@ -127,7 +127,7 @@ struct BoardListRow: View {
         let sources = boards.sourcesText(of: board, l10n: l10n)
         let name = l10n(board.style.titleKey)
         HStack(spacing: 0) {
-            BoardStyleThumbnail(style: board.style, size: 36)
+            BoardStyleThumbnail(style: board.style, size: 36, readouts: board.readouts)
                 .frame(width: 60, height: OrbListRow.height)
             VStack(alignment: .leading, spacing: 1) {
                 Text(name)

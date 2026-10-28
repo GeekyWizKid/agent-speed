@@ -38,34 +38,9 @@ public struct BoardLayoutMetrics: Equatable, Sendable {
         }
     }
 
-    public static func of(_ style: BoardStyle, _ size: BoardSize) -> BoardLayoutMetrics {
-        let limits = limits(size)
-        let side = size.side
-        switch style {
-        case .glass, .neon:
-            // Room = side − (pad + hero + 4) − 38 − 8 with the glass box (neon's prototype uses the same box).
-            let (pad, hero): (Double, Double) = switch size {
-            case .small: (14, 78)
-            case .medium: (16, 86)
-            case .large: (18, 94)
-            }
-            let row: Double = size == .large ? 32 : 30
-            let sub: Double = size == .large ? 23 : 22
-            return BoardLayoutMetrics(groupHeight: row + 2, subHeight: sub, moreHeight: 20,
-                                      room: side - (pad + hero + 4) - 38 - 8, top: 6,
-                                      groupLimit: limits.groups, subLimits: limits.subs)
-        case .timing:
-            let (pad, hero): (Double, Double) = switch size {
-            case .small: (12, 70)
-            case .medium: (14, 78)
-            case .large: (16, 86)
-            }
-            let row: Double = size == .large ? 32 : 30
-            let sub: Double = size == .large ? 22 : 21
-            return BoardLayoutMetrics(groupHeight: row, subHeight: sub, moreHeight: 19,
-                                      room: side - (pad + hero + 8) - 32 - 6, top: 0,
-                                      groupLimit: limits.groups, subLimits: limits.subs)
-        }
+    /// The metrics of the board without live metrics; `BoardLayoutMetrics(BoardGeometry)` for a board's switches.
+    public static func of(_ style: BoardStyle, _ size: BoardSize, readouts: BoardReadouts = .none) -> BoardLayoutMetrics {
+        BoardLayoutMetrics(BoardGeometry(style, size, readouts: readouts))
     }
 }
 

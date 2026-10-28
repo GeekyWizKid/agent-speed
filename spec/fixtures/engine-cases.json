@@ -1,5 +1,5 @@
 {
-  "_comment": "Times are Unix ms. Unless a case sets todayStartMs, use 0. Compare floats with 1e-6 absolute tolerance. historyMeasuredOutput maps bucket start ms to tok/s. `subsets` evaluate 6.8 for a source set: live output, today's peak and live cost over only those sources' responses and agents (keys that are absent are not checked). Responses with `costMicroUsd` carry their priced cost (METRICS 9.3; null = unknown price): `liveCost` is micro-USD per second and `liveCostKnownShare` the share of live output tokens whose cost is known (9.5); `todayCostMicroUsd` and `todayUnpricedRequests` are exact (9.6).",
+  "_comment": "Times are Unix ms. Unless a case sets todayStartMs, use 0. Compare floats with 1e-6 absolute tolerance. historyMeasuredOutput maps bucket start ms to tok/s. `subsets` evaluate 6.8 for a source set: live output, today's peak and live cost over only those sources' responses and agents (keys that are absent are not checked). Responses with `costMicroUsd` carry their priced cost (METRICS 9.3; null = unknown price): `liveCost` is micro-USD per second and `liveCostKnownShare` the share of live output tokens whose cost is known (9.5); `todayCostMicroUsd` and `todayUnpricedRequests` are exact (9.6). `groups` evaluate 9.5 per agent and per group (a board group, DESIGN 2c): live cost and known share over the contributions of the listed agents only, with the reference sets of the whole case.",
   "cases": [
     {
       "name": "single completed response",
@@ -1308,6 +1308,165 @@
               ],
               "liveOutput": 0.0,
               "liveCost": 0.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a board group's cost adds its members' own contributions (METRICS 9.5 per agent and per group)",
+      "agents": [
+        {
+          "id": "g1",
+          "source": "codex",
+          "model": "m1",
+          "phase": "idle",
+          "inFlightStartMs": null,
+          "lastLineMs": 1000000003000,
+          "parentId": null
+        },
+        {
+          "id": "g2",
+          "source": "codex",
+          "model": "m2",
+          "phase": "idle",
+          "inFlightStartMs": null,
+          "lastLineMs": 1000000003000,
+          "parentId": "g1"
+        },
+        {
+          "id": "g3",
+          "source": "codex",
+          "model": "m1",
+          "phase": "generating",
+          "inFlightStartMs": 1000000001500,
+          "lastLineMs": 1000000001500,
+          "parentId": "g2"
+        },
+        {
+          "id": "h1",
+          "source": "claudeCode",
+          "model": "m3",
+          "phase": "idle",
+          "inFlightStartMs": null,
+          "lastLineMs": 1000000003000,
+          "parentId": null
+        }
+      ],
+      "responses": [
+        {
+          "key": "rg1",
+          "agentId": "g1",
+          "source": "codex",
+          "model": "m1",
+          "startMs": 1000000000000,
+          "endMs": 1000000003000,
+          "input": 0,
+          "output": 300,
+          "final": true,
+          "costMicroUsd": 900
+        },
+        {
+          "key": "rg2",
+          "agentId": "g2",
+          "source": "codex",
+          "model": "m2",
+          "startMs": 1000000001000,
+          "endMs": 1000000003000,
+          "input": 0,
+          "output": 100,
+          "final": true,
+          "costMicroUsd": null
+        },
+        {
+          "key": "rg3",
+          "agentId": "g3",
+          "source": "codex",
+          "model": "m1",
+          "startMs": 999999997000,
+          "endMs": 999999999000,
+          "input": 0,
+          "output": 200,
+          "final": true,
+          "costMicroUsd": 400
+        },
+        {
+          "key": "rh1",
+          "agentId": "h1",
+          "source": "claudeCode",
+          "model": "m3",
+          "startMs": 1000000001500,
+          "endMs": 1000000003000,
+          "input": 0,
+          "output": 150,
+          "final": true,
+          "costMicroUsd": 600
+        }
+      ],
+      "queries": [
+        {
+          "nowMs": 1000000003000,
+          "liveOutput": 233.33333333333334,
+          "liveTotal": 233.33333333333334,
+          "estimatedShare": 0.21428571428571427,
+          "liveCost": 600.0,
+          "liveCostKnownShare": 0.8571428571428571,
+          "groups": [
+            {
+              "agents": [
+                "g1",
+                "g2",
+                "g3"
+              ],
+              "liveCost": 400.0,
+              "liveCostKnownShare": 0.8181818181818182
+            },
+            {
+              "agents": [
+                "h1"
+              ],
+              "liveCost": 200.0,
+              "liveCostKnownShare": 1.0
+            },
+            {
+              "agents": [
+                "g2"
+              ],
+              "liveCost": 0.0,
+              "liveCostKnownShare": 0.0
+            },
+            {
+              "agents": [
+                "g3"
+              ],
+              "liveCost": 100.0,
+              "liveCostKnownShare": 1.0
+            }
+          ]
+        },
+        {
+          "nowMs": 1000000010000,
+          "liveOutput": 100.0,
+          "liveTotal": 100.0,
+          "estimatedShare": 1.0,
+          "liveCost": 200.0,
+          "liveCostKnownShare": 1.0,
+          "groups": [
+            {
+              "agents": [
+                "g1",
+                "g2",
+                "g3"
+              ],
+              "liveCost": 200.0,
+              "liveCostKnownShare": 1.0
+            },
+            {
+              "agents": [
+                "h1"
+              ],
+              "liveCost": 0.0,
+              "liveCostKnownShare": 1.0
             }
           ]
         }

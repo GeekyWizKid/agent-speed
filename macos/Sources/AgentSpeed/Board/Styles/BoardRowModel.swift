@@ -28,6 +28,15 @@ struct BoardRowModel: Hashable {
     var heat = 0
     /// Timing's interval column: `boards.leader` on the first group, else the gap to the group above.
     var interval = ""
+    /// The 智力 cell (DESIGN 2c Live metrics, *Ranking rows*): the shown index or grade, `–` for none; nil without the
+    /// column (switched off, more rows).
+    var intel: String?
+    /// Live (the index) rather than resting (the grade) or none: one step brighter.
+    var intelLive = false
+    /// A group row's second line (M and L while 每列費用 is on): the detail moves under the name.
+    var twoLine = false
+    /// The second line's cost; nil while the group is idle (its value shows `–`).
+    var cost: BoardMoney?
 
     var rank: Int? {
         if case .group(let rank) = kind { return rank }
@@ -42,8 +51,8 @@ struct BoardRowModel: Hashable {
 
 @MainActor
 enum BoardRowModels {
-    /// The models of `tick.rows`, in order.
-    static func make(_ tick: BoardTick, l10n: Localizer) -> [BoardRowModel] {
+    /// The models of `tick.rows`, in order. `twoLine`: group rows draw their second line (the board's size allows it).
+    static func make(_ tick: BoardTick, l10n: Localizer, twoLine: Bool = false) -> [BoardRowModel] {
         let groups = tick.groups
         func heat(_ live: Double) -> Int { Int((HeatPalette.heat(value: live, redline: tick.redline) * 100).rounded()) }
         func share(_ live: Double) -> Int { Int((BoardContentRules.share(live, of: tick.value) * 200).rounded()) }
@@ -52,6 +61,12 @@ enum BoardRowModels {
         }
         func name(_ agent: AgentStatus) -> String {
             agent.project.isEmpty ? l10n(agent.source.titleKey) : agent.project
+        }
+        let intelligence = tick.metrics.readouts.intelligence
+        func intel(_ form: AgentIntelligence, into model: inout BoardRowModel) {
+            guard intelligence else { return }
+            model.intel = form.shown.map(String.init) ?? "–"
+            model.intelLive = form.isLive
         }
 
         return tick.rows.map { row in
@@ -65,9 +80,13 @@ enum BoardRowModels {
                 let (text, idle) = value(group.live)
                 let interval = index == 0 ? l10n("boards.leader")
                     : BoardContentRules.interval(ahead: groups[index - 1].live, live: group.live)
-                return BoardRowModel(kind: .group(rank: index + 1), name: name(root), detail: detail, value: text, idle: idle,
-                                     phase: group.generating > 0 ? .generating : root.phase, sources: [root.source],
-                                     modes: root.modes, share: share(group.live), heat: heat(group.live), interval: interval)
+                var model = BoardRowModel(kind: .group(rank: index + 1), name: name(root), detail: detail, value: text, idle: idle,
+                                          phase: group.generating > 0 ? .generating : root.phase, sources: [root.source],
+                                          modes: root.modes, share: share(group.live), heat: heat(group.live), interval: interval)
+                intel(group.intelligence, into: &model)
+                model.twoLine = twoLine
+                if twoLine, !idle { model.cost = tick.metrics.rowCosts[group.id] }
+                return model
             case .sub(let index, let subIndex):
                 let root = groups[index].root
                 let agent = groups[index].subs[subIndex]
@@ -75,8 +94,10 @@ enum BoardRowModels {
                 let (text, idle) = value(live)
                 // A sub-agent's model is shown only when it differs from its root's.
                 let model = agent.model.flatMap { $0.isEmpty || $0 == root.model ? nil : $0 } ?? ""
-                return BoardRowModel(kind: .sub, name: name(agent), detail: model, value: text, idle: idle, phase: agent.phase,
-                                     sources: [agent.source], modes: agent.modes, share: share(live), heat: heat(live))
+                var row = BoardRowModel(kind: .sub, name: name(agent), detail: model, value: text, idle: idle, phase: agent.phase,
+                                        sources: [agent.source], modes: agent.modes, share: share(live), heat: heat(live))
+                intel(agent.intelligenceForm, into: &row)
+                return row
             case .moreSubs(let index, let count, let live):
                 return BoardRowModel(kind: .more, name: l10n("boards.moreSubs", count, SpeedFormat.speed(live)),
                                      sources: [groups[index].root.source])

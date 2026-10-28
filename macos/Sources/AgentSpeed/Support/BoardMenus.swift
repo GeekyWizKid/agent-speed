@@ -62,6 +62,13 @@ enum BoardMenus {
                 items.append(row)
             }
             return submenu(l10n("orbs.sources"), items)
+        case .readouts(let readouts):
+            // Each switch is independent and saves at once (DESIGN 2c Live metrics, *Switches*).
+            return submenu(l10n("boards.readouts"), BoardReadout.allCases.map { readout in
+                ActionMenuItem(l10n(readout.titleKey), state: readouts[readout] ? .on : .off) { [weak model] in
+                    model?.boards.toggleReadout(readout, of: id)
+                }
+            })
         case .sizes(let selected):
             return submenu(l10n("menu.size"), BoardSize.allCases.map { size in
                 ActionMenuItem(l10n(sizeKey(size)), state: size == selected ? .on : .off) { [weak model] in

@@ -14,8 +14,10 @@ import AppKit
 /// (comma separated), `AGENT_SPEED_BOARD_LEVEL` (off, soft, standard, max), `AGENT_SPEED_BOARD_THEMES` (dark, light;
 /// default dark, or light with `AGENT_SPEED_BOARD_LIGHT=1`), `AGENT_SPEED_BOARD_CONTRAST=1` (Increase Contrast),
 /// `AGENT_SPEED_BOARD_DESKTOPS` (dark, light: the backdrop around the board, named `-on-dark` / `-on-light`; default
-/// the theme's), `AGENT_SPEED_BOARD_LANG`, `AGENT_SPEED_BOARD_CHECKS=1` (the content stack's checks instead, see
-/// `BoardStackChecks`).
+/// the theme's), `AGENT_SPEED_BOARD_LANG`, `AGENT_SPEED_BOARD_SCENARIO` (team by default), the live metrics'
+/// `AGENT_SPEED_BOARD_READOUTS`, `AGENT_SPEED_BOARD_CURRENCY`, `AGENT_SPEED_BOARD_SUBS=1` and
+/// `AGENT_SPEED_BOARD_NOREASONING=1` (see `BoardSimFeed.Metrics`), `AGENT_SPEED_BOARD_CHECKS=1` (the content stack's
+/// checks instead, see `BoardStackChecks`).
 @MainActor
 enum BoardFrameHarness {
     struct State {
@@ -88,7 +90,7 @@ enum BoardFrameHarness {
     static func render(style: BoardStyle, size: BoardSize, level: BoardEffectsIntensity, dark: Bool, darkDesktop: Bool,
                        contrast: Bool, l10n: Localizer, state: State) -> CGImage? {
         let side = size.side
-        var simulation = BoardSimulation(scenario: "team")
+        var simulation = BoardSimulation(scenario: ProcessInfo.processInfo.environment["AGENT_SPEED_BOARD_SCENARIO"] ?? "team")
         simulation.paused = !state.active
         let feed = BoardSimFeed(simulation: simulation, style: style, size: size, dark: dark, l10n: l10n, highContrast: contrast)
         for _ in 0..<40 { feed.step() }
@@ -198,8 +200,9 @@ enum BoardFrameHarness {
                 canvas.context.setFillColor(plate.color)
                 canvas.context.fillPath()
             }
-            let draw = BoardRaster.tinted(accents ? accentDrawings(item).draw : item.draw, with: item.tint)
-            guard let image = BoardRaster.image(size: item.frame.size, scale: 2, draw: draw) else { continue }
+            var look = item
+            if accents { look.draw = accentDrawings(item).draw }
+            guard let image = BoardRaster.image(size: item.frame.size, scale: 2, draw: look.composited) else { continue }
             let shown = item.shownFrame
             canvas.draw(image, at: CGPoint(x: margin + shown.minX, y: margin + shown.minY), size: shown.size)
         }

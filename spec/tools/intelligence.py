@@ -5,8 +5,9 @@
 
 The index weighs every output token generating in the 3-second window (METRICS 6.3) by the grade of the model and
 effort that produced it, then adds the share of those tokens that is reasoning. The same sums restricted to one agent
-give that agent's intelligence (live), else its grade (resting), else nothing. It reuses the engine's intervals and
-estimates (reference.py) and the price-table resolution (prices.py); nothing here reads a log.
+give that agent's intelligence (live), else its grade (resting), else nothing; a board group adds its members' sums and
+rests on its root's grade. It reuses the engine's intervals and estimates (reference.py) and the price-table
+resolution (prices.py); nothing here reads a log.
 """
 from __future__ import annotations
 
@@ -66,6 +67,12 @@ class Window:
     @property
     def thinking_share(self):
         return self.reasoning / self.reasoning_weight if self.reasoning_weight > 0 else 0.0
+
+    def merge(self, other):
+        self.weight += other.weight
+        self.graded += other.graded
+        self.reasoning += other.reasoning
+        self.reasoning_weight += other.reasoning_weight
 
     def result(self):
         intelligence = self.graded / self.weight + THINKING_BONUS * self.thinking_share if self.weight > 0 else None
@@ -165,6 +172,50 @@ def agent_intelligence(index, responses, agents, now, agent, per_agent=None):
             "liveThinking": sums["liveThinking"], "thinkingShare": sums["thinkingShare"], "grade": grade_value}
 
 
+def board_groups(agents):
+    """DESIGN 2c groups: every root (no parent, or a parent that is not listed) with all its descendants, the root
+    first and then depth first in list order, keyed by the root's id."""
+    ids = {a["id"] for a in agents}
+    children, roots = {}, []
+    for a in agents:
+        parent = a.get("parentId")
+        if parent in ids and parent != a["id"]:
+            children.setdefault(parent, []).append(a["id"])
+        else:
+            roots.append(a["id"])
+    groups = {}
+    for root in roots:
+        members, stack = [], [root]
+        while stack:
+            agent_id = stack.pop()
+            members.append(agent_id)
+            stack.extend(reversed(children.get(agent_id, [])))
+        groups[root] = members
+    return groups
+
+
+def group_intelligence(index, responses, agents, now, root_id, members, per_agent=None):
+    """METRICS 6.9 Group intelligence: live from the members' added sums, else the root's grade, else none."""
+    if per_agent is None:
+        per_agent = window_sums(index, responses, agents, now)[1]
+    window = Window()
+    for agent_id in members:
+        if agent_id in per_agent:
+            window.merge(per_agent[agent_id])
+    sums = window.result()
+    root = next(a for a in agents if a["id"] == root_id)
+    grade_value = agent_grade(index, root, responses)
+    if window.weight > 0:
+        form, value = "live", sums["intelligence"]
+    elif grade_value is not None:
+        form, value = "resting", grade_value
+    else:
+        form, value = "none", None
+    return {"form": form, "intelligence": value, "shown": None if value is None else round_half_away(value),
+            "liveThinking": sums["liveThinking"], "thinkingShare": sums["thinkingShare"], "grade": grade_value,
+            "window": window}
+
+
 def round_half_away(value):
     return int(value + 0.5) if value >= 0 else -int(-value + 0.5)
 
@@ -214,6 +265,43 @@ def check_agent_windows(index, cases, failures):
                                                                          got[name]))
 
 
+def check_group_windows(index, cases, failures):
+    """Every group's members, form and values, and the groups' sums adding up to the set's (METRICS 6.9)."""
+    for case in cases:
+        responses, agents = case["responses"], case["agents"]
+        groups = board_groups(agents)
+        for query in case["queries"]:
+            now = query["nowMs"]
+            label = "%s @%d" % (case["name"], now)
+            total, per_agent = window_sums(index, responses, agents, now)
+            check_set(failures, label, total.result(), query["expect"])
+            if sorted(query["groups"]) != sorted(groups):
+                failures.append("%s: expectations for groups %s, the agents form %s" % (label, sorted(query["groups"]),
+                                                                                        sorted(groups)))
+            added = Window()
+            for root_id, members in groups.items():
+                got = group_intelligence(index, responses, agents, now, root_id, members, per_agent)
+                added.merge(got["window"])
+                want = query["groups"].get(root_id)
+                if want is None:
+                    continue
+                if want["members"] != members:
+                    failures.append("%s group %s: members expected %r got %r" % (label, root_id, want["members"],
+                                                                                 members))
+                for name in ("form", "shown", "grade"):
+                    if got[name] != want[name]:
+                        failures.append("%s group %s: %s expected %r got %r" % (label, root_id, name, want[name],
+                                                                               got[name]))
+                for name in ("intelligence", "liveThinking", "thinkingShare"):
+                    if not close(want[name], got[name]):
+                        failures.append("%s group %s: %s expected %r got %r" % (label, root_id, name, want[name],
+                                                                               got[name]))
+            for field in ("weight", "graded", "reasoning", "reasoning_weight"):
+                if abs(getattr(added, field) - getattr(total, field)) > 1e-6:
+                    failures.append("%s: groups' %s add to %r, the set has %r" % (label, field, getattr(added, field),
+                                                                                  getattr(total, field)))
+
+
 def check_cases(path=None):
     cases = json.load(open(path or os.path.join(FIXTURES, "intelligence-cases.json"), encoding="utf-8"))
     index = pricing.Index(pricing.load(os.path.join(FIXTURES, cases["table"])))
@@ -234,18 +322,20 @@ def check_cases(path=None):
             check_set(failures, "%s @%d" % (case["name"], query["nowMs"]), got, query["expect"])
     agent_windows = cases.get("agentWindows", [])
     check_agent_windows(index, agent_windows, failures)
+    group_windows = cases.get("groupWindows", [])
+    check_group_windows(index, group_windows, failures)
     counts = (len(cases["grades"]), sum(len(c["queries"]) for c in cases["windows"]),
-              sum(len(c["queries"]) for c in agent_windows))
+              sum(len(c["queries"]) for c in agent_windows), sum(len(c["queries"]) for c in group_windows))
     return failures, counts
 
 
 def main():
-    failures, (grades, queries, agent_queries) = check_cases()
+    failures, (grades, queries, agent_queries, group_queries) = check_cases()
     if failures:
         print("\n".join(failures))
         sys.exit(1)
-    print("intelligence reference matches %d grade cases, %d window queries and %d agent window queries"
-          % (grades, queries, agent_queries))
+    print("intelligence reference matches %d grade cases, %d window queries, %d agent window queries and %d group "
+          "window queries" % (grades, queries, agent_queries, group_queries))
 
 
 if __name__ == "__main__":

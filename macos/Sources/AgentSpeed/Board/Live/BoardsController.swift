@@ -129,6 +129,8 @@ final class BoardsController {
     func setClickThrough(_ value: Bool, of id: String) { edit(id) { $0.setClickThrough(value, of: id) } }
     func setAllSpaces(_ value: Bool, of id: String) { edit(id) { $0.setAllSpaces(value, of: id) } }
     func setVisible(_ value: Bool, of id: String) { edit(id) { $0.setVisible(value, of: id) } }
+    func setReadouts(_ readouts: BoardReadouts, of id: String) { edit(id) { $0.setReadouts(readouts, of: id) } }
+    func toggleReadout(_ readout: BoardReadout, of id: String) { edit(id) { $0.toggleReadout(readout, of: id) } }
 
     /// `boards.show` / `boards.hide`.
     func setAllVisible(_ visible: Bool) {

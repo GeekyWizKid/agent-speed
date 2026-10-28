@@ -25,6 +25,8 @@ public enum BoardMenuModel {
         case styles(selected: BoardStyle)
         /// `orbs.sources` ▸ `orbs.sources.all`, separator, every source.
         case sources(all: Bool, entries: [SourceEntry])
+        /// `boards.readouts` ▸ the four live metrics switches, each with its check.
+        case readouts(BoardReadouts)
         /// `menu.size` ▸ S / M / L.
         case sizes(selected: BoardSize)
         /// `menu.effects` ▸ the global effects level.
@@ -54,6 +56,7 @@ public enum BoardMenuModel {
             .separator,
             .styles(selected: board.style),
             .sources(all: board.sources.isAll, entries: entries),
+            .readouts(board.readouts),
             .sizes(selected: board.size),
             .effects,
             .separator,
