@@ -29,7 +29,13 @@ final class HistoryViewModel {
     /// Whether subscription sources count at their API-equivalent cost in this window.
     private(set) var includeSubscriptions: Bool
     private(set) var content: HistoryContent
+    /// Whether the window is open. A closed window keeps its filter but neither rebuilds its content nor shows its
+    /// views: the data it follows changes every few seconds, and none of it is laid out until the window opens again.
+    var isOpen = true {
+        didSet { if isOpen, needsRebuild { rebuild() } }
+    }
 
+    @ObservationIgnored private var needsRebuild = false
     @ObservationIgnored private var dataLoop: ObservationLoop?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
@@ -144,6 +150,11 @@ final class HistoryViewModel {
     }
 
     private func rebuild() {
+        guard isOpen else {
+            needsRebuild = true
+            return
+        }
+        needsRebuild = false
         let today = DayKey(Date(), calendar: HistoryDates.calendar)
         let options = HistoryCostOptions(
             marked: cost.settings.subscriptionSources, includeSubscriptions: includeSubscriptions, metric: chartMetric

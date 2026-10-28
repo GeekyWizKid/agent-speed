@@ -11,7 +11,13 @@ struct HistoryView: View {
     @FocusState private var tableFocused: Bool
 
     var body: some View {
-        let content = model.content
+        // A closed window keeps its model but none of its views, so nothing is laid out until it opens again.
+        if model.isOpen {
+            windowContent(model.content)
+        }
+    }
+
+    private func windowContent(_ content: HistoryContent) -> some View {
         VStack(spacing: 0) {
             Group {
                 if content.isEmpty {
