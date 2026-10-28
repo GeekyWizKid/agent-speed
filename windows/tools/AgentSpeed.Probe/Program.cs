@@ -26,6 +26,7 @@ return options.Mode switch
     ProbeMode.DumpToday => DumpToday.Run(options, output),
     ProbeMode.DumpHistory => DumpHistory.Run(options, output),
     ProbeMode.DumpUnpriced => DumpUnpriced.Run(options, output),
+    ProbeMode.DumpTasks => DumpTasks.Run(options, output),
     ProbeMode.SyncPrices => NetworkSync.Prices(options, output),
     ProbeMode.SyncRates => NetworkSync.Rates(options, output),
     _ => Watch.Run(options, output),

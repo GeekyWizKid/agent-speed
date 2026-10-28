@@ -436,7 +436,7 @@ internal sealed partial class HistoryAnalyzer
     }
 
     /// <summary>Transcript roots of the enabled sources; Codex also contributes its <c>archived_sessions</c> sibling.</summary>
-    private static IEnumerable<(RootFamily Family, string Path)> Roots(SourceLocations locations, IReadOnlySet<SourceKind> enabled)
+    internal static IEnumerable<(RootFamily Family, string Path)> Roots(SourceLocations locations, IReadOnlySet<SourceKind> enabled)
     {
         foreach (var (family, path) in locations.FileRoots())
         {
