@@ -60,6 +60,15 @@ public struct UnpricedRow: Equatable, Sendable, Identifiable {
     public var first: String
     public var last: String
 
+    public init(source: SourceKind, key: UnpricedFactKey, diagnosis: UnpricedDiagnosis, requests: Int, first: String, last: String) {
+        self.source = source
+        self.key = key
+        self.diagnosis = diagnosis
+        self.requests = requests
+        self.first = first
+        self.last = last
+    }
+
     public var id: String {
         [source.rawValue, key.model, key.provider.map { "1" + $0 } ?? "0", key.fast ? "1" : "0", key.noDate ? "1" : "0"]
             .joined(separator: "\u{0}")
@@ -76,6 +85,10 @@ public struct UnpricedGroup: Equatable, Sendable, Identifiable {
     public var noCostData = 0
     public var derived = 0
     public var rows: [UnpricedRow] = []
+
+    public init(source: SourceKind) {
+        self.source = source
+    }
 
     public var id: SourceKind { source }
     /// Σ requests of its rows.
@@ -124,9 +137,24 @@ extension UnpricedRange {
 public struct UnpricedView: Equatable, Sendable {
     public var range: UnpricedRange
     public var groups: [UnpricedGroup]
+    /// The current table the reasons were computed with (the text's `prices` line).
+    public var tableVersion: Int
+    public var tableUpdated: String
+
+    public static let empty = UnpricedView(
+        range: UnpricedRange(view: "custom", first: "", last: ""), groups: [], tableVersion: 0, tableUpdated: "")
+
+    public init(range: UnpricedRange, groups: [UnpricedGroup], tableVersion: Int, tableUpdated: String) {
+        self.range = range
+        self.groups = groups
+        self.tableVersion = tableVersion
+        self.tableUpdated = tableUpdated
+    }
 
     public init(parts: [UnpricedPart], table: PriceTable, range: UnpricedRange) {
         self.range = range
+        tableVersion = table.version
+        tableUpdated = table.updated
         var groups: [SourceKind: UnpricedGroup] = [:]
         var rows: [SourceKind: [UnpricedFactKey: UnpricedRow]] = [:]
         var diagnoses: [UnpricedFactKey: UnpricedDiagnosis?] = [:]

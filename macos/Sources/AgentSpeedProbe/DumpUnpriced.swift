@@ -27,7 +27,7 @@ enum DumpUnpriced {
         }
         let view = UnpricedView(parts: parts, table: table, range: range)
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
-        FileHandle.standardOutput.write(Data(UnpricedText.render(view, app: .current(version: version), table: table).utf8))
+        FileHandle.standardOutput.write(Data(UnpricedText.render(view, app: .current(version: version)).utf8))
         let elapsed = Int(Date().timeIntervalSince(started) * 1000)
         FileHandle.standardError.write(Data("unpriced: \(parts.count) parts, \(view.unpriced) unpriced requests in \(elapsed) ms\n".utf8))
     }

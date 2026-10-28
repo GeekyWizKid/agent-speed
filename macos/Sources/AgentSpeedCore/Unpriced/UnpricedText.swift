@@ -25,12 +25,12 @@ public enum UnpricedText {
         }
     }
 
-    public static func render(_ view: UnpricedView, app: App, table: PriceTable) -> String {
+    public static func render(_ view: UnpricedView, app: App) -> String {
         let range = view.range
         var lines = [
             "Agent Speed unpriced diagnostics \(format)",
             "app version=\(app.version) platform=\(app.platform) os=\(app.os)",
-            "prices version=\(table.version) updated=\(table.updated)",
+            "prices version=\(view.tableVersion) updated=\(view.tableUpdated)",
             "range view=\(range.view) first=\(range.first) last=\(range.last) days=\(days(range.first, range.last)) "
                 + "source=\(range.source?.rawValue ?? "all") excluded=\(excludedText(range.excluded))",
         ]

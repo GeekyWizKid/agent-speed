@@ -141,7 +141,7 @@ struct UnpricedCaseTests {
                 : stored
             let result = UnpricedView(parts: parts, table: table, range: range)
             let text = UnpricedText.render(result, app: UnpricedText.App(version: app["version"] ?? "", platform: app["platform"] ?? "",
-                                                                        os: app["os"] ?? ""), table: table)
+                                                                        os: app["os"] ?? ""))
             #expect(text == report.string("expect"), "report \(name)")
             #expect(Array(text.utf8) == Array((report.string("expect") ?? "").utf8), "report \(name) bytes")
             for group in result.groups {

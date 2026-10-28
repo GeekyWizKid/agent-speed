@@ -193,8 +193,23 @@ enum PreviewData {
             liveCost: LiveCost(microUsdPerSecond: live * knownShare * microUsdPerToken, knownOutput: live * knownShare),
             todayCost: CostTally(costMicroUsd: Int64(Double(today.output) * knownShare * microUsdPerToken * 1.6),
                                  unpricedRequests: unpriced),
-            unpricedModels: kind == .antigravity ? ["gemini-3.1-flash"] : kind == .deepseek ? ["deepseek-pro"] : []
+            unpricedModels: kind == .antigravity ? ["gemini-3.1-flash"] : kind == .deepseek ? ["deepseek-pro"] : [],
+            unpricedFacts: unpricedFacts(kind, unpriced)
         )
+    }
+
+    /// Today's unpriced facts behind `unpriced` (METRICS 9.10 *Live*): an Antigravity label and a response without a
+    /// model, and DeepSeek Harness's unofficial id.
+    private static func unpricedFacts(_ kind: SourceKind, _ unpriced: Int) -> [UnpricedFact] {
+        switch kind {
+        case .antigravity where unpriced > 1: return UnpricedFact.list([
+            UnpricedFactKey(model: "gemini-3.1-flash", provider: nil, fast: false): unpriced - 1,
+            UnpricedFactKey(model: "", provider: nil, fast: false): 1,
+        ])
+        case .deepseek where unpriced > 0:
+            return [UnpricedFact(key: UnpricedFactKey(model: "deepseek-pro", provider: nil, fast: false), requests: unpriced)]
+        default: return []
+        }
     }
 
     private static func sessionCount(_ folder: TranscriptFolder) -> Int {
