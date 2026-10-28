@@ -67,13 +67,14 @@ enum StatusItemArtist {
         context.setStrokeColor(palette.track.cgColor)
         context.strokePath()
 
-        let fraction = state.fraction.clamped(to: 0...1)
+        let ring = state.ring
+        let fraction = ring.fraction.clamped(to: 0...1)
         guard fraction > 0.004 else { return }
-        let fill = state.colored ? palette.heat(state.heat) : palette.primary
+        let fill = state.colored ? palette.heat(fraction) : palette.primary
         let end = start + 1.5 * .pi * CGFloat(fraction)
-        context.setAlpha(state.fillOpacity)
-        if state.glow > 0.001 {
-            let glowColor = fill.opacity(state.glow * palette.glowOpacity)
+        context.setAlpha(ring.fillOpacity)
+        if ring.glow > 0.001 {
+            let glowColor = fill.opacity(ring.glow * palette.glowOpacity)
             context.setShadow(offset: .zero, blur: 6 * context.ctm.a.magnitude, color: glowColor.cgColor)
         }
         context.addArc(center: center, radius: radius, startAngle: start, endAngle: end, clockwise: false)
