@@ -111,11 +111,22 @@ public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, doubl
     }
 
     /// <summary>
+    /// The intelligence line's baseline alone, its thinking line hidden at zero: the nearest baseline, where the line next to
+    /// the value sits (above the value the thinking line's, below it its own), so the gap to the value is unchanged.
+    /// </summary>
+    public double SingleBaseline(double y, double s)
+    {
+        var (top, bottom) = Baselines(y, s, OrbLinesKind.Intelligence);
+        return Below ? top : bottom;
+    }
+
+    /// <summary>
     /// How far the readout stack (value, unit, title, pill and this block) moves down while the block shows above the value,
     /// so the whole stack stays centered (DESIGN 10): half the block's height over the value's cap top, but never so far
-    /// that the title's bottom comes closer to the agent dots than the clearance.
+    /// that the title's bottom comes closer to the agent dots than the clearance. <paramref name="single"/>: the
+    /// intelligence line alone, the block's top at its own cap top.
     /// </summary>
-    public double StackShift(OrbReadoutLayout layout, double s, OrbLinesKind kind)
+    public double StackShift(OrbReadoutLayout layout, double s, OrbLinesKind kind, bool single = false)
     {
         ArgumentNullException.ThrowIfNull(layout);
         if (!Recenters || Below)
@@ -123,7 +134,8 @@ public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, doubl
             return 0;
         }
 
-        var blockTop = Baselines(0, s, kind).Top - CapHeight * TopSize(kind, s);
+        var top = single && kind == OrbLinesKind.Intelligence ? SingleBaseline(0, s) : Baselines(0, s, kind).Top;
+        var blockTop = top - CapHeight * TopSize(kind, s);
         var valueTop = (layout.ValueBaseline - CapHeight * layout.ValueSize) * s;
         var centered = Math.Max(0, (valueTop - blockTop) / 2);
         if (layout.DotsY is not { } dots)
@@ -140,7 +152,18 @@ public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, doubl
     /// <summary>The agent dots' diameter (4 pt at the 148 pt orb).</summary>
     public static double DotDiameter(double s) => 4 * s / 148;
 
-    /// <summary>The stack's shift at a moment: follows the block's quiet-rule opacity (smoothstep), never the pill's fade.</summary>
-    public double StackShift(OrbReadoutLayout layout, double s, OrbLinesKind kind, double shown) =>
-        StackShift(layout, s, kind) * Easing.SmoothStep(0, 1, Math.Clamp(shown, 0, 1));
+    /// <summary>
+    /// The stack's shift at a moment: follows the block's quiet-rule opacity (smoothstep), never the pill's fade, and the
+    /// intelligence line's glide to the single-line position (<paramref name="single"/>, already eased).
+    /// </summary>
+    public double StackShift(OrbReadoutLayout layout, double s, OrbLinesKind kind, double shown, double single = 0)
+    {
+        var shift = StackShift(layout, s, kind);
+        if (single > 0)
+        {
+            shift = Easing.Lerp(shift, StackShift(layout, s, kind, single: true), Math.Min(single, 1));
+        }
+
+        return shift * Easing.SmoothStep(0, 1, Math.Clamp(shown, 0, 1));
+    }
 }

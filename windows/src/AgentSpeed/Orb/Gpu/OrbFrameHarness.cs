@@ -22,7 +22,8 @@ namespace AgentSpeed.Orb.Gpu;
 /// renderer into PNG sheets laid out like the macOS previews (<c>orb-style-STYLE-dark|light.png</c>: columns idle, cruise,
 /// boost, overdrive, redline, beyond, new peak, hover, pulse; rows 96 (64 for minimal), 148 and 240 pt at 2×, R = 2000,
 /// three agents, zh-Hant), plus per-level sheets, the two-line readout's network and intelligence modes (<c>orb-lines.png</c>),
-/// the intelligence readout at 112, 148 and 196 pt (<c>orb-intel-dark|light.png</c>, its fit in the report) and the GPU/CPU
+/// the intelligence readout at 112, 148 and 196 pt (<c>orb-intel-dark|light.png</c>, its fit in the report), its thinking
+/// line hidden at zero (<c>orb-intel-zero-dark|light.png</c>, its single-line baselines in the report) and the GPU/CPU
 /// cost of each frame, then exits. Deterministic: fixed seeds, fixed time steps; no window, so it also runs without a
 /// desktop. <c>AGENT_SPEED_ORB_FRAMES_STYLES</c> limits the styles, <c>AGENT_SPEED_ORB_FRAMES_SCALE</c> sets the pixel
 /// scale, <c>AGENT_SPEED_ORB_FRAMES_LANG</c> the language (zh-Hant, zh-Hans, en, ja), and
@@ -290,12 +291,71 @@ internal static class OrbFrameHarness
 
             WriteSheet(rows, dark, scale, Path.Combine(directory, $"orb-intel-{(dark ? "dark" : "light")}.png"));
         }
+
+        ThinkingZeroSheets(device, target, styles, scale, strings, info, loc, directory, report, intelligence);
     }
 
-    /// <summary>A still of <paramref name="style"/> at <paramref name="value"/> after 2.4 s at that speed, with the extra event in flight.</summary>
+    /// <summary>
+    /// The intelligence readout's thinking line hidden at zero (DESIGN 10) at 148 and 196 pt, a row per style
+    /// (<c>orb-intel-zero-dark|light.png</c>): 133 over 176 tok/s, 125 over 0 inside its 3 s hold, half way through the
+    /// fade and glide, and the intelligence line alone by the value; the report gives each style's baselines and stack shift.
+    /// </summary>
+    private static void ThinkingZeroSheets(GpuDevice device, OffscreenTarget target, OrbStyle[] styles, double scale, OrbReadoutStrings strings,
+        string info, Localizer loc, string directory, System.Text.StringBuilder report, OrbLinesSample live)
+    {
+        var zero = OrbLinesText.Intelligence(new Core.Intelligence.IntelligenceSums(400, 400 * 125, 0, 400), true, loc);
+        var hold = ThinkingZeroHold.Seconds;
+        (OrbLinesSample Sample, double Seconds)[] moments =
+            [(live, 2.4), (zero, 2.4), (zero, hold + OrbThinkingFade.Glide / 2), (zero, hold + 2 * OrbThinkingFade.Glide)];
+        var sizes = new[] { 148.0, 196 };
+        foreach (var style in styles)
+        {
+            var placement = OrbLinesPlacement.For(style);
+            var layout = OrbReadoutLayout.For(style);
+            foreach (var size in sizes)
+            {
+                var (top, bottom) = placement.Baselines(0, size, OrbLinesKind.Intelligence);
+                var two = placement.StackShift(layout, size, OrbLinesKind.Intelligence);
+                var alone = placement.StackShift(layout, size, OrbLinesKind.Intelligence, single: true);
+                var single = placement.SingleBaseline(0, size);
+                report.AppendLine(CultureInfo.InvariantCulture,
+                    $"intel-zero {OrbStyles.Key(style)} {size:0}: baselines {top:0.00} / {bottom:0.00} pt, alone {single:0.00} pt; stack shift {two:0.00} -> {alone:0.00} pt");
+            }
+        }
+
+        foreach (var dark in new[] { true, false })
+        {
+            var rows = new List<List<BitmapSource>>();
+            foreach (var style in styles)
+            {
+                var row = new List<BitmapSource>();
+                foreach (var size in sizes)
+                {
+                    foreach (var (sample, seconds) in moments)
+                    {
+                        var (bitmap, _) = Still(device, target, style, size, scale, dark, Redline * 0.3, Extra.None, strings, info,
+                            EffectsIntensity.Standard, lines: sample, seconds: seconds);
+                        if (bitmap is not null)
+                        {
+                            row.Add(bitmap);
+                        }
+                    }
+                }
+
+                rows.Add(row);
+            }
+
+            WriteSheet(rows, dark, scale, Path.Combine(directory, $"orb-intel-zero-{(dark ? "dark" : "light")}.png"));
+        }
+    }
+
+    /// <summary>
+    /// A still of <paramref name="style"/> at <paramref name="value"/> after <paramref name="seconds"/> at that speed (and
+    /// with that readout sample), with the extra event in flight.
+    /// </summary>
     private static (BitmapSource? Bitmap, double BuildSeconds) Still(GpuDevice device, OffscreenTarget target, OrbStyle style, double size,
         double scale, bool dark, double value, Extra extra, OrbReadoutStrings strings, string info, EffectsIntensity level, int warmFrames = 0,
-        bool highContrast = false, MoneyState money = MoneyState.None, OrbLinesSample? lines = null)
+        bool highContrast = false, MoneyState money = MoneyState.None, OrbLinesSample? lines = null, double seconds = 2.4)
     {
         var effects = new EffectsPolicy(level, false, highContrast);
         var orb = new OrbGpuOrb(0x9E3779B9u, device.Atlas.ForScale(scale));
@@ -315,7 +375,7 @@ internal static class OrbFrameHarness
         orb.SnapNext();
         device.Atlas.BeginFrame();
         orb.Render(time);
-        var end = time + 2.4;
+        var end = time + seconds;
         if (extra == Extra.Hover)
         {
             end -= 0.6;

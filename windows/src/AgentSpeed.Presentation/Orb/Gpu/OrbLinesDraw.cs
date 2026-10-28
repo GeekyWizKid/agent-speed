@@ -1,4 +1,5 @@
 using AgentSpeed.Presentation.Colors;
+using AgentSpeed.Presentation.Motion;
 using AgentSpeed.Presentation.Orb.Lines;
 
 namespace AgentSpeed.Presentation.Orb.Gpu;
@@ -40,9 +41,10 @@ public readonly record struct OrbLinesColors(Rgba Number, Rgba Secondary, Rgba? 
 /// The orb's two-line readout on the GPU (DESIGN 10). Network speed: each line a vector arrow, a number right-aligned in a
 /// cell as wide as <c>8.88</c> and a unit left-aligned in a cell as wide as <c>MB/s</c>, sharing their left edge and
 /// centered on the orb. Intelligence: a larger intelligence line (glyph · index) over a smaller thinking line
-/// (glyph · tok/s value · unit), each centered on the orb by its own width with every piece on a device pixel.
-/// Characters are replaced once per sample (no animation); the block fades by the quiet rule and steps aside for the
-/// new-peak pill. Allocates nothing per frame.
+/// (glyph · tok/s value · unit), each centered on the orb by its own width with every piece on a device pixel; after 3 s
+/// at 0 the thinking line fades out and the intelligence line glides to its place by the value. Characters are replaced
+/// once per sample (no animation); the block fades by the quiet rule and steps aside for the new-peak pill. Allocates
+/// nothing per frame.
 /// </summary>
 public sealed class OrbLinesDraw
 {
@@ -170,9 +172,18 @@ public sealed class OrbLinesDraw
             return;
         }
 
+        // The thinking line hidden at zero: it fades while the intelligence line glides to the single-line position.
         var p = OrbLinesPlacement.IntelligenceScale * t;
-        TextLine(list, ctx, content.First, p, OrbLinesPlacement.IntelligenceGap * p, false, top, paint);
-        TextLine(list, ctx, content.Second, t, OrbLinesPlacement.Gap * t, placement.ThinkingUnit, bottom, paint);
+        var reduce = scene.Effects.ReduceMotion;
+        var single = reading.Thinking.Single(scene.Time, reduce);
+        var first = single > 0 ? Easing.Lerp(top, placement.SingleBaseline(ctx.CenterY + shift, ctx.Size), single) : top;
+        TextLine(list, ctx, content.First, p, OrbLinesPlacement.IntelligenceGap * p, false, first, paint);
+        var thinking = reading.Thinking.Alpha(scene.Time, reduce);
+        if (thinking > 0.01)
+        {
+            var faded = thinking < 1 ? paint.Faded(thinking) : paint;
+            TextLine(list, ctx, content.Second, t, OrbLinesPlacement.Gap * t, placement.ThinkingUnit, bottom, faded);
+        }
     }
 
     /// <summary>Network speed: the arrow centered in its box, the number right-aligned in its cell, the unit after it.</summary>
@@ -290,5 +301,9 @@ public sealed class OrbLinesDraw
     /// <summary>Network speed: the left edge and the number cell's right edge shared by both lines at text size <see cref="Size"/>.</summary>
     private readonly record struct LineCells(double Left, double NumberRight, double Gap, double Size);
 
-    private readonly record struct LinePaint(Rgba Number, Rgba Secondary, Rgba? Shadow, double Sigma, OrbTextClip Clip);
+    private readonly record struct LinePaint(Rgba Number, Rgba Secondary, Rgba? Shadow, double Sigma, OrbTextClip Clip)
+    {
+        public LinePaint Faded(double alpha) =>
+            this with { Number = Number.MultiplyAlpha(alpha), Secondary = Secondary.MultiplyAlpha(alpha), Shadow = Shadow?.MultiplyAlpha(alpha) };
+    }
 }

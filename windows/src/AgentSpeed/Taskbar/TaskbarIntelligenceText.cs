@@ -10,7 +10,8 @@ namespace AgentSpeed.Taskbar;
 /// Draws the taskbar intelligence block (DESIGN 10, Menu bar and taskbar): <c>智力 125</c> over <c>思考 10 tok/s</c> in
 /// 10 px medium tabular text, labels left-aligned in a column, both numbers right-aligned in one cell as wide as
 /// <c>8.88k</c>, the unit after the second. Numbers in the label color at 85 %, labels, unit, <c>–</c> and a zero
-/// thinking rate in the secondary color. Runs on the taskbar thread.
+/// thinking rate in the secondary color; with the thinking line hidden at zero, line 1 alone, centred in the same cells.
+/// Runs on the taskbar thread.
 /// </summary>
 internal sealed class TaskbarIntelligenceText
 {
@@ -41,7 +42,10 @@ internal sealed class TaskbarIntelligenceText
     /// <summary>The block's height (vertical taskbars stack it under the value).</summary>
     public static double Height => Pitch * 2 + 2;
 
-    /// <summary>Draws the block starting at <paramref name="x"/> (its gap included), the two lines centered on <paramref name="centerY"/>.</summary>
+    /// <summary>
+    /// Draws the block starting at <paramref name="x"/> (its gap included), the two lines (or line 1 alone) centered on
+    /// <paramref name="centerY"/>.
+    /// </summary>
     public void Draw(DrawingContext dc, BarIntelligenceBlock block, double x, double centerY, double scale, Color primary, Color secondary)
     {
         Ensure(block.LanguageCode, scale, primary, secondary);
@@ -49,9 +53,12 @@ internal sealed class TaskbarIntelligenceText
         var left = x + Gap;
         var numberRight = left + cells.Label + BarIntelligenceCells.LabelGap + cells.Number;
         var capHeight = (_face.CapsHeight > 0 ? _face.CapsHeight : 0.7) * TextSize;
-        var first = Math.Round((centerY - Pitch / 2 + capHeight / 2) * scale) / scale;
+        var first = Snap(block.FirstBaseline(centerY, capHeight, Pitch), scale);
         DrawLine(dc, block.Label, block.Index, block.Quiet, null, left, numberRight, first, scale);
-        DrawLine(dc, block.ThinkingLabel, block.Thinking, block.ThinkingDim, block.Unit, left, numberRight, first + Pitch, scale);
+        if (!block.ThinkingHidden)
+        {
+            DrawLine(dc, block.ThinkingLabel, block.Thinking, block.ThinkingDim, block.Unit, left, numberRight, first + Pitch, scale);
+        }
     }
 
     private void DrawLine(DrawingContext dc, string label, string number, bool dim, string? unit, double left, double numberRight,
