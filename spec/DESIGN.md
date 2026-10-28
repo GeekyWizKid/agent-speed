@@ -576,7 +576,7 @@ OKLab L, stepped to ≥ 4.5:1 against the body); *hot* is `mix(heat(h), #FFF7D6,
   - Readout text is always drawn above every effect. Particles that pass behind it fade to 35 % inside the *readout
     zone* (an ellipse 0.30 S × 0.19 S around `c + (0, 0.07 S)`, Gaussian falloff) so it never competes with them.
 - **Readout** (optional, per orb): two small lines above the value (`needle`: inside the hub, below it) with the
-  download and upload speed or the live intelligence, section 10.
+  download and upload speed or 智力, the task score (section 10; values in section 12).
 - **Agent dots**: section 2, layer 6, at the style's position; only the orb's own agents (2b). None in `minimal`.
 - **Response pulse** (`responseCompleted` of the orb's sources, 2b): the shockwave of section 2, layer 7, for every
   style except `minimal`, plus the style's accent below. Pulses toggle: Settings → Effects → Response pulses.
@@ -983,7 +983,7 @@ Persisted as one JSON value in the settings store (key `orbs`), written atomical
 | `visible` | Hides one orb without removing it. |
 | `redlineOutput`, `redlineTotal` | `null` = the General redline of that metric; otherwise this orb's redline (same ranges). Heat, tiers and titles of the orb use it. |
 | `unit` | `"tokens"` (tok/s, default) or `"cost"` (the money unit of section 9); unknown → `"tokens"`. Copied by Add, Duplicate and Split. Heat, tiers and titles always follow tokens. |
-| `traffic` | What the orb's two-line readout shows (section 10, *Floating orb readout*): `"sources"` (default: the traffic of the orb's own sources), `"machine"` (the whole computer), `"intelligence"` (the live intelligence of the orb's own sources, METRICS 6.9) or `"off"`; absent (orbs saved by older builds) → `"sources"`, unknown → `"off"`. Copied by Add, Duplicate and Split; Merge keeps the target's. Older builds ignore it, and read `"intelligence"` as `"off"`. |
+| `traffic` | What the orb's two-line readout shows (section 10, *Floating orb readout*): `"sources"` (default: the traffic of the orb's own sources), `"machine"` (the whole computer), `"intelligence"` (智力, the highest task score of the orb's own agents, section 12 and METRICS 6.9, *Sets and groups*) or `"off"`; absent (orbs saved by older builds) → `"sources"`, unknown → `"off"`. Copied by Add, Duplicate and Split; Merge keeps the target's. Older builds ignore it, and read `"intelligence"` as `"off"`. |
 | `showName` | `null` (default) follows the global `orbNames`; `true` / `false` shows or hides this orb's name plate (Name plate, below). Copied by Add, Duplicate and Split; Merge keeps the target's; absent or unknown → `null`. Older builds ignore it. |
 | `titleTheme` | `null` = the General title theme; otherwise a preset id or a custom set id (section 1, Title themes) naming this orb's titles, idle label and accessibility label. Deleting the custom set it names replaces it with that set's base preset (undo restores it); an unknown id counts as `null`. Added in this version without a format change: older builds ignore it. |
 | `layouts` | Positions per **display arrangement**: the key is the sorted list of connected display keys (macOS display UUID; Windows monitor device ID) joined with `+`. Each entry uses today's position record (edge-docked distance or fraction of the usable area, per axis) on the named display. At most 16 arrangements are kept (least recently used dropped). |
@@ -1318,7 +1318,7 @@ All three styles show the same content; the style decides its look (Styles, belo
    Under a group, its fastest generating sub-agents (smaller rows with their own capsule and value), then
    `boards.moreSubs` (`+97 個子 agent · 8.6k`) for the rest. When groups do not fit, the last line is
    `boards.moreGroups` with their summed speed. With the live metrics on, every group and sub row also shows its
-   intelligence in a column before the value, and at M and L each group row a second line with its model and cost per
+   智力 (section 12) in a column before the value, and at M and L each group row a second line with its model and cost per
    second (*Live metrics*).
 3. **Footer**: `boards.today` (today's output of the board's sources), today's cost (section 9) and `boards.peak` (`peakToday_A`).
 
@@ -1340,8 +1340,8 @@ Sub rows sort by live value, latest activity, id; they emit nothing. Shared case
 ### Live metrics (智力 · 思考 · 費用)
 
 User's choice (2026-10-28): layout **B, 副錶**, in every style. The right side of the hero becomes a small
-sub-gauge — the board's live intelligence large, its thinking rate and its cost per second smaller beneath it — every
-ranking row gets an intelligence column, and at M and L each group row gets a second line with its model and its cost
+sub-gauge — the board's 智力 (the highest task score of its agents, section 12) large, its thinking rate and its cost
+per second smaller beneath it — every ranking row gets a 智力 column, and at M and L each group row gets a second line with its model and its cost
 per second. Reference: `spec/prototypes/board/board-metrics.html`, which opens on B with every switch on (its options
 A and C are the alternatives that were not chosen); where it and this section differ, this section wins. Numbers are
 pt (DIP on Windows) on boards of side S 280, M 340, L 420, from the board's top-left corner unless a row says
@@ -1351,10 +1351,10 @@ otherwise; baselines are rounded to 0.5 pt from the macOS fonts of the prototype
 
 | Readout | Value | Shown as | Label |
 | --- | --- | --- | --- |
-| 智力 | METRICS 6.9 `intelligence` over the board's sources `A` (6.8) | integer, rounded half away from zero; none → `–` | `intel.glyph` (智力 / 智力 / IQ / 知) |
-| 思考 | METRICS 6.9 `liveThinking` over `A` | METRICS 7 · `unit.tokS` | `intel.thinking.glyph` (思考 / 思考 / TH / 思考) |
+| 智力 | METRICS 6.9, *Sets and groups*, over the board's agents `A` (6.8): the highest live score, else the highest resting score, else none | integer 0–100; resting pale; none → `–`; the proof mark under an unverified or pending score (section 12) | `intel.glyph` (智力 / 智力 / IQ / 知) |
+| 思考 | METRICS 6.9, *Live thinking*: `liveThinking` over `A` | METRICS 7 · `unit.tokS` | `intel.thinking.glyph` (思考 / 思考 / TH / 思考) |
 | 費用 | METRICS 9.5 `liveCost` and `liveCostKnownShare` over the billable sources of `A` | section 9 rate form in the display currency (METRICS 9.8) · `cost.unitPerSecond` | `cost.glyph` (費用 / 费用 / Cost / 費用) |
-| row 智力 | group row: METRICS 6.9 *Group intelligence*; sub row: the sub-agent's *Agent intelligence* | live, resting or none, as section 4's column | caption `intel.glyph` |
+| row 智力 | group row: METRICS 6.9, *Sets and groups*, over the group (its highest member score); sub row: the sub-agent's own value (6.9, *Values*) | live, resting (pale) or none, with the proof mark (section 12) | caption `intel.glyph` |
 | row cost | group row: METRICS 9.5 *Per group* | as 費用 | — |
 
 - Every cost on a board follows `settings.cost.includeSubscriptions`, like every other displayed cost (METRICS 9.4):
@@ -1428,15 +1428,16 @@ sub-gauge's top:
 
 - Arc: centre at (`D`/2, `D`/2) of the dial box, radius 0.439 `D`, stroke 0.0455 `D`, round caps, from 150° (lower
   left) clockwise over the top to 30° (lower right), 240° in all (angles with y down). Track: the whole sweep in
-  `line-2` (dark white 14 %, light black 11 %). Value: the first `f` of the sweep, `f = clamp((shown − 60) / 96, 0,
-  1)` with `shown` the displayed integer — 60 is a light model at level 0 without reasoning, 156 a flagship's top
-  rung writing nothing but reasoning (METRICS 6.9) — stroked with a linear gradient across the dial box from its
+  `line-2` (dark white 14 %, light black 11 %). Value: the first `f` of the sweep, `f = shown / 100` with `shown` the
+  displayed integer (0–100, METRICS 6.9, *Score*) — stroked with a linear gradient across the dial box from its
   lower-left to its upper-right corner, `pearl-c` → `pearl-a` → `pearl-b` (dark `#A5F3FC` → `#C7D2FE` → `#F5D0FE`,
   light `#1AA3C4` → `#6D7CF0` → `#C05BD9`), with a 3 pt glow of `pearl-b` at 60 %. Tip: a dot of radius 0.035 `D` on
   the value's end, white with a 3 pt `pearl-b` glow (light: `pearl-b`, no glow). `f = 0` draws no value arc; none
-  draws neither the value arc nor the tip.
+  draws neither the value arc nor the tip. Resting (section 12): the value arc and the tip at 35 %, without glow.
+  Proof mark (unverified or pending, section 12): the value arc is drawn as round dots (dash 0, gap 2 × stroke) and
+  the tip as a hollow ring (stroke 0.4 × its radius, no fill), so an unproven score never looks like a full sweep.
 - 智力 label weight 600, tracking 0.1 em, `ink-3`; number SF Pro Display / Segoe UI Variable Display, weight 650
-  (Windows Semibold), tracking −0.02 em, tabular, `ink`. Each is centred on its own, so the number moves only when its
+  (Windows Semibold), tracking −0.02 em, tabular, `ink` (resting and `–`: `ink-3`; the proof mark under it). Each is centred on its own, so the number moves only when its
   digit count changes.
 - Table: rows 15 tall, 2 apart, the first 3 under the dial box. Labels weight 600, tracking 0.04 em (S 0.02 em),
   `ink-3`; numbers weight 600, tabular, `ink`; units weight 500, `ink-3`. Tokens: `ink` dark `rgba(244,246,252,.96)`,
@@ -1459,7 +1460,8 @@ sub-gauge's top:
   `block` (dark `#1B1F2A`, light `#E6E9F0`); labels UI font, weight 700, centred in their tab, `ink-2` (dark
   `rgba(232,236,245,.66)`, light `rgba(14,17,24,.62)`), 智力's `block-ink` (dark `#E8ECF5`, light `#1A1E28`). Latin
   labels are upper-case (`IQ`, `TH`, `COST`), like the style's other labels.
-- Values: mono, weight 800, tabular, tracking −0.03 em (智力 −0.04 em), `ink` (dark `#F5F7FB`, light `#0E1118`); the
+- Values: mono, weight 800, tabular, tracking −0.03 em (智力 −0.04 em), `ink` (dark `#F5F7FB`, light `#0E1118`;
+  智力 resting and `–`: `ink-3`, with the proof mark of section 12 under an unproven score); the
   number's box (1.1 × its size) is centred in the row below its separator, and the unit (mono, weight 700, upper-case:
   `TOK/S`, `US$/S`; `ink-3`) and `≥` sit on the number's baseline. A value too wide for its row widens the box to the
   left at once and narrows it 6 s after the last value that needed it.
@@ -1481,9 +1483,11 @@ sub-gauge's top:
   `rgba(120,160,255,.40)`; light `#141A33`, no glow), over ghost segments: as many `8` as it has digits, in `ghost`
   (dark `rgba(160,190,255,.075)`, light `rgba(20,30,80,.06)`).
 - Meter: 12 segments, 3 tall, 2 apart, radius 1, centred, 3 under the number's box (1.1 × its size). `lit =
-  clamp(round((shown − 60) / 8), 0, 12)` segments from the left (8 index points each, the arc's range); lit `mind`
-  (dark `#CFE0FF` with a 5 pt glow of itself, light `#3D4F9A`, no glow), unlit `unlit` (dark `rgba(140,170,255,.16)`,
-  light `rgba(20,30,80,.14)`).
+  round(shown × 12 / 100)` segments from the left (one per 8⅓ points of the 0–100 score); lit `mind` (dark
+  `#CFE0FF` with a 5 pt glow of itself, light `#3D4F9A`, no glow), unlit `unlit` (dark `rgba(140,170,255,.16)`, light
+  `rgba(20,30,80,.14)`).
+- Resting (section 12): the digits in `ink-3` and the lit segments at 35 %, both without glow. Proof mark: the lit
+  segments are hollow (a 1 pt inner stroke of `mind`, no fill, no glow) and the digits carry the dotted underline.
 - Table: labels UI font, weight 600, tracking 0.06 em, `ink-3`; numbers mono, weight 700, tracking −0.02 em, `led`
   (dark: a 6 pt glow `rgba(140,180,255,.45)`); units mono, weight 600, `ink-3`.
 
@@ -1504,7 +1508,7 @@ meter (neon) or the 智力 row (timing) remain.
 
 **Thinking hidden at zero** (section 10, *Intelligence readout*; user's choice, 2026-10-28). While `thinking` and at
 least one other hero readout are on, 思考 shows only while its displayed value is above zero. When the board has a
-value (`Σ w > 0`) and the shown 思考 reads zero (`0`, or `0.0` below 0.05 tok/s) for 3 s, it fades out in place
+value (`Σ w > 0`, METRICS 6.9, *Live thinking*) and the shown 思考 reads zero (`0`, or `0.0` below 0.05 tok/s) for 3 s, it fades out in place
 (0.25 s) while what is below it glides up and the sub-gauge glides to its new centred place (smoothstep, 0.3 s); a
 shown value above zero brings it back at once (fade in 0.25 s, the same glide back). Reduce Motion: at once. The quiet
 state (no value) changes nothing: a hidden 思考 stays hidden, a shown one reads `–`. Switching `thinking` on shows it.
@@ -1521,20 +1525,25 @@ every pause. The cells and widths stay, so nothing moves sideways:
 **Updates, motion and quiet.**
 
 - The readouts are evaluated on every engine tick (500 ms) together with the hero value, so they change at most twice
-  per second and in the hero value's frame. Changed characters roll like the hero's: 0.24 s, cubic-bezier(0.2, 0.8,
+  per second and in the hero value's frame. 智力 follows section 12, *Motion*: a rise of 3 or more counts up through
+  the integers (the arc's end and the meter follow the shown value), a fall crossfades in 0.2 s, never rolling down.
+  The other readouts' changed characters roll like the hero's: 0.24 s, cubic-bezier(0.2, 0.8,
   0.2, 1), each entering character starting with a 1.4 pt blur that is gone by 0.24 s, upward when the value rises and
   downward when it falls; no white-hot flash, punch or embers (they stay the hero value's). A change in the number of
   characters, or between `–` or the tag and a number, crossfades in 0.15 s instead. The arc's end and tip move to a
   new value in 0.24 s on the same curve and the meter's segments crossfade in 0.24 s, so everything shares the frames
   of the hero's roll. Reduce Motion: 0.15 s crossfades; the arc and the meter jump.
-- Row values (the 智力 cell and the cost line) change in place on the tick with the row, without roll or flash; a
-  change between live and resting crossfades the color in 0.2 s (an opacity change, kept with Reduce Motion).
-- Quiet (`Σ w = 0` over `A`): 智力 and 思考 read `–`, the arc and the meter are empty (track and unlit segments only),
-  費用 shows its real `0`. `–`, `0` and the tag are drawn in `ink-3` without glow. The sub-gauge stays, like a system
+- Row values (the 智力 cell and the cost line) change in place on the tick with the row, without roll, count-up or
+  flash (cached row content, *Frame policy*); a fall of 智力 crossfades in 0.2 s; a change between live and resting
+  crossfades the color in 0.2 s (an opacity change, kept with Reduce Motion).
+- Quiet (`Σ w = 0` over `A`): 思考 reads `–` and 費用 shows its real `0`. 智力 keeps its own form (section 12): live
+  while an agent of `A` is busy with a scored task (a long test run generates nothing and is still live), the highest
+  resting score in pale after work, `–` with an empty arc and meter (track and unlit segments only) when no agent of
+  `A` has a score. `–`, `0` and the tag are drawn in `ink-3` without glow. The sub-gauge stays, like a system
   meter (section 10, *Menu bar and taskbar*), so the hero never changes its layout when work stops.
 - No continuous animation is added: an idle board with every readout on is static.
 
-**Ranking rows.** The intelligence column — every group and sub row, between the effort capsule column and the value,
+**Ranking rows.** The 智力 column — every group and sub row, between the effort capsule column and the value,
 while `intelligence` is on:
 
 | | Glass | Timing | Neon |
@@ -1545,8 +1554,11 @@ while `intelligence` is on:
 | live | `ink-2` | `ink-2` | `led` at 78 %, dark glow 6 pt `rgba(140,180,255,.45)` |
 | resting, `–` | `ink-3`, weight 500 | `ink-3`, weight 600 | `ink-3` |
 
-- Right-aligned, tabular, on the value's baseline. Group row: live — the group's index (METRICS 6.9 *Group
-  intelligence*); resting — the root's grade; none — `–`. Sub row: the sub-agent's own forms. The `boards.moreSubs` and
+- Right-aligned, tabular, on the value's baseline. Group row: the group's value (METRICS 6.9, *Sets and groups*: the
+  highest live score of its members, else the highest resting score, else none), so a group whose root only
+  delegates still shows what its busiest sub-agent achieves; sub row: its sub-agent's own value (6.9, *Values*). Live
+  in the table's live color, resting and none in its resting color; the proof mark (section 12) under an unverified or
+  pending score — a group row's follows the member that supplies the value. The `boards.moreSubs` and
   `boards.moreGroups` lines leave the cell empty. Live is one step quieter than section 4's column (here the speed is
   the headline).
 - The cell is at least as wide as `888` in its font and as the caption; it never truncates, and the name block gives
@@ -1580,34 +1592,41 @@ left; the `team` scenario of `sim.js`, as the prototype shows it):
 | `rowCost` on (default) | 3 groups + `boards.moreGroups` | 4 + `boards.moreGroups` | 5 (timing: and 1 sub row) |
 | `rowCost` off | 3 + `boards.moreGroups` | 5 | 5 + 2 sub rows |
 
-**Tooltip** (a group row, after its existing lines): while `intelligence` is on, `intel.tooltip` with the group's live
-index and thinking share (whole percent, rounded half away from zero; `–` instead when no member's source records
-reasoning apart from output, METRICS 4.3) while the group is live, and `intel.grade` with the root's grade and class
-when the root has one; while `cost` or `rowCost` is on and the group is live, `boards.tooltip.cost` with the rate as
-shown and its unit (`費用 0.012 US$/s（API 等值）`), then `cost.partial` when part is unpriced, or `cost.unknown` in place of the rate when nothing is priced, or only `boards.tooltip.subscription` with the
-source's name when the group is excluded; last, while `intelligence` is on, the caption `intel.disclaimer`.
+**Tooltip and score card.** A row's lines: while `cost` or `rowCost` is on and the group is live,
+`boards.tooltip.cost` with the rate as shown and its unit (`費用 0.012 US$/s（API 等值）`), then `cost.partial` when
+part is unpriced, or `cost.unknown` in place of the rate when nothing is priced, or only `boards.tooltip.subscription`
+with the source's name when the group is excluded — after the existing lines (*Interaction and window*). While
+`intelligence` is on, the tooltip of a group or sub row is the score card of section 12 for the agent whose score the
+row shows (a group row with none: its root), with these lines in its facts block; with `intelligence` off it stays
+text. Hovering the hero's 智力 for 0.35 s (glass: the dial; neon: the digits and meter; timing: the 智力 row of the
+box) shows the card of the agent that supplies the hero's value, with the eyebrow `task.card.top` when more than one
+agent of `A` has a score in that form; nothing while the value is none.
 
 **Accessibility.**
 
 - The board's label (`a11y.board`) goes on, joined with `，` / `, `, with what is switched on, in this order:
   `a11y.orb.intel` (智力 and a shown 思考), `a11y.orb.intel.only` (思考 off or hidden) or `a11y.board.thinking` (智力
-  off), with `intel.none` in place of either intelligence form while there is no value; then `a11y.board.cost` (the
+  off), with the score words of section 12, *Accessibility* (unproven, idle, the highest of N agents), and `intel.none`
+  in place of either intelligence form while 智力 is none; then `a11y.board.cost` (the
   number as shown, wrapped in `a11y.orb.costAtLeast` when partial, and the currency's name `currency.<code>`),
   `a11y.board.costUnknown` or `cost.subscriptionOnly`. Example: `排行看板，全部來源：每秒 707 個 token，噴射客機，智力
-  123，思考每秒 174 個 token，費用每秒 0.024 美元（API 等值）`. The 1-second update limit stays.
-- A row's label (`a11y.board.row`) adds `a11y.agent.intel` or `a11y.agent.grade` right after its speed (nothing for
-  none) while `intelligence` is on, and, while its second line shows a cost, `a11y.board.rowCost`, `cost.unknown` or
+  86，4 個 agent 中最高，思考每秒 174 個 token，費用每秒 0.024 美元（API 等值）`. The 1-second update limit stays.
+- A row's label (`a11y.board.row`) adds `a11y.agent.intel` with the row's score words (section 12; a group row's
+  wrapped in `a11y.task.top` when more than one member has a score in that form) right after its speed (nothing for
+  none) while `intelligence` is on, and offers the custom action `a11y.task.card`, and, while its second line shows a cost, `a11y.board.rowCost`, `cost.unknown` or
   `cost.subscription.tag` at its end. Sub rows add the same intelligence words.
-- Nothing relies on color: resting values are also announced as grades, `≥` as `a11y.orb.costAtLeast`.
+- Nothing relies on color: resting scores are announced with `a11y.task.idle`, the proof mark with
+  `a11y.task.unverified` or `a11y.task.pending`, `≥` as `a11y.orb.costAtLeast`.
 - Increase Contrast: no glows (arc, tip, LED digits, meter, row digits) and no ghost segments; quiet values (`–`,
-  resting grades, `0`, the tag) in `ink-2` instead of `ink-3`; glass's track `ink-3`, its value arc and tip `ink`
+  resting scores, `0`, the tag) in `ink-2` instead of `ink-3`; the proof mark's dots at 100 %; glass's track `ink-3`, its value arc and tip `ink`
   without the gradient; neon's lit segments `ink`, unlit `ink-3`; timing's box stroke 1 pt `ink-3`. Windows high
   contrast: numbers in the text color, the value arc and lit segments in the highlight color, labels, units, tracks and
   quiet values in the gray-text color, no fills.
 
 **Frame policy.** The readouts are content (cached text and shapes, redrawn on a data change, at most twice per
 second). Their rolls, the arc's move and the meter's crossfade start on the tick with the hero value and end within the
-hero roll's 0.24 s, so they add no frames of their own; the thinking fold and a switch change run at 60 fps for their
+hero roll's 0.24 s, so they add no frames of their own; 智力's count-up (section 12) runs in the roll class, 60 fps for
+at most 0.8 s, only when the score rises by 3 or more (an event, never a steady state); the thinking fold and a switch change run at 60 fps for their
 0.3 s, like a row move; a quiet or idle board renders nothing. The budgets of *Frame policy and performance* (below) are
 unchanged, and each platform's benchmark measures boards with every readout on.
 
@@ -1678,7 +1697,8 @@ memory the board owns (layer textures, swap chain or drawable surfaces, instance
 - Drag anywhere to move; release within 24 pt of a screen edge snaps to a 12 pt margin, as orbs do; boards never take
   focus. Hover a group row: a tooltip after 0.35 s — project, source, model, effort and speed (section 4 tooltip
   lines), group speed and its sub-agents' share, today's output of the group, then the live metrics lines (*Live
-  metrics*, Tooltip). Hover lifts the row tint only.
+  metrics*, Tooltip and score card); while `intelligence` is on, these lines are the facts block of the row's score
+  card (section 12), which sub rows get too. Hover lifts the row tint only.
 - Context menu: header (style name and the board's sources); `boards.style` ▸ the three styles; `orbs.sources` ▸ as
   an orb's; `boards.readouts` ▸ the four live metrics switches (*Live metrics*); `menu.size` ▸ S / M / L; `menu.effects` ▸ (global); `menu.alwaysOnTop`, `menu.clickThrough`;
   `boards.add`, `boards.remove` (asks `boards.remove.confirm`); `menu.dashboard`; `boards.settings` (Settings →
@@ -1721,8 +1741,8 @@ Glanceable and calm; it must never jitter in width.
   and in the tooltip as `a11y.bar.money`. In 選單列 / 工作列 the live value control has three choices —
   `settings.liveUnit.tokens`, `settings.liveUnit.cost` and `settings.liveUnit.both` (tok/s with the money block after
   it; tok/s alone stays the default) — so showing both is one visible choice rather than a separate switch.
-- Readout block (optional, `settings.bar.traffic`, default off): network speed (`↓` / `↑`) or live intelligence
-  (`智力` / `思考`) in a fixed-width two-line block after the value and the money block (section 10, *Menu bar and
+- Readout block (optional, `settings.bar.traffic`, default off): network speed (`↓` / `↑`) or 智力, the highest task
+  score (section 12), with 思考 (`智力` / `思考`) in a fixed-width two-line block after the value and the money block (section 10, *Menu bar and
   taskbar*).
 - Click: open/close the dashboard. Right-click (Windows) / ⌥-click (macOS): quick menu.
 - The widget follows the system/taskbar light or dark theme for text; the glyph keeps heat colors.
@@ -1791,11 +1811,11 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
    `dashboard.sources.empty` in secondary text under its header.
 4. **Agents** — up to 6 rows sorted by section 6.7 of METRICS: project (semibold), source + model (secondary,
    truncated), phase badge (generating: animated three-dot shimmer in the source color; tools: wrench glyph;
-   idle: grey dot), effort capsule, intelligence and live tok/s right-aligned. Sub-agents are indented 12 pt with a
+   idle: grey dot), effort capsule, 智力 (the task score, section 12) and live tok/s right-aligned. Sub-agents are indented 12 pt with a
    thin connector line.
    **Header** — the section title `dashboard.agents` and, on the same line while the list has rows, two column
    captions, each right-aligned to its column's right edge: `intel.glyph` (智力 / 智力 / IQ / 知, the word of the
-   orb's and the menu bar's readout) over the intelligence column and `unit.tokS` over the live value. Captions:
+   orb's and the menu bar's readout) over the 智力 column and `unit.tokS` over the live value. Captions:
    10.5 pt medium (Windows 11 px medium), secondary color, one line, never truncated or scaled, hidden from
    accessibility (every row says its values in words). Hovering the intelligence caption shows `agents.intel.hint`.
    The empty state has no captions.
@@ -1805,18 +1825,18 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
    right-aligned trailing slot as the digits (same baseline, no width change), crossfade 0.2 s to and from numbers,
    and read as the phase name for accessibility (`phase.tools`, `phase.idle`).
    **Looping mark** — while the agent is *looping* (METRICS 6.10) an amber `arrow.triangle.2.circlepath` (Segoe
-   Fluent Sync U+E895), 11 pt, sits before the project name (4 pt gap) and the row's tooltip starts with
-   `work.looping`. It fades in 0.25 s and out 0.6 s (Reduce Motion: no fade), never moves the row (the 6.7 order is
-   unchanged) and is not drawn on orbs or boards. The tooltip's last line is `work.summary` when the agent has at
-   least 8 recent actions, and `work.repeating` while it repeats without failures. Accessibility: the row label adds
-   `work.looping` while it holds.
+   Fluent Sync U+E895), 11 pt, sits before the project name (4 pt gap) and the row's score card lists `work.looping`
+   first in its 行為 block (section 12, *Score card*). It fades in 0.25 s and out 0.6 s (Reduce Motion: no fade), never
+   moves the row (the 6.7 order is unchanged) and is not drawn on orbs or boards. The 行為 block also shows
+   `work.repeating` while the agent repeats without failures and `work.summary` when it has at least 8 recent actions.
+   Accessibility: the row label adds `work.looping` while it holds.
    **Effort capsule** — the agent's current reasoning effort and speed (`spec/EXECUTION-MODES.md`, Reasoning effort
-   and speed), drawn in a trailing column just before the intelligence column (8 pt gap). The column is as wide as the
+   and speed), drawn in a trailing column just before the 智力 column (8 pt gap). The column is as wide as the
    widest capsule among the visible rows (width changes animate 0.2 s), so every meter starts on the same vertical
    line and every bolt ends on another; rows without a capsule leave it empty, and with no capsule at all the column
    takes no space. A capsule appears when the effort is known or the speed has bolts; nothing is drawn for unknown values or for
    a standard speed, and there is never a "not provided" label. When the column would leave the project name less
-   than 72 pt (the room left after every trailing column, the intelligence column included), every capsule drops its
+   than 72 pt (the room left after every trailing column, the 智力 column included), every capsule drops its
    word (meter and bolts stay; the word stays in the tooltip).
    - Capsule: height 18, fully rounded, fill label 5.5 % (dark 7 %), 0.5 pt stroke label 8 %; 6 pt horizontal padding,
      5 pt between its parts: meter, word, bolts.
@@ -1834,12 +1854,13 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
      bolts pop in (scale 0.6 → 1, 0.3 s spring) and fade out in 0.15 s. Reduce Motion: crossfades only.
    - Increase Contrast / Windows high contrast: no fill, a 1 pt stroke in the text color; lit bars, word and top rung
      in the text color, unlit bars in the disabled-text color, bolts in the highlight color; no glow or shimmer.
-   - Tooltip (also the row's): `effort.tooltip` and `speed.tooltip` lines, each value spelled as its token (speed
+   - Tooltip (the capsule's; the row's score card carries the same lines in its facts block): `effort.tooltip` and
+     `speed.tooltip` lines, each value spelled as its token (speed
      tokens through `speed.value.*` when one exists), `modes.unrecorded` for an unknown one; a top rung adds
      `effort.ultra.detail` or `effort.ultracode.detail`. Accessibility: the row's combined label ends with the same
      two lines joined by `，` / `, `.
-   **Intelligence column** — every row, root or sub-agent, shows the agent's intelligence (METRICS 6.9, *Agent
-   intelligence*) between the effort capsule column and the live value (user's choice, 2026-10-28):
+   **智力 column** — every row, root or sub-agent, shows the agent's task score (METRICS 6.9, *Values*; section 12)
+   between the effort capsule column and the live value (user's choice, 2026-10-28):
    - Cell: fixed, as wide as the wider of `888` in the column's number font and the header caption, measured when
      the language, font or text size changes and never per value (macOS 24 pt: `888` is 23.2 pt in SF Pro 12 pt
      medium, 智力 20.9 pt at 10.5 pt; Windows the same rule in Segoe UI). The number is right-aligned in it, tabular
@@ -1847,13 +1868,17 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
      number — on the live value's baseline. Gaps: capsule column, 8 pt, the cell, 6 pt, the live value; with no
      capsule column the cell follows the name block at the row's spacing. The column is present whenever the list
      has rows, so the digits of every row share one right edge whatever the indent.
-   - Value and color: **live** — the live intelligence, rounded half away from zero, in the live value's number
-     color; **resting** — the agent's grade in the tertiary color (it says what the agent would bring, not what it
-     is doing); **none** (no model known) — the tertiary `–` of the live slot. Updated on every engine tick with
-     the row; digits are replaced in place (no roll, no flash). A change between live and resting crossfades the
-     color in 0.2 s (an opacity change, kept with Reduce Motion). Increase Contrast: resting and `–` in the
-     secondary color. Windows high contrast: live in the text color, resting and `–` in the gray-text color.
-   - Room: the cell never truncates, shrinks or hides; the name block gives way. The detail (model · source)
+   - Value and color: **live** (the agent is busy with a scored task) — the score, 0–100, in the live value's number
+     color; **resting** (the agent is idle and its current task has a score; it stays until the next prompt) — the
+     score in the tertiary color; **none** (no current task with a score yet, or a source without scores) — the
+     tertiary `–` of the live slot, never `0`. The proof mark (section 12) sits under an unverified or pending score.
+     Updated on every engine tick with the row: a rise of 3 or more rolls the changed digits upward (0.24 s, the
+     board hero's curve), a fall is replaced with a 0.2 s crossfade, smaller rises in place (section 12, *Motion*). A
+     change between live and resting crossfades the color in 0.2 s (an opacity change, kept with Reduce Motion).
+     Increase Contrast: resting and `–` in the secondary color. Windows high contrast: live in the text color,
+     resting and `–` in the gray-text color.
+   - Room: the cell never truncates, shrinks or hides (scores have at most three digits, `100`); the name block
+     gives way. The detail (model · source)
      truncates at its tail first (the source name goes first, the badge color still carries it), then the project
      name with a tail ellipsis; the traffic suffix stays whole. The panel has one width (368 pt/DIP, rows 328), so
      the room is fixed by the trailing columns and the indent; on macOS (badge 16, two 12 pt row spacings, cell 24,
@@ -1863,12 +1888,11 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
      deepest indent (the 72 pt rule above).
      Windows keeps its row structure (name block over two lines, badge column 30, live value 56) and inserts the
      cell between the capsule column and the live value by the same rules.
-   - Tooltip (the row's, after the effort and speed lines): while live, `intel.tooltip` with the shown value and
-     the agent's thinking share as a whole percent, rounded half away from zero (`智力 105 · 思考 25%`; `–` instead
-     of the percent for a source that does not record reasoning apart from output, METRICS 4.3); then `intel.grade`
-     whenever the agent has a grade (`等級 104 · 標準`). An agent without a model has no `intel.grade` line.
-   - Accessibility: the row's combined label adds, right after the live value, `a11y.agent.intel` (`智力 105`) while
-     live or `a11y.agent.grade` (`等級 104`) while resting; nothing for none.
+   - Tooltip: the row's tooltip is the score card (section 12, *Score card*), shown beside the panel; the row's
+     former lines (effort and speed, a top rung's detail, traffic) are its facts block.
+   - Accessibility: the row's combined label adds, right after the live value, `a11y.agent.intel` with the score
+     words of section 12 (`智力 86`, `智力 9，尚未驗證`, `智力 72，閒置中`); nothing for none. The row offers the
+     custom action `a11y.task.card`, which opens the card (section 12).
    Empty state: `目前沒有 agent 在工作` with a muted gauge glyph.
    Collapsed (default) shows the first 6 rows of the depth-first order (so a child never appears without its parent); when more agents exist, a disclosure row `agents.expand` ("+4 個 agent",
    with a small chevron, accessibility label `agents.expand.a11y`) expands the list in place with a spring height
@@ -1936,6 +1960,10 @@ Layout, top to bottom, 24 pt outer padding, 20 pt section spacing:
    share bars. Rows reorder and resize with a spring (≤ 0.35 s) when the range or source changes; Reduce Motion
    crossfades. With no known value of the selected kind in the range, only the unknown row shows, with
    `modes.history.empty` under it.
+3c. **Task performance** (`history.tasks.title`) — between 3b and the daily table: two scored sources side by side
+   (Codex vs Claude Code by default) and every model, over the selected range — tasks, scored tasks, median score,
+   success, stall and fix-failure rates, mean attempts to recover and median time to first pass (METRICS 6.11,
+   *Comparison*). Layout, widths, states and accessibility: section 12, *Usage History: task performance*.
 4. **Daily table** — newest first; columns: 日期 (date + weekday; 今天 / 昨天 for the latest two), 請求, 輸出, 輸入（含快取）,
    快取命中 (cachedInput ÷ input, percentage), 平均速度 (tok/s, `history.noSpeed` when none), 峰值 (if recorded;
    all-sources view only),
@@ -1944,7 +1972,8 @@ Layout, top to bottom, 24 pt outer padding, 20 pt section spacing:
    Days without data inside the range are not listed (the chart shows the gap).
 5. **Footer** (secondary text) — left: analysis state: `history.analyzing` with a thin progress bar and
    `history.analyzingFiles` while the background analysis runs (the window is usable and updates live as days come
-   in), otherwise `history.updated`; right: `history.privacy`, the first to give way when notes crowd the footer: it
+   in), otherwise `history.updated`; right: `history.privacy` (daily totals and per-task score records, section 12), the
+   first to give way when notes crowd the footer: it
    switches to `history.privacy.short`, then to its lock icon alone (the full text in the tooltip and for
    accessibility), never cut mid-sentence.
 
@@ -2376,7 +2405,7 @@ with Mica). Sections:
   shows that metric's values (compact `k`/`M`). Below the redline: the title theme picker and the custom set editor
   (Title themes, below).
 - **選單列 / 工作列 Menu bar / Taskbar** — Display mode, Colored glyph, Show unit, `settings.bar.traffic` (network
-  speed or live intelligence, section 10), `settings.liveUnit` (section 9). Windows adds, right after
+  speed or 智力, section 10), `settings.liveUnit` (section 9). Windows adds, right after
   `settings.bar.show`, the card `settings.taskbar.position` with the hint `settings.taskbar.position.hint` and the
   button `settings.taskbar.position.reset`: it puts the widget back at its default spot (`taskbar.offset` 0, section
   3, Position on the taskbar) and is disabled while the widget is already there, whether or not the widget is shown.
@@ -2424,8 +2453,9 @@ with Mica). Sections:
 - **關於 About** — version, GitHub link, license, privacy statement: read-only, local-only, no network, no telemetry,
   conversation content is never stored or displayed. With the cost feature: `privacy.statement` and the Network group
   with the master switch (section 9, `spec/NETWORK.md`). With traffic measuring: `privacy.traffic` follows
-  (section 10). With live reporting: `privacy.report` follows, and the texts switch while reporting is on
-  (section 11).
+  (section 10). `privacy.taskScore` follows, always (section 12: what the task score reads in memory and what it
+  keeps). With live reporting: `privacy.report` follows, and the texts switch while reporting is on (section 11);
+  `privacy.taskScore` stays as it is, since the score is never reported.
 
 All settings apply live without restart and persist immediately.
 
@@ -2854,8 +2884,8 @@ METRICS 10; the optional Windows helper is `spec/WINDOWS-SERVICE.md`.
 
 Each orb has a `traffic` setting (2b data model) that picks what its two-line readout shows: `"sources"` — the
 traffic of the orb's own sources, like everything else an orb shows (2b), with tools per `includeTools` —
-`"machine"` — the whole computer, for a desktop network meter — `"intelligence"` — the live intelligence of the orb's
-own sources (*Intelligence readout*, below) — or `"off"`. **Default `"sources"`** for new orbs and for orbs migrated from earlier versions: the readout appears
+`"machine"` — the whole computer, for a desktop network meter — `"intelligence"` — 智力, the highest task score of the
+orb's own agents, with their thinking rate (*Intelligence readout*, below; section 12) — or `"off"`. **Default `"sources"`** for new orbs and for orbs migrated from earlier versions: the readout appears
 only while those agents use the network, so an idle orb looks exactly as before. Prototyped (2026-10-22) for every
 style in both appearances at 112, 148 and 196 pt.
 
@@ -2920,8 +2950,10 @@ bottom edge (pretty but unreadable without hovering).
 
 ### Intelligence readout
 
-With `traffic` = `"intelligence"` the same two lines show the live intelligence of the orb's sources (METRICS 6.9)
-instead of network speed. It needs neither the traffic switch nor the Windows helper, so it is never unavailable.
+With `traffic` = `"intelligence"` the same two lines show 智力 — the highest task score among the orb's agents
+(METRICS 6.9, *Sets and groups*; section 12) — and the thinking rate of those agents (6.9, *Live thinking*: a total,
+not a maximum) instead of network speed. It needs neither the traffic switch nor the Windows helper, so it is never
+unavailable.
 
 - **Form** (user's choice, 2026-10-28): two lines, each **centred on the orb on its own**, the intelligence line
   on top and larger, the thinking line below it and smaller, like a gauge's main and sub reading. Order and sizes are
@@ -2929,11 +2961,14 @@ instead of network speed. It needs neither the traffic switch nor the Windows he
 
   | Line | Size | Content (left to right) |
   | --- | --- | --- |
-  | intelligence | `p = 1.25 t` | `intel.glyph` (智力 / 智力 / IQ / 知) · gap 0.20 p · integer |
+  | intelligence | `p = 1.25 t` | `intel.glyph` (智力 / 智力 / IQ / 知) · gap 0.20 p · the score, an integer 0–100 (section 12) |
   | thinking | `t` | `intel.thinking.glyph` (思考 / 思考 / TH / 思考) · gap 0.16 t · `liveThinking` formatted as METRICS 7 · gap 0.16 t · `tok/s` (not in `needle`) |
 
   - Glyphs: text, weight 600, 0.82 × the line's size, the unit token's color. Numbers: weight 600, tabular digits,
     the line's size, the number color. `tok/s`: weight 500, 0.82 t, the unit token's color.
+  - 智力's forms (section 12): live in the number color; resting in the unit token's color; none `–` in the unit
+    token's color. The proof mark (dotted underline, 0.22 p below the baseline) sits under an unverified or pending
+    score; it stays 0.34 t clear of the thinking line's cap top and takes no width, so fit and centring ignore it.
   - Centring: each line is measured with its current text (advances only, no side bearings) and its left edge is
     `center − width / 2`, rounded to the device pixel, so a line moves only when its width changes (digit count).
     Every following piece starts at its advance, also rounded to the device pixel, so the glyphs stay sharp.
@@ -2954,7 +2989,8 @@ instead of network speed. It needs neither the traffic switch nor the Windows he
     `minimal` 92 / 86, `reactor` 143 / 134, `needle` 128 / 122.
   - Recentering: the block's top for the stack shift is the nearest baseline − 1.32 t − 0.70 p (`led`, `liquid`,
     `minimal`); everything else of the stack shift is the network readout's.
-  - When `intelligence` has no value (nothing generated in the window) both lines are quiet (below).
+  - While the readout is visible and 智力 is none (no agent of the orb has a score yet: they have only read so far),
+    line 1 shows `–`; the thinking line keeps its rule below.
   - **Thinking hidden at zero** (user's choice, 2026-10-28; some sources never report reasoning): the thinking line
     shows only while its displayed value is above 0. When the shown `liveThinking` is `0` it stays drawn for 3 s
     (a pause between reasoning bursts does not flicker), then fades out (0.25 s) and the intelligence line glides
@@ -2965,16 +3001,22 @@ instead of network speed. It needs neither the traffic switch nor the Windows he
     The stack shift (`led`, `liquid`, `minimal`) uses the single line's top (nearest baseline − 0.70 p) while the
     thinking line is hidden and follows the glide. Fit is unchanged (both lines must fit), so the readout never
     appears or disappears because of the thinking value. Accessibility then reads `a11y.orb.intel.only`.
-- **Quiet rule**: visible while the orb has an agent in phase `generating` or `Σ w > 0` (METRICS 6.9); after 10 s
-  without either it fades out (0.6 s) and fades in (0.25 s) when work resumes — the network readout's timings.
-- **Updates**: on every engine tick (METRICS 6, 500 ms), with the value; characters are replaced in their cells, no
-  animation. A value change renders one frame of an otherwise static orb, at most two per second.
-- **Hover**: the title crossfade of the network readout. The orb's tooltip (Windows) adds `intel.tooltip`
-  (`智力 133 · 思考 44%`) and the caption `intel.disclaimer` (估算指數，不是測驗分數); the agent rows' tooltip (section 4,
-  *Intelligence column*) adds the agent's live `intel.tooltip` and `intel.grade` with its grade and class
-  (`等級 124 · 旗艦`, class names `intel.class.flagship` / `.standard` / `.light`).
-- **Accessibility**: while the readout is visible the orb's label adds `a11y.orb.intel` (`智力 133，思考每秒 412 個 token`),
-  within the label's 1-second update limit.
+- **Quiet rule** (revised for the task score, 2026-10-28): visible while 智力 has a value — live or resting
+  (section 12) — or an agent of the orb is `generating`; 10 s after neither holds it fades out (0.6 s), and it fades
+  in (0.25 s) when either returns — the network readout's timings. So after work the pale resting score stays, on one
+  line once 思考 has hidden at zero, for as long as its agents are in the agents list (METRICS 6.7: 10 minutes after
+  their last line), then the readout leaves. Chosen over hiding with the last token (`Σ w = 0`, the earlier rule): a
+  long test run generates nothing while it decides the score, and the user's decision shows the resting score pale
+  rather than not at all; the 10-minute bound comes from the list, so an idle orb still returns to its plain face.
+- **Updates**: on every engine tick (METRICS 6, 500 ms), with the value. A rise of 智力 by 3 or more counts up
+  (section 12, *Motion*: at most 0.8 s at 30 fps); a fall crossfades in 0.2 s; every other change replaces characters
+  in their cells. Any other change renders one frame of an otherwise static orb, at most two per second.
+- **Hover**: the title crossfade of the network readout. The orb's tooltip (Windows) adds `task.tooltip.top` with
+  the score and the project of the agent that supplies it (`智力 86 · 最高：nova`; nothing while none) and the caption
+  `intel.disclaimer` (任務進展的估算，不是模型能力測驗). The agent rows' score card is section 12's.
+- **Accessibility**: while the readout is visible the orb's label adds `a11y.orb.intel` with the score words of
+  section 12 (`智力 86，4 個 agent 中最高，思考每秒 412 個 token`), or `a11y.orb.intel.only` while 思考 is hidden, within
+  the label's 1-second update limit.
 - **Settings**: the orb editor's `orbs.traffic` popup lists `orbs.traffic.intelligence`; its caption becomes
   `orbs.traffic.hint.intel` while it is chosen.
 
@@ -2991,13 +3033,14 @@ instead of network speed. It needs neither the traffic switch nor the Windows he
 - **Network** (`machine`, `agents`): `↓ 1.28 MB/s` over `↑ 64.0 KB/s`. It stays visible at `0 B/s` (a system meter is
   expected to stay). It needs `settings.traffic.enabled`: with measuring off it is not drawn. Accessibility and the
   Windows tooltip add `a11y.orb.traffic`.
-- **Intelligence** (`intelligence`; user's choice, 2026-10-28): the live intelligence of all enabled sources
-  (METRICS 6.9), with the orb readout's words and number formats (*Intelligence readout*) at the bar's one size:
+- **Intelligence** (`intelligence`; user's choice, 2026-10-28): 智力 — the highest task score among the agents of all
+  enabled sources (METRICS 6.9, *Sets and groups*; section 12) — and their thinking rate, with the orb readout's words
+  and number formats (*Intelligence readout*) at the bar's one size:
 
   | Line | Label cell (left-aligned) | Number cell (right-aligned) | Unit cell |
   | --- | --- | --- | --- |
-  | 1 | `intel.glyph` (智力 / 智力 / IQ / 知) | `intelligence`, an integer rounded half away from zero | empty |
-  | 2 | `intel.thinking.glyph` (思考 / 思考 / TH / 思考) | `liveThinking`, formatted as METRICS 7 | `tok/s` |
+  | 1 | `intel.glyph` (智力 / 智力 / IQ / 知) | the score, an integer 0–100 (section 12) | empty |
+  | 2 | `intel.thinking.glyph` (思考 / 思考 / TH / 思考) | `liveThinking` (METRICS 6.9, *Live thinking*), formatted as METRICS 7 | `tok/s` |
 
   - Cells, left to right: the label cell, as wide as the wider of the two labels in the current language; 3 pt / 3 px;
     one number cell shared by both lines, as wide as `8.88k` (the widest METRICS 7 form below 1 M tok/s; `888` fits
@@ -3006,11 +3049,16 @@ instead of network speed. It needs neither the traffic switch nor the Windows he
     rounded up to a whole point, 73.5 pt in Chinese and Japanese and 68.5 pt in English, plus the 8 pt gap. A text
     wider than its cell (thinking at 1 M tok/s or more) widens the cell at once and narrows it after 6 s, section 3's
     rule for the value.
-  - Updates: on every engine tick (500 ms); characters are replaced in their cells, no animation.
-  - **Quiet state**: the block stays, like a system meter. While `intelligence` has no value (nothing generated in
-    the window) both numbers are `–` in the secondary color and `tok/s` stays.
-  - **Thinking hidden at zero** (user's choice, 2026-10-28): with a live value and a displayed thinking rate of `0`
-    for 3 s, line 2 is not drawn and line 1 is centred vertically in the block (its baseline halfway between the two
+  - 智力's forms (section 12): live in the number color (label 85 %); resting in the secondary color; none `–` in the
+    secondary color. The proof mark under an unverified or pending score is centred 0.17 × the text size below line
+    1's baseline (1.5 pt at 9 pt), which keeps its dots 1.5 pt clear of line 2's cap top; it takes no width.
+  - Updates: on every engine tick (500 ms); characters are replaced in their cells, no animation (no count-up in the
+    bar: a status item stays still).
+  - **Quiet state**: the block stays, like a system meter. While nothing is generated (`Σ w = 0`) the thinking number
+    is `–` in the secondary color and `tok/s` stays; 智力 keeps its own form — the highest resting score, pale, after
+    work, and `–` when no agent has a score.
+  - **Thinking hidden at zero** (user's choice, 2026-10-28): while 智力 has a value (live or resting) and the
+    displayed thinking rate has been `0` for 3 s, line 2 is not drawn and line 1 is centred vertically in the block (its baseline halfway between the two
     lines' baselines, the item's text centre); the cells and the block's width are unchanged, so nothing beside it
     moves. A rate above 0 draws line 2 again and puts line 1 back at once (no animation in the bar). Accessibility
     then reads `a11y.orb.intel.only` (`智力 125`). Chosen over hiding the block: a block that came and went with every
@@ -3019,9 +3067,10 @@ instead of network speed. It needs neither the traffic switch nor the Windows he
     and `–` says "nothing right now" without claiming a score of 0.
   - Independent of network measuring: it needs neither `settings.traffic.enabled` nor the Windows helper and is never
     unavailable.
-  - Accessibility: the item's label adds `a11y.orb.intel` (`智力 125，思考每秒 10 個 token`; the thinking rate in
-    METRICS 7 form), or `intel.none` while there is no value. Windows tooltip: its first line adds the same text after
-    ` · `, where the traffic words go.
+  - Accessibility: the item's label adds `a11y.orb.intel` with the score words of section 12 (`智力 86，4 個 agent
+    中最高，思考每秒 128 個 token`; the thinking rate in METRICS 7 form), `a11y.orb.intel.only` while line 2 is hidden,
+    or `intel.none` while 智力 is none. Windows tooltip: its first line adds the same text after ` · `, where the
+    traffic words go, and a second line `task.tooltip.top` names the agent that supplies the score.
 - **Settings**: one control, in 選單列 / 工作列 (section 5) and in 網路流量 (*Settings → 網路流量*, below). In 選單列 /
   工作列 it is always enabled: while `settings.traffic.enabled` is off the two network choices are disabled (shown,
   not selectable) and a stored network choice stays selected and draws nothing, as before; `off` and `intelligence`
@@ -3050,7 +3099,8 @@ A section **Network** (`traffic.title`) between Today and the footer, while `set
    `traffic.empty`.
 
 **Agents** (section 4.4): when an agent has attributed traffic today (METRICS 10.6, tools per the setting), its
-secondary line ends with ` · ↓ 2.10 MB`; the row's tooltip is `traffic.agent.tooltip` with both directions. Agents whose
+secondary line ends with ` · ↓ 2.10 MB`; the row's score card carries `traffic.agent.tooltip` with both directions
+in its facts block (section 12). Agents whose
 traffic could only be assigned to their source show nothing.
 
 ### Usage history
@@ -3110,7 +3160,7 @@ Everything applies live; turning measuring off stops the sampler and the helper 
 
 ### About and privacy
 
-- About shows `privacy.traffic` as a second paragraph under `privacy.statement`.
+- About shows `privacy.traffic` as a second paragraph under `privacy.statement`, then `privacy.taskScore` (section 12).
 - README privacy sections add, when the feature ships:
   - English: "Network traffic: Agent Speed counts how many bytes programs send and receive, on this computer only. It
     never reads content, addresses or destinations, and sends nothing anywhere. On Windows, per-agent traffic needs an
@@ -3506,3 +3556,345 @@ when the feature ships (until then the README describes the released app):
 - The preview is selectable text; `report.preview.copy` copies it.
 - Reduce Motion: the service card and status changes appear without fades; the dashboard invitation fades without
   sliding (Dashboard invitation).
+
+## 12. Task score (智力)
+
+智力 is the **task score** of METRICS 6.9: a number from 0 to 100 per agent that starts at 0 with every user request
+and climbs with evidence that the agent is solving it — changes that pass reliable checks, failures that shrink and get
+fixed, actions that keep finding something new. It answers one question at a glance: is the agent solving the
+problem, or burning tokens in circles? It replaces the estimated grade of earlier versions (model class, effort level,
+thinking share) on every surface that showed 智力 — the orb readout and the menu bar / taskbar block (section 10),
+the board hero and rows (2c), the dashboard's agent rows (4) — and the Usage History window compares it between
+sources and models (4b, 3c). The `思考` line beside it is unchanged (METRICS 6.9, *Live thinking*).
+
+Values, forms and the highest-score rule: METRICS 6.9, *Values* and *Sets and groups*; states: *States*; the five
+dimensions: *Dimensions*; predictions and their calibration: 6.11, *Predictions*; the comparison: 6.11, *Comparison*.
+The visual reference is `spec/prototypes/task-score/index.html` (both appearances, every state, the narrow history
+layout; `?static=1` for still frames): its colors, radii, sizes and spacing are normative wherever this section gives
+no value. Strings: `task.*`, `a11y.task.*`, `history.tasks.*`, `a11y.history.tasks.*`, `privacy.taskScore`.
+
+### Principles
+
+- **A number without proof never looks final.** A score whose task has no verified result after its last edit
+  (`unverified`, `pending`) carries the proof mark on every surface; the card says what would prove it.
+- **Honest, calm drops.** A score drops for three reasons, all normal steps of work (METRICS 6.9, *Score*): a check
+  fails, the code changes after a check, or behaviour gets worse (loops, repeats, undone edits: E, at most 10 points).
+  Drops are never red, never flashed and never rolled downward; the card always names the cause.
+- **The highest agent, not an average** (user's decision, 2026-10-28). A set — an orb, the menu bar, a board's hero,
+  a board group — shows the highest score among its agents, live before resting; tokens do not weigh. The value
+  always belongs to one agent, which the tooltip or the card names.
+- **One number per agent.** An agent's score is the same on the dashboard row, its board sub row and in its card.
+- **Weights are the user's, not validated.** Wherever the breakdown is shown, the card says the weights are
+  uncalibrated starting values. Predictions say whether they are priors or calibrated on the user's own tasks.
+- **Local and quiet.** The score never drives heat, tiers, titles, peaks or celebrations, and it is never reported
+  (11).
+
+### Values and forms
+
+| Surface | Value (METRICS 6.9) | Forms |
+| --- | --- | --- |
+| dashboard agent row (4), board sub row (2c) | the agent's, *Values* | live · resting · none |
+| board group row (2c) | the group's, *Sets and groups*: its highest member score | live · resting · none |
+| orb readout (10) | the orb's agents `A`, *Sets and groups* | live · resting · none |
+| menu bar / taskbar block (10) | the agents of all enabled sources, *Sets and groups* | live · resting · none |
+| board hero (2c) | the board's agents `A`, *Sets and groups* | live · resting · none |
+
+- **Number**: an integer from 0 to 100, rounded half away from zero (METRICS 6.9, *Score*), at most three digits. Every
+  智力 cell is already measured with `888`, so no cell, column or block changes width.
+- **live** (the agent is busy with a scored task — a long test run counts, though it generates nothing): the
+  surface's number color. **resting** (the agent is idle and its current task has a score; it stays until the next
+  prompt): the surface's pale color. **none**: `–` (U+2013, the app's absent mark everywhere) in the pale color,
+  never `0` — 0 is a real score.
+- A set's value names its **supplying agent** (METRICS 6.9: among the agents with that exact score in that form, the
+  latest `lastLineMs`, then the smallest id) and **N**, the number of the set's agents with a score in that form; N
+  appears only in accessibility and the card's eyebrow.
+
+| Surface | live | resting and `–` |
+| --- | --- | --- |
+| dashboard row | the live value's number color | tertiary (Increase Contrast: secondary) |
+| board rows | the style's live row color (2c) | the style's resting color |
+| board hero | `ink` (neon: `led`) | `ink-3`; the arc and the meter at 35 %, no glow |
+| orb readout | the number token at 80 % | the unit token |
+| menu bar / taskbar | the label color at 85 % | secondary |
+
+### Proof mark (待證記號)
+
+`unverified` (edited, no check has run) and `pending` (passed, then edited: the credit waits for a re-run) mean the
+number has no verified result behind it. They are drawn **dotted**, the one visual language for "not yet proven":
+
+- **Text**: a dotted underline under the digits. Dot diameter `d = max(1 device px, 0.1 × the text size)`, rounded to
+  the device pixel; `n = max(2, ⌊(w − d) / (2.4 d)⌋ + 1)` dots spread evenly from the left to the right edge of the
+  number's advance width `w`; centred `0.22 ×` the text size below the baseline (the menu bar and taskbar block:
+  `0.17 ×`, the room left under line 1); the number's color at 70 %, never a glow. It takes no width and no height in
+  layout and is drawn in the content layer (boards: inside the cached row).
+- **Shapes**: glass's value arc as round dots (dash 0, gap 2 × the stroke) with a hollow tip ring; neon's lit
+  segments hollow (1 pt inner stroke); the card's bars and tracks dotted.
+- `failing` and `passing` have no mark on the compact surfaces: their numbers are verified. Their chips appear in the
+  card. A set's or group's mark follows its supplying agent.
+- It fades in and out with the state (0.25 s; Reduce Motion: at once). Increase Contrast: the dots at 100 % and
+  `d + 0.5 pt`. Windows high contrast: the dots in the text color.
+- Accessibility never depends on it: the score words carry `a11y.task.unverified` or `a11y.task.pending`.
+
+Why dotted: a dotted line reads as provisional — a pencilled value, a draft line — in every culture the app speaks
+to; it needs no width in cells that have none to spare, and it works in monochrome (the menu bar's template text), at
+the orb's 7 pt floor and in high contrast. Rejected: a trailing mark (no width in the fixed cells), a lighter weight
+or color (reads as resting), `~` or `?` (an approximation or an error, which an unverified score is not).
+
+### Motion
+
+A score changes only when an event is read (METRICS 6.9, *Score*), so these are moments, not a steady state.
+
+- **Climb** — a rise of 3 or more in the shown integer: on the orb readout, the board hero (the arc's end and the
+  meter follow the shown value) and the open card's number, the integer counts up through every intermediate value
+  over `min(0.8, 0.3 + 0.012 Δ)` s with easeOutCubic timing (a test pass, +40, lands in 0.78 s, quick at first and
+  settling into the final number). The dashboard row rolls its changed digits upward (0.24 s, the board hero's roll
+  curve, a 1.4 pt blur on entering digits). Board rows and the menu bar / taskbar replace digits in place: their
+  content is cached or a status item.
+- A rise of 1 or 2 replaces the digits in place everywhere.
+- **Fall** — any drop: replaced in place with a 0.2 s crossfade (an opacity change). Never a downward roll, a color
+  change, a shake or a flash. The proof mark fading in (pending), the card's status line (a failing check, an edit
+  since the last check) and its 行為 lines (loops, undone edits) say why.
+- A change between live and resting crossfades the color in 0.2 s (an opacity change, kept with Reduce Motion).
+- **Reduce Motion**: no count-up and no roll; every change is a 0.15 s crossfade.
+- **Frames**: a count-up renders at the surface's animation rate for its duration (orbs 30 fps, boards 60 fps in the
+  roll class, 2c *Frame policy*); everything else renders one frame per change. Nothing about 智力 animates
+  continuously, and an idle orb, board or menu bar renders nothing.
+
+### Score card (任務評分卡)
+
+The breakdown behind the number, from the user's mock-up (one row per dimension: a bold label, the value, a thin bar,
+a one-line meaning, a note that the weights are not calibrated), showing what this task has earned rather than the
+weights alone.
+
+**Where.** It is the tooltip of a dashboard agent row (4) and of a board group or sub row while the board's
+`intelligence` readout is on (2c), and it opens on hover over a board hero's 智力 (2c) for the supplying agent. A
+group row's card is the supplying member's (none: the root's). The orb's Windows tooltip and the taskbar tooltip stay
+text (`task.tooltip.top`, section 10).
+
+**Window.** 300 pt / DIP wide, as tall as its content. macOS: a non-activating borderless panel with the system
+popover material (`NSVisualEffectView` `.popover`; Liquid Glass on macOS 26), radius 12, a 0.5 pt separator-color
+stroke, the system shadow. Windows: a `Popup` in the flyout style of the unknown-prices popover (9) — acrylic, radius
+8, a 1 px stroke. Reduce Transparency: a solid fill (dark `#26272B`, light `#FFFFFF`). It never takes focus and
+ignores the mouse: it is a tooltip, so the pointer passing over it hides it.
+
+**Placement and timing.** Dashboard: beside the panel, on the side toward the screen's centre (left of the macOS
+popover and of the Windows flyout), 8 pt from it, its top level with the row's top, clamped 8 pt inside the visible
+frame. Boards: beside the board on the side with more room, level with the row (the hero: with the dial). It shows
+after 0.45 s of hover on a dashboard row (0.35 s on boards, their tooltip delay); while a card is shown, moving to
+another row switches at once (0.12 s crossfade); it hides 0.15 s after the pointer leaves the row. It appears with a
+0.15 s fade and a 2 pt slide away from the row (Reduce Motion: the fade only). Keyboard: Space on a focused row, or
+the row's custom action `a11y.task.card`, shows it; it follows the focus while shown; Esc hides it. Its content
+updates on the engine tick with the row; its number follows *Motion*.
+
+**Layout** (padding 14; blocks 12 apart; hairline separators under the header and above the facts):
+
+1. **Header**: a 7 pt source dot, the project (13 pt semibold, tail truncation) and, trailing, the state chip. Line 2
+   (11 pt, secondary): model · source (a group row adds `boards.subCount`).
+2. **Score**: an eyebrow line (11 pt, secondary) only when it applies — `phase.idle` while resting, `task.card.top`
+   on the hero's card when N ≥ 2. Then the number, 34 pt SF Pro Display / Segoe UI Variable Display semibold, tabular,
+   with `/100` (13 pt, tertiary, 3 pt after it, on its baseline); `–` while none; the proof mark under an unproven
+   number. The status line under it (12 pt, secondary, up to two lines):
+
+   | State | Status line |
+   | --- | --- |
+   | `none` | `task.status.none` |
+   | `unverified` | `task.status.unverified` |
+   | `failing` | `task.status.failing` with the open failure's check (its `suite`, else `task.check.test` / `.build` / `.check` by class), its error count `F` and its peak; `task.status.failing.noCount` without counts; `task.status.failing.edited` when an effective edit followed the failing run |
+   | `passing` | `task.status.passing` with the check that passed last; `task.status.passing.buildOnly` when V came from build or check runs only (20) |
+   | `pending` | `task.status.pending` with the check that passed before the edit |
+
+   The check names are the parsers' fixed `suite` vocabulary (`cargo test`, `pytest`, …; TASK-PARSERS) — never
+   command text. Under the status line, the **composition bar**: the content width stands for 100 points; the five
+   dimensions stack in the order V C R E K, each as long as its value, with 2 pt gaps between non-empty segments, in
+   the score ink on the track; 6 pt tall, radius 3. While `pending`, V's place holds the dotted outline of the credit a
+   passing re-run restores.
+3. **評分構成** (`task.dims.title`, 11 pt semibold, tertiary): five rows, 10 pt apart.
+   - Line 1: the label (`task.dim.verify`, `.converge`, `.recover`, `.efficiency`, `.complete`; 12.5 pt semibold) and,
+     trailing, `value / max` (12 pt medium, tabular; `/ max` tertiary).
+   - The bar, 5 pt under it: 4 pt tall, radius 2, filled `value / max` of the width in the score ink.
+   - The meaning (`task.dim.*.desc`), 4 pt under the bar: 10.5 pt, tertiary, up to two lines, never truncated.
+   - Values: METRICS 6.9, *Dimensions*, shown as integers that add up to the shown score — each dimension rounded down,
+     then the points still missing to the shown total go to the largest fractional parts (ties in the order V C R E
+     K).
+   - No verification result yet (`none`, `unverified`): V, C, R and K show `task.state.unverified` (tertiary) in place
+     of the value, over a dotted track with no fill — never a fake `0 / 40`. E shows its value (`–` while `none`,
+     which has no score).
+   - `pending`: V shows `task.state.pending` (secondary) and the dotted outline of its held credit (40, or 20 after a
+     build-only pass); K shows its real value.
+   - Every other value is a real number; a real 0 shows `0 / max` with an empty bar.
+4. **預測** (`task.predict.title`), only while the agent is live with a score: `task.predict.success` and
+   `task.predict.stall` always, `task.predict.fixFails` only while `failing` (METRICS 6.11, *Predictions*). Equal
+   cells, 8 pt apart, filled with the label color at 5 % (dark 6 %), radius 8, padding 8 × 10: the percentage (17 pt
+   semibold, tabular, rounded half away from zero; `<1%` below 0.5 %, `>99%` from 99.5 %), the label (11 pt,
+   secondary) and the model's flag (10 pt, tertiary): `task.predict.cell.calibrated` with N, `task.predict.cell.prior`
+   with N and 40 while N is below 40, `task.predict.cell.priorOnly` when it is a prior for another reason (one
+   outcome only). Under the cells, `task.predict.note` (10.5 pt, tertiary) with the source and 40. The colors stay
+   neutral: a high stall probability is a number, not an alarm. Hidden while resting (the agent is idle: predictions
+   describe work in progress) and while none.
+5. **行為** (`task.signals.title`), when it has a line: `work.looping` with the amber loop glyph of section 4,
+   `work.repeating` (secondary glyph), `task.signal.oscillation` with the task's oscillating effective edits
+   (METRICS 6.9, *Runs, checks and edits*; when above 0), `work.summary` (at least 8 recent actions; METRICS 6.10). 12 pt text, 13 pt glyphs, 6 pt
+   apart.
+6. **Facts**: the row's former tooltip lines, in their order, 11 pt secondary — dashboard: `effort.tooltip`,
+   `speed.tooltip`, a top rung's detail, `traffic.agent.tooltip`; boards: group speed and its sub-agents' share,
+   today's output, the cost lines (2c).
+7. **Footnote**: `task.card.footnote` (10.5 pt, tertiary).
+
+A source without scores (METRICS 6.9: it records no tool calls) shows the header, `task.unsupported` (12 pt,
+secondary) and the facts.
+A board with `intelligence` off keeps its text tooltip.
+
+**State chips** — 18 tall, fully rounded, horizontal padding 7, a 10 pt glyph and 11 pt semibold text 4 pt apart:
+
+| State | Text | Glyph (SF Symbol / Segoe Fluent) | Look |
+| --- | --- | --- | --- |
+| `passing` | `task.state.passing` | `checkmark.circle.fill` / CompletedSolid U+E930 | mint: dark text `#6EE7B7` on `rgba(52,211,153,.14)`, light `#047857` on `rgba(16,185,129,.12)` |
+| `failing` | `task.state.failing` | `exclamationmark.circle.fill` / Error U+E783 | amber: dark `#FBBF24` on `rgba(245,165,36,.14)`, light `#B45309` on `rgba(245,158,11,.14)` |
+| `pending` | `task.state.pending` | `clock` / Clock U+E917 | neutral: secondary text, no fill, a 1 pt dotted outline of the label color at 35 % |
+| `unverified` | `task.state.unverified` | a drawn ring of 8 dots | neutral, as `pending` |
+| `none` | `task.state.none` | — | neutral, as `pending` |
+
+Failing is amber, never red: a failing check is how most fixes start, and the app's amber already means "worth a
+look" (the looping mark, section 4).
+
+**Colors.** Score ink — bars, composition and dotted outlines: dark `#93A4D6`, light `#4B5FA6` (the mock-up's muted
+slate blue, a quiet member of the heat palette's indigo, distinct from every source color). Track: dark white 9 %,
+light black 7 %. Text uses the system label colors. Increase Contrast: bars and the composition in the label color,
+tracks the label color at 25 %, dots at 100 %, chips with a 1 pt solid stroke in their text color. Windows high
+contrast: bars in the highlight color, tracks and dots in the gray-text color, chips in the text color with a 1 px
+stroke and no fill.
+
+**Accessibility.** The card itself is not focusable. Its content is the row's extra content — macOS `AXCustomContent`
+(VoiceOver's "more content"), Windows the row's `AutomationProperties.FullDescription` — in this order:
+`a11y.task.score` (the score words and the chip's text), the status line, each dimension as `a11y.task.dim` (or its
+label wrapped in `a11y.task.unverified` / `a11y.task.pending`) followed by its meaning, each prediction as
+`a11y.task.predict.success` / `.stall` / `.fixFails` with the percentage spoken as shown (`a11y.task.below` /
+`a11y.task.above` for the clamps) and wrapped in `a11y.task.predict.calibrated` or `a11y.task.predict.prior`, the
+行為 lines, the facts and the footnote. The row's custom action `a11y.task.card` also shows the card for sighted
+keyboard users.
+
+### Usage History: task performance
+
+Section 3c of the Usage History window (4b), between *Effort and speed* and the daily table, in the chart's card
+style. Data: METRICS 6.11, *Comparison* — the complete task records whose day lies in the window's range, per source
+(`bySource`) and per model id across sources (`byModel`). Everything follows the window's range; the window's source
+picker narrows it (below).
+
+**Header.** `history.tasks.title` (15 pt semibold) and an ⓘ button whose popover (340 pt) holds `history.tasks.info`
+and, as a definition list, every metric's full name with its `.hint`. Trailing: two small bordered pop-up buttons
+(a 7 pt source dot and the name) with `history.tasks.vs` (11 pt, tertiary) between them, labelled
+`history.tasks.pickA.a11y` and `history.tasks.pickB.a11y`. They list the scored sources with records in the range, in
+source order; each leaves out the other's choice. Default: Codex and Claude Code when both have records, else the two
+with the most tasks; the window remembers the pair.
+
+**Side headers**, either side of a 140 pt centre column, aligned toward it (the left one right-aligned): the source
+dot and name (13 pt semibold); `history.tasks.counts` (11.5 pt, secondary, tabular); the median score (34 pt display
+semibold, tabular; `–` with no scored task) with `history.tasks.metric.median.short` (11 pt, secondary) beside it;
+and the **distribution** — 10 bars over 120 × 28 pt, 2 pt apart, top corners 1.5 pt, in the source color at 70 % (the
+median's bin at 100 %), a 1 pt median tick in the label color, `0` and `100` under the ends (9 pt, tertiary). Both
+axes run from 0 on the left to 100 on the right; only the alignment mirrors. With fewer than 10 scored tasks the
+counts line ends with the chip `history.tasks.sample.low` (10 pt medium in a neutral capsule, as section 9's reason
+chip), whose tooltip is `history.tasks.sample.hint` with the count and 10.
+
+Display statistics, from the same records and computed exactly so on both platforms: the scores sorted
+ascending, unrounded; quantile `q(p) = s[⌊h⌋] + (h − ⌊h⌋)(s[⌊h⌋ + 1] − s[⌊h⌋])` with `h = (n − 1) p` (at `p = 0.5` this
+is METRICS 6.11's median); quartiles `q(0.25)` and `q(0.75)`; histogram bins `[0, 10) … [80, 90)` and `[90, 100]`.
+
+**Comparison rows** (the butterfly), five rows of 36 pt under a hairline: `history.tasks.metric.success`, `.stall`,
+`.fixFail`, `.attempts` (mean attempts to recover) and `.firstPass` (median time to first pass). The centre column
+holds the full name (12 pt medium, the label color at 85 %, centred, up to two lines) and, under the lower-is-better
+ones (all but success), `history.tasks.lowerBetter` (10 pt, tertiary). Each side: the value in a 64 pt column at the
+outer edge (13 pt, tabular; rates as whole percents, attempts with one decimal in `history.tasks.attempts`, times as
+`time.seconds`, `time.minutes`, `time.hours` or `time.hoursMinutes` — seconds below a minute, whole minutes below an
+hour), and between it and the centre a 6 pt track (radius 3) filled from the centre outward in the source color
+(dark at 85 %). Scale: rates 0–100 %; attempts and times the larger of the two values × 1.25 (attempts at least 3,
+times at least 5 minutes). A null value shows `–` (tertiary) with `history.tasks.noValue.attempts` or
+`.firstPass` as its tooltip and an empty track. A rate's tooltip gives its counts: `history.tasks.rate.scored`
+(success), `.tasks` (stall), `.fixes` (fix failure).
+
+**Better** is marked only when both sides have at least 10 scored tasks and the values differ by at least 1
+percentage point (rates) or 5 % of the larger value (attempts, times): the better value — higher success, lower
+otherwise — in semibold label color, the other in regular secondary. Otherwise both are regular, in the label color.
+No color and no arrow says "better": small or noisy samples must not crown a winner.
+
+**By model** (`history.tasks.byModel`, 13 pt semibold, 16 pt above): a table in the daily table's style — rows 30 pt,
+alternating tint, hover highlight, sortable headers (default: tasks descending, then the id, as METRICS), copy row as
+text. Columns: `history.tasks.column.model`, tasks, scored, median, success, stall, fix failure, attempts, first pass;
+headers use the `.short` names (`history.tasks.metric.scored.short`, `.median.short`, `.attempts.short`,
+`.firstPass.short`) with the full name as their tooltip and accessibility label. The model cell: the dots of every
+source with records of that model, overlapping (7 pt, 4 pt apart, each with a 1 pt ring in the row's background), then
+the id (12.5 pt medium, middle truncation; an unknown model `cost.noModelName`), tooltip
+`history.tasks.model.sources`. The median cell: the number and a 48 × 4 pt strip (the track, `q(0.25)`–`q(0.75)` in
+the first source's color at 45 %, a 1.5 pt median tick in the label color). A model with fewer than 10 scored tasks
+shows its values in secondary and the `history.tasks.sample.low` chip after its id.
+
+**Footnote**: `history.tasks.footnote` (11 pt, tertiary).
+
+**One source.** With one source selected in the window's picker, or only one scored source with records in the range
+(`history.tasks.onlyOne` then replaces the pickers), the section shows that source's side header full width and one
+bar per metric (label column 180, bar, value), and the table lists that source's models, computed by the same rules
+over its records only.
+
+**Widths** (the section's content width): **wide** from 860 — as above. **Medium** 600–860 (the window's minimum
+720 lands here): centre column 120, distributions 96 wide; the table merges tasks and scored into
+`history.tasks.column.scoredOfTasks` (`96 / 128`). **Narrow** below 600 (large text sizes and any future smaller
+minimum): the pickers wrap under the title; each side header becomes one compact row (dot, name, median 22 pt,
+counts), without the distribution; the comparison becomes a three-column table — the metric (wraps), then the two
+values right-aligned in 72 pt columns, the better one semibold; the model table becomes a list of rows: line 1 the
+dots, the id and the median; line 2 (11 pt, secondary) success · stall · fix failure; line 3 attempts · first pass ·
+scored / tasks. Nothing scrolls sideways at any width.
+
+**States.**
+
+- **Re-analysing**: the first launch of this version re-analyses every log (METRICS 6.11, analysis version 8). While
+  `history.analyzing` runs and the range has no records yet, the section shows static placeholders (side headers and
+  five rows in the track color) with `history.tasks.analyzing`; records fill in with a 0.2 s crossfade.
+- **Empty**: no record in the range for any scored source — the muted gauge glyph, `history.tasks.empty` and
+  `history.tasks.empty.hint` (the section stays, so the feature is discoverable).
+- **One side empty** (the remembered pair has a source without records in this range): its header shows
+  `history.tasks.side.empty`, its values `–`, its tracks empty.
+- Tasks without a score (they only read, METRICS 6.9) count in tasks and the stall rate and in nothing else.
+
+**Motion.** A new range, source or pair crossfades the values (0.2 s) and springs the bars to their new lengths
+(≤ 0.35 s, section 6); Reduce Motion: crossfades only.
+
+**Accessibility.** The section is a group with the heading `history.tasks.title`. A side header is one element,
+`a11y.history.tasks.side`; a distribution is an image labelled `a11y.history.tasks.distribution` with the quartiles and
+median as shown integers. Each comparison row is one element, `a11y.history.tasks.compare` (the metric — wrapped in
+`a11y.history.tasks.lowerBetter` where lower is better — then each source with its value as shown), wrapped in
+`a11y.history.tasks.better` with the better source when one is marked. The table is a native table whose headers
+speak the full names; the median cell appends `a11y.history.tasks.iqr`; `–` speaks its tooltip's text; chips are
+text.
+
+**CSV**: unchanged in this version (the daily CSV has no task columns).
+
+### Accessibility (every surface)
+
+The **score words** are built in this order and then placed into the surface's label (`a11y.orb.intel`,
+`a11y.orb.intel.only`, `a11y.agent.intel`):
+
+1. the number as shown (`86`);
+2. `unverified` or `pending`: wrapped in `a11y.task.unverified` or `a11y.task.pending`;
+3. resting: wrapped in `a11y.task.idle`;
+4. a set or group with N ≥ 2: wrapped in `a11y.task.top` with N.
+
+`智力 86，4 個 agent 中最高，思考每秒 128 個 token` · `智力 9，尚未驗證` · `智力 72，閒置中，2 個 agent 中最高`. While the value
+is none, `intel.none` replaces the 智力 words. Updates keep each label's 1-second limit. Nothing relies on color or the
+dotted shape; every number and bar in the card has a text equivalent.
+
+### Privacy and wording
+
+The parsers read command text, tool output and edit input in memory while a line is parsed; the app keeps only
+classes, the fixed suite names, 16-hex digests, counts, exit codes and times for each agent's current task, plus the
+per-task records of METRICS 6.11 in the history database — never a prompt, command line, output, path or text
+(METRICS 6.9, *Privacy*). Nothing of the score is reported (11). So:
+
+- **About**: `privacy.taskScore` follows `privacy.traffic`, unchanged while live reporting is on (section 5).
+- **Usage History footer**: `history.privacy` and `history.privacy.short` name the per-task scores.
+- **Hints**: `agents.intel.hint`, `orbs.traffic.hint.intel`, `settings.bar.traffic.hint.intel`, `boards.readouts.hint`
+  and `intel.disclaimer` say what the score is and that it is not a model benchmark.
+- **README** privacy sections (all four languages) carry a *Task score* paragraph after the network traffic paragraph,
+  and their storage sentence names the per-task score records.
+
+Retired with the grade: `intel.tooltip`, `intel.grade`, `intel.class.flagship`, `intel.class.standard`,
+`intel.class.light`, `a11y.agent.grade`.
