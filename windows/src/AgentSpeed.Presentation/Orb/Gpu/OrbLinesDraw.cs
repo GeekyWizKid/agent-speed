@@ -37,12 +37,11 @@ public readonly record struct OrbLinesColors(Rgba Number, Rgba Secondary, Rgba? 
 }
 
 /// <summary>
-/// The orb's two-line readout on the GPU (DESIGN 10): each line a glyph, a number right-aligned in a cell as wide as
-/// <c>8.88</c> and a unit left-aligned in a cell as wide as <c>MB/s</c>, sharing their left edge and centered on the orb.
-/// Network speed draws vector arrows; the intelligence readout draws text glyphs (weight 600 with CJK fallbacks, 0.82 t)
-/// centered in the arrow's cell and widened to their own advance, and its integer in an <c>888</c> cell, so switching
-/// modes moves nothing. Characters are
-/// replaced in their cells once per sample (no animation); the block fades by the quiet rule and steps aside for the
+/// The orb's two-line readout on the GPU (DESIGN 10). Network speed: each line a vector arrow, a number right-aligned in a
+/// cell as wide as <c>8.88</c> and a unit left-aligned in a cell as wide as <c>MB/s</c>, sharing their left edge and
+/// centered on the orb. Intelligence: a larger intelligence line (glyph · index) over a smaller thinking line
+/// (glyph · tok/s value · unit), each centered on the orb by its own width with every piece on a device pixel.
+/// Characters are replaced once per sample (no animation); the block fades by the quiet rule and steps aside for the
 /// new-peak pill. Allocates nothing per frame.
 /// </summary>
 public sealed class OrbLinesDraw
@@ -63,38 +62,66 @@ public sealed class OrbLinesDraw
         set => _glyphs = value ?? throw new ArgumentNullException(nameof(value));
     }
 
-    /// <summary>The <c>8.88</c> number cell and the <c>MB/s</c> (bits: <c>Mb/s</c>) unit cell at text size <paramref name="t"/>.</summary>
+    /// <summary>Network speed: the <c>8.88</c> number cell and the <c>MB/s</c> (bits: <c>Mb/s</c>) unit cell at text size <paramref name="t"/>.</summary>
     public (double Number, double Unit) Cells(double t, bool bits)
     {
         var unit = _glyphs.TryGet(OrbTextKey.Create(bits ? "Mb/s" : "MB/s", OrbFont.Unit, UnitSize(t)), out var cell) ? cell.Advance : 2.2 * t;
-        return (IntegerCell(t) + PointAdvance(t), unit);
+        return (DecimalCell(t), unit);
     }
 
-    /// <summary>The <c>888</c> cell of an integer line.</summary>
-    public double IntegerCell(double t) => 3 * _glyphs.DigitCell(OrbFont.TrafficNumber, t);
-
-    /// <summary>The glyph cell: the arrow's box, or a text glyph's own advance when that is wider.</summary>
-    public double GlyphCell(double t, OrbLinesContent? content)
+    /// <summary>Network speed: one line, arrow box · gap · number cell · gap · unit cell (≈ 5.6 t).</summary>
+    public double LineWidth(double t, bool bits)
     {
-        var cell = OrbLinesPlacement.ArrowWidth * t;
-        if (content?.Kind != OrbLinesKind.Intelligence)
+        var (number, unit) = Cells(t, bits);
+        return OrbLinesPlacement.ArrowWidth * t + 2 * OrbLinesPlacement.Gap * t + number + unit;
+    }
+
+    /// <summary>
+    /// Intelligence at diameter <paramref name="s"/>: the widths the two lines reach with their widest numbers, the
+    /// intelligence line with <c>888</c> and the thinking line with <c>8.88</c> (and <c>tok/s</c> where it carries it).
+    /// </summary>
+    public (double Intelligence, double Thinking) WidestLines(OrbLinesPlacement placement, double s, OrbLinesContent content)
+    {
+        ArgumentNullException.ThrowIfNull(placement);
+        ArgumentNullException.ThrowIfNull(content);
+        var t = placement.TextSize(s);
+        var p = OrbLinesPlacement.IntelligenceScale * t;
+        return (Width(content.First, p, OrbLinesPlacement.IntelligenceGap * p, 3 * _glyphs.DigitCell(OrbFont.TrafficNumber, p), unit: false),
+            Width(content.Second, t, OrbLinesPlacement.Gap * t, DecimalCell(t), placement.ThinkingUnit));
+    }
+
+    /// <summary>
+    /// The readout fits the style's free area at this size (computed with the platform font, never truncated or shrunk):
+    /// network speed by its line, intelligence by both lines with their widest numbers, in a hub with their bottom corners
+    /// within its reach.
+    /// </summary>
+    public bool Fits(OrbLinesPlacement placement, double s, OrbLinesContent? content)
+    {
+        if (s < 64)
         {
-            return cell;
+            return false;
         }
 
-        return Math.Max(cell, Math.Max(TextGlyphAdvance(content.First.Glyph, t), TextGlyphAdvance(content.Second.Glyph, t)));
-    }
+        var t = placement.TextSize(s);
+        if (content is not { Kind: OrbLinesKind.Intelligence })
+        {
+            return LineWidth(t, content?.Bits ?? false) <= placement.Fit * s;
+        }
 
-    /// <summary>One line: glyph cell, gap, number cell, gap, unit cell (≈ 5.6 t).</summary>
-    public double LineWidth(double t, OrbLinesContent? content)
-    {
-        var (number, unit) = Cells(t, content?.Bits ?? false);
-        return GlyphCell(t, content) + 2 * OrbLinesPlacement.Gap * t + number + unit;
-    }
+        var (intelligence, thinking) = WidestLines(placement, s, content);
+        if (Math.Max(intelligence, thinking) > placement.Fit * s)
+        {
+            return false;
+        }
 
-    /// <summary>A line fits the style's free area at this size (computed with the platform font, never truncated or shrunk).</summary>
-    public bool Fits(OrbLinesPlacement placement, double s, OrbLinesContent? content) =>
-        s >= 64 && LineWidth(placement.TextSize(s), content) <= placement.Fit * s;
+        if (placement.HubReach is not { } reach)
+        {
+            return true;
+        }
+
+        var (top, bottom) = placement.Baselines(0, s, OrbLinesKind.Intelligence);
+        return Corner(intelligence, top) <= reach * s && Corner(thinking, bottom) <= reach * s;
+    }
 
     /// <summary>The block's opacity at <paramref name="time"/>: the quiet rule, and around the new-peak pill where the pill shares the area.</summary>
     public static double Alpha(in OrbLinesReading reading, OrbScene scene, bool yieldsToPill)
@@ -123,84 +150,145 @@ public sealed class OrbLinesDraw
         double shift, in OrbLinesColors colors, OrbTextClip clip, bool yieldsToPill)
     {
         var alpha = Alpha(reading, scene, yieldsToPill);
-        if (alpha <= 0.01)
-        {
-            return;
-        }
-
-        var s = ctx.Size;
-        var t = placement.TextSize(s);
         var content = reading.Content;
-        var (numberCell, _) = Cells(t, content.Bits);
-        var width = LineWidth(t, content);
-        if (s < 64 || width > placement.Fit * s)
+        if (alpha <= 0.01 || !Fits(placement, ctx.Size, content))
         {
             return;
         }
 
-        var left = ctx.CenterX - width / 2;
-        var glyphCell = GlyphCell(t, content);
-        var (top, bottom) = placement.Baselines(ctx.CenterY + shift, s);
-        var (topLine, bottomLine) = content.Stack(placement.Below);
-        var gap = OrbLinesPlacement.Gap * t;
-        var cells = new LineCells(left, glyphCell, left + glyphCell + gap + numberCell, gap, t);
+        var t = placement.TextSize(ctx.Size);
+        var (top, bottom) = placement.Baselines(ctx.CenterY + shift, ctx.Size, content.Kind);
         var paint = new LinePaint(colors.Number.MultiplyAlpha(alpha), colors.Secondary.MultiplyAlpha(alpha), colors.Shadow?.MultiplyAlpha(alpha),
             colors.Shadow is null ? 0 : colors.ShadowSigma, clip);
-        var arrows = content.Kind == OrbLinesKind.Traffic;
-        Line(list, topLine, arrows, cells, top, paint);
-        Line(list, bottomLine, arrows, cells, bottom, paint);
+        if (content.Kind == OrbLinesKind.Traffic)
+        {
+            var gap = OrbLinesPlacement.Gap * t;
+            var left = ctx.CenterX - LineWidth(t, content.Bits) / 2;
+            var cells = new LineCells(left, left + OrbLinesPlacement.ArrowWidth * t + gap + DecimalCell(t), gap, t);
+            TrafficLine(list, content.First, cells, top, paint);
+            TrafficLine(list, content.Second, cells, bottom, paint);
+            return;
+        }
+
+        var p = OrbLinesPlacement.IntelligenceScale * t;
+        TextLine(list, ctx, content.First, p, OrbLinesPlacement.IntelligenceGap * p, false, top, paint);
+        TextLine(list, ctx, content.Second, t, OrbLinesPlacement.Gap * t, placement.ThinkingUnit, bottom, paint);
     }
 
-    private void Line(OrbDrawList list, in OrbLine line, bool arrow, in LineCells cells, double baseline, in LinePaint paint)
+    /// <summary>Network speed: the arrow centered in its box, the number right-aligned in its cell, the unit after it.</summary>
+    private void TrafficLine(OrbDrawList list, in OrbLine line, in LineCells cells, double baseline, in LinePaint paint)
     {
         var t = cells.Size;
-        var glyphKey = arrow
-            ? OrbTextKey.Create(line.Glyph, OrbFont.Arrow, t, 0, paint.Sigma)
-            : OrbTextKey.Create(line.Glyph, OrbFont.Title, UnitSize(t), 0, paint.Sigma);
-        if (_glyphs.TryGet(glyphKey, out var glyph))
+        var arrowBox = OrbLinesPlacement.ArrowWidth * t;
+        if (_glyphs.TryGet(OrbTextKey.Create(line.Glyph, OrbFont.Arrow, t, 0, paint.Sigma), out var arrow))
         {
-            list.AddText(glyph, cells.Left + (cells.Glyph - glyph.Advance) / 2, baseline, paint.Secondary, paint.Shadow, paint.Clip);
+            list.AddText(arrow, cells.Left + (arrowBox - arrow.Advance) / 2, baseline, paint.Secondary, paint.Shadow, paint.Clip);
         }
 
-        var digit = _glyphs.DigitCell(OrbFont.TrafficNumber, t);
-        var advance = 0.0;
-        foreach (var ch in line.Number)
+        Number(list, line.Number, t, cells.NumberRight - NumberWidth(line.Number, t, paint.Sigma), baseline, paint);
+        if (line.Unit.Length > 0)
         {
-            advance += CellWidth(ch, t, digit, paint.Sigma);
+            Text(list, line.Unit, OrbFont.Unit, UnitSize(t), cells.NumberRight + cells.Gap, baseline, paint);
+        }
+    }
+
+    /// <summary>
+    /// Intelligence: glyph · gap · number (· gap · unit), centered on the orb by its current width. Every piece starts on a
+    /// device pixel, so the line moves only when its width changes and the atlas glyphs are drawn unresampled.
+    /// </summary>
+    private void TextLine(OrbDrawList list, OrbGpuContext ctx, in OrbLine line, double size, double gap, bool unit, double baseline,
+        in LinePaint paint)
+    {
+        var small = OrbLinesPlacement.UnitScale * size;
+        var pixels = ctx.Scale;
+        var x = ctx.CenterX - Width(line, size, gap, NumberWidth(line.Number, size, paint.Sigma), unit) / 2;
+        x = Text(list, line.Glyph, OrbFont.Title, small, x, baseline, paint, pixels) + gap;
+        x = Number(list, line.Number, size, x, baseline, paint, pixels);
+        if (unit && line.Unit.Length > 0)
+        {
+            Text(list, line.Unit, OrbFont.Unit, small, x + gap, baseline, paint, pixels);
+        }
+    }
+
+    /// <summary>
+    /// A string in the secondary color with its origin at <paramref name="x"/> (on the device pixel with
+    /// <paramref name="pixels"/> per point); returns the end of its advance from the unsnapped origin.
+    /// </summary>
+    private double Text(OrbDrawList list, string text, OrbFont font, double size, double x, double baseline, in LinePaint paint,
+        double pixels = 0)
+    {
+        if (!_glyphs.TryGet(OrbTextKey.Create(text, font, size, 0, paint.Sigma), out var glyph))
+        {
+            return x;
         }
 
-        var x = (line.Integer ? cells.NumberRight - PointAdvance(t) : cells.NumberRight) - advance;
-        foreach (var ch in line.Number)
+        list.AddText(glyph, Snap(x, pixels), baseline, paint.Secondary, paint.Shadow, paint.Clip);
+        return x + glyph.Advance;
+    }
+
+    /// <summary>
+    /// A number from <paramref name="x"/>, each character centered in its tabular cell (on the device pixel with
+    /// <paramref name="pixels"/> per point); returns its right end.
+    /// </summary>
+    private double Number(OrbDrawList list, string number, double size, double x, double baseline, in LinePaint paint, double pixels = 0)
+    {
+        var digit = _glyphs.DigitCell(OrbFont.TrafficNumber, size);
+        foreach (var ch in number)
         {
-            var cell = CellWidth(ch, t, digit, paint.Sigma);
-            if (_glyphs.TryGet(OrbTextKey.Create(OrbReadoutDraw.CharText(ch), OrbFont.TrafficNumber, t, 0, paint.Sigma), out var character))
+            var cell = CellWidth(ch, size, digit, paint.Sigma);
+            if (_glyphs.TryGet(OrbTextKey.Create(OrbReadoutDraw.CharText(ch), OrbFont.TrafficNumber, size, 0, paint.Sigma), out var character))
             {
-                list.AddText(character, x + (cell - character.Advance) / 2, baseline, paint.Number, paint.Shadow, paint.Clip);
+                list.AddText(character, Snap(x + (cell - character.Advance) / 2, pixels), baseline, paint.Number, paint.Shadow, paint.Clip);
             }
 
             x += cell;
         }
 
-        if (line.Unit.Length > 0 && _glyphs.TryGet(OrbTextKey.Create(line.Unit, OrbFont.Unit, UnitSize(t), 0, paint.Sigma), out var unit))
-        {
-            list.AddText(unit, cells.NumberRight + cells.Gap, baseline, paint.Secondary, paint.Shadow, paint.Clip);
-        }
+        return x;
     }
 
-    private double TextGlyphAdvance(string text, double t) =>
-        _glyphs.TryGet(OrbTextKey.Create(text, OrbFont.Title, UnitSize(t)), out var glyph) ? glyph.Advance : 0;
+    /// <summary>Rounds <paramref name="x"/> to the device pixel; 0 pixels per point leaves it as it is (the network readout).</summary>
+    private static double Snap(double x, double pixels) => pixels > 0 ? Math.Round(x * pixels) / pixels : x;
 
-    private double PointAdvance(double t) =>
-        _glyphs.TryGet(OrbTextKey.Create(".", OrbFont.TrafficNumber, t), out var dot) ? dot.Advance : 0.3 * t;
+    /// <summary>The distance from the center to a line's bottom corner: half its width out, its baseline down.</summary>
+    private static double Corner(double width, double baseline) => Math.Sqrt(width * width / 4 + baseline * baseline);
 
-    private double CellWidth(char ch, double t, double digit, double sigma) =>
+    /// <summary>An intelligence line's width, advances only: glyph · gap · number (· gap · unit).</summary>
+    private double Width(in OrbLine line, double size, double gap, double number, bool unit)
+    {
+        var small = OrbLinesPlacement.UnitScale * size;
+        var tail = unit && line.Unit.Length > 0 ? gap + Advance(line.Unit, OrbFont.Unit, small) : 0;
+        return Advance(line.Glyph, OrbFont.Title, small) + gap + number + tail;
+    }
+
+    private double NumberWidth(string number, double size, double sigma)
+    {
+        var digit = _glyphs.DigitCell(OrbFont.TrafficNumber, size);
+        var width = 0.0;
+        foreach (var ch in number)
+        {
+            width += CellWidth(ch, size, digit, sigma);
+        }
+
+        return width;
+    }
+
+    /// <summary>The <c>8.88</c> cell.</summary>
+    private double DecimalCell(double size) =>
+        3 * _glyphs.DigitCell(OrbFont.TrafficNumber, size)
+        + (_glyphs.TryGet(OrbTextKey.Create(".", OrbFont.TrafficNumber, size), out var point) ? point.Advance : 0.3 * size);
+
+    private double Advance(string text, OrbFont font, double size) =>
+        _glyphs.TryGet(OrbTextKey.Create(text, font, size), out var glyph) ? glyph.Advance : 0;
+
+    private double CellWidth(char ch, double size, double digit, double sigma) =>
         char.IsAsciiDigit(ch) ? digit
-        : _glyphs.TryGet(OrbTextKey.Create(OrbReadoutDraw.CharText(ch), OrbFont.TrafficNumber, t, 0, sigma), out var glyph) ? glyph.Advance : 0;
+        : _glyphs.TryGet(OrbTextKey.Create(OrbReadoutDraw.CharText(ch), OrbFont.TrafficNumber, size, 0, sigma), out var glyph) ? glyph.Advance : 0;
 
     private static double UnitSize(double t) => OrbLinesPlacement.UnitScale * Math.Max(OrbReadoutLayout.MinTextSize, t);
 
-    /// <summary>Horizontal cells of both lines at text size <see cref="Size"/>.</summary>
-    private readonly record struct LineCells(double Left, double Glyph, double NumberRight, double Gap, double Size);
+    /// <summary>Network speed: the left edge and the number cell's right edge shared by both lines at text size <see cref="Size"/>.</summary>
+    private readonly record struct LineCells(double Left, double NumberRight, double Gap, double Size);
 
     private readonly record struct LinePaint(Rgba Number, Rgba Secondary, Rgba? Shadow, double Sigma, OrbTextClip Clip);
 }
