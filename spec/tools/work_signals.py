@@ -126,7 +126,21 @@ def pi_family_line(log, obj, at):
         log.result(message.get("toolCallId"), message.get("isError") is True)
 
 
-EXTRACTORS = {"claude": claude_line, "codex": codex_line, "omp": pi_family_line, "pi": pi_family_line}
+def droid_line(log, obj, at):
+    """Factory Droid: Anthropic-shaped blocks in `message` lines (assistant tool_use, user tool_result)."""
+    message = obj.get("message") if obj.get("type") == "message" and isinstance(obj.get("message"), dict) else {}
+    content = message.get("content")
+    for block in content if isinstance(content, list) else []:
+        if not isinstance(block, dict):
+            continue
+        if message.get("role") == "assistant" and block.get("type") == "tool_use":
+            log.call(block.get("id"), at, block.get("name"), block.get("input"))
+        elif message.get("role") == "user" and block.get("type") == "tool_result":
+            log.result(block.get("tool_use_id"), block.get("is_error") is True)
+
+
+EXTRACTORS = {"claude": claude_line, "codex": codex_line, "omp": pi_family_line, "pi": pi_family_line,
+              "droid": droid_line}
 
 
 # ----------------------------------------------------------------------------- signals

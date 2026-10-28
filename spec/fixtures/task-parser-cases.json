@@ -902,7 +902,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -917,7 +918,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": true,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -932,7 +934,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -946,7 +949,8 @@
     "targeted": true,
     "key": "303043f10fd59356",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -960,7 +964,8 @@
     "targeted": true,
     "key": "7fe9acd658904375",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -974,7 +979,8 @@
     "targeted": true,
     "key": "c3285811152afcc1",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -988,7 +994,8 @@
     "targeted": false,
     "key": "7a4b47667b546d5c",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1002,7 +1009,8 @@
     "targeted": false,
     "key": "75ce45edeafe0a71",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1016,7 +1024,8 @@
     "targeted": true,
     "key": "49ba47b520f042d3",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1030,7 +1039,8 @@
     "targeted": false,
     "key": "fd410ac402248c0f",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1044,7 +1054,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": true,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1058,7 +1069,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": true,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1072,7 +1084,8 @@
     "targeted": false,
     "key": "4f65936a85f9a44a",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1086,7 +1099,8 @@
     "targeted": false,
     "key": "c06f61502cff77f4",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1100,7 +1114,8 @@
     "targeted": false,
     "key": "583da11e3be1a1d1",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1114,7 +1129,8 @@
     "targeted": false,
     "key": "eddd111235f35084",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1128,7 +1144,8 @@
     "targeted": false,
     "key": "ee062cb61cf1f660",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1142,7 +1159,8 @@
     "targeted": false,
     "key": "7f37a5945bed11ba",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1156,7 +1174,8 @@
     "targeted": false,
     "key": "0f598229d7effbcc",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1170,7 +1189,8 @@
     "targeted": true,
     "key": "8fc82ae8ef85da7c",
     "masked": true,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1184,7 +1204,8 @@
     "targeted": false,
     "key": "914765a30338feb7",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1199,7 +1220,8 @@
     "targeted": false,
     "key": "0f598229d7effbcc",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1213,7 +1235,8 @@
     "targeted": false,
     "key": "63cf282ba572cc30",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1227,7 +1250,8 @@
     "targeted": true,
     "key": "19eab22b5b84d504",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1241,7 +1265,8 @@
     "targeted": false,
     "key": "7c29f359d7ba68bd",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1255,7 +1280,8 @@
     "targeted": false,
     "key": "6f0ddcf754011c00",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1269,7 +1295,8 @@
     "targeted": false,
     "key": "ccde89fd498c9671",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1283,7 +1310,8 @@
     "targeted": false,
     "key": "2b01214d32c382db",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1298,7 +1326,8 @@
     "targeted": false,
     "key": "2b01214d32c382db",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1313,7 +1342,8 @@
     "targeted": false,
     "key": "2b01214d32c382db",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1328,7 +1358,8 @@
     "targeted": false,
     "key": "2b01214d32c382db",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1342,7 +1373,8 @@
     "targeted": false,
     "key": "432b6f84f003defa",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1356,7 +1388,8 @@
     "targeted": true,
     "key": "f426551d55867411",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1370,7 +1403,8 @@
     "targeted": true,
     "key": "2511ac5eeebb45ce",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1384,7 +1418,8 @@
     "targeted": true,
     "key": "12feacc2d676c69f",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1398,7 +1433,8 @@
     "targeted": true,
     "key": "80bf84d9d983d157",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1412,7 +1448,8 @@
     "targeted": true,
     "key": "fa3978e9a8120290",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1426,7 +1463,8 @@
     "targeted": false,
     "key": "27db0f58595f0b3b",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1440,7 +1478,8 @@
     "targeted": false,
     "key": "d9a8cbfbb13f3b05",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1454,7 +1493,8 @@
     "targeted": false,
     "key": "490853644e9277f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1468,7 +1508,8 @@
     "targeted": true,
     "key": "96ed64bea0e7817b",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1482,7 +1523,8 @@
     "targeted": true,
     "key": "7ff9180ddf4c6327",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1496,7 +1538,8 @@
     "targeted": false,
     "key": "457bea4b8bcdc9e3",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1510,7 +1553,8 @@
     "targeted": false,
     "key": "13986710750beb4e",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1524,7 +1568,8 @@
     "targeted": false,
     "key": "720178352d22011e",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1538,7 +1583,8 @@
     "targeted": true,
     "key": "7bdb11ac23b27356",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1552,7 +1598,8 @@
     "targeted": false,
     "key": "3209a06327a78a38",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1566,7 +1613,8 @@
     "targeted": false,
     "key": "a7f80fc4482cbf09",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1580,7 +1628,8 @@
     "targeted": false,
     "key": "bce02974a117f21e",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1594,7 +1643,8 @@
     "targeted": false,
     "key": "6c2103d14be7aebe",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1608,7 +1658,8 @@
     "targeted": false,
     "key": "7f6367dbfa3ee3ba",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1622,7 +1673,8 @@
     "targeted": true,
     "key": "9ce4b4075b5bdc03",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1636,7 +1688,8 @@
     "targeted": true,
     "key": "60e0fcbbedcf1657",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1650,7 +1703,8 @@
     "targeted": false,
     "key": "96b50b2bd3eae60f",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1664,7 +1718,8 @@
     "targeted": false,
     "key": "af4605115c648e0f",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1678,7 +1733,8 @@
     "targeted": false,
     "key": "c5575690a3e51fed",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1692,7 +1748,8 @@
     "targeted": false,
     "key": "3f66ebec6bb0ea48",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1706,7 +1763,8 @@
     "targeted": false,
     "key": "407f776d577b09c7",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1721,7 +1779,8 @@
     "targeted": false,
     "key": "407f776d577b09c7",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1735,7 +1794,8 @@
     "targeted": true,
     "key": "241092354b851f4b",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1749,7 +1809,8 @@
     "targeted": false,
     "key": "cf2c3f3a856416ad",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1763,7 +1824,8 @@
     "targeted": true,
     "key": "8361c9a2f9d52070",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1777,7 +1839,8 @@
     "targeted": false,
     "key": "e1e8fcc59b954a57",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1791,7 +1854,8 @@
     "targeted": false,
     "key": "e341e8446c1ba080",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1805,7 +1869,8 @@
     "targeted": false,
     "key": "49fe1c495324ec91",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1819,7 +1884,8 @@
     "targeted": false,
     "key": "63ce7120ac510b9c",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1833,7 +1899,8 @@
     "targeted": true,
     "key": "d3e23540b70af732",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1847,7 +1914,8 @@
     "targeted": false,
     "key": "2ff005c168c09181",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1861,7 +1929,8 @@
     "targeted": false,
     "key": "e76c949ad6926182",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1876,7 +1945,8 @@
     "targeted": false,
     "key": "e91441df29e69bd5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1890,7 +1960,8 @@
     "targeted": false,
     "key": "e91441df29e69bd5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1904,7 +1975,8 @@
     "targeted": false,
     "key": "bdc589b7dd0c713d",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1918,7 +1990,8 @@
     "targeted": true,
     "key": "98acfdad0151fb44",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1932,7 +2005,8 @@
     "targeted": false,
     "key": "bc7145d4bba56c07",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1946,7 +2020,8 @@
     "targeted": true,
     "key": "2fd00c86af68aa55",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1960,7 +2035,8 @@
     "targeted": false,
     "key": "f7f0703198fcd3e3",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1974,7 +2050,8 @@
     "targeted": false,
     "key": "eb25d2c4247171c2",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -1988,7 +2065,8 @@
     "targeted": true,
     "key": "ac98d8d34038b663",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2002,7 +2080,8 @@
     "targeted": false,
     "key": "47c4981e2ca2b966",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2016,7 +2095,8 @@
     "targeted": false,
     "key": "a781443dae9626da",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2030,7 +2110,8 @@
     "targeted": true,
     "key": "e4d09a041a21b27c",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2044,7 +2125,8 @@
     "targeted": true,
     "key": "74e1c6781eb241e8",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2058,7 +2140,8 @@
     "targeted": true,
     "key": "cd0d54d5bab964ff",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2072,7 +2155,8 @@
     "targeted": false,
     "key": "b6a113a7cac44e3d",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2086,7 +2170,8 @@
     "targeted": false,
     "key": "72d0bd6361eba03a",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2100,7 +2185,8 @@
     "targeted": false,
     "key": "d8ac61e6a0d5a83c",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2114,7 +2200,8 @@
     "targeted": false,
     "key": "0e1575ac5ca254c6",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2128,7 +2215,8 @@
     "targeted": true,
     "key": "0d603162f3515c74",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2142,7 +2230,8 @@
     "targeted": false,
     "key": "67f6b0491aa7752e",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2156,7 +2245,8 @@
     "targeted": false,
     "key": "17e2a247c6535f07",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2170,7 +2260,8 @@
     "targeted": false,
     "key": "42d06a3a4ccdd37e",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2184,7 +2275,8 @@
     "targeted": true,
     "key": "5c9161287c9e63bb",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2198,7 +2290,8 @@
     "targeted": false,
     "key": "7a4e4ada04ba41e5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2212,7 +2305,8 @@
     "targeted": false,
     "key": "d0d1bb7f5fa79821",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2226,7 +2320,8 @@
     "targeted": false,
     "key": "42d06a3a4ccdd37e",
     "masked": true,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2240,7 +2335,8 @@
     "targeted": false,
     "key": "d82366ab85ef1b9a",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2254,7 +2350,8 @@
     "targeted": true,
     "key": "e62f35955e0a2f14",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2268,7 +2365,8 @@
     "targeted": true,
     "key": "a20796afe163d45c",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2282,7 +2380,8 @@
     "targeted": false,
     "key": "8c5082a3554ea33a",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2296,7 +2395,8 @@
     "targeted": false,
     "key": "848c93ebcfde255b",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2310,7 +2410,8 @@
     "targeted": false,
     "key": "f631ff523aa2dec8",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2324,7 +2425,8 @@
     "targeted": false,
     "key": "6147d72c9afcca6b",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2338,7 +2440,8 @@
     "targeted": true,
     "key": "b0bb89fecd116b04",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2352,7 +2455,8 @@
     "targeted": false,
     "key": "f986f2abd2cc9161",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2366,7 +2470,8 @@
     "targeted": false,
     "key": "107cc9206e33743e",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2380,7 +2485,8 @@
     "targeted": false,
     "key": "34e26be4ecbc14a0",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2394,7 +2500,8 @@
     "targeted": false,
     "key": "a026c4ce92b09995",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2408,7 +2515,8 @@
     "targeted": false,
     "key": "9c70f79883ecaa4e",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2422,7 +2530,8 @@
     "targeted": true,
     "key": "2b4b0c879c2ec12d",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2436,7 +2545,8 @@
     "targeted": false,
     "key": "aa1c52c4d115645d",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2450,7 +2560,8 @@
     "targeted": false,
     "key": "a1d6a9107ca23858",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2464,7 +2575,8 @@
     "targeted": false,
     "key": "7372e072107f797f",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2478,7 +2590,8 @@
     "targeted": true,
     "key": "961a73e117a6f71d",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2492,7 +2605,8 @@
     "targeted": false,
     "key": "de41adb8fe638bb5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2506,7 +2620,8 @@
     "targeted": false,
     "key": "2a000efaffe06ce0",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2520,7 +2635,8 @@
     "targeted": true,
     "key": "1a267c3d3208e783",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2534,7 +2650,8 @@
     "targeted": false,
     "key": "7c42f0c7d7fc627d",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2548,7 +2665,8 @@
     "targeted": false,
     "key": "3963c8ae7e995db5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2562,7 +2680,8 @@
     "targeted": false,
     "key": "b042c7895b693be8",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2576,7 +2695,8 @@
     "targeted": true,
     "key": "644b10a5ada57fa7",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2590,7 +2710,8 @@
     "targeted": true,
     "key": "986fb36ae346b29b",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2604,7 +2725,8 @@
     "targeted": false,
     "key": "091a88d0642aa36c",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2618,7 +2740,8 @@
     "targeted": true,
     "key": "89a5609a4a2d8117",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2632,7 +2755,8 @@
     "targeted": false,
     "key": "8d4aa5e75e817adf",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2646,7 +2770,8 @@
     "targeted": true,
     "key": "a8201a66205a52aa",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2660,7 +2785,8 @@
     "targeted": false,
     "key": "0ac9125cdc8280d6",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2675,7 +2801,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2689,7 +2816,8 @@
     "targeted": false,
     "key": "26c91647613b4065",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2703,7 +2831,8 @@
     "targeted": false,
     "key": "bdc7cf41bd9cb2e1",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2718,7 +2847,8 @@
     "targeted": false,
     "key": "a781443dae9626da",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2733,7 +2863,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2748,7 +2879,8 @@
     "targeted": false,
     "key": "7f6367dbfa3ee3ba",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2762,7 +2894,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": true
+    "background": true,
+    "errorFilter": false
    }
   },
   {
@@ -2776,7 +2909,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": true
+    "background": true,
+    "errorFilter": false
    }
   },
   {
@@ -2790,7 +2924,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2804,7 +2939,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": true,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2818,7 +2954,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2832,7 +2969,8 @@
     "targeted": false,
     "key": "3b52706400317a5f",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2846,7 +2984,8 @@
     "targeted": true,
     "key": "d0a683f90ef20746",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2860,7 +2999,8 @@
     "targeted": true,
     "key": "d4191e93912843d1",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2874,7 +3014,8 @@
     "targeted": false,
     "key": "cf3ee681048ce623",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2888,7 +3029,8 @@
     "targeted": false,
     "key": "48458d4adcbc2714",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2903,7 +3045,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2917,7 +3060,8 @@
     "targeted": true,
     "key": "01cbeaa04e4d1d51",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2931,7 +3075,8 @@
     "targeted": false,
     "key": "9d1c27785cd2eda3",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2945,7 +3090,8 @@
     "targeted": false,
     "key": "438cab1393a0e803",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2959,7 +3105,8 @@
     "targeted": false,
     "key": "9e5f28d59c8e9f1a",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2973,7 +3120,8 @@
     "targeted": false,
     "key": "e3b0c44298fc1c14",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -2987,7 +3135,8 @@
     "targeted": true,
     "key": "cdcc7a535dc3e1dd",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3002,7 +3151,8 @@
     "targeted": false,
     "key": "2b01214d32c382db",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3016,7 +3166,8 @@
     "targeted": false,
     "key": "d3f6dcb15e7b7599",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3030,7 +3181,8 @@
     "targeted": false,
     "key": "58daf25354f5a56b",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3045,7 +3197,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3060,7 +3213,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3074,7 +3228,8 @@
     "targeted": false,
     "key": "9cbf3c2add52c7fa",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3088,7 +3243,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": true,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3102,7 +3258,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": true,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3116,7 +3273,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": true,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3130,7 +3288,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": true,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3144,7 +3303,8 @@
     "targeted": false,
     "key": "8c0c373394902a0e",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3158,7 +3318,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": true
+    "background": true,
+    "errorFilter": false
    }
   },
   {
@@ -3173,7 +3334,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3187,7 +3349,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": true,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3201,7 +3364,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3215,7 +3379,8 @@
     "targeted": false,
     "key": "ddf2ba161807c7cb",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3229,7 +3394,8 @@
     "targeted": true,
     "key": "306e895e482cf0e0",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3243,7 +3409,8 @@
     "targeted": true,
     "key": "b2e138856ba4d909",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3257,7 +3424,8 @@
     "targeted": true,
     "key": "3088e3eabb8550da",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3271,7 +3439,8 @@
     "targeted": false,
     "key": "fc8a9993470f42f5",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3285,7 +3454,8 @@
     "targeted": false,
     "key": "fd410ac402248c0f",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -3299,7 +3469,8 @@
     "targeted": false,
     "key": "81f55cd1ec0affe9",
     "masked": false,
-    "background": false
+    "background": false,
+    "errorFilter": false
    }
   },
   {
@@ -4440,6 +4611,157 @@
    }
   },
   {
+   "id": "out-claude-printed-status",
+   "group": "outcome",
+   "source": "claudeCode",
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_01",
+    "content": "error[E0425]: cannot find value `x`\nexit 101"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "Bash",
+   "input": {
+    "command": "cargo build 2>&1 | tail -2; echo \"exit ${PIPESTATUS[0]}\""
+   },
+   "expect": {
+    "exitCode": 101,
+    "failed": true,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-claude-filter-silent",
+   "group": "outcome",
+   "source": "claudeCode",
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_01",
+    "content": "(Bash completed with no output)"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "Bash",
+   "input": {
+    "command": "cargo check 2>&1 | grep -E \"error|warning\""
+   },
+   "expect": {
+    "exitCode": null,
+    "failed": false,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-claude-filter-test-unknown",
+   "group": "outcome",
+   "source": "claudeCode",
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_01",
+    "content": "(Bash completed with no output)"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "Bash",
+   "input": {
+    "command": "cargo test 2>&1 | grep -i error"
+   },
+   "expect": {
+    "exitCode": null,
+    "failed": null,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-claude-else-word",
+   "group": "outcome",
+   "source": "claudeCode",
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_01",
+    "content": "lint: 3 problems\nFAILED"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "Bash",
+   "input": {
+    "command": "npm run lint || echo FAILED"
+   },
+   "expect": {
+    "exitCode": null,
+    "failed": true,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-codex-printed-status",
+   "group": "outcome",
+   "source": "codex",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "Exit code: 0\nWall time: 3.1 seconds\nOutput:\nCompiling\nEXIT=1\n"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "shell_command",
+   "input": "{\"command\":\"swift build; echo EXIT=$?\"}",
+   "expect": {
+    "exitCode": 1,
+    "failed": true,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-codex-filter-empty",
+   "group": "outcome",
+   "source": "codex",
+   "result": {
+    "type": "function_call_output",
+    "call_id": "call_1",
+    "output": "Exit code: 0\nWall time: 9.0 seconds\nOutput:\n"
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "shell_command",
+   "input": "{\"command\":\"go build ./... 2>&1 | grep error\"}",
+   "expect": {
+    "exitCode": 0,
+    "failed": false,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-pi-branches-ok",
+   "group": "outcome",
+   "source": "pi",
+   "result": {
+    "role": "toolResult",
+    "toolCallId": "call_p1",
+    "toolName": "bash",
+    "content": [
+     {
+      "type": "text",
+      "text": "ok"
+     }
+    ],
+    "isError": false,
+    "timestamp": 1792500000000
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "bash",
+   "input": {
+    "command": "npx tsc --noEmit && echo ok || echo fail"
+   },
+   "expect": {
+    "exitCode": 0,
+    "failed": false,
+    "t": 1792500000000
+   }
+  },
+  {
    "id": "text-claude-exit-line",
    "group": "resultText",
    "source": "claudeCode",
@@ -5372,6 +5694,757 @@
     null,
     "{}"
    ]
+  },
+  {
+   "id": "masked-echo-bare",
+   "group": "maskedStatus",
+   "text": "swift build; echo $?",
+   "output": "Compiling Orbit\n0",
+   "expect": {
+    "exitCode": 0,
+    "failed": false
+   }
+  },
+  {
+   "id": "masked-echo-exit-colon",
+   "group": "maskedStatus",
+   "text": "make -j8; echo \"exit: $?\"",
+   "output": "cc -c a.c\nexit: 2",
+   "expect": {
+    "exitCode": 2,
+    "failed": true
+   }
+  },
+  {
+   "id": "masked-echo-assign",
+   "group": "maskedStatus",
+   "text": "npx tsc --noEmit; echo EXIT=$?",
+   "output": "EXIT=0",
+   "expect": {
+    "exitCode": 0,
+    "failed": false
+   }
+  },
+  {
+   "id": "masked-echo-braces",
+   "group": "maskedStatus",
+   "text": "go vet ./...; echo \"status ${?}\"",
+   "output": "status 1",
+   "expect": {
+    "exitCode": 1,
+    "failed": true
+   }
+  },
+  {
+   "id": "masked-echo-newline",
+   "group": "maskedStatus",
+   "text": "cargo clippy\necho \"rc=$?\"",
+   "output": "warning: x\nrc=0",
+   "expect": {
+    "exitCode": 0,
+    "failed": false
+   }
+  },
+  {
+   "id": "masked-echo-trailing-blank",
+   "group": "maskedStatus",
+   "text": "swift build; echo \"exit $? \"",
+   "output": "exit 1   \n\n",
+   "expect": {
+    "exitCode": 1,
+    "failed": true
+   }
+  },
+  {
+   "id": "masked-echo-test-class",
+   "group": "maskedStatus",
+   "text": "cargo test; echo \"EXIT: $?\"",
+   "output": "test result: FAILED. 1 passed; 1 failed\nEXIT: 101",
+   "expect": {
+    "exitCode": 101,
+    "failed": true
+   }
+  },
+  {
+   "id": "masked-pipestatus",
+   "group": "maskedStatus",
+   "text": "cargo build 2>&1 | tail -3; echo \"exit ${PIPESTATUS[0]}\"",
+   "output": "error: aborting\nexit 101",
+   "expect": {
+    "exitCode": 101,
+    "failed": true
+   }
+  },
+  {
+   "id": "masked-pipestatus-bare",
+   "group": "maskedStatus",
+   "text": "swift build 2>&1 | tail -2; echo $PIPESTATUS",
+   "output": "Build complete!\n0",
+   "expect": {
+    "exitCode": 0,
+    "failed": false
+   }
+  },
+  {
+   "id": "masked-pipestatus-index",
+   "group": "maskedStatus",
+   "text": "cd app && npm run lint 2>&1 | grep -v debug | tail -5; echo ${PIPESTATUS[0]}",
+   "output": "3",
+   "expect": {
+    "exitCode": 3,
+    "failed": true
+   }
+  },
+  {
+   "id": "masked-pipefail",
+   "group": "maskedStatus",
+   "text": "set -o pipefail; cargo build 2>&1 | tail -3; echo $?",
+   "output": "error: x\n101",
+   "expect": {
+    "exitCode": 101,
+    "failed": true
+   }
+  },
+  {
+   "id": "masked-branches-ok",
+   "group": "maskedStatus",
+   "text": "npm run lint && echo ok || echo fail",
+   "output": "ok",
+   "expect": {
+    "exitCode": 0,
+    "failed": false
+   }
+  },
+  {
+   "id": "masked-branches-fail",
+   "group": "maskedStatus",
+   "text": "npm run lint && echo ok || echo fail",
+   "output": "src/a.ts\n  3:1 error\nfail",
+   "expect": {
+    "exitCode": null,
+    "failed": true
+   }
+  },
+  {
+   "id": "masked-branches-fail-code",
+   "group": "maskedStatus",
+   "text": "cargo check && echo PASS || echo \"FAIL $?\"",
+   "output": "error[E0308]\nFAIL 101",
+   "expect": {
+    "exitCode": 101,
+    "failed": true
+   }
+  },
+  {
+   "id": "masked-else-code",
+   "group": "maskedStatus",
+   "text": "go vet ./... || echo \"failed $?\"",
+   "output": "vet: x.go:3: bad\nfailed 1",
+   "expect": {
+    "exitCode": 1,
+    "failed": true
+   }
+  },
+  {
+   "id": "masked-else-fixed",
+   "group": "maskedStatus",
+   "text": "swiftlint --strict || echo FAILED",
+   "output": "x.swift:3: warning\nFAILED",
+   "expect": {
+    "exitCode": null,
+    "failed": true
+   }
+  },
+  {
+   "id": "masked-filter-placeholder",
+   "group": "maskedStatus",
+   "text": "cargo check 2>&1 | grep -E \"error|warning\" | head -20",
+   "output": "(Bash completed with no output)",
+   "expect": {
+    "exitCode": null,
+    "failed": false
+   }
+  },
+  {
+   "id": "masked-filter-empty",
+   "group": "maskedStatus",
+   "text": "npx tsc --noEmit 2>&1 | grep -i error",
+   "output": " \n",
+   "expect": {
+    "exitCode": null,
+    "failed": false
+   }
+  },
+  {
+   "id": "masked-filter-error-colon",
+   "group": "maskedStatus",
+   "text": "swift build 2>&1 | grep -E \"error:|FAIL\"",
+   "output": "",
+   "expect": {
+    "exitCode": null,
+    "failed": false
+   }
+  },
+  {
+   "id": "masked-filter-e-options",
+   "group": "maskedStatus",
+   "text": "go build ./... 2>&1 | grep -n -e warning -e Error | tail -5",
+   "output": "",
+   "expect": {
+    "exitCode": null,
+    "failed": false
+   }
+  },
+  {
+   "id": "masked-filter-combined-flags",
+   "group": "maskedStatus",
+   "text": "cd web && pnpm run build 2>&1 | grep -iE '(error|failed)' --color=never",
+   "output": "(Bash completed with no output)",
+   "expect": {
+    "exitCode": null,
+    "failed": false
+   }
+  },
+  {
+   "id": "masked-pipe-dollar-q",
+   "group": "maskedStatus",
+   "text": "cargo build 2>&1 | tail -3; echo $?",
+   "output": "Finished\n0",
+   "expect": null
+  },
+  {
+   "id": "masked-pipe-and-branches",
+   "group": "maskedStatus",
+   "text": "cargo build | tail -3 && echo ok || echo fail",
+   "output": "ok",
+   "expect": null
+  },
+  {
+   "id": "masked-pipestatus-wrong-index",
+   "group": "maskedStatus",
+   "text": "cargo build 2>&1 | tail -3; echo ${PIPESTATUS[1]}",
+   "output": "0",
+   "expect": null
+  },
+  {
+   "id": "masked-echo-not-last-line",
+   "group": "maskedStatus",
+   "text": "swift build; echo \"exit $?\"",
+   "output": "exit 0\nlater output",
+   "expect": null
+  },
+  {
+   "id": "masked-echo-mismatch",
+   "group": "maskedStatus",
+   "text": "swift build; echo \"exit $?\"",
+   "output": "exit: 0",
+   "expect": null
+  },
+  {
+   "id": "masked-echo-two-refs",
+   "group": "maskedStatus",
+   "text": "swift build; echo \"$? $?\"",
+   "output": "0 0",
+   "expect": null
+  },
+  {
+   "id": "masked-echo-other-expansion",
+   "group": "maskedStatus",
+   "text": "swift build; echo \"$HOME $?\"",
+   "output": "/Users/dev 0",
+   "expect": null
+  },
+  {
+   "id": "masked-echo-option",
+   "group": "maskedStatus",
+   "text": "swift build; echo -n $?",
+   "output": "0",
+   "expect": null
+  },
+  {
+   "id": "masked-echo-redirected",
+   "group": "maskedStatus",
+   "text": "swift build; echo $? > rc.txt",
+   "output": "",
+   "expect": null
+  },
+  {
+   "id": "masked-echo-then-more",
+   "group": "maskedStatus",
+   "text": "swift build; echo $?; cd ..",
+   "output": "0",
+   "expect": null
+  },
+  {
+   "id": "masked-else-absent",
+   "group": "maskedStatus",
+   "text": "go vet ./... || echo \"failed $?\"",
+   "output": "all good",
+   "expect": null
+  },
+  {
+   "id": "masked-else-zero",
+   "group": "maskedStatus",
+   "text": "go vet ./... || echo \"failed $?\"",
+   "output": "failed 0",
+   "expect": null
+  },
+  {
+   "id": "masked-branches-same-text",
+   "group": "maskedStatus",
+   "text": "npm run lint && echo done || echo done",
+   "output": "done",
+   "expect": null
+  },
+  {
+   "id": "masked-filter-test-class",
+   "group": "maskedStatus",
+   "text": "cargo test 2>&1 | grep -i error",
+   "output": "(Bash completed with no output)",
+   "expect": null
+  },
+  {
+   "id": "masked-filter-with-output",
+   "group": "maskedStatus",
+   "text": "cargo check 2>&1 | grep -i error",
+   "output": "error[E0425]: x",
+   "expect": null
+  },
+  {
+   "id": "masked-filter-tail-only",
+   "group": "maskedStatus",
+   "text": "cargo build 2>&1 | tail -3",
+   "output": "(Bash completed with no output)",
+   "expect": null
+  },
+  {
+   "id": "masked-filter-head-only",
+   "group": "maskedStatus",
+   "text": "npx tsc --noEmit | head -20",
+   "output": "",
+   "expect": null
+  },
+  {
+   "id": "masked-filter-inverted",
+   "group": "maskedStatus",
+   "text": "npx tsc --noEmit 2>&1 | grep -v error",
+   "output": "",
+   "expect": null
+  },
+  {
+   "id": "masked-filter-count",
+   "group": "maskedStatus",
+   "text": "npx tsc --noEmit 2>&1 | grep -c error",
+   "output": "0",
+   "expect": null
+  },
+  {
+   "id": "masked-filter-quiet",
+   "group": "maskedStatus",
+   "text": "npx tsc --noEmit 2>&1 | grep -q error",
+   "output": "",
+   "expect": null
+  },
+  {
+   "id": "masked-filter-file-operand",
+   "group": "maskedStatus",
+   "text": "npx tsc --noEmit 2>&1 | grep error build.log",
+   "output": "",
+   "expect": null
+  },
+  {
+   "id": "masked-filter-no-error-word",
+   "group": "maskedStatus",
+   "text": "cargo build 2>&1 | grep -E \"warning|FAIL\"",
+   "output": "",
+   "expect": null
+  },
+  {
+   "id": "masked-filter-then-sort",
+   "group": "maskedStatus",
+   "text": "cargo build 2>&1 | grep error | sort",
+   "output": "",
+   "expect": null
+  },
+  {
+   "id": "masked-filter-then-echo",
+   "group": "maskedStatus",
+   "text": "cargo build 2>&1 | grep error; echo done",
+   "output": "done",
+   "expect": null
+  },
+  {
+   "id": "masked-not-masked",
+   "group": "maskedStatus",
+   "text": "swift build && echo ok",
+   "output": "ok",
+   "expect": null
+  },
+  {
+   "id": "kind-droid-execute-test",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "Execute",
+   "input": {
+    "command": "npm test",
+    "riskLevel": "low"
+   },
+   "expect": "command"
+  },
+  {
+   "id": "kind-droid-execute-read",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "Execute",
+   "input": {
+    "command": "cat package.json"
+   },
+   "expect": "read"
+  },
+  {
+   "id": "kind-droid-execute-search",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "Execute",
+   "input": {
+    "command": "rg -n flush src"
+   },
+   "expect": "search"
+  },
+  {
+   "id": "kind-droid-read",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "Read",
+   "input": {
+    "file_path": "src/scheduler.ts"
+   },
+   "expect": "read"
+  },
+  {
+   "id": "kind-droid-ls",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "LS",
+   "input": {
+    "path": "C:\\Users\\dev"
+   },
+   "expect": "read"
+  },
+  {
+   "id": "kind-droid-grep",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "Grep",
+   "input": {
+    "pattern": "flush"
+   },
+   "expect": "search"
+  },
+  {
+   "id": "kind-droid-glob",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "Glob",
+   "input": {
+    "patterns": [
+     "**/*.ts"
+    ]
+   },
+   "expect": "search"
+  },
+  {
+   "id": "kind-droid-create",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "Create",
+   "input": {
+    "file_path": "a.ts",
+    "content": "x"
+   },
+   "expect": "edit"
+  },
+  {
+   "id": "kind-droid-multiedit",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "a.ts",
+    "edits": []
+   },
+   "expect": "edit"
+  },
+  {
+   "id": "kind-droid-task",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "Task",
+   "input": {
+    "subagent_type": "worker",
+    "prompt": "x"
+   },
+   "expect": "delegate"
+  },
+  {
+   "id": "kind-droid-fetch",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "FetchUrl",
+   "input": {
+    "url": "https://example.com"
+   },
+   "expect": "web"
+  },
+  {
+   "id": "kind-droid-todo",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "TodoWrite",
+   "input": {
+    "todos": []
+   },
+   "expect": "other"
+  },
+  {
+   "id": "kind-droid-lowercase",
+   "group": "actionKind",
+   "source": "droid",
+   "tool": "execute",
+   "input": {
+    "command": "npm test"
+   },
+   "expect": "other"
+  },
+  {
+   "id": "out-droid-ok",
+   "group": "outcome",
+   "source": "droid",
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_d1",
+    "content": "12 passing",
+    "is_error": false
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "Execute",
+   "input": {
+    "command": "npm test"
+   },
+   "expect": {
+    "exitCode": null,
+    "failed": false,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-droid-error",
+   "group": "outcome",
+   "source": "droid",
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_d1",
+    "content": "2 failing",
+    "is_error": true
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "Execute",
+   "input": {
+    "command": "npm test"
+   },
+   "expect": {
+    "exitCode": null,
+    "failed": true,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-droid-masked",
+   "group": "outcome",
+   "source": "droid",
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_d1",
+    "content": "2 failing",
+    "is_error": false
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "Execute",
+   "input": {
+    "command": "npm test | tail -3"
+   },
+   "expect": {
+    "exitCode": null,
+    "failed": null,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-droid-filter",
+   "group": "outcome",
+   "source": "droid",
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_d1",
+    "content": "",
+    "is_error": false
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "Execute",
+   "input": {
+    "command": "npx tsc --noEmit 2>&1 | grep error"
+   },
+   "expect": {
+    "exitCode": null,
+    "failed": false,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "out-droid-edit-error",
+   "group": "outcome",
+   "source": "droid",
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_d1",
+    "content": "old_str not found",
+    "is_error": true
+   },
+   "t": 1792500000000,
+   "cwd": "/Users/dev/work/orbit",
+   "tool": "Edit",
+   "input": {
+    "file_path": "a.ts"
+   },
+   "expect": {
+    "exitCode": null,
+    "failed": true,
+    "t": 1792500000000
+   }
+  },
+  {
+   "id": "text-droid",
+   "group": "resultText",
+   "source": "droid",
+   "result": {
+    "type": "tool_result",
+    "tool_use_id": "toolu_d1",
+    "content": [
+     {
+      "type": "text",
+      "text": "a\r\nb"
+     }
+    ],
+    "is_error": false
+   },
+   "expect": "a\nb"
+  },
+  {
+   "id": "edit-droid-create",
+   "group": "edits",
+   "source": "droid",
+   "tool": "Create",
+   "input": {
+    "file_path": "/Users/dev/projects/forge/src/a.ts",
+    "content": "export {}\n"
+   },
+   "cwd": "/Users/dev/projects/forge",
+   "expect": [
+    {
+     "file": "072fc23b941d05af",
+     "old": null,
+     "new": "f4c5cf9bb78e85f1"
+    }
+   ]
+  },
+  {
+   "id": "edit-droid-edit-str",
+   "group": "edits",
+   "source": "droid",
+   "tool": "Edit",
+   "input": {
+    "file_path": "src/main.ts",
+    "old_str": "let a = 1;",
+    "new_str": "const a = 1;"
+   },
+   "cwd": "/Users/dev/projects/forge",
+   "expect": [
+    {
+     "file": "4fab5baaca5c14d2",
+     "old": "c58e9029f1fd3d1b",
+     "new": "cefd0dd07bfa670f"
+    }
+   ]
+  },
+  {
+   "id": "edit-droid-edit-string",
+   "group": "edits",
+   "source": "droid",
+   "tool": "Edit",
+   "input": {
+    "file_path": "src/main.ts",
+    "old_string": "a",
+    "new_string": "b"
+   },
+   "cwd": "/Users/dev/projects/forge",
+   "expect": [
+    {
+     "file": "4fab5baaca5c14d2",
+     "old": "ca978112ca1bbdca",
+     "new": "3e23e8160039594a"
+    }
+   ]
+  },
+  {
+   "id": "edit-droid-multiedit",
+   "group": "edits",
+   "source": "droid",
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "src/main.ts",
+    "edits": [
+     {
+      "old_str": "a",
+      "new_str": "b"
+     },
+     {
+      "x": 1
+     },
+     {
+      "old_string": "c",
+      "new_string": "d"
+     }
+    ]
+   },
+   "cwd": "/Users/dev/projects/forge",
+   "expect": [
+    {
+     "file": "4fab5baaca5c14d2",
+     "old": "ca978112ca1bbdca",
+     "new": "3e23e8160039594a"
+    },
+    {
+     "file": "4fab5baaca5c14d2",
+     "old": "2e7d2c03a9507ae2",
+     "new": "18ac3e7343f01689"
+    }
+   ]
+  },
+  {
+   "id": "edit-droid-edit-no-path",
+   "group": "edits",
+   "source": "droid",
+   "tool": "Edit",
+   "input": {
+    "old_str": "a",
+    "new_str": "b"
+   },
+   "cwd": "/Users/dev/projects/forge",
+   "expect": []
   },
   {
    "id": "edit-claude-edit",
@@ -8947,6 +10020,51 @@
      "cargo|test||t298|",
      "cargo|test||t299|"
     ]
+   }
+  },
+  {
+   "id": "fail-x-filter-silent",
+   "group": "failures",
+   "command": "cargo check 2>&1 | grep -i error",
+   "output": "(Bash completed with no output)",
+   "failed": false,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": 0,
+    "passedCount": null,
+    "framework": null,
+    "canonical": []
+   }
+  },
+  {
+   "id": "fail-x-filter-silent-unknown-outcome",
+   "group": "failures",
+   "command": "cargo check 2>&1 | grep -i error",
+   "output": "",
+   "failed": null,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": null,
+    "passedCount": null,
+    "framework": null,
+    "canonical": []
+   }
+  },
+  {
+   "id": "fail-x-filter-test-class",
+   "group": "failures",
+   "command": "cargo test 2>&1 | grep -i error",
+   "output": "",
+   "failed": false,
+   "cwd": null,
+   "expect": {
+    "fingerprints": [],
+    "failedCount": null,
+    "passedCount": null,
+    "framework": null,
+    "canonical": []
    }
   },
   {

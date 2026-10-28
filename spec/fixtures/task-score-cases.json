@@ -660,6 +660,101 @@
    "expect": null
   },
   {
+   "name": "droid: a user message without visibility is a prompt",
+   "source": "droid",
+   "line": {
+    "type": "message",
+    "id": "m1",
+    "message": {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "Fix the cache flush"
+      }
+     ]
+    }
+   },
+   "expect": {
+    "kind": "prompt",
+    "continuation": false
+   }
+  },
+  {
+   "name": "droid: a continuation",
+   "source": "droid",
+   "line": {
+    "type": "message",
+    "id": "m2",
+    "message": {
+     "role": "user",
+     "content": "keep going"
+    }
+   },
+   "expect": {
+    "kind": "prompt",
+    "continuation": true
+   }
+  },
+  {
+   "name": "droid: the per-turn context (llm_only) is not a prompt",
+   "source": "droid",
+   "line": {
+    "type": "message",
+    "id": "context-t1",
+    "message": {
+     "role": "user",
+     "visibility": "llm_only",
+     "content": [
+      {
+       "type": "text",
+       "text": "cwd: /w"
+      }
+     ]
+    }
+   },
+   "expect": null
+  },
+  {
+   "name": "droid: a notice (user_only) is not a prompt",
+   "source": "droid",
+   "line": {
+    "type": "message",
+    "id": "n1",
+    "message": {
+     "role": "user",
+     "visibility": "user_only",
+     "content": [
+      {
+       "type": "text",
+       "text": "Hook ran"
+      }
+     ]
+    }
+   },
+   "expect": null
+  },
+  {
+   "name": "droid: tool results are not a prompt",
+   "source": "droid",
+   "line": {
+    "type": "message",
+    "id": "r1",
+    "message": {
+     "role": "user",
+     "content": [
+      {
+       "type": "tool_result",
+       "tool_use_id": "toolu_1",
+       "content": "ok",
+       "is_error": false
+      }
+     ]
+    }
+   },
+   "expect": null
+  },
+  {
    "name": "hermes has no tasks",
    "source": "hermes",
    "line": {

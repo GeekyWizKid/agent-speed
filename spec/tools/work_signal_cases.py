@@ -130,6 +130,18 @@ files = [
                                                    "isError": True, "content": [{"type": "text", "text": "ENOENT"}]}}],
      ],
      "expect": [{"at": T, "tool": "read", "digest": sha16(pi_raw), "failed": True}]},
+    {"name": "Factory Droid: tool_use in an assistant message line, tool_result in the next user message line",
+     "format": "droid",
+     "lines": [
+         [T, {"type": "message", "id": "a1", "message": {"role": "assistant", "content": [
+             {"type": "tool_use", "id": "toolu_d1", "name": "Execute", "input": claude_input}]}}],
+         [T + 1500, {"type": "message", "id": "r1", "message": {"role": "user", "content": [
+             {"type": "tool_result", "tool_use_id": "toolu_d1", "content": "2 failing", "is_error": True}]}}],
+         [T + 2000, {"type": "message", "id": "a2", "message": {"role": "assistant", "content": [
+             {"type": "tool_use", "id": "toolu_d2", "name": "Read", "input": {"file_path": "Package.swift"}}]}}],
+     ],
+     "expect": [{"at": T, "tool": "Execute", "digest": sha16(claude_raw), "failed": True},
+                {"at": T + 2000, "tool": "Read", "digest": sha16('{"file_path":"Package.swift"}'), "failed": None}]},
 ]
 
 cases = {

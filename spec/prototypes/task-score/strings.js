@@ -870,6 +870,12 @@ window.TS_STRINGS = {
   "en": "Hermes Agent",
   "ja": "Hermes Agent"
  },
+ "source.droid": {
+  "zh-Hant": "Factory Droid",
+  "zh-Hans": "Factory Droid",
+  "en": "Factory Droid",
+  "ja": "Factory Droid"
+ },
  "effort.tooltip": {
   "zh-Hant": "推理強度：%@",
   "zh-Hans": "推理强度：%@",
@@ -1099,10 +1105,10 @@ window.TS_STRINGS = {
   "ja": "この期間に採点されたタスクはありません"
  },
  "history.tasks.empty.hint": {
-  "zh-Hant": "任務評分需要會記錄工具呼叫的來源：Claude Code、Claude Desktop、Codex、omp、Pi 或 OpenClaw。",
-  "zh-Hans": "任务评分需要会记录工具调用的来源：Claude Code、Claude Desktop、Codex、omp、Pi 或 OpenClaw。",
-  "en": "Task scores need a source that records tool calls: Claude Code, Claude Desktop, Codex, omp, Pi or OpenClaw.",
-  "ja": "タスクの採点には、ツール呼び出しを記録するソースが必要です：Claude Code、Claude Desktop、Codex、omp、Pi、OpenClaw。"
+  "zh-Hant": "任務評分需要會記錄工具呼叫的來源：Claude Code、Claude Desktop、Codex、omp、Pi、OpenClaw 或 Factory Droid。",
+  "zh-Hans": "任务评分需要会记录工具调用的来源：Claude Code、Claude Desktop、Codex、omp、Pi、OpenClaw 或 Factory Droid。",
+  "en": "Task scores need a source that records tool calls: Claude Code, Claude Desktop, Codex, omp, Pi, OpenClaw or Factory Droid.",
+  "ja": "タスクの採点には、ツール呼び出しを記録するソースが必要です：Claude Code、Claude Desktop、Codex、omp、Pi、OpenClaw、Factory Droid。"
  },
  "history.tasks.side.empty": {
   "zh-Hant": "這段期間沒有任務",

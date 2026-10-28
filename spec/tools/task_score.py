@@ -24,9 +24,9 @@ import reference as engine  # noqa: E402
 
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures", "task-score-cases.json")
 
-SCORED_SOURCES = ("codex", "claudeCode", "claudeDesktop", "omp", "pi", "openclaw")
+SCORED_SOURCES = ("codex", "claudeCode", "claudeDesktop", "omp", "pi", "openclaw", "droid")
 SOURCE_ORDER = ("codex", "claudeCode", "claudeDesktop", "deepseek", "opencode", "gemini", "omp", "antigravity",
-                "workbuddy", "workbuddyAi", "zcode", "kimi", "grokBuild", "pi", "openclaw", "hermes")
+                "workbuddy", "workbuddyAi", "zcode", "kimi", "grokBuild", "pi", "openclaw", "hermes", "droid")
 VERIFY = ("test", "build", "check")
 
 V_TEST, V_BUILD = 40.0, 20.0
@@ -193,8 +193,24 @@ def pi_family_prompt(obj):
     return {"kind": "prompt", "continuation": is_continuation("\n".join(parts[0]))}
 
 
+def droid_prompt(obj):
+    """A Factory Droid user message without `visibility` (the user's text, not the per-turn context or a notice) that
+    holds no tool result and has a non-blank text or an image."""
+    message = obj.get("message")
+    if obj.get("type") != "message" or not isinstance(message, dict) or message.get("role") != "user" \
+            or "visibility" in message and message["visibility"] is not None:
+        return None
+    content = message.get("content")
+    if isinstance(content, list) and any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content):
+        return None
+    parts = _content_parts(content, ("image",))
+    if parts is None:
+        return None
+    return {"kind": "prompt", "continuation": is_continuation(_prompt_text(content, parts[0]))}
+
+
 PROMPT_LINES = {"claudeCode": claude_prompt, "claudeDesktop": claude_prompt, "codex": codex_prompt,
-                "omp": pi_family_prompt, "pi": pi_family_prompt, "openclaw": pi_family_prompt}
+                "omp": pi_family_prompt, "pi": pi_family_prompt, "openclaw": pi_family_prompt, "droid": droid_prompt}
 
 
 def prompt_line(source, obj):
