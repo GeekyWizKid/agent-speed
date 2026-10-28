@@ -253,7 +253,9 @@ struct BoardTaskScoreTests {
         let resting = Self.board(.glass, .resting, size: .medium).tick.metrics
         #expect(BoardAccessibilityReporter.metricWords(resting, currency: "美元", l10n: Self.l10n).first?
             .hasPrefix("智力 72，閒置中") == true)
+        // While none, `intel.none` replaces only the 智力 words: a shown 思考 is still read.
         let quiet = Self.board(.glass, .none, size: .medium).tick.metrics
-        #expect(BoardAccessibilityReporter.metricWords(quiet, currency: "美元", l10n: Self.l10n).first == "智力：尚無評分")
+        let quietWords = BoardAccessibilityReporter.metricWords(quiet, currency: "美元", l10n: Self.l10n).first
+        #expect(quietWords == (quiet.showsThinking ? "智力：尚無評分，思考每秒 \(quiet.thinking) 個 token" : "智力：尚無評分"))
     }
 }

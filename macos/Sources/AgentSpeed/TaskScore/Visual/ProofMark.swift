@@ -39,11 +39,14 @@ enum ProofMark {
                               scale: CGFloat, increasedContrast: Bool, depth: CGFloat = textDepth, yDown: Bool = true) {
         let diameter = dotDiameter(textSize: textSize, scale: scale, increasedContrast: increasedContrast)
         let centerY = origin.y + (yDown ? 1 : -1) * depth * textSize
+        // Whole device pixels: a 1 px dot must not smear over two rows or columns.
+        let device = max(scale, 1)
+        func snapped(_ value: CGFloat) -> CGFloat { (value * device).rounded() / device }
         context.saveGState()
         context.setFillColor(increasedContrast ? color : color.copy(alpha: color.alpha * opacity) ?? color)
+        let top = snapped(centerY - diameter / 2)
         for x in dotCenters(width: width, diameter: diameter) {
-            context.fillEllipse(in: CGRect(x: origin.x + x - diameter / 2, y: centerY - diameter / 2,
-                                           width: diameter, height: diameter))
+            context.fillEllipse(in: CGRect(x: snapped(origin.x + x - diameter / 2), y: top, width: diameter, height: diameter))
         }
         context.restoreGState()
     }

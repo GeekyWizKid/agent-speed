@@ -113,8 +113,10 @@ struct StatusItemIntelligenceTests {
         let none = StatusItemIntelligence(.zero, l10n: l10n)
         #expect(none.intelligence == .init(label: "智力", number: "–", dim: true))
         #expect(none.intelligence.number.unicodeScalars.map(\.value) == [0x2013])
-        #expect(none.spoken == "智力：尚無評分")
-        #expect(StatusItemIntelligence(.zero, l10n: Localizer(preference: .en)).spoken == "intelligence: no score yet")
+        // `intel.none` replaces only the 智力 words; the thinking words stay, as on the orb.
+        #expect(none.spoken == "智力：尚無評分，思考每秒 0 個 token")
+        #expect(StatusItemIntelligence(.zero, l10n: Localizer(preference: .en)).spoken
+            == "intelligence: no score yet, thinking 0 tokens per second")
         // 0 is a real score.
         let zero = StatusItemIntelligence(Self.sums(score: 0, thinking: 4.2), l10n: l10n)
         #expect(zero.intelligence == .init(label: "智力", number: "0", dim: false))
@@ -131,11 +133,11 @@ struct StatusItemIntelligenceTests {
 
     @Test func theThinkingNumberIsADashOnlyWhileNothingIsGenerated() {
         let l10n = Localizer(preference: .zhHant)
-        // Agents read and think before any task has a score: 智力 `–`, 思考 its rate; the words are `intel.none`.
+        // Agents read and think before any task has a score: 智力 `–`, 思考 its rate; `intel.none` and the rate.
         let reading = StatusItemIntelligence(Self.sums(score: nil, thinking: 128, output: 300), l10n: l10n)
         #expect(reading.intelligence.number == "–")
         #expect(reading.thinking == .init(label: "思考", number: "128", dim: false))
-        #expect(reading.spoken == "智力：尚無評分")
+        #expect(reading.spoken == "智力：尚無評分，思考每秒 128 個 token")
         // A test running under a live score generates nothing (`Σ w = 0`).
         let testing = StatusItemIntelligence(Self.sums(score: 45, thinking: 0, output: 0), l10n: l10n)
         #expect(testing.intelligence == .init(label: "智力", number: "45", dim: false))
@@ -323,7 +325,7 @@ struct StatusItemIntelligenceTests {
         // Without a score both lines stay.
         let quiet = StatusItemIntelligence(.zero, l10n: l10n, thinkingHidden: true)
         #expect(!quiet.alone)
-        #expect(quiet.spoken == "智力：尚無評分")
+        #expect(quiet.spoken == "智力：尚無評分，思考每秒 0 個 token")
         #expect(!StatusItemIntelligence(Self.sums(score: nil, thinking: 0, output: 40), l10n: l10n, thinkingHidden: true).alone)
     }
 

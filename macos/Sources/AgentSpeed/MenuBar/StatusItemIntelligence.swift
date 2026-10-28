@@ -37,7 +37,8 @@ struct StatusItemIntelligence: Equatable {
     var unit: String
     /// Room for the numbers: the `8.88k` cell, wider only while the width governor holds a longer text.
     var cell: CGFloat
-    /// `a11y.orb.intel` with the score words, `a11y.orb.intel.only` while alone, `intel.none` without a score.
+    /// `a11y.orb.intel` with the score words, `a11y.orb.intel.only` while alone; without a score `intel.none` in place
+    /// of the 智力 words.
     var spoken: String
 
     static var font: NSFont { .monospacedDigitSystemFont(ofSize: size, weight: .medium) }
@@ -66,9 +67,9 @@ struct StatusItemIntelligence: Equatable {
         self.alone = alone
         unit = l10n("unit.tokS")
         cell = Self.width(Self.widestNumber)
-        spoken = TaskScoreText.words(TaskScoreValue(reading), l10n).map { words in
-            alone ? l10n("a11y.orb.intel.only", words) : l10n("a11y.orb.intel", words, thinking ?? "0")
-        } ?? l10n("intel.none")
+        // The orb's sentence: while none, `intel.none` replaces only the 智力 words and the thinking words stay.
+        spoken = OrbAccessibilityReporter.intelligenceSentence(TaskScoreValue(reading), thinking: alone ? nil : thinking ?? "0",
+                                                               l10n)
         cell = max(cell, numberWidth)
     }
 

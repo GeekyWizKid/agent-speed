@@ -100,17 +100,15 @@ final class BoardAccessibilityReporter {
     }
 
     /// The board label's live metrics words (DESIGN 2c Live metrics, *Accessibility*), in order: the intelligence form
-    /// with the score words (with 思考 while it shows), or 思考 alone, `intel.none` while 智力 is none; then the cost.
+    /// with the score words (with 思考 while it shows), or 思考 alone, `intel.none` in place of the 智力 words while it is
+    /// none; then the cost.
     static func metricWords(_ metrics: BoardMetricsTick, currency: String, l10n: Localizer) -> [String] {
         let readouts = metrics.readouts
         var words: [String] = []
         if readouts.intelligence {
-            if let score = TaskScoreText.words(TaskScoreValue(metrics.intelligence), l10n) {
-                words.append(metrics.showsThinking ? l10n("a11y.orb.intel", score, metrics.thinking)
-                    : l10n("a11y.orb.intel.only", score))
-            } else {
-                words.append(l10n("intel.none"))
-            }
+            // While 智力 is none, `intel.none` replaces only its words; a shown 思考 is still read.
+            words.append(OrbAccessibilityReporter.intelligenceSentence(
+                TaskScoreValue(metrics.intelligence), thinking: metrics.showsThinking ? metrics.thinking : nil, l10n))
         } else if readouts.thinking {
             words.append(l10n("a11y.board.thinking", metrics.quiet ? "0" : metrics.thinking))
         }
