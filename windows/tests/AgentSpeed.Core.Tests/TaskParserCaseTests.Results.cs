@@ -20,8 +20,8 @@ public sealed partial class TaskParserCaseTests
     {
         var item = Case(id);
         var t = Member(item, "t");
-        var got = ResultParser.Outcome(
-            TaskFamilies.Of(Source(item)),
+        var got = TaskParser.Outcome(
+            Source(item),
             Member(item, "result"),
             t.ValueKind == JsonValueKind.Number ? t.GetInt64() : null,
             Tool(item),
@@ -38,7 +38,7 @@ public sealed partial class TaskParserCaseTests
     public void ResultText(string id)
     {
         var item = Case(id);
-        var got = ResultParser.ResultText(TaskFamilies.Of(Source(item)), Member(item, "result"));
+        var got = TaskParser.ResultText(Source(item), Member(item, "result"));
         Assert.True(item.GetProperty("expect").GetString() == got, id + ": " + JsonSerializer.Serialize(got));
     }
 
@@ -47,9 +47,9 @@ public sealed partial class TaskParserCaseTests
     public void Session(string id)
     {
         var item = Case(id);
-        var family = TaskFamilies.Of(Source(item));
-        var continuation = ResultParser.Continuation(family, Tool(item), Member(item, "input"));
-        var running = item.TryGetProperty("result", out var result) ? ResultParser.RunningSession(family, result) : null;
+        var source = Source(item);
+        var continuation = TaskParser.Continuation(source, Tool(item), Member(item, "input"));
+        var running = item.TryGetProperty("result", out var result) ? TaskParser.RunningSession(source, result) : null;
         var expect = item.GetProperty("expect");
         Assert.True(OptionalString(expect.GetProperty("continuation")) == continuation, id + ": continuation " + continuation);
         Assert.True(OptionalString(expect.GetProperty("running")) == running, id + ": running " + running);
@@ -60,7 +60,7 @@ public sealed partial class TaskParserCaseTests
     public void Notification(string id)
     {
         var item = Case(id);
-        var got = ResultParser.Notification(TaskFamilies.Of(Source(item)), Member(item, "line"));
+        var got = TaskParser.Notification(Source(item), Member(item, "line"));
         var expect = item.GetProperty("expect");
         if (expect.ValueKind == JsonValueKind.Null)
         {

@@ -15,7 +15,7 @@ public sealed partial class TaskParserCaseTests
     public void CodeScript(string id)
     {
         var item = Case(id);
-        var got = CodeModeParser.Script(TaskFamilies.Of(Source(item)), Tool(item), Member(item, "input"));
+        var got = TaskParser.CodeScript(Source(item), Tool(item), Member(item, "input"));
         var expect = item.GetProperty("expect");
         if (expect.ValueKind == JsonValueKind.Null)
         {
@@ -57,7 +57,7 @@ public sealed partial class TaskParserCaseTests
     public void CodeItems(string id)
     {
         var item = Case(id);
-        var got = CodeModeParser.Items(TaskFamilies.Of(Source(item)), Member(item, "result"));
+        var got = TaskParser.CodeItems(Source(item), Member(item, "result"));
         var expect = item.GetProperty("expect");
         if (expect.ValueKind == JsonValueKind.Null)
         {

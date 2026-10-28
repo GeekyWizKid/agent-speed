@@ -12,7 +12,7 @@ public sealed partial class TaskParserCaseTests
     public void Edits(string id)
     {
         var item = Case(id);
-        var got = EditParser.Hunks(TaskFamilies.Of(Source(item)), Tool(item), Member(item, "input"), Cwd(item));
+        var got = TaskParser.EditHunks(Source(item), Tool(item), Member(item, "input"), Cwd(item));
         var expect = item.GetProperty("expect");
         Assert.True(expect.GetArrayLength() == got.Count, id + ": " + got.Count + " hunks");
         var k = 0;
