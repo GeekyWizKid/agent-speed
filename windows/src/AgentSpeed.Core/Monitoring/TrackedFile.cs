@@ -50,7 +50,7 @@ internal static class Families
     public static readonly RootFamily[] FileFamilies =
         [
             RootFamily.Codex, RootFamily.Claude, RootFamily.DeepSeek, RootFamily.Gemini, RootFamily.Omp, RootFamily.Antigravity,
-            RootFamily.WorkBuddy, RootFamily.WorkBuddyAi, RootFamily.Kimi, RootFamily.GrokBuild, RootFamily.Pi,
+            RootFamily.WorkBuddy, RootFamily.WorkBuddyAi, RootFamily.Kimi, RootFamily.GrokBuild, RootFamily.Pi, RootFamily.Droid,
         ];
 
     public static TranscriptNaming Naming(RootFamily family) => family switch
@@ -86,14 +86,15 @@ internal static class Families
         RootFamily.Kimi => new Kimi.KimiParser(path, deduper),
         RootFamily.GrokBuild => new GrokBuild.GrokParser(path, deduper),
         RootFamily.Pi => Pi.PiParser.ForPath(path, deduper),
-        RootFamily.Droid => throw new NotSupportedException("Factory Droid parser pending"),
+        RootFamily.Droid => new Droid.DroidParser(path, deduper),
         _ => throw new ArgumentOutOfRangeException(nameof(family)),
     };
 
     /// <summary>Antigravity databases are queried; every other family is a file read by its extension.</summary>
     public static TranscriptTailer CreateTailer(RootFamily family, string path) =>
         family == RootFamily.Antigravity ? new AntigravityTailer(path)
-        : family == RootFamily.GrokBuild ? new GrokBuild.GrokTailer(path) : TranscriptTailer.For(path);
+        : family == RootFamily.GrokBuild ? new GrokBuild.GrokTailer(path)
+        : family == RootFamily.Droid ? new Droid.DroidTailer(path) : TranscriptTailer.For(path);
 
     /// <summary>True when any source of the family is enabled.</summary>
     public static bool IsEnabled(RootFamily family, IReadOnlySet<SourceKind> enabled) => family switch

@@ -327,17 +327,22 @@ internal sealed partial class HistoryAnalyzer
                 }
 
                 plan.Discovered++;
-                // An Antigravity database's size and time already combine its -wal (METRICS 8).
+                // An Antigravity database's size and time already combine its -wal (METRICS 8); a Factory Droid
+                // session's identity adds its sidecar and its parent's (4.16).
+                var modified = family == RootFamily.Droid ? DroidIdentity(file) : file.LastWriteUtc.Ticks;
                 var previous = _entries.GetValueOrDefault(file.Path);
                 if (previous is not null && !zoneChanged && previous.Version == _options.Version
                     && string.Equals(previous.Family, familyName, StringComparison.Ordinal)
-                    && previous.Size == file.Length && previous.Modified == file.LastWriteUtc.Ticks
+                    && previous.Size == file.Length && previous.Modified == modified
                     && !(repricing && previous.HasUnpriced))
                 {
                     continue;
                 }
 
-                plan.Files.Add(new PlannedFile(file.Path, family, root, file.Length, file.LastWriteUtc, previous));
+                plan.Files.Add(new PlannedFile(file.Path, family, root, file.Length, file.LastWriteUtc, previous)
+                {
+                    Identity = family == RootFamily.Droid ? modified : null,
+                });
             }
         }
 
@@ -473,6 +478,7 @@ internal sealed partial class HistoryAnalyzer
                 try
                 {
                     batch.ApplyTo(sink);
+                    (prepared.Parser as Droid.DroidParser)?.FinishHistory(sink);
                     applied = true;
                 }
                 catch (Exception e) when (e is not OutOfMemoryException)
@@ -502,8 +508,8 @@ internal sealed partial class HistoryAnalyzer
                 Id = file.Previous?.Id ?? 0,
                 Path = file.Path,
                 Family = file.Family.ToString(),
-                Size = result.Length,
-                Modified = result.LastWriteUtc.Ticks,
+                Size = file.Identity is not null ? file.Size : result.Length,
+                Modified = file.Identity ?? result.LastWriteUtc.Ticks,
                 Version = _options.Version,
                 Days = DayAggregate.Contributions(sink.Items.Values, prepared.Parser.Source, labeler, Pricing),
             };
@@ -601,7 +607,11 @@ internal sealed partial class HistoryAnalyzer
         }
     }
 
-    private sealed record PlannedFile(string Path, RootFamily Family, string Root, long Size, DateTime LastWriteUtc, StoredFile? Previous);
+    private sealed record PlannedFile(string Path, RootFamily Family, string Root, long Size, DateTime LastWriteUtc, StoredFile? Previous)
+    {
+        /// <summary>What is stored as the entry's modification time instead of the file's; set for Factory Droid sessions.</summary>
+        public long? Identity { get; init; }
+    }
 
     private sealed record PlannedSession(OpenCodeSessionInfo Info, long Rows, long ModifiedMs, StoredFile? Previous);
 
