@@ -83,6 +83,66 @@ struct OrbLineReadoutTests {
         }
     }
 
+    // MARK: Thinking hidden at zero
+
+    @Test func aloneTheIntelligenceLineSitsOnTheNearestBaselineInEveryStyle() {
+        for style in OrbStyleKind.allCases {
+            let placement = OrbLinePlacement.of(style)
+            for s in [112, 148, 196] as [CGFloat] {
+                let t = placement.textSize(diameter: s)
+                let p = 1.25 * t
+                let pair = placement.intelligenceBaselines(center: 300, diameter: s)
+                let alone = placement.intelligenceBaselines(center: 300, diameter: s, single: 1)
+                let half = placement.intelligenceBaselines(center: 300, diameter: s, single: 0.5)
+                #expect(alone.thinking == pair.thinking)
+                switch style {
+                case .reactor:
+                    #expect(abs(alone.intelligence - (300 - 0.155 * s)) < 1e-9)
+                case .needle:
+                    #expect(abs(alone.intelligence - (300 + 0.108 * s + 0.70 * (p - t))) < 1e-9)
+                    #expect(alone.intelligence == pair.intelligence)
+                default:
+                    #expect(abs(alone.intelligence - (300 + placement.nearestBaseline * s)) < 1e-9)
+                }
+                // Where the line next to the value would be: the gap to the value is unchanged.
+                #expect(abs(alone.intelligence - (placement.below ? pair.intelligence : pair.thinking)) < 1e-9)
+                #expect(abs(half.intelligence - (pair.intelligence + alone.intelligence) / 2) < 1e-9)
+            }
+        }
+    }
+
+    @Test func theStackShiftFollowsTheSingleLinesTop() {
+        for style in [OrbStyleKind.led, .liquid, .minimal] {
+            var layout = OrbStyles.make(style).readoutLayout
+            layout.dots = nil
+            let placement = OrbLinePlacement.of(style)
+            for s in [112, 148, 196] as [CGFloat] {
+                let t = placement.textSize(diameter: s)
+                let p = 1.25 * t
+                let pair = placement.stackShift(layout: layout, diameter: s, format: .intelligence)
+                let alone = placement.stackShift(layout: layout, diameter: s, format: .intelligence, single: 1)
+                let half = placement.stackShift(layout: layout, diameter: s, format: .intelligence, single: 0.5)
+                // The block's top is the single line's cap top, nearest − 0.70 p.
+                let valueTop = (layout.valueBaseline - 0.70 * layout.valueSize) * s
+                #expect(abs(alone - max(0, (valueTop - (placement.nearestBaseline * s - 0.70 * p)) / 2)) < 1e-9)
+                #expect(alone < pair)
+                #expect(abs(pair - alone - 1.32 * t / 2) < 1e-9 || alone == 0)
+                #expect(abs(half - (pair + alone) / 2) < 1e-9 || alone == 0)
+            }
+        }
+        for style in [OrbStyleKind.reactor, .needle] {
+            let placement = OrbLinePlacement.of(style)
+            #expect(placement.stackShift(layout: OrbStyles.make(style).readoutLayout, diameter: 196, format: .intelligence, single: 1) == 0)
+        }
+    }
+
+    @Test func theLocalizedWordsReadTheIntelligenceAlone() {
+        let expected: [LanguagePreference: String] = [.zhHant: "智力 125", .zhHans: "智力 125", .en: "intelligence 125", .ja: "知能 125"]
+        for (language, text) in expected {
+            #expect(Localizer(preference: language)("a11y.orb.intel.only", "125") == text)
+        }
+    }
+
     // MARK: Fit
 
     @Test func widestLinesCarryTheirWidestText() {
@@ -170,14 +230,16 @@ struct OrbLineReadoutTests {
         var right: CGFloat
         var baseline: CGFloat
         var height: CGFloat
+        var alpha: CGFloat
     }
 
     private static func frame(_ style: OrbStyleKind, diameter s: CGFloat, language: AppLanguage, format: OrbLineFormat,
-                              _ content: OrbLineContent) -> OrbFrame {
+                              _ content: OrbLineContent, thinking: OrbThinkingLine = OrbThinkingLine()) -> OrbFrame {
         var c = OrbContent.placeholder(diameter: s)
         c.style = style
         c.language = language
-        c.lines = OrbLines(format: format, reading: OrbLineReading(content: content, shownAt: -.infinity, quietAt: 1e9))
+        c.lines = OrbLines(format: format, reading: OrbLineReading(content: content, shownAt: -.infinity, quietAt: 1e9,
+                                                                   thinking: thinking))
         let geometry = OrbGeometry(diameter: s, canvasSide: s * 1.5)
         return OrbFrame(time: 100, dt: 0, geometry: geometry, content: c,
                         effects: OrbEffects(level: .standard, reduceMotion: false, surface: .floating), heat: 0, overdrive: 0,
@@ -194,7 +256,7 @@ struct OrbLineReadoutTests {
             let rect = draw.instance.rect
             let x = CGFloat(rect.x) + draw.texture.padding
             return Piece(x: x, right: x + draw.texture.advance, baseline: CGFloat(rect.y) + draw.texture.baseline,
-                         height: draw.texture.size.height)
+                         height: draw.texture.size.height, alpha: CGFloat(draw.instance.color.w))
         }
         var lines: [[Piece]] = []
         for piece in pieces.sorted(by: { $0.baseline < $1.baseline }) {
@@ -254,6 +316,66 @@ struct OrbLineReadoutTests {
         #expect(try left(125, "412") == left(133, "987"))
         #expect(try left(88, "412").0 > left(125, "412").0)
         #expect(try left(125, "9.8").1 > left(125, "412").1)
+    }
+
+    /// A thinking line at `0` since `zeroAt`, seen at the frame's time (100).
+    private static func zero(since zeroAt: TimeInterval) -> OrbThinkingLine {
+        var line = OrbThinkingLine()
+        line.update(zero: true, at: zeroAt)
+        return line
+    }
+
+    @Test(.enabled(if: OrbGPU.shared != nil))
+    func afterTheHoldOnlyTheIntelligenceLineIsDrawnAtTheSingleLinePosition() throws {
+        for style in OrbStyleKind.allCases {
+            for language in [AppLanguage.zhHant, .en] {
+                for s in [148, 196] as [CGFloat] {
+                    let placement = OrbLinePlacement.of(style)
+                    let content = OrbLineContent.intelligence(index: 125, thinking: "0")
+                    // Within the hold both lines show, the zero included.
+                    let holding = Self.lines(Self.frame(style, diameter: s, language: language, format: .intelligence, content,
+                                                        thinking: Self.zero(since: 97.5)), placement: placement)
+                    #expect(holding.count == 2)
+                    let frame = Self.frame(style, diameter: s, language: language, format: .intelligence, content,
+                                           thinking: Self.zero(since: 90))
+                    let lines = Self.lines(frame, placement: placement)
+                    try #require(lines.count == 1)
+                    let expected = placement.intelligenceBaselines(center: frame.center.y, diameter: s, single: 1)
+                    #expect(abs(lines[0][0].baseline - expected.intelligence) < 0.01, "\(style) \(s) \(language)")
+                    #expect(lines[0].count == 1 + 3)
+                    let middle = (lines[0].map(\.x).min()! + lines[0].map(\.right).max()!) / 2
+                    #expect(abs(middle - frame.center.x) <= 0.26)
+                }
+            }
+        }
+    }
+
+    @Test(.enabled(if: OrbGPU.shared != nil))
+    func midGlideTheThinkingLineFadesAsTheIntelligenceLineEasesDown() throws {
+        let placement = OrbLinePlacement.led
+        // 0.1 s into the fade and the glide: thinking at 60 % of its ink, the glide at smoothstep(1/3).
+        let frame = Self.frame(.led, diameter: 148, language: .zhHant, format: .intelligence,
+                               .intelligence(index: 125, thinking: "0"), thinking: Self.zero(since: 96.9))
+        let steady = Self.frame(.led, diameter: 148, language: .zhHant, format: .intelligence,
+                                .intelligence(index: 125, thinking: "0"))
+        let lines = Self.lines(frame, placement: placement)
+        let full = Self.lines(steady, placement: placement)
+        try #require(lines.count == 2 && full.count == 2)
+        let eased = CGFloat(1.0 / 3 * 1.0 / 3 * (3 - 2.0 / 3))
+        let expected = placement.intelligenceBaselines(center: frame.center.y, diameter: 148, single: eased)
+        #expect(abs(lines[0][0].baseline - expected.intelligence) < 0.01)
+        #expect(abs(lines[1][0].baseline - expected.thinking) < 0.01)
+        #expect(abs(lines[0][0].alpha - full[0][0].alpha) < 1e-6)
+        #expect(abs(lines[1][0].alpha - 0.6 * full[1][0].alpha) < 1e-4)
+    }
+
+    @Test(.enabled(if: OrbGPU.shared != nil))
+    func hidingTheThinkingLineNeverChangesWhetherTheReadoutFits() {
+        for style in [OrbStyleKind.reactor, .needle] {
+            let frame = Self.frame(style, diameter: 112, language: .zhHant, format: .intelligence,
+                                   .intelligence(index: 125, thinking: "0"), thinking: Self.zero(since: 0))
+            #expect(Self.lines(frame, placement: .of(style)).isEmpty)
+        }
     }
 
     @Test(.enabled(if: OrbGPU.shared != nil))

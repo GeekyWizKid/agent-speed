@@ -67,13 +67,14 @@ struct OrbLinePlacement: Equatable {
     /// How far the readout stack (value, unit, title, pill and this block) moves down while the block shows above the
     /// value, so the whole stack stays centered (DESIGN 10): half the block's height over the value's cap top, but never
     /// so far that the title comes closer to the agent dots than the clearance. The block's top is the cap top of its
-    /// upper line, the larger intelligence line in that readout.
-    func stackShift(layout: OrbReadoutLayout, diameter s: CGFloat, format: OrbLineFormat) -> CGFloat {
+    /// upper line, the larger intelligence line in that readout, which `single` (eased, 0...1) glides down to the
+    /// nearest baseline while the thinking line is hidden.
+    func stackShift(layout: OrbReadoutLayout, diameter s: CGFloat, format: OrbLineFormat, single: CGFloat = 0) -> CGFloat {
         guard recenters, !below else { return 0 }
         let t = textSize(diameter: s)
         let top = format == .intelligence ? Self.intelligenceScale * t : t
         let nearest = format == .intelligence ? (thinkingBaseline ?? nearestBaseline) : nearestBaseline
-        let blockTop = nearest * s - Self.pitch * t - Self.capHeight * top
+        let blockTop = nearest * s - (1 - single) * Self.pitch * t - Self.capHeight * top
         let valueTop = (layout.valueBaseline - Self.capHeight * layout.valueSize) * s
         let centered = max(0, (valueTop - blockTop) / 2)
         guard let dots = layout.dots else { return centered }
@@ -91,13 +92,15 @@ struct OrbLinePlacement: Equatable {
     }
 
     /// Baselines of the intelligence line and the thinking line under it: above the value the thinking line is the
-    /// nearest; below it (`needle`) the larger intelligence line keeps a `t` line's cap top.
-    func intelligenceBaselines(center y: CGFloat, diameter s: CGFloat) -> (intelligence: CGFloat, thinking: CGFloat) {
+    /// nearest; below it (`needle`) the larger intelligence line keeps a `t` line's cap top. `single` (eased, 0...1)
+    /// glides the intelligence line to the single-line position while the thinking line is hidden: onto the thinking
+    /// line's baseline above the value; below it, where it already is.
+    func intelligenceBaselines(center y: CGFloat, diameter s: CGFloat, single: CGFloat = 0) -> (intelligence: CGFloat, thinking: CGFloat) {
         let t = textSize(diameter: s)
         let pitch = Self.pitch * t
         guard below else {
             let thinking = y + (thinkingBaseline ?? nearestBaseline) * s
-            return (thinking - pitch, thinking)
+            return (thinking - (1 - single) * pitch, thinking)
         }
         let intelligence = y + nearestBaseline * s + Self.capHeight * (Self.intelligenceScale - 1) * t
         return (intelligence, intelligence + pitch)

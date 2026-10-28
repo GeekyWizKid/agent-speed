@@ -3792,6 +3792,12 @@
     "en": "TH",
     "ja": "思考"
   },
+  "a11y.orb.intel.only": {
+    "zh-Hant": "智力 %@",
+    "zh-Hans": "智力 %@",
+    "en": "intelligence %@",
+    "ja": "知能 %@"
+  },
   "intel.tooltip": {
     "zh-Hant": "智力 %@ · 思考 %@",
     "zh-Hans": "智力 %@ · 思考 %@",

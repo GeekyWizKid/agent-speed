@@ -89,10 +89,15 @@ enum TrafficOrbPreviews {
     }
 
     /// Shows `content` in steady state: faded in long ago, quiet `quietIn` seconds after the still is taken.
-    static func show(_ stage: OrbPreviewStage, _ content: OrbLineContent, format: OrbLineFormat, quietIn: TimeInterval = 60) {
+    static func show(_ stage: OrbPreviewStage, _ content: OrbLineContent, format: OrbLineFormat, quietIn: TimeInterval = 60,
+                     thinking: OrbThinkingLine = OrbThinkingLine()) {
         stage.feed.lines = OrbLines(format: format,
-                                    reading: OrbLineReading(content: content, shownAt: -.infinity, quietAt: stage.time + 2.4 + quietIn))
+                                    reading: OrbLineReading(content: content, shownAt: -.infinity, quietAt: stage.time + settle + quietIn,
+                                                            thinking: thinking))
     }
+
+    /// How long a still settles before it is taken.
+    static let settle: TimeInterval = 2.4
 
     static func still(model: AppModel, style: OrbStyleKind, size: CGFloat, dark: Bool, value: Double, peak: Bool = false,
                       hover: Bool = false, configure: (OrbPreviewStage) -> Void) -> CGImage? {
@@ -101,7 +106,7 @@ enum TrafficOrbPreviews {
         configure(stage)
         stage.reset(value: value)
         stage.hovered = hover
-        stage.run(for: 2.4, at: value)
+        stage.run(for: settle, at: value)
         if peak {
             stage.animator.celebrate(at: stage.time)
             stage.run(for: 0.62, at: value)

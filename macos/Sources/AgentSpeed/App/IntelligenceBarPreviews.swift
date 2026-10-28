@@ -1,4 +1,5 @@
 import AgentSpeedCore
+import AgentSpeedOrbModel
 import AppKit
 import SwiftUI
 
@@ -13,12 +14,16 @@ enum IntelligenceBarPreviews {
         var name: String
         var index: Double?
         var thinking: Double
+        /// How long the values have shown; a zero thinking rate goes after its 3 s hold.
+        var held: TimeInterval = 0
     }
 
-    /// Quiet, a zero thinking rate, then every width of both numbers up to a thinking rate past the `8.88k` cell.
+    /// Quiet, a zero thinking rate within its hold and after it, then every width of both numbers up to a thinking rate
+    /// past the `8.88k` cell.
     static let scenarios = [
         Scenario(name: "quiet", index: nil, thinking: 0),
         Scenario(name: "125 / 0", index: 125, thinking: 0),
+        Scenario(name: "125 / 0 · 3 s", index: 125, thinking: 0, held: OrbThinkingLine.hold),
         Scenario(name: "60 / 4.2", index: 60, thinking: 4.2),
         Scenario(name: "125 / 10", index: 125, thinking: 10),
         Scenario(name: "133 / 412", index: 133, thinking: 412),
@@ -62,7 +67,7 @@ enum IntelligenceBarPreviews {
                 for (secondary, mode) in [(false, BarDisplayMode.glyphValue), (true, .glyphValue), (false, .value)] {
                     settings.barSecondary = secondary
                     settings.barMode = mode
-                    images += scenarios.map { item(model, sums: sums($0), value: $0.index == nil ? 0 : 412, dark: dark) }
+                    images += scenarios.map { item(model, sums: sums($0), held: $0.held, value: $0.index == nil ? 0 : 412, dark: dark) }
                 }
                 settings.barSecondary = false
                 settings.barMode = .glyphValue
@@ -101,11 +106,15 @@ enum IntelligenceBarPreviews {
         )
     }
 
-    /// The item at `value` tok/s with the block showing `sums`, on a plain bar, three times its size.
-    private static func item(_ model: AppModel, sums: IntelligenceSums, value: Double, dark: Bool) -> NSImage {
+    /// The item at `value` tok/s with the block showing `sums` for `held` seconds, on a plain bar, three times its size.
+    private static func item(_ model: AppModel, sums: IntelligenceSums, held: TimeInterval = 0, value: Double, dark: Bool) -> NSImage {
         var snapshot = PreviewData.snapshot(speed: value, redline: model.settings.redline)
         snapshot.intelligence = sums
         model.store.publishLive(snapshot)
+        let now = Clock.now
+        model.barThinking.update(.zero, at: now - held - 1)
+        model.barThinking.update(sums, at: now - held)
+        model.barThinking.update(sums, at: now)
         PreviewRenderer.snapGauge(model, to: value, now: Clock.now - 3)
         let state = StatusItemState(model: model, time: Clock.now)
         let size = CGSize(width: 330, height: state.layout.height)

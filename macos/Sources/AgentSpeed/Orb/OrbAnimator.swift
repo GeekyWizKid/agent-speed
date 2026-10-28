@@ -411,15 +411,11 @@ final class OrbAnimator {
         return (.none, min(lines.wake, nextSignOfLife(after: now, gauge: gauge, effects: effects, unavailable: unavailable)))
     }
 
-    /// The two-line readout's fades draw at 30 fps (a Reduce Motion change still gets its frame); a static orb wakes when
-    /// the quiet fade is due (DESIGN 10, Frame policy). New numbers render one frame through the content refresh.
+    /// The two-line readout's fades and the thinking line's glide draw at 30 fps (a Reduce Motion change still gets its
+    /// frame); a static orb wakes when the quiet fade or the end of the thinking hold is due (DESIGN 10, Frame policy).
+    /// New numbers render one frame through the content refresh.
     private func lineDemand(feed: OrbFeed, reduceMotion: Bool, at now: TimeInterval) -> (frames: Bool, wake: TimeInterval) {
-        guard let reading = feed.lines?.reading else { return (false, .infinity) }
-        let fadeIn = reduceMotion ? 0.05 : OrbLineReading.fadeIn
-        let fadeOut = reduceMotion ? 0.05 : OrbLineReading.fadeOut
-        let frames = (now >= reading.shownAt && now < reading.shownAt + fadeIn)
-            || (now >= reading.quietAt && now < reading.quietAt + fadeOut)
-        return (frames, now < reading.quietAt ? reading.quietAt : .infinity)
+        feed.lines?.reading?.motion(at: now, reduceMotion: reduceMotion) ?? (false, .infinity)
     }
 
     /// Transitions that run at 60 fps for their duration (DESIGN 2a, Frame policy): new peak, tier flash, title, hover

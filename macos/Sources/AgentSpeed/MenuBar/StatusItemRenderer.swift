@@ -40,8 +40,8 @@ final class StatusItemRenderer {
                 let traffic = self.model.visibleTraffic
                 _ = (traffic.machineLive, traffic.sources, settings.trafficIncludeTools)
             }
-            // The intelligence block follows every engine tick (DESIGN 10).
-            if settings.barTraffic == .intelligence { _ = self.model.snapshot.intelligence }
+            // The intelligence block follows every engine tick and the end of the thinking hold (DESIGN 10).
+            if settings.barTraffic == .intelligence { _ = (self.model.snapshot.intelligence, self.model.barThinking.hidden) }
             self.render()
         }
     }

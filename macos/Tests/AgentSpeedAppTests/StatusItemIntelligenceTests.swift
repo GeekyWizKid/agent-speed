@@ -75,6 +75,68 @@ struct StatusItemIntelligenceTests {
         #expect(StatusItemIntelligence(.zero, l10n: Localizer(preference: .en)).spoken == "intelligence: no output right now")
     }
 
+    // MARK: Thinking hidden at zero
+
+    @Test func afterTheHoldLineOneStandsAloneCentredInTheSameCells() {
+        for language in [LanguagePreference.zhHant, .en, .ja] {
+            let l10n = Localizer(preference: language)
+            let sums = Self.sums(index: 125, thinking: 0)
+            let pair = StatusItemIntelligence(sums, l10n: l10n)
+            let alone = StatusItemIntelligence(sums, l10n: l10n, thinkingHidden: true)
+            #expect(!pair.alone)
+            #expect(alone.alone)
+            #expect(alone.width == pair.width)
+            #expect(alone.cell == pair.cell)
+            for height in [22, 24, 37] as [CGFloat] {
+                let lines = pair.baselines(height: height)
+                #expect(alone.baselines(height: height).intelligence == (lines.intelligence + lines.thinking) / 2)
+                #expect(alone.baselines(height: height).intelligence == lines.intelligence + StatusItemIntelligence.pitch / 2)
+            }
+        }
+        #expect(StatusItemIntelligence(Self.sums(index: 125, thinking: 0), l10n: Localizer(preference: .zhHant), thinkingHidden: true)
+            .spoken == "智力 125")
+        #expect(StatusItemIntelligence(Self.sums(index: 125, thinking: 0), l10n: Localizer(preference: .en), thinkingHidden: true)
+            .spoken == "intelligence 125")
+    }
+
+    @Test func onlyAZeroUnderALiveValueGoes() {
+        let l10n = Localizer(preference: .zhHant)
+        // A rate above 0 draws line 2 at once, even before the hold catches up.
+        let busy = StatusItemIntelligence(Self.sums(index: 125, thinking: 10), l10n: l10n, thinkingHidden: true)
+        #expect(!busy.alone)
+        #expect(busy.spoken == "智力 125，思考每秒 10 個 token")
+        // Quiet: both dashes stay.
+        let quiet = StatusItemIntelligence(.zero, l10n: l10n, thinkingHidden: true)
+        #expect(!quiet.alone)
+        #expect(quiet.spoken == "智力：目前沒有輸出")
+    }
+
+    @Test func theHoldHidesAfterThreeSecondsAndReturnsAtOnce() {
+        let hold = StatusItemThinkingHold()
+        let zero = Self.sums(index: 125, thinking: 0)
+        hold.update(zero, at: 10)
+        #expect(!hold.hidden)
+        hold.update(zero, at: 12.9)
+        #expect(!hold.hidden)
+        hold.update(zero, at: 13)
+        #expect(hold.hidden)
+        hold.update(Self.sums(index: 125, thinking: 4.2), at: 14)
+        #expect(!hold.hidden)
+        // A pause shorter than the hold never hides it.
+        hold.update(zero, at: 15)
+        hold.update(Self.sums(index: 125, thinking: 3), at: 17.5)
+        hold.update(zero, at: 18)
+        hold.update(zero, at: 20.9)
+        #expect(!hold.hidden)
+        // No value: nothing is held.
+        hold.update(.zero, at: 30)
+        hold.update(.zero, at: 40)
+        #expect(!hold.hidden)
+        #expect(StatusItemThinkingHold.readsZero(Self.sums(index: 125, thinking: 0.04)))
+        #expect(!StatusItemThinkingHold.readsZero(Self.sums(index: 125, thinking: 0.05)))
+        #expect(!StatusItemThinkingHold.readsZero(.zero))
+    }
+
     // MARK: Setting
 
     @Test func storedChoicesReadBackAndUnknownReadsAsOff() throws {

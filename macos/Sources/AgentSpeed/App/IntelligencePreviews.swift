@@ -4,9 +4,9 @@ import AppKit
 import SwiftUI
 
 /// `--render-previews` group `intel`: the intelligence readout of every style at 112, 148 and 196 pt in four
-/// situations, in Chinese and English, a state sheet and the smallest sizes per appearance, the network and
-/// intelligence readouts side by side, and the dashboard with a looping agent (DESIGN 4, Looping mark; DESIGN 10,
-/// Intelligence readout).
+/// situations, in Chinese and English, a state sheet and the smallest sizes per appearance, the thinking line hidden
+/// at zero, the network and intelligence readouts side by side, and the dashboard with a looping agent (DESIGN 4,
+/// Looping mark; DESIGN 10, Intelligence readout).
 @MainActor
 enum IntelligencePreviews {
     struct Scenario {
@@ -15,7 +15,7 @@ enum IntelligencePreviews {
     }
 
     /// A flagship thinking hard, a flagship and a standard model thinking lightly, a flagship writing without
-    /// reasoning: every width of both lines.
+    /// reasoning (its thinking line long hidden): every width of both lines.
     static let scenarios = [
         Scenario(index: 133, thinking: 412),
         Scenario(index: 125, thinking: 10),
@@ -48,6 +48,7 @@ enum IntelligencePreviews {
             }
             writeStates(model: model, dark: dark, into: directory)
             writeSmallest(model: model, dark: dark, into: directory)
+            writeAlone(model: model, dark: dark, into: directory)
             writeModeSwitch(model: model, dark: dark, into: directory)
             writeDashboard(model: model, dark: dark, into: directory)
         }
@@ -103,6 +104,24 @@ enum IntelligencePreviews {
         SurfacePreviews.writeSheet(rows, dark: dark, to: directory.appendingPathComponent("orb-intel-smallest-\(dark ? "dark" : "light").png"))
     }
 
+    /// Thinking hidden at zero, every style at 148 and 196 pt: thinking above 0, the zero within its hold, 0.12 s into
+    /// the fade and the glide, and the intelligence line alone where the line next to the value would be.
+    private static func writeAlone(model: AppModel, dark: Bool, into directory: URL) {
+        let busy = Scenario(index: 125, thinking: 10)
+        let zero = Scenario(index: 125, thinking: 0)
+        let rows = OrbStyleKind.allCases.map { style -> [NSImage] in
+            ([148, 196] as [CGFloat]).flatMap { size in
+                [
+                    still(model: model, style: style, size: size, dark: dark) { show($0, busy) },
+                    still(model: model, style: style, size: size, dark: dark) { show($0, zero, zeroFor: 1.5) },
+                    still(model: model, style: style, size: size, dark: dark) { show($0, zero, zeroFor: OrbThinkingLine.hold + 0.12) },
+                    still(model: model, style: style, size: size, dark: dark) { show($0, zero) },
+                ].compactMap { $0 }
+            }
+        }
+        SurfacePreviews.writeSheet(rows, dark: dark, to: directory.appendingPathComponent("orb-intel-alone-\(dark ? "dark" : "light").png"))
+    }
+
     /// Network speed, then intelligence, for every style at 196 pt: the value and the title keep their places.
     private static func writeModeSwitch(model: AppModel, dark: Bool, into directory: URL) {
         let rows = OrbStyleKind.allCases.map { style -> [NSImage] in
@@ -128,8 +147,13 @@ enum IntelligencePreviews {
         )
     }
 
-    private static func show(_ stage: OrbPreviewStage, _ scenario: Scenario, quietIn: TimeInterval = 60) {
-        TrafficOrbPreviews.show(stage, content(scenario), format: .intelligence, quietIn: quietIn)
+    /// Shows `scenario` in steady state; a thinking rate that reads 0 has read 0 for `zeroFor` seconds when the still is
+    /// taken.
+    private static func show(_ stage: OrbPreviewStage, _ scenario: Scenario, quietIn: TimeInterval = 60, zeroFor: TimeInterval = 60) {
+        let content = content(scenario)
+        var thinking = OrbThinkingLine()
+        thinking.update(zero: content.thinkingReadsZero, at: stage.time + TrafficOrbPreviews.settle - zeroFor)
+        TrafficOrbPreviews.show(stage, content, format: .intelligence, quietIn: quietIn, thinking: thinking)
     }
 
     /// A still at a mid tier of the style (as the network readout's previews).
