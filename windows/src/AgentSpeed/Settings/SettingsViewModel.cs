@@ -180,6 +180,9 @@ internal sealed class SettingsViewModel : ObservableObject
         ChangeHermesCommand = new RelayCommand(() => ChangeFolder(HermesPath, (s, path) => s with { HermesRoot = path }));
         ResetHermesCommand = new RelayCommand(() => _settings.Update(s => s with { HermesRoot = null }),
             () => _settings.Current.HermesRoot is not null);
+        ChangeDroidCommand = new RelayCommand(() => ChangeFolder(DroidPath, (s, path) => s with { DroidRoot = path }));
+        ResetDroidCommand = new RelayCommand(() => _settings.Update(s => s with { DroidRoot = null }),
+            () => _settings.Current.DroidRoot is not null);
         ResetTaskbarPositionCommand = new RelayCommand(() => _settings.Update(s => s with { TaskbarOffset = 0 }),
             () => _settings.Current.TaskbarOffset > 0);
         OpenHistoryCommand = new RelayCommand(openHistory);
@@ -351,6 +354,10 @@ internal sealed class SettingsViewModel : ObservableObject
     public RelayCommand ChangeHermesCommand { get; }
 
     public RelayCommand ResetHermesCommand { get; }
+
+    public RelayCommand ChangeDroidCommand { get; }
+
+    public RelayCommand ResetDroidCommand { get; }
 
     public RelayCommand OpenHistoryCommand { get; }
 
@@ -600,6 +607,12 @@ internal sealed class SettingsViewModel : ObservableObject
     /// <summary>Today's main sessions of every profile; a home without logs shows 0 (DESIGN 5).</summary>
     public string HermesStatus => StatusFor(SourceKind.Hermes);
 
+    /// <summary>The Factory Droid sessions folder: the default, or the chosen folder's <c>sessions</c> folder (or the folder itself).</summary>
+    public string DroidPath => LiveMonitor.DroidRoot(S.DroidRoot);
+
+    /// <summary>Today's main sessions; Task-tool workers are not counted (DESIGN 5).</summary>
+    public string DroidStatus => StatusFor(SourceKind.Droid);
+
     public string CodexStatus => StatusFor(SourceKind.Codex);
 
     public string DshStatus => StatusFor(SourceKind.DeepSeek);
@@ -762,6 +775,8 @@ internal sealed class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(OpenClawStatus));
         OnPropertyChanged(nameof(OpenClawPath));
         OnPropertyChanged(nameof(HermesStatus));
+        OnPropertyChanged(nameof(DroidStatus));
+        OnPropertyChanged(nameof(DroidPath));
         OnPropertyChanged(nameof(UpdateLastCheckedText));
     }
 

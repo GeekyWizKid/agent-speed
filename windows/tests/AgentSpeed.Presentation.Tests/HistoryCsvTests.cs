@@ -206,6 +206,7 @@ public class HistoryCsvTests
     [InlineData(SourceKind.Pi, "pi")]
     [InlineData(SourceKind.OpenClaw, "openclaw")]
     [InlineData(SourceKind.Hermes, "hermes")]
+    [InlineData(SourceKind.Droid, "droid")]
     [InlineData((SourceKind)99, "unknown")]
     public void SourceIdsAreStable(SourceKind? source, string id)
     {

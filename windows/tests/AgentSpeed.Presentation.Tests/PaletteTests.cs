@@ -242,6 +242,7 @@ public class PaletteTests
     [InlineData(SourceKind.Pi, "#A855F7")]
     [InlineData(SourceKind.OpenClaw, "#DE2E1F")]
     [InlineData(SourceKind.Hermes, "#B8860B")]
+    [InlineData(SourceKind.Droid, "#9E5F46")]
     public void SourceColorsMatchDesign(SourceKind source, string hex)
     {
         Assert.Equal(hex, HeatPalette.SourceColor(source).ToHex());
