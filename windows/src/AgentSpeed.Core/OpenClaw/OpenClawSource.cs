@@ -220,6 +220,7 @@ internal sealed class OpenClawSource
                 }
 
                 var parser = new OpenClawParser(path, window, deduper);
+                parser.KeepEveryTask();
                 parsers.Add(parser);
                 var sink = sinkFor(parser);
                 var stop = stopAfter is { } at && at.Session == window.SessionId;
@@ -227,7 +228,7 @@ internal sealed class OpenClawSource
                 {
                     parser.Apply(in line, sink);
                     return !(stop && seq == stopAfter!.Value.Seq);
-                });
+                }, parser.TaskReader);
                 windowDone?.Invoke(parser);
                 if (stop)
                 {
@@ -393,6 +394,7 @@ internal sealed class OpenClawSource
             // An older window read from its end: its header first, as omp does for a file read from an offset (4.7).
             state.NeedsHeader = false;
             var header = database.Header(state.Parser.SessionId);
+            PiTaskFacts.Read(state.Parser.TaskReader, [], ref header);
             state.Parser.Apply(in header, update);
         }
 
@@ -401,7 +403,7 @@ internal sealed class OpenClawSource
         {
             state.Parser.Apply(in line, update);
             return true;
-        });
+        }, state.Parser.TaskReader);
         update.Changed |= state.Parser.Version != before;
     }
 

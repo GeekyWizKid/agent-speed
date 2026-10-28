@@ -47,11 +47,8 @@ internal sealed partial class HistoryAnalyzer
     }
 
     /// <summary>The task records of one agent read whole (METRICS 6.11 <i>Task records</i>), days from <paramref name="labeler"/>.</summary>
-    private IReadOnlyList<TaskRecord> RecordsOf(TranscriptParser parser, DayLabeler labeler)
-    {
-        // Task records: filled in by the composer (METRICS 6.9).
-        return [];
-    }
+    private IReadOnlyList<TaskRecord> RecordsOf(TranscriptParser parser, DayLabeler labeler) =>
+        TaskAgentRecords.Of(parser, _analysisMs, labeler.DayOf);
 
     /// <summary>The file was last modified at least 30 minutes before this run (METRICS 6.11 <i>Store</i>).</summary>
     private bool IsQuiet(DateTime lastWriteUtc) =>
