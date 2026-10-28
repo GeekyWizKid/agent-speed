@@ -1791,9 +1791,10 @@ contribution_unpriced(file_id INTEGER NOT NULL, day TEXT NOT NULL, source TEXT N
 
 - Created if missing every time the database is opened, like `day_traffic` (10.9). The schema version
   (`user_version`) does not change, so older builds keep opening the store; they ignore the table.
-- A row is one fact of one contribution (file or OpenCode session, day, source): `model` trimmed (empty when none),
-  `provider` the provider or the empty string for null (3.2 never yields an empty provider), `fast` 0 or 1,
-  `requests` ≥ 1, `version` the analysis version that wrote it (the file's `files.version`).
+- A row is one fact of one contribution (an entry of `files` — a log file or a database session such as OpenCode's
+  or ZCode's — day, source): `model` trimmed (empty when none), `provider` the provider or the empty string for null
+  (3.2 never yields an empty provider), `fast` 0 or 1, `requests` ≥ 1, `version` the analysis version that wrote it
+  (the file's `files.version`).
 - **Writes**: whenever a file's contributions are saved, the same transaction deletes the file's side rows and inserts
   the facts of each of its contributions. A contribution without unpriced responses has no rows. Re-analysis after a
   table change (9.7) rewrites them with the file.

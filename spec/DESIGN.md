@@ -2334,13 +2334,15 @@ The unit is `cost.unitPerSecond` (`%@/s` with the symbol: `US$/s`, `¥/s`). Wher
   `history.summary.costApi`).
 - **Unknown prices** (METRICS 9.10): when the view has unpriced responses, the footer's left side adds
   `history.unpricedNotice` (Σ `unpriced` of the view) with a `history.unpricedNotice.show` link. Its popover (macOS: a
-  SwiftUI popover, arrow up; Windows: a Fluent `Flyout` placed above the link) explains every request of that count
-  for the window's current source, range and subscription choice, and offers them as text. 380 pt wide, 16 pt padding;
-  the groups scroll when the content would exceed 440 pt, header and footer stay put. Top to bottom:
+  SwiftUI popover, arrow up; Windows: the flyout-styled `Popup` above the notice, as before; pt = DIP) explains every
+  request of that count for the window's current source, range and subscription choice, and offers them as text.
+  380 pt wide, 16 pt padding; the groups scroll when the content would exceed 440 pt, header and footer stay put.
+  Top to bottom:
   1. **Header**: `cost.unknown` (13 pt semibold) with the count trailing (13 pt, secondary, tabular).
   2. **Source groups**, one per source that has rows, in the order of 9.10: a 7 pt source dot, the source name
      (12 pt semibold) and the Σ requests of its rows trailing (12 pt, secondary, tabular); 12 pt above every group but
-     the first. Up to 20 rows per group, then `history.unpricedModels.more` (11 pt, tertiary; the copied text has all).
+     the first. Up to 20 rows per group, then `history.unpricedModels.more` (the number of further rows and their
+     requests; 11 pt, tertiary; the copied text has all).
   3. **Rows**, 7 pt apart, inset 14 pt (aligned with the source name), two lines:
      - the model (12.5 pt medium, middle truncation, selectable; empty → `cost.noModelName` in secondary italic) and,
        trailing, its requests (12 pt, secondary, tabular, full number);
@@ -2352,7 +2354,8 @@ The unit is `cost.unitPerSecond` (`%@/s` with the symbol: `US$/s`, `¥/s`). Wher
        truncates at the tail; its tooltip holds the whole line plus `history.unpricedModels.seen` (the first and last
        day, one date when equal, in the locale's short date format). The chip's own tooltip is
        `cost.reason.<reason>.hint`, followed for `unpriceable` by the table's rule text (English, as published).
-  4. **Priced now**: when `pricedNow` > 0, `history.unpricedModels.pricedNow` (11.5 pt, secondary) under the groups.
+  4. **Priced now**: when `pricedNow` > 0, `history.unpricedModels.pricedNow` (11.5 pt, secondary) under the groups
+     (alone when every request of the count is priced now).
   5. **Footer**, under a divider: `history.unpricedModels.hint` (11.5 pt, secondary), then a row with the
      `history.unpricedModels.copy` button (small bordered; SF Symbol `doc.on.doc` / Fluent `Copy` glyph) and, beside
      it, `history.unpricedModels.copyHint` (11 pt, tertiary, wraps). The button copies the text of METRICS 9.10 for the
