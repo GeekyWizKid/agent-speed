@@ -23,13 +23,9 @@ public enum TaskDumpJSON {
 
     static func array(_ items: [String]) -> String { "[" + items.joined(separator: ",") + "]" }
 
-    /// A double as Python's `repr` writes it (shortest round trip).
+    /// A double as Python's `repr` writes it: the shortest text that reads back (`40.0`, `0.25`, `1e-05`).
     static func number(_ value: Double) -> String {
-        guard value.isFinite else { return "null" }
-        if value == value.rounded(), abs(value) < 1e16 {
-            return String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), value)
-        }
-        return "\(value)"
+        value.isFinite ? value.description : "null"
     }
 
     static func quote(_ text: String) -> String {

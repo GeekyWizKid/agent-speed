@@ -139,52 +139,68 @@ enum TaskJSON {
             return JSONLiteral(String(decoding: UnsafeRawBufferPointer(rebasing: bytes[start..<index]), as: UTF8.self))
         }
 
-        /// Without escapes the text is validated and decoded at once; with escapes it is assembled as UTF-8 first.
+        /// Runs between escapes are validated and copied whole; a string without escapes is decoded straight from the
+        /// line.
         private mutating func string() throws(Failure) -> String {
             index += 1
-            let start = index
+            var runStart = index
+            var utf8: [UInt8]?
             while index < bytes.count {
                 let byte = bytes[index]
                 if byte == UInt8(ascii: "\"") {
-                    let text = String(decoding: UnsafeRawBufferPointer(rebasing: bytes[start..<index]), as: UTF8.self)
+                    let run = UnsafeRawBufferPointer(rebasing: bytes[runStart..<index])
                     index += 1
-                    return text
+                    guard var assembled = utf8 else { return String(decoding: run, as: UTF8.self) }
+                    assembled.append(contentsOf: run)
+                    return String(decoding: assembled, as: UTF8.self)
                 }
-                if byte == UInt8(ascii: "\\") { break }
-                if byte < 0x20 { throw Failure() }
-                index += byte >= 0x80 ? try utf8Sequence(at: index) : 1
-            }
-            guard index < bytes.count else { throw Failure() }
-            var utf8 = [UInt8](UnsafeRawBufferPointer(rebasing: bytes[start..<index]))
-            while index < bytes.count {
-                let byte = bytes[index]
-                if byte == UInt8(ascii: "\"") {
-                    index += 1
-                    return String(decoding: utf8, as: UTF8.self)
-                }
-                if byte < 0x20 { throw Failure() }
                 if byte == UInt8(ascii: "\\") {
+                    if utf8 == nil { utf8 = [] }
+                    utf8!.append(contentsOf: UnsafeRawBufferPointer(rebasing: bytes[runStart..<index]))
                     index += 1
                     guard index < bytes.count else { throw Failure() }
                     let escape = bytes[index]
                     index += 1
                     switch escape {
-                    case UInt8(ascii: "\""), UInt8(ascii: "\\"), UInt8(ascii: "/"): utf8.append(escape)
-                    case UInt8(ascii: "b"): utf8.append(0x08)
-                    case UInt8(ascii: "f"): utf8.append(0x0C)
-                    case UInt8(ascii: "n"): utf8.append(0x0A)
-                    case UInt8(ascii: "r"): utf8.append(0x0D)
-                    case UInt8(ascii: "t"): utf8.append(0x09)
-                    case UInt8(ascii: "u"): utf8.append(contentsOf: String(Character(try unicodeEscape())).utf8)
+                    case UInt8(ascii: "\""), UInt8(ascii: "\\"), UInt8(ascii: "/"): utf8!.append(escape)
+                    case UInt8(ascii: "b"): utf8!.append(0x08)
+                    case UInt8(ascii: "f"): utf8!.append(0x0C)
+                    case UInt8(ascii: "n"): utf8!.append(0x0A)
+                    case UInt8(ascii: "r"): utf8!.append(0x0D)
+                    case UInt8(ascii: "t"): utf8!.append(0x09)
+                    case UInt8(ascii: "u"): utf8!.append(contentsOf: String(Character(try unicodeEscape())).utf8)
                     default: throw Failure()
                     }
+                    runStart = index
                     continue
                 }
-                let length = byte >= 0x80 ? try utf8Sequence(at: index) : 1
-                utf8.append(contentsOf: UnsafeRawBufferPointer(rebasing: bytes[index..<index + length]))
-                index += length
+                if byte < 0x20 { throw Failure() }
+                if byte >= 0x80 {
+                    index += try utf8Sequence(at: index)
+                    continue
+                }
+                index += 1
+                index = skipPlainASCII(from: index)
             }
             throw Failure()
+        }
+
+        /// Skips 8 bytes at a time while they are all printable ASCII other than `"` and `\`.
+        private func skipPlainASCII(from start: Int) -> Int {
+            var index = start
+            guard let base = bytes.baseAddress else { return index }
+            let ones: UInt64 = 0x0101_0101_0101_0101
+            let highs: UInt64 = 0x8080_8080_8080_8080
+            while index + 8 <= bytes.count {
+                let word = UInt64(littleEndian: (base + index).loadUnaligned(as: UInt64.self))
+                let quote = word ^ (ones &* 0x22)
+                let slash = word ^ (ones &* 0x5C)
+                // A byte below 0x20, a zero after the XORs (a quote or backslash), or a high bit: stop.
+                let special = ((word &- ones &* 0x20) | (quote &- ones) | (slash &- ones) | word) & highs
+                guard special == 0 else { break }
+                index += 8
+            }
+            return index
         }
 
         private mutating func unicodeEscape() throws(Failure) -> Unicode.Scalar {

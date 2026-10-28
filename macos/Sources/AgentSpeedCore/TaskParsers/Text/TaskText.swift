@@ -86,9 +86,19 @@ extension Array where Element == UInt8 {
         return index
     }
 
+    /// The index of the first `byte` at or after `start` (`memchr`), or nil.
+    func firstIndex(ofByte byte: UInt8, from start: Int = 0) -> Int? {
+        guard start < count else { return nil }
+        return withUnsafeBufferPointer { buffer in
+            guard let base = buffer.baseAddress,
+                  let found = memchr(base + start, Int32(byte), count - start) else { return nil }
+            return base.distance(to: found.assumingMemoryBound(to: UInt8.self))
+        }
+    }
+
     /// CR LF, then any remaining CR, replaced by LF (TASK-PARSERS 1, *LF-normalised*).
     func lfNormalized() -> Bytes {
-        guard contains(Byte.cr) else { return self }
+        guard firstIndex(ofByte: Byte.cr) != nil else { return self }
         var out = Bytes()
         out.reserveCapacity(count)
         var index = 0
@@ -109,7 +119,7 @@ extension Array where Element == UInt8 {
     func split(byte separator: UInt8) -> [Bytes] {
         var parts: [Bytes] = []
         var start = 0
-        for index in indices where self[index] == separator {
+        while let index = firstIndex(ofByte: separator, from: start) {
             parts.append(Bytes(self[start..<index]))
             start = index + 1
         }
@@ -133,7 +143,7 @@ extension Array where Element == UInt8 {
 
     /// The part before the first separator (Python `str.split(sep, 1)[0]`).
     func firstPart(byte separator: UInt8) -> Bytes {
-        guard let index = firstIndex(of: separator) else { return self }
+        guard let index = firstIndex(ofByte: separator) else { return self }
         return Bytes(self[0..<index])
     }
 
