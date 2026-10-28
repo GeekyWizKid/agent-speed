@@ -1525,14 +1525,17 @@ response keys it owns, and its per-day contributions. On launch and periodically
 unchanged files reuse their contributions; new or changed files are re-parsed completely, skipping keys owned by any
 other file (ownership follows startup order); files that no longer exist keep their contributions. Daily totals are
 the sums over files. The history store is versioned: a parser change bumps the version and triggers a full
-recomputation that keeps previously stored days for which no logs exist any more (analysis version 6: the Codex
-ordinal rule of 3.5). "Clear history" (settings) deletes
+recomputation that keeps previously stored days for which no logs exist any more (analysis version 7: the unpriced
+facts of 9.10; 6: the Codex ordinal rule of 3.5). "Clear history" (settings) deletes
 the store and recomputes from the current logs.
 
 Cost (9.7): every row also has `costMicroUsd` and `unpricedRequests`, every model `costMicroUsd` and
 `unpricedRequests`, and every date a `priceVersion`. The cost feature bumps the store version; days kept from an
 older store whose logs no longer exist have no cost data (`costMicroUsd` null, `unpricedRequests` null): UIs show
 them as unavailable (DESIGN 9), never as 0.
+
+Unpriced facts (9.10) are stored in the side table `contribution_unpriced` of the same database, written with each
+file's contributions; older builds ignore it, and readers check its rows against the file's analysis version.
 
 Network traffic (10.9) is stored in its own table of the same database. It is observed, not derived from logs:
 version bumps and recomputations never touch it, and "Clear history" deletes it too.
@@ -1542,7 +1545,8 @@ version bumps and recomputations never touch it, and "Clear history" deletes it 
 Agent Speed estimates what the counted responses would cost at the providers' official API list prices — the
 *API-equivalent* cost (DESIGN 9). Costs are exact integers in US dollars; conversion to the display currency happens
 only when a value is shown (9.8). `spec/tools/prices.py` implements 9.1–9.3 and 9.7; `reference.py` uses it for 9.5–9.7
-and `--dump-history` / `--dump-today` (`--prices PATH` selects another table).
+and `--dump-history` / `--dump-today` (`--prices PATH` selects another table); `spec/tools/unpriced.py` implements 9.10
+(`reference.py --dump-unpriced`).
 
 ### 9.1 Price table
 
@@ -1686,6 +1690,7 @@ Engine cases with `liveCost` in `spec/fixtures/engine-cases.json` give responses
   included, so it is a lower bound like `output`).
 - `today.unpricedRequests`: today's responses without a known price.
 - Both per source, and per model for breakdowns. The dashboard's today cost equals the history's row for today.
+- `today.unpricedFacts`: per source, the unpriced facts of today's responses (9.10 *Live*), for Settings → Cost.
 
 ### 9.7 Day binding and history
 
@@ -1704,14 +1709,16 @@ Each day reads like a bill: it keeps the prices that applied to it.
   function of the file's responses, the bindings and the stored tables. When the current table version changes, every
   file whose stored contribution has `unpricedRequests > 0` is re-analysed (as if it had changed), and the engine
   re-prices today's unpriced responses; it keeps the normalized usage of today's unpriced responses (at most 10 000)
-  for that.
+  for that, with their `model`, `provider`, `fast` and `endMs`.
 - **Storage**: the store keeps a copy of every table version that a binding references (deleted when no binding
   references it). A binding whose table is missing or invalid is replaced by the current version (logged). "Clear
   history" deletes bindings and tables with everything else.
 - **Rows** (section 8): per date and source `costMicroUsd` (Σ known costs) and `unpricedRequests`; per model the same
-  two; `priceVersion` = the date's binding (repeated on each row of the date). Subscription marks are not stored.
+  two; `priceVersion` = the date's binding (repeated on each row of the date); the unpriced facts (9.10). Subscription
+  marks are not stored.
 - Fixtures: `spec/fixtures/history-expected.json` `prices` (the fixture tables, the highest version current, and the
-  bindings to load before the analysis) and `spec/fixtures/price-cases.json` `days`.
+  bindings to load before the analysis) and `spec/fixtures/price-cases.json` `days` (among them a model that only a
+  newer table prices: `mimo-v2.6-pro` of a custom provider, issue #20).
 
 ### 9.8 Display currency
 
@@ -1744,6 +1751,154 @@ and no historical rates are needed. The UI states the rate date (DESIGN 9). Roun
 - Models behind a user's own proxy or router are priced by the model name the agent logged; opaque names stay unknown.
 - WorkBuddy bills in credits, which are not used; calls through its routing slots stay unpriced unless the stream names
   the model it chose (4.9).
+
+### 9.10 Unpriced diagnostics
+
+Why responses have no price, shown on this computer only (DESIGN 9 *Unknown prices*). Nothing of it is reported:
+section 11, `spec/REPORTING*.md` and `spec/report-schema.json` are unchanged, and raw model names leave the app only in
+text the user copies. `spec/tools/unpriced.py` implements this section and checks `spec/fixtures/unpriced-cases.json`
+(written by `spec/tools/unpriced_cases.py`, expectations by hand); both apps run the same cases.
+
+**Facts.** Every response without a known cost (9.3) is an *unpriced fact* `(model, provider, fast)` counting its
+requests (`requestCount` where a source records one, else 1): `model` is the response's model *trimmed* (4.9; missing
+→ the empty string), `provider` its provider (3.2; null when missing or empty), `fast` its fast flag (3.2). Equal facts
+add up. A free response (cost 0) is never a fact, and days kept without cost data (8) have none. Trimming does not
+change the resolution (9.2 trims and collapses whitespace itself), so a fact has the reason of each of its responses.
+
+**Reason.** Computed from `(model, provider, fast)` with the *current* table (9.1) every time it is shown, never stored,
+so a model that a newer table prices leaves the list by itself (late pricing, 9.7). The resolution of 9.2 decides:
+
+| Reason | When | `canonical` |
+| --- | --- | --- |
+| `noModel` | step 2: the model is empty | null |
+| `unpriceable` | a candidate key equals or starts with a value of the table's `unknown[]`; that entry's `reason` is the fact's *rule* | the key that matched |
+| `noFastPrice` | a candidate key hits a priced entry without `fast` prices while fast mode is selected, by the `fast` step or by the fact's `fast` | the key that hit |
+| `notInTable` | no candidate key hits (step 4) | the `exact` step key; null when it is empty (`[proxy]`) |
+| `noDate` | live only: the response's `endMs` has no date (8), whatever its model | null |
+| *priced now* | the current table prices the fact (free included): no reason, it counts in `pricedNow` | — |
+
+`Index.diagnose` in `prices.py`; cases `diagnose` (each also checks that the reason is null exactly when 9.3 prices the
+response). Router and internal labels (`neko-model-*`, `codex-auto-review`, WorkBuddy's routing slots, …) stay
+`unpriceable`: the table never maps them to a similar model's or a source's default price.
+
+**History store.** A side table of the history database (section 8) keeps the facts of every stored contribution:
+
+```
+contribution_unpriced(file_id INTEGER NOT NULL, day TEXT NOT NULL, source TEXT NOT NULL, model TEXT NOT NULL,
+                      provider TEXT NOT NULL, fast INTEGER NOT NULL, requests INTEGER NOT NULL,
+                      version INTEGER NOT NULL, PRIMARY KEY (file_id, day, source, model, provider, fast)) WITHOUT ROWID
+```
+
+- Created if missing every time the database is opened, like `day_traffic` (10.9). The schema version
+  (`user_version`) does not change, so older builds keep opening the store; they ignore the table.
+- A row is one fact of one contribution (file or OpenCode session, day, source): `model` trimmed (empty when none),
+  `provider` the provider or the empty string for null (3.2 never yields an empty provider), `fast` 0 or 1,
+  `requests` ≥ 1, `version` the analysis version that wrote it (the file's `files.version`).
+- **Writes**: whenever a file's contributions are saved, the same transaction deletes the file's side rows and inserts
+  the facts of each of its contributions. A contribution without unpriced responses has no rows. Re-analysis after a
+  table change (9.7) rewrites them with the file.
+- Adding the table raised the analysis version to **7**, so every file whose logs exist is analysed again and fills
+  it. Contributions kept from files whose logs are gone get no rows; *Reading* derives theirs.
+- An older build that re-analyses a file rewrites `contributions`, `contribution_models` and `files.version` (its own,
+  lower version) but leaves the side rows: their `version` no longer matches, so readers ignore them until a build
+  with this table analyses the file again (it does, since the version differs).
+- "Clear history" deletes the table with the store.
+
+**Reading** (cases `read`), for each stored contribution (file, day, source):
+
+1. `unpriced_requests` null (no cost data, 8): no facts; its `requests` count as `noCostData`.
+2. `unpriced_requests` 0: no facts; stray side rows are ignored.
+3. The contribution's side rows are *valid* when there is at least one, every row has `version` = the file's
+   `files.version` and `requests` ≥ 1, and their `requests` add up to `unpriced_requests`. Valid rows are the facts
+   (rows equal after trimming the model add up).
+4. Otherwise the facts are *derived* from `contribution_models`: in the order of the models' UTF-8 bytes, each model's
+   `unpriced_requests`, at most what is still left of the contribution's `unpriced_requests`, becomes the fact
+   `(trimmed model, null, false)`; what is left after the last model becomes `("", null, false)`. The contribution's
+   `unpriced_requests` count as `derived`: provider and fast flag are unknown, so the reason is computed as if there
+   were none (a Fast response can then read as priced now).
+
+Side rows without a contribution row are ignored. A day's facts per source are the sum over its contributions, and
+add up to its stored `unpricedRequests`.
+
+**Live** (cases `live`): the engine's today (6.6, 9.6). The day ledger keeps per source the requests of today's
+responses without a known cost per `(model, provider, fast, noDate)`, added and removed with each response like every
+other today tally, so replacements (4.4) and re-pricing (9.7) move them; it restarts at zero at the day change.
+`noDate` is true for a response whose `endMs` has no date (8; such a response belongs to today when
+`endMs ≥ todayStartMs`), and such a fact is always `noDate`, never the reason of its model. The live view has one
+part per source with today's responses: `requests` = today's requests of the source, its facts, `noCostData` and
+`derived` 0. Settings → Cost shows it (DESIGN 9); the History window never does (its today comes from the store).
+
+**Rows** (cases `reports`). A *view* takes *parts* — per (day, source) the requests, `noCostData`, `derived` and facts —
+whose day lies in [`first`, `last`], for one source or all, without the sources the window excludes as subscriptions
+(9.4, exactly as its costs). The History window's parts are the stored days (today included) after *Reading*; the live
+view's single day is the engine's.
+
+- Per source with at least one part in the view: `requests`, `noCostData`, `derived` (Σ over its parts), `unpriced`
+  (Σ of its facts) and `pricedNow` (Σ of its facts the current table prices).
+- A *row* gathers the facts of one (source, model, provider, fast, noDate) that have a reason: `reason`, `canonical`,
+  `rule` (only for `unpriceable`), `requests` (Σ), `first` and `last` (the earliest and latest day of its facts).
+- Order: sources by `unpriced` descending, then the order of section 1; a source's rows by `requests` descending, then
+  the model's UTF-8 bytes, then provider (null first, then UTF-8 bytes), then `fast` (false first), then `noDate`
+  (false first).
+- Per source, Σ rows' `requests` + `pricedNow` = `unpriced`; over the view Σ `unpriced` equals the History window's
+  `history.unpricedNotice` count (Σ stored `unpricedRequests`) and, live, today's `unpricedRequests` (9.6).
+
+**Text** (`history.unpricedModels.copy`; cases `reports` `expect`, byte-identical on both platforms). UTF-8 without
+a byte order mark; every line ends with LF:
+
+```
+Agent Speed unpriced diagnostics 1
+app version=<app version> platform=<macos | windows> os=<os>
+prices version=<current table version> updated=<its updated date>
+range view=<view> first=<date> last=<date> days=<n> source=<source id | all> excluded=<ids | none>
+source id=<id> requests=<n> unpriced=<n> pricedNow=<n> noCostData=<n> derived=<n> rows=<n>
+row source=<id> reason=<reason> requests=<n> first=<date> last=<date> fast=<bool> model=<text> provider=<text> canonical=<text> rule=<text>
+total requests=<n> unpriced=<n> pricedNow=<n> noCostData=<n> derived=<n> rows=<n>
+```
+
+- `1` is the format version: any change of lines, fields or their order raises it.
+- One `source` line per source of the view in the order of *Rows*, each followed by its `row` lines; `total` sums the
+  source lines (`rows` = the number of rows). A view without parts has only the header lines and `total`.
+- `os`: `macos-<major>` (`macos-26`), `windows-11` (build ≥ 22000) or `windows-10`. The reference prints
+  `platform=reference` with its own OS; the app version is the build's (`VERSION`).
+- `view`: the History window's range — `today`, `yesterday`, `7d`, `30d`, `90d`, `year`, `all`, `custom` — or `live`.
+  `first` and `last`: the resolved range (live: today); `days` = `last − first + 1`. `excluded`: the excluded sources
+  in the order of section 1 joined by `,`, else `none`. Source ids are those of section 1.
+- Numbers: decimal integers without separators. `<bool>`: `true` or `false`. Dates: `YYYY-MM-DD`.
+- A `<text>` is `null` or a double-quoted string (cases `quote`): a lone surrogate becomes U+FFFD; a *path-like*
+  value (except `rule`, which comes from the table) becomes `<path>`; more than 120 Unicode scalars keep the first 120
+  followed by `…` (U+2026); then `"` and `\` are written `\"` and `\\`, U+0008, U+0009, U+000A, U+000C and U+000D
+  `\b`, `\t`, `\n`, `\f` and `\r`, every other character of U+0000–U+001F, U+007F–U+009F, U+2028 and U+2029 `\u`
+  with four lower-case hex digits, and everything else as is. *Path-like* (ASCII letters compared in lower case):
+  starts with `/`, `\`, `~` or `file:`, or with a letter, `:` and `/` or `\`, or contains `/users/`, `\users\` or
+  `/home/`.
+- The text names no path, project, agent, session or file and holds no prompt or content: model ids as logged
+  (path-like ones redacted; an empty model is `""`, *no model metadata*), providers, the table's rule texts, dates
+  and counts.
+
+**Command line.** `reference.py --dump-unpriced [--days N | --first YYYY-MM-DD --last YYYY-MM-DD | --live]
+[--source ID] [--prices PATH]` prints the text over every log on this computer: the daily history (8; the reference
+keeps no store, so every day is priced with the given table), or with `--live` today's engine responses (the rows of
+`--dump-today`). `--days N` (default 30) is the last N local days with today; N = 1, 7, 30 and 90 print the views
+`today`, `7d`, `30d` and `90d`, other values `custom`; `--first`/`--last` print `custom`. Both probes take the same
+options and print the same text from their own history analysis — written to a store (in memory, or
+`--history-store PATH`) and read back through *Reading* — and their own engine; only the `app` line differs.
+`--dump-history` rows carry the day's facts as `unpriced` (`[{model, provider, fast, requests}]`, in the fact order
+of *Rows*; `[]` when none); `spec/fixtures/history-expected.json` checks them.
+
+**Recovery** (what changes once a missing price or alias is published; issue #20):
+
+- *New requests* are priced with the current table, which the app has as soon as a build bundles it or the daily sync
+  fetches it (NETWORK 3). A day's binding (9.7) keeps the prices it was first priced with; a request its bound table
+  cannot price takes the current table.
+- *Stored history*: when the current table version changes, every file whose stored contribution has unpriced
+  requests is analysed again and the newly known prices fill in its days; a price that was known never changes. Days
+  whose logs are gone cannot be re-priced: their facts show as `pricedNow`, not as rows. Nothing is estimated: a
+  request is priced only through an exact table entry or alias (9.2).
+- *Reporting*: reports carry increments only and history is never sent (11). A live response priced later adds its
+  cost once to a later report (11.4, while its key is counted); the `unpricedRequests` increment it already added
+  stays, as `unpricedRequests` never decreases; a built report is never resent. The receiver's past numbers
+  therefore never change, and no request or cost is counted twice.
 
 ## 10. Network traffic
 
