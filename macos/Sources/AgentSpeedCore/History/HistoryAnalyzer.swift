@@ -195,7 +195,7 @@ final class HistoryAnalyzer {
                 if let previous, !zoneChanged, previous.version == options.analysisVersion,
                    previous.family == family.rawValue, previous.size == size, previous.modified == modified,
                    !(repricing && previous.hasUnpriced),
-                   !reopensTask(path, previous, modifiedMs: modified / 1_000_000, nowMs: nowMs) {
+                   !reopensTask(path, previous, modifiedMs: stat.modifiedNs / 1_000_000, nowMs: nowMs) {
                     continue
                 }
                 plan.files.append(PlannedFile(path: path, family: family, root: root, stat: stat, previous: previous,

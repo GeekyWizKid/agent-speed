@@ -107,9 +107,14 @@ extension HistoryDatabase {
     func taskCalibration() throws -> [SourceKind: TaskModels] {
         var models: [SourceKind: TaskModels] = [:]
         for source in SourceKind.allCases where TaskScoring.scores(source) {
-            let light = try taskRecords(rows: false, completeOnly: true, source: source)
-            guard !light.isEmpty else { continue }
-            let ends = light.map(\.endMs).sorted(by: >)
+            let all = try taskRecords(rows: false, source: source)
+            guard !all.isEmpty else { continue }
+            let ends = all.filter(\.complete).map(\.endMs).sorted(by: >)
+            guard !ends.isEmpty else {
+                // Records but none complete: every model keeps its prior (on 0 tasks).
+                models[source] = TaskModels.calibrate(all)
+                continue
+            }
             let cut = ends[min(ends.count, TaskCalibration.maxTasks) - 1]
             models[source] = TaskModels.calibrate(try taskRecords(rows: true, completeOnly: true, source: source,
                                                                   endingFrom: cut))
