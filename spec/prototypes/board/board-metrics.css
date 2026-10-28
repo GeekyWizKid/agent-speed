@@ -509,7 +509,7 @@ body { background: var(--c-bg); color: var(--c-ink); }
 /* ══ Option B — 副錶: the hero's right side becomes a sub-dial; the history becomes a full-width strip ══ */
 .mb .strip { flex: none; position: relative; z-index: 2; }
 .mb.glass .strip { margin: 0 var(--pad); height: 16px; }
-.mb.glass .strip svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.mb.glass .strip svg, .mb.glass[data-size] .strip svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .mb.glass[data-size="L"] .strip { height: 18px; }
 .mb.glass[data-size="S"] .strip { height: 14px; }
 .mb.glass.optB .board { margin-top: 0; }

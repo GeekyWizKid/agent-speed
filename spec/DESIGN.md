@@ -2669,6 +2669,8 @@ The unit is `cost.unitPerSecond` (`%@/s` with the symbol: `US$/s`, `¥/s`). Wher
   amounts with colour dots and thin share bars (sorted by cost), `cost.unpriced` when today has unpriced responses,
   `cost.subscriptionExcluded` listing excluded sources, and the rate line (`rates.status`) for a non-USD currency.
 - **Metric info** (ⓘ in the footer): `cost.info` is appended as a second paragraph.
+- **Boards**: 費用 in the sub-gauge, each group row's cost per second and the footer's today cost (section 2c, *Live
+  metrics*).
 
 ### Usage history
 
