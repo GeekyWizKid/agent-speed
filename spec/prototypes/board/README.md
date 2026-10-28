@@ -57,3 +57,57 @@ effects and fire a new-leader celebration.
 | `board-glass.html` | 流光玻璃 — refined translucent glass, heat-tinted aurora light, calm typography; elegance first |
 | `board-timing.html` | 計時塔 — racing broadcast timing tower: position blocks, gap-to-leader column, kinetic overtakes |
 | `board-neon.html` | 霓虹座艙 — night HUD in the LED orb's language: neon edges, LED digits, warp streaks and digit lightning |
+
+## New live metrics (`board-metrics.html`)
+
+The board also shows the live **intelligence index** (智力, METRICS 6.9), **thinking** tok/s (思考) and the **cost per
+second** (費用, METRICS 9.5 in the display currency, DESIGN 9 rate form, `≥` when part is unpriced, `–` when nothing is).
+`board-metrics.html` compares three layouts for them in every style, all rendered from the same simulation; the three
+pages above are unchanged. Files: `board-metrics.html` (page), `board-metrics.js` (a multi-instance board for any
+style and option), `board-metrics.css`, `metrics-format.js` (money and index formatting, checked against
+`spec/fixtures/money-format.json`).
+
+| | Glass 流光玻璃 | Timing 計時塔 | Neon 霓虹座艙 |
+| --- | --- | --- | --- |
+| **A** — a band of three equal readouts under the hero | 三欄儀表: frosted capsule, hairline separators, label over value | 數據條: three broadcast chips, label tab + mono value | LED 視窗: three recessed LED windows with ghost segments |
+| **B** — the hero's right side becomes a sub-dial (智力 large, 思考 / 費用 small) | 光環副錶: pearl arc around 智力; the 60 s sparkline becomes a full-width horizon strip | 資料盒: label tabs, one right edge for all values; the 30 bars become a full-width strip | LED 副錶: LED digits, a 12-segment meter; the LED bar stays |
+| **C** — the board becomes a table: each group row gets a second line (model · its cost per second); the three totals move to a two-row footer, live over today (智力 over today's tokens, 費用 over today's cost, 思考 over the peak) | 明細表 | 明細表 (position block spans both lines) | 明細表 |
+
+**Every option, every row**: a group row and a sub row show their own intelligence in a 3-digit column between the
+effort capsule and the value (group rows: the group's index, over the same agents as its speed; sub rows: the
+sub-agent's own). An idle row shows its grade (`class + 6 × level`) in the quieter ink. The column names 智力 and
+`tok/s` sit on the hairline at the top of the ranking. Timing hides the capsule's effort word below L so names stay
+readable (meter and bolts remain; the word is in the tooltip).
+
+**Rows kept** (team scenario; without the metrics: S 4 groups, M 5 groups + 0–1 sub row, L 5 groups + 3–4 sub rows):
+
+| | S | M | L |
+| --- | --- | --- | --- |
+| A | 3 + `還有 N 個` | glass, neon 4 + `還有`; timing 5 | 5 + 1–2 sub rows |
+| B, 每列費用 off | 3 + `還有 N 個` | 5 | 5 + 2 sub rows |
+| B, 每列費用 on (default) | 3 + `還有 N 個` | 4 + `還有` | 5 (timing + 1 sub row) |
+| C | 3 + `還有 N 個` | 4 + `還有` | 5 (+ 0–1 sub rows) |
+
+**At S**: A's readouts become one line each (label left of the number); B's sub-gauge narrows to 92 pt (timing's data
+box 110 pt); C's rows return to one line (the per-row cost collapses, the totals stay in the footer); every option keeps
+3 groups and the rest line.
+
+**Chosen (2026-10-28): B with 每列費用 on**, specified in `spec/DESIGN.md` 2c *Live metrics*; the page opens on it.
+Where this page and that section differ, the section wins.
+
+**Switches** (`看板顯示 ▸ 智力 / 思考 / 費用 / 每列費用` in the board's context menu and the board editor, all on by
+default and independent of each other; try them with 顯示 under the boards): a readout switched off folds away and the
+remaining readouts re-centre; 智力 also removes the rows' intelligence column; with all four off a board looks exactly as
+before. 每列費用 adds C's second row line to A or B (always on in C). 思考為 0 (`noreasoning=1`) simulates sources that do
+not record reasoning: 思考 reads 0 and, after 3 s, folds away (a settled frame replays those 3 s).
+
+**Simulation**: `sim.js` adds per agent `grade`, `intelligence` (none while idle), `thinking`, `costRate` (µUSD/s),
+`priced`, and per group and total the METRICS 6.9 window sums (`intelligence`, `thinking`, `thinkingShare`) and
+`costRate` / `costKnownShare`, plus `total.costToday`. They are derived without drawing from the shared random
+sequence, so every existing field is identical step for step. Prices follow `spec/assets/prices.json` (gpt-6.1-sol and
+gemini-3.5-pro assumed); Ultrafast has no list price, so the swarm and duel scenarios show `≥`.
+
+URL parameters: `style`, `option` (default `B`), `view` (`single` / `grid` / `all`), `size`, `theme`, `scenario`,
+`currency` (`USD` / `TWD` / `CNY` / `JPY`), `metrics=intel,think,cost`, `rowcost=0` (per-row cost off; on by default),
+`noreasoning=1` (思考 reads 0), `subs=all` (every source marked as a subscription), `steps=N` (settled frame), `fx=1`
+(keep effects), `shot=1` (boards only).

@@ -1,5 +1,5 @@
 {
- "_comment": "METRICS 6.9, written by hand and checked by spec/tools/intelligence.py. `grades` resolve against the fixture price table `table`; `effort` is the normalized effort token (EXECUTION-MODES) or absent. `windows` give engine responses (with `reasoning`, `effort`, `provider`) and agents (with `effort`) as engine-cases.json does; a query's `sources` restricts both to an orb's set. `shown` is the intelligence rounded half away from zero; null when nothing generated in the window. `agentWindows` (METRICS 6.9, Agent intelligence) have the shape of `windows` with every case's agents in each query's `agents`: `form` live / resting / none, `intelligence` (the live value, or the grade at rest; null for none), `shown`, the agent's own `liveThinking` and `thinkingShare`, and `grade` (its current model, effort and latest named provider; null without a model); `expect` is the whole set's, which the agents' sums add up to.",
+ "_comment": "METRICS 6.9, written by hand and checked by spec/tools/intelligence.py. `grades` resolve against the fixture price table `table`; `effort` is the normalized effort token (EXECUTION-MODES) or absent. `windows` give engine responses (with `reasoning`, `effort`, `provider`) and agents (with `effort`) as engine-cases.json does; a query's `sources` restricts both to an orb's set. `shown` is the intelligence rounded half away from zero; null when nothing generated in the window. `agentWindows` (METRICS 6.9, Agent intelligence) have the shape of `windows` with every case's agents in each query's `agents`: `form` live / resting / none, `intelligence` (the live value, or the grade at rest; null for none), `shown`, the agent's own `liveThinking` and `thinkingShare`, and `grade` (its current model, effort and latest named provider; null without a model); `expect` is the whole set's, which the agents' sums add up to. `groupWindows` (METRICS 6.9, Group intelligence; DESIGN 2c group rows) have the shape of `agentWindows`; a group is a root of the case's agents (no parent, or a parent that is not listed) with all its descendants, keyed by the root's id: `members` (the root first, then depth first), `form` live / resting / none, `intelligence` (the live value of the members' added sums, or the root's grade at rest; null for none), `shown`, the group's `liveThinking` and `thinkingShare`, and `grade` (the root's); `expect` is the whole set's, which the groups' sums add up to.",
  "table": "prices/v2.json",
  "grades": [
   {
@@ -909,6 +909,299 @@
        "liveThinking": 0.0,
        "thinkingShare": 0.0,
        "grade": 72
+      }
+     }
+    }
+   ]
+  }
+ ],
+ "groupWindows": [
+  {
+   "name": "a group row weighs its root and every sub-agent by the tokens they write, never an average of their values; at rest it shows the root's grade, not that of the sub-agent active last",
+   "agents": [
+    {
+     "id": "r1",
+     "source": "claudeCode",
+     "model": "claude-sonnet-5-5",
+     "effort": "high",
+     "phase": "idle",
+     "inFlightStartMs": null,
+     "lastLineMs": 1000000003000,
+     "parentId": null
+    },
+    {
+     "id": "s1",
+     "source": "claudeCode",
+     "model": "claude-haiku-5",
+     "effort": "low",
+     "phase": "idle",
+     "inFlightStartMs": null,
+     "lastLineMs": 1000000003500,
+     "parentId": "r1"
+    },
+    {
+     "id": "s2",
+     "source": "claudeCode",
+     "model": "claude-opus-5-5",
+     "effort": "max",
+     "phase": "tools",
+     "inFlightStartMs": null,
+     "lastLineMs": 1000000004000,
+     "parentId": "s1"
+    },
+    {
+     "id": "t1",
+     "source": "codex",
+     "model": "gpt-5.5",
+     "effort": "medium",
+     "phase": "idle",
+     "inFlightStartMs": null,
+     "lastLineMs": 1000000002000,
+     "parentId": null
+    }
+   ],
+   "responses": [
+    {
+     "key": "rr1",
+     "agentId": "r1",
+     "source": "claudeCode",
+     "model": "claude-sonnet-5-5",
+     "startMs": 1000000001000,
+     "endMs": 1000000003000,
+     "input": 1000,
+     "output": 300,
+     "reasoning": 90,
+     "final": true,
+     "effort": "high"
+    },
+    {
+     "key": "rs1",
+     "agentId": "s1",
+     "source": "claudeCode",
+     "model": "claude-haiku-5",
+     "startMs": 1000000001500,
+     "endMs": 1000000003500,
+     "input": 1000,
+     "output": 200,
+     "reasoning": 20,
+     "final": true,
+     "effort": "low"
+    },
+    {
+     "key": "rs2",
+     "agentId": "s2",
+     "source": "claudeCode",
+     "model": "claude-opus-5-5",
+     "startMs": 1000000000000,
+     "endMs": 1000000002000,
+     "input": 1000,
+     "output": 100,
+     "reasoning": 50,
+     "final": true,
+     "effort": "max"
+    },
+    {
+     "key": "rt1",
+     "agentId": "t1",
+     "source": "codex",
+     "model": "gpt-5.5",
+     "startMs": 1000000001000,
+     "endMs": 1000000002000,
+     "input": 1000,
+     "output": 50,
+     "reasoning": 0,
+     "final": true,
+     "effort": "medium"
+    }
+   ],
+   "queries": [
+    {
+     "nowMs": 1000000004000,
+     "expect": {
+      "intelligence": 110.66666666666667,
+      "shown": 111,
+      "liveThinking": 45.0,
+      "thinkingShare": 0.225
+     },
+     "groups": {
+      "r1": {
+       "members": [
+        "r1",
+        "s1",
+        "s2"
+       ],
+       "form": "live",
+       "intelligence": 112.36363636363636,
+       "shown": 112,
+       "liveThinking": 45.0,
+       "thinkingShare": 0.24545454545454545,
+       "grade": 118
+      },
+      "t1": {
+       "members": [
+        "t1"
+       ],
+       "form": "live",
+       "intelligence": 92.0,
+       "shown": 92,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 92
+      }
+     }
+    },
+    {
+     "nowMs": 1000000010000,
+     "expect": {
+      "intelligence": null,
+      "shown": null,
+      "liveThinking": 0.0,
+      "thinkingShare": 0.0
+     },
+     "groups": {
+      "r1": {
+       "members": [
+        "r1",
+        "s1",
+        "s2"
+       ],
+       "form": "resting",
+       "intelligence": 118,
+       "shown": 118,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 118
+      },
+      "t1": {
+       "members": [
+        "t1"
+       ],
+       "form": "resting",
+       "intelligence": 92,
+       "shown": 92,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 92
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "a group whose root has no model is live from its sub-agents' estimate and has no value at rest, even when a sub-agent has a grade; a sub-agent whose parent is not listed heads its own group",
+   "agents": [
+    {
+     "id": "p1",
+     "source": "claudeCode",
+     "model": null,
+     "effort": null,
+     "phase": "tools",
+     "inFlightStartMs": null,
+     "lastLineMs": 1000000001000,
+     "parentId": null
+    },
+    {
+     "id": "q1",
+     "source": "claudeCode",
+     "model": "claude-haiku-5",
+     "effort": "medium",
+     "phase": "generating",
+     "inFlightStartMs": 1000000002000,
+     "lastLineMs": 1000000002000,
+     "parentId": "p1"
+    },
+    {
+     "id": "o1",
+     "source": "codex",
+     "model": "gpt-5.5-mini",
+     "effort": "high",
+     "phase": "idle",
+     "inFlightStartMs": null,
+     "lastLineMs": 999999995000,
+     "parentId": "x9"
+    }
+   ],
+   "responses": [
+    {
+     "key": "rq0",
+     "agentId": "q1",
+     "source": "claudeCode",
+     "model": "claude-haiku-5",
+     "startMs": 999999996000,
+     "endMs": 999999998000,
+     "input": 1000,
+     "output": 400,
+     "reasoning": 100,
+     "final": true,
+     "effort": "medium"
+    }
+   ],
+   "queries": [
+    {
+     "nowMs": 1000000003000,
+     "expect": {
+      "intelligence": 97.0,
+      "shown": 97,
+      "liveThinking": 16.666666666666668,
+      "thinkingShare": 0.25
+     },
+     "groups": {
+      "p1": {
+       "members": [
+        "p1",
+        "q1"
+       ],
+       "form": "live",
+       "intelligence": 97.0,
+       "shown": 97,
+       "liveThinking": 16.666666666666668,
+       "thinkingShare": 0.25,
+       "grade": null
+      },
+      "o1": {
+       "members": [
+        "o1"
+       ],
+       "form": "resting",
+       "intelligence": 78,
+       "shown": 78,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 78
+      }
+     }
+    },
+    {
+     "nowMs": 1000000302001,
+     "expect": {
+      "intelligence": null,
+      "shown": null,
+      "liveThinking": 0.0,
+      "thinkingShare": 0.0
+     },
+     "groups": {
+      "p1": {
+       "members": [
+        "p1",
+        "q1"
+       ],
+       "form": "none",
+       "intelligence": null,
+       "shown": null,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": null
+      },
+      "o1": {
+       "members": [
+        "o1"
+       ],
+       "form": "resting",
+       "intelligence": 78,
+       "shown": 78,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 78
       }
      }
     }
