@@ -19,11 +19,12 @@ COMMENT = (
     "continuation. `promptLines`: the prompt kind of one line of a source (`t`: the prompt's own time when it is not "
     "the line's, a queued Claude message). `segmentation`: prompt events from "
     "classified lines. `tasks`: the current task of a stream at `nowMs` (absent: everything): state, score (unrounded), "
-    "shown (half away from zero), the five dimensions, IG, loop and oscillation shares, counts, first pass and stall "
-    "window ends. `values`: agent forms and the highest-score rule for groups and the whole set (agent `weight` is "
+    "shown (half away from zero), the five dimensions, IG, loop and oscillation shares, counts, first pass, stall "
+    "window ends and the task facts vHeld, openFailure and lastPass. `values`: agent forms and the highest-score rule for groups and the whole set (agent `weight` is "
     "ignored on purpose). `predictions`: P(success), P(stall), P(fix fails) of the current task with the given or prior "
     "coefficients. `records`: the task records of a whole stream. `calibration`: per source and model, coefficients "
-    "(tolerance 1e-6), flag and task count, and probe probabilities. `comparison`: the aggregates over a date range. "
+    "(tolerance 1e-6), flag and task count, and probe probabilities. `comparison`: the aggregates over a date range "
+    "(and one source when `source` is given). "
     "`thinking`: the live thinking line (6.9 Live thinking): liveThinking, thinkingShare and the window weight of the "
     "set, every agent and every board group.")
 
@@ -95,6 +96,15 @@ def fps(*names):
 
 def dims(V, C, R, E, K):
     return {"V": V, "C": C, "R": R, "E": E, "K": K}
+
+
+def last_pass(command, suite="cargo test", cls="test", build_only=False):
+    return {"suite": suite, "class": cls, "key": h("key " + command), "buildOnly": build_only}
+
+
+def open_failure(command, errors, peak, suite="cargo test", cls="test", counted=True, edited=False):
+    return {"suite": suite, "class": cls, "key": h("key " + command), "errors": errors, "peak": peak,
+            "counted": counted, "edited": edited}
 
 
 # ----------------------------------------------------------------------------- segmentation
@@ -242,17 +252,20 @@ def tasks():
     t.append({"name": "an edit then a full test pass; before its result the task is unverified", "events": IDEAL,
               "queries": [{"nowMs": at(8), "want": {"state": "unverified", "score": 3.75, "shown": 4}},
                           {"want": {"state": "passing", "score": 93.75, "shown": 94, "dims": dims(40, 25, 15, 3.75, 10),
-                                    "firstPassMs": at(13)}}]})
+                                    "firstPassMs": at(13), "vHeld": None, "openFailure": None,
+                                    "lastPass": last_pass("cargo test")}}]})
     t.append({"name": "convergence 5 → 2 → pass, recovered on the second attempt", "events": CONVERGE,
               "queries": [{"nowMs": at(35), "want": {"state": "failing", "score": 24.0, "shown": 24,
-                                                     "dims": dims(0, 15, 0, 5, 4)}},
+                                                     "dims": dims(0, 15, 0, 5, 4), "lastPass": None,
+                                                     "openFailure": open_failure("cargo test", 2, 5)}},
                           {"want": {"state": "passing", "score": 92.5, "shown": 93, "dims": dims(40, 25, 10, 7.5, 10),
                                     "counts": {"failingRuns": 2, "episodes": 1, "recovered": 1, "recoverAttempts": 2,
                                                "fixAttempts": 2, "fixFailures": 1}}}]})
     t.append({"name": "pending: an edit after a pass takes V and K away until the check runs again", "events": PENDING,
               "queries": [{"nowMs": at(15), "want": {"state": "passing", "score": 92.5, "shown": 93}},
                           {"nowMs": at(25), "want": {"state": "pending", "score": 43.75, "shown": 44,
-                                                     "dims": dims(0, 25, 15, 3.75, 0)}},
+                                                     "dims": dims(0, 25, 15, 3.75, 0), "vHeld": 40.0,
+                                                     "lastPass": last_pass("cargo test")}},
                           {"want": {"state": "passing", "score": 95.0, "shown": 95}}]})
     t.append({"name": "regression: a check that passed fails after an edit",
               "events": [prompt(0), edit(1, "f", "a", "b"), run(2, "cargo test"), edit(20, "g", "c", "d"),
@@ -285,7 +298,17 @@ def tasks():
               "queries": [{"want": {"state": "passing", "score": 92.8125, "shown": 93, "ig": 0.75}}]})
     t.append({"name": "a build-only pass is worth half of V",
               "events": [prompt(0), edit(1, "f", "a", "b"), run(2, "cargo build", cls="build", suite="cargo build")],
-              "queries": [{"want": {"state": "passing", "score": 66.5, "shown": 67, "dims": dims(20, 25, 15, 2.5, 4)}}]})
+              "queries": [{"want": {"state": "passing", "score": 66.5, "shown": 67, "dims": dims(20, 25, 15, 2.5, 4),
+                                    "lastPass": last_pass("cargo build", "cargo build", "build", True)}}]})
+    t.append({"name": "pending after a build-only pass holds 20",
+              "events": [prompt(0), edit(1, "f", "a", "b"), run(2, "cargo build", cls="build", suite="cargo build"),
+                         edit(20, "f", "b", "c")],
+              "queries": [{"want": {"state": "pending", "score": 43.75, "vHeld": 20.0, "dims": dims(0, 25, 15, 3.75, 0),
+                                    "lastPass": last_pass("cargo build", "cargo build", "build", True)}}]})
+    t.append({"name": "a failure without counts: one error, not counted",
+              "events": [prompt(0), edit(1, "f", "a", "b"), run(2, "make check", cls="check", suite=None, result="fail")],
+              "queries": [{"want": {"state": "failing", "score": 6.5, "shown": 7, "dims": dims(0, 0, 0, 2.5, 4),
+                                    "openFailure": open_failure("make check", 1, 1, None, "check", counted=False)}}]})
     t.append({"name": "verification without an edit (run the tests and report)",
               "events": [prompt(0), read(1, "Cargo.toml"), run(2, "cargo test")],
               "queries": [{"want": {"state": "passing", "score": 92.5, "dims": dims(40, 25, 15, 2.5, 10)}}]})
@@ -296,8 +319,10 @@ def tasks():
                 run(60, "cargo test")]
     t.append({"name": "a targeted fix, then the full suite", "events": targeted,
               "queries": [{"nowMs": at(55), "want": {"state": "passing", "score": 68.0,
-                                                     "dims": dims(40, 6.25, 7.5, 6.25, 8)}},
-                          {"want": {"state": "passing", "score": 97.5, "shown": 98, "dims": dims(40, 25, 15, 7.5, 10)}}]})
+                                                     "dims": dims(40, 6.25, 7.5, 6.25, 8),
+                                                     "lastPass": last_pass("cargo test parser::a")}},
+                          {"want": {"state": "passing", "score": 97.5, "shown": 98, "dims": dims(40, 25, 15, 7.5, 10),
+                                    "lastPass": last_pass("cargo test")}}]})
     cont = [prompt(0), edit(1, "f", "a", "b"), run(2, "cargo test"), prompt(100, True), edit(101, "f", "b", "c"),
             run(102, "cargo test"), prompt(200), read(201, "docs.md")]
     t.append({"name": "a continuation keeps the task; a new prompt starts with no score", "events": cont,
@@ -313,7 +338,8 @@ def tasks():
     t.append({"name": "failed, then edited: still failing until the check runs again",
               "events": [prompt(0), edit(1, "f", "a", "b"),
                          run(2, "cargo test", result="fail", fingerprints=fps("x", "y")), edit(20, "f", "b", "c")],
-              "queries": [{"want": {"state": "failing", "score": 3.75, "shown": 4, "dims": dims(0, 0, 0, 3.75, 0)}}]})
+              "queries": [{"want": {"state": "failing", "score": 3.75, "shown": 4, "dims": dims(0, 0, 0, 3.75, 0),
+                                    "openFailure": open_failure("cargo test", 2, 2, edited=True)}}]})
     t.append({"name": "an unknown outcome is not a run; counts alone can make a pass",
               "events": [prompt(0), edit(1, "f", "a", "b"),
                          run(2, "cargo test", result=None, failed=None, exit_code=None, passed_count=None),
@@ -323,7 +349,8 @@ def tasks():
     t.append({"name": "exit 0 with reported failures is a failure (piped output)",
               "events": [prompt(0), run(1, "cargo test | tail", result="fail", failed=False, exit_code=0, failed_count=3),
                          edit(20, "f", "a", "b"), run(21, "cargo test | tail")],
-              "queries": [{"nowMs": at(15), "want": {"state": "failing", "score": 5.25, "shown": 5}},
+              "queries": [{"nowMs": at(15), "want": {"state": "failing", "score": 5.25, "shown": 5,
+                                                     "openFailure": open_failure("cargo test | tail", 3, 3)}},
                           {"want": {"state": "passing", "score": 93.75, "dims": dims(40, 25, 15, 3.75, 10)}}]})
     stall = [prompt(0)] + [read(1 + i, "a" if i % 2 == 0 else "b") for i in range(9)]
     t.append({"name": "stall: eight actions in a row that find almost nothing new", "events": stall,
@@ -530,17 +557,44 @@ def comparison():
          "records": records, "first": "2026-10-26", "last": "2026-10-28",
          "want": {"bySource": [
              {"source": "codex", "tasks": 4, "scoredTasks": 3, "medianScore": 66.5, "successRate": 2 / 3,
-              "stallRate": 0.25, "fixFailureRate": 0.8, "recoverAttempts": 2.0, "timeToFirstPassMs": 70 * S},
+              "stallRate": 0.25, "fixFailureRate": 0.8, "recoverAttempts": 2.0, "timeToFirstPassMs": 70 * S,
+              "lowerQuartile": 45.25, "upperQuartile": 80.125, "histogram": [0, 0, 1, 0, 0, 0, 1, 0, 0, 1]},
              {"source": "claudeCode", "tasks": 3, "scoredTasks": 3, "medianScore": 43.75, "medianShown": 44,
               "successRate": 1 / 3, "stallRate": 1 / 3, "fixFailureRate": 0.0, "recoverAttempts": 1.0,
-              "timeToFirstPassMs": 35 * S}],
+              "timeToFirstPassMs": 35 * S, "lowerQuartile": 24.375, "upperQuartile": 70.625,
+              "histogram": [1, 0, 0, 0, 1, 0, 0, 0, 0, 1]}],
              "byModel": [
-                 {"model": "gpt-5.5", "tasks": 3, "scoredTasks": 2, "medianScore": 58.875},
-                 {"model": "claude-opus-5-5", "tasks": 2, "medianScore": 70.625},
-                 {"model": "", "tasks": 1, "stallRate": 1.0, "fixFailureRate": None, "timeToFirstPassMs": None},
-                 {"model": "gpt-5.5-mini", "tasks": 1, "successRate": 1.0}]}},
+                 {"model": "gpt-5.5", "sources": ["codex"], "tasks": 3, "scoredTasks": 2, "medianScore": 58.875},
+                 {"model": "claude-opus-5-5", "sources": ["claudeCode"], "tasks": 2, "medianScore": 70.625},
+                 {"model": "", "sources": ["claudeCode"], "tasks": 1, "stallRate": 1.0, "fixFailureRate": None,
+                  "timeToFirstPassMs": None},
+                 {"model": "gpt-5.5-mini", "sources": ["codex"], "tasks": 1, "successRate": 1.0}]}},
+        {"name": "one source chosen in the window's picker", "records": records, "first": "2026-10-26",
+         "last": "2026-10-28", "source": "claudeCode",
+         "want": {"bySource": [{"source": "claudeCode", "tasks": 3, "medianScore": 43.75}],
+                  "byModel": [{"model": "claude-opus-5-5", "sources": ["claudeCode"], "tasks": 2},
+                              {"model": "", "sources": ["claudeCode"], "tasks": 1}]}},
         {"name": "an empty range", "records": records, "first": "2026-11-01", "last": "2026-11-30",
          "want": {"bySource": [], "byModel": []}},
+        {"name": "quartiles and histogram bins at their edges; a model across sources",
+         "records": [rec("codex", "m1", "2026-10-28", v) for v in (100.0, 9.999, 90.0, 0.0, 89.99, 10.0)] +
+                    [rec("openclaw", "m1", "2026-10-28", 50.0), rec("openclaw", "m1", "2026-10-28", None, stalled=True)],
+         "first": "2026-10-28", "last": "2026-10-28",
+         "want": {"bySource": [
+             {"source": "codex", "scoredTasks": 6, "lowerQuartile": 9.999 + 0.25 * (10.0 - 9.999),
+              "medianScore": 10.0 + 0.5 * (89.99 - 10.0), "upperQuartile": 89.99 + 0.75 * (90.0 - 89.99),
+              "histogram": [2, 1, 0, 0, 0, 0, 0, 0, 1, 2]},
+             {"source": "openclaw", "tasks": 2, "scoredTasks": 1, "lowerQuartile": 50.0, "medianScore": 50.0,
+              "upperQuartile": 50.0, "histogram": [0, 0, 0, 0, 0, 1, 0, 0, 0, 0], "stallRate": 0.5}],
+             "byModel": [{"model": "m1", "sources": ["codex", "openclaw"], "tasks": 8, "scoredTasks": 7,
+                          "lowerQuartile": 9.999 + 0.5 * (10.0 - 9.999), "medianScore": 50.0,
+                          "upperQuartile": 89.99 + 0.5 * (90.0 - 89.99),
+                          "histogram": [2, 1, 0, 0, 0, 1, 0, 0, 1, 2]}]}},
+        {"name": "no scored task: no quartiles, an empty histogram", "first": "2026-10-27", "last": "2026-10-27",
+         "records": [rec("pi", "m2", "2026-10-27", None)],
+         "want": {"bySource": [{"source": "pi", "tasks": 1, "scoredTasks": 0, "medianScore": None, "medianShown": None,
+                                "lowerQuartile": None, "upperQuartile": None, "histogram": [0] * 10,
+                                "successRate": None}]}},
     ]
 
 

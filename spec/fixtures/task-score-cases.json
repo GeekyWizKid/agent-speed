@@ -1,5 +1,5 @@
 {
- "_comment": "METRICS 6.9 and 6.11, checked by spec/tools/task_score.py and generated from spec/tools/task_score_cases.py (--write). Events are the normalised stream of 6.9 (prompt / action with kind, tool, digest, command, outcome, failures, hunks); an outcome whose `t` is after a query's `nowMs` is not known yet. `continuations`: is the text a continuation. `promptLines`: the prompt kind of one line of a source (`t`: the prompt's own time when it is not the line's, a queued Claude message). `segmentation`: prompt events from classified lines. `tasks`: the current task of a stream at `nowMs` (absent: everything): state, score (unrounded), shown (half away from zero), the five dimensions, IG, loop and oscillation shares, counts, first pass and stall window ends. `values`: agent forms and the highest-score rule for groups and the whole set (agent `weight` is ignored on purpose). `predictions`: P(success), P(stall), P(fix fails) of the current task with the given or prior coefficients. `records`: the task records of a whole stream. `calibration`: per source and model, coefficients (tolerance 1e-6), flag and task count, and probe probabilities. `comparison`: the aggregates over a date range. `thinking`: the live thinking line (6.9 Live thinking): liveThinking, thinkingShare and the window weight of the set, every agent and every board group.",
+ "_comment": "METRICS 6.9 and 6.11, checked by spec/tools/task_score.py and generated from spec/tools/task_score_cases.py (--write). Events are the normalised stream of 6.9 (prompt / action with kind, tool, digest, command, outcome, failures, hunks); an outcome whose `t` is after a query's `nowMs` is not known yet. `continuations`: is the text a continuation. `promptLines`: the prompt kind of one line of a source (`t`: the prompt's own time when it is not the line's, a queued Claude message). `segmentation`: prompt events from classified lines. `tasks`: the current task of a stream at `nowMs` (absent: everything): state, score (unrounded), shown (half away from zero), the five dimensions, IG, loop and oscillation shares, counts, first pass, stall window ends and the task facts vHeld, openFailure and lastPass. `values`: agent forms and the highest-score rule for groups and the whole set (agent `weight` is ignored on purpose). `predictions`: P(success), P(stall), P(fix fails) of the current task with the given or prior coefficients. `records`: the task records of a whole stream. `calibration`: per source and model, coefficients (tolerance 1e-6), flag and task count, and probe probabilities. `comparison`: the aggregates over a date range (and one source when `source` is given). `thinking`: the live thinking line (6.9 Live thinking): liveThinking, thinkingShare and the window weight of the set, every agent and every board group.",
  "continuations": [
   {
    "text": "continue",
@@ -929,7 +929,10 @@
        "fixFailures": 0
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": null
      }
     }
    ]
@@ -1036,7 +1039,10 @@
        "fixFailures": 0
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": null
      }
     }
    ]
@@ -1137,7 +1143,10 @@
        "fixFailures": 0
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": null
      }
     },
     {
@@ -1170,7 +1179,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000013000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     }
    ]
@@ -1354,7 +1371,18 @@
        "fixFailures": 2
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "errors": 2,
+       "peak": 5,
+       "counted": true,
+       "edited": false
+      },
+      "lastPass": null
      }
     },
     {
@@ -1387,7 +1415,15 @@
        "fixFailures": 1
       },
       "firstPassMs": 1000000051000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     }
    ]
@@ -1519,7 +1555,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000012000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     },
     {
@@ -1553,7 +1597,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000012000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": 40.0,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     },
     {
@@ -1586,7 +1638,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000012000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     }
    ]
@@ -1721,7 +1781,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000012000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     },
     {
@@ -1754,7 +1822,18 @@
        "fixFailures": 1
       },
       "firstPassMs": 1000000012000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "errors": 2,
+       "peak": 2,
+       "counted": true,
+       "edited": false
+      },
+      "lastPass": null
      }
     }
    ]
@@ -1894,7 +1973,18 @@
        "fixFailures": 2
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "errors": 2,
+       "peak": 5,
+       "counted": true,
+       "edited": false
+      },
+      "lastPass": null
      }
     }
    ]
@@ -2070,7 +2160,18 @@
        "fixFailures": 4
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "errors": 3,
+       "peak": 3,
+       "counted": true,
+       "edited": false
+      },
+      "lastPass": null
      }
     }
    ]
@@ -2248,7 +2349,15 @@
        "fixFailures": 1
       },
       "firstPassMs": 1000000051000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     }
    ]
@@ -2369,7 +2478,10 @@
        "fixFailures": 0
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": null
      }
     }
    ]
@@ -2476,7 +2588,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000012000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     }
    ]
@@ -2564,7 +2684,229 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000012000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo build",
+       "class": "build",
+       "key": "cca0c262cffb0bb9",
+       "buildOnly": true
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "pending after a build-only pass holds 20",
+   "events": [
+    {
+     "t": 1000000000000,
+     "type": "prompt",
+     "continuation": false
+    },
+    {
+     "t": 1000000001000,
+     "type": "action",
+     "kind": "edit",
+     "tool": "Edit",
+     "digest": "153407ccb3faf9c6",
+     "hunks": [
+      {
+       "file": "252f10c83610ebca",
+       "old": "ca978112ca1bbdca",
+       "new": "3e23e8160039594a"
+      }
+     ],
+     "outcome": {
+      "t": 1000000001300,
+      "exitCode": null,
+      "failed": false
+     }
+    },
+    {
+     "t": 1000000002000,
+     "type": "action",
+     "kind": "command",
+     "tool": "Bash",
+     "digest": "e221c10ca570b621",
+     "command": {
+      "class": "build",
+      "suite": "cargo build",
+      "targeted": false,
+      "key": "cca0c262cffb0bb9"
+     },
+     "outcome": {
+      "t": 1000000012000,
+      "exitCode": 0,
+      "failed": false
+     },
+     "failures": {
+      "fingerprints": [],
+      "failedCount": null,
+      "passedCount": null,
+      "framework": "cargo"
+     }
+    },
+    {
+     "t": 1000000020000,
+     "type": "action",
+     "kind": "edit",
+     "tool": "Edit",
+     "digest": "4a38ba8ddadeccf5",
+     "hunks": [
+      {
+       "file": "252f10c83610ebca",
+       "old": "3e23e8160039594a",
+       "new": "2e7d2c03a9507ae2"
+      }
+     ],
+     "outcome": {
+      "t": 1000000020300,
+      "exitCode": null,
+      "failed": false
+     }
+    }
+   ],
+   "queries": [
+    {
+     "expect": {
+      "state": "pending",
+      "score": 43.75,
+      "shown": 44,
+      "dims": {
+       "V": 0.0,
+       "C": 25.0,
+       "R": 15.0,
+       "E": 3.75,
+       "K": 0.0
+      },
+      "ig": 1.0,
+      "loop": 0.0,
+      "osc": 0.0,
+      "counts": {
+       "actions": 3,
+       "counted": 3,
+       "edits": 2,
+       "oscillations": 0,
+       "loopActions": 0,
+       "runs": 1,
+       "failingRuns": 0,
+       "episodes": 0,
+       "recovered": 0,
+       "recoverAttempts": 0,
+       "fixAttempts": 0,
+       "fixFailures": 0
+      },
+      "firstPassMs": 1000000012000,
+      "stallEnds": [],
+      "vHeld": 20.0,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo build",
+       "class": "build",
+       "key": "cca0c262cffb0bb9",
+       "buildOnly": true
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "a failure without counts: one error, not counted",
+   "events": [
+    {
+     "t": 1000000000000,
+     "type": "prompt",
+     "continuation": false
+    },
+    {
+     "t": 1000000001000,
+     "type": "action",
+     "kind": "edit",
+     "tool": "Edit",
+     "digest": "153407ccb3faf9c6",
+     "hunks": [
+      {
+       "file": "252f10c83610ebca",
+       "old": "ca978112ca1bbdca",
+       "new": "3e23e8160039594a"
+      }
+     ],
+     "outcome": {
+      "t": 1000000001300,
+      "exitCode": null,
+      "failed": false
+     }
+    },
+    {
+     "t": 1000000002000,
+     "type": "action",
+     "kind": "command",
+     "tool": "Bash",
+     "digest": "5ef93978cc5125bf",
+     "command": {
+      "class": "check",
+      "suite": null,
+      "targeted": false,
+      "key": "11f4eccca5803dcc"
+     },
+     "outcome": {
+      "t": 1000000012000,
+      "exitCode": 1,
+      "failed": true
+     },
+     "failures": {
+      "fingerprints": [],
+      "failedCount": null,
+      "passedCount": null,
+      "framework": "cargo"
+     }
+    }
+   ],
+   "queries": [
+    {
+     "expect": {
+      "state": "failing",
+      "score": 6.5,
+      "shown": 7,
+      "dims": {
+       "V": 0.0,
+       "C": 0.0,
+       "R": 0.0,
+       "E": 2.5,
+       "K": 4.0
+      },
+      "ig": 1.0,
+      "loop": 0.0,
+      "osc": 0.0,
+      "counts": {
+       "actions": 2,
+       "counted": 2,
+       "edits": 1,
+       "oscillations": 0,
+       "loopActions": 0,
+       "runs": 1,
+       "failingRuns": 1,
+       "episodes": 1,
+       "recovered": 0,
+       "recoverAttempts": 0,
+       "fixAttempts": 1,
+       "fixFailures": 1
+      },
+      "firstPassMs": null,
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": {
+       "suite": null,
+       "class": "check",
+       "key": "11f4eccca5803dcc",
+       "errors": 1,
+       "peak": 1,
+       "counted": false,
+       "edited": false
+      },
+      "lastPass": null
      }
     }
    ]
@@ -2645,7 +2987,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000012000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     }
    ]
@@ -2831,7 +3181,15 @@
        "fixFailures": 1
       },
       "firstPassMs": 1000000051000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "f623066352c9897d",
+       "buildOnly": false
+      }
      }
     },
     {
@@ -2864,7 +3222,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000051000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     }
    ]
@@ -3018,7 +3384,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000012000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     },
     {
@@ -3052,7 +3426,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000012000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     },
     {
@@ -3086,7 +3468,10 @@
        "fixFailures": 0
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": null
      }
     },
     {
@@ -3119,7 +3504,10 @@
        "fixFailures": 0
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": null
      }
     }
    ]
@@ -3234,7 +3622,18 @@
        "fixFailures": 1
       },
       "firstPassMs": 1000000012000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": {
+       "suite": "npm test",
+       "class": "test",
+       "key": "b9243a160e24df8b",
+       "errors": 2,
+       "peak": 2,
+       "counted": true,
+       "edited": false
+      },
+      "lastPass": null
      }
     }
    ]
@@ -3344,7 +3743,18 @@
        "fixFailures": 1
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "errors": 2,
+       "peak": 2,
+       "counted": true,
+       "edited": true
+      },
+      "lastPass": null
      }
     }
    ]
@@ -3457,7 +3867,10 @@
        "fixFailures": 0
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": null
      }
     },
     {
@@ -3490,7 +3903,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000040000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "buildOnly": false
+      }
      }
     }
    ]
@@ -3603,7 +4024,18 @@
        "fixFailures": 1
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "3e51f085eb01e5ba",
+       "errors": 3,
+       "peak": 3,
+       "counted": true,
+       "edited": false
+      },
+      "lastPass": null
      }
     },
     {
@@ -3636,7 +4068,15 @@
        "fixFailures": 0
       },
       "firstPassMs": 1000000031000,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "3e51f085eb01e5ba",
+       "buildOnly": false
+      }
      }
     }
    ]
@@ -3792,7 +4232,10 @@
       "stallEnds": [
        8,
        9
-      ]
+      ],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": null
      }
     }
    ]
@@ -3958,7 +4401,18 @@
        "fixFailures": 3
       },
       "firstPassMs": null,
-      "stallEnds": []
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": {
+       "suite": "cargo test",
+       "class": "test",
+       "key": "7c17d3e8c6a6f335",
+       "errors": 1,
+       "peak": 1,
+       "counted": true,
+       "edited": false
+      },
+      "lastPass": null
      }
     }
    ]
@@ -13406,6 +13860,20 @@
       "scoredTasks": 3,
       "medianScore": 66.5,
       "medianShown": 67,
+      "lowerQuartile": 45.25,
+      "upperQuartile": 80.125,
+      "histogram": [
+       0,
+       0,
+       1,
+       0,
+       0,
+       0,
+       1,
+       0,
+       0,
+       1
+      ],
       "successRate": 0.6666666666666666,
       "stallRate": 0.25,
       "fixFailureRate": 0.8,
@@ -13418,6 +13886,20 @@
       "scoredTasks": 3,
       "medianScore": 43.75,
       "medianShown": 44,
+      "lowerQuartile": 24.375,
+      "upperQuartile": 70.625,
+      "histogram": [
+       1,
+       0,
+       0,
+       0,
+       1,
+       0,
+       0,
+       0,
+       0,
+       1
+      ],
       "successRate": 0.3333333333333333,
       "stallRate": 0.3333333333333333,
       "fixFailureRate": 0.0,
@@ -13428,10 +13910,27 @@
     "byModel": [
      {
       "model": "gpt-5.5",
+      "sources": [
+       "codex"
+      ],
       "tasks": 3,
       "scoredTasks": 2,
       "medianScore": 58.875,
       "medianShown": 59,
+      "lowerQuartile": 41.4375,
+      "upperQuartile": 76.3125,
+      "histogram": [
+       0,
+       0,
+       1,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       1
+      ],
       "successRate": 0.5,
       "stallRate": 0.3333333333333333,
       "fixFailureRate": 0.8,
@@ -13440,10 +13939,27 @@
      },
      {
       "model": "claude-opus-5-5",
+      "sources": [
+       "claudeCode"
+      ],
       "tasks": 2,
       "scoredTasks": 2,
       "medianScore": 70.625,
       "medianShown": 71,
+      "lowerQuartile": 57.1875,
+      "upperQuartile": 84.0625,
+      "histogram": [
+       0,
+       0,
+       0,
+       0,
+       1,
+       0,
+       0,
+       0,
+       0,
+       1
+      ],
       "successRate": 0.5,
       "stallRate": 0.0,
       "fixFailureRate": 0.0,
@@ -13452,10 +13968,27 @@
      },
      {
       "model": "",
+      "sources": [
+       "claudeCode"
+      ],
       "tasks": 1,
       "scoredTasks": 1,
       "medianScore": 5.0,
       "medianShown": 5,
+      "lowerQuartile": 5.0,
+      "upperQuartile": 5.0,
+      "histogram": [
+       1,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
       "successRate": 0.0,
       "stallRate": 1.0,
       "fixFailureRate": null,
@@ -13464,15 +13997,283 @@
      },
      {
       "model": "gpt-5.5-mini",
+      "sources": [
+       "codex"
+      ],
       "tasks": 1,
       "scoredTasks": 1,
       "medianScore": 66.5,
       "medianShown": 67,
+      "lowerQuartile": 66.5,
+      "upperQuartile": 66.5,
+      "histogram": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       1,
+       0,
+       0,
+       0
+      ],
       "successRate": 1.0,
       "stallRate": 0.0,
       "fixFailureRate": null,
       "recoverAttempts": null,
       "timeToFirstPassMs": 100000
+     }
+    ]
+   }
+  },
+  {
+   "name": "one source chosen in the window's picker",
+   "records": [
+    {
+     "source": "codex",
+     "model": "gpt-5.5",
+     "day": "2026-10-26",
+     "complete": true,
+     "score": 93.75,
+     "success": true,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": 1000000040000,
+     "counts": {
+      "fixAttempts": 2,
+      "fixFailures": 1,
+      "recovered": 1,
+      "recoverAttempts": 2
+     }
+    },
+    {
+     "source": "codex",
+     "model": "gpt-5.5",
+     "day": "2026-10-27",
+     "complete": true,
+     "score": 24.0,
+     "success": false,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 3,
+      "fixFailures": 3,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "codex",
+     "model": "gpt-5.5",
+     "day": "2026-10-27",
+     "complete": true,
+     "score": null,
+     "success": false,
+     "stalled": true,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "codex",
+     "model": "gpt-5.5-mini",
+     "day": "2026-10-28",
+     "complete": true,
+     "score": 66.5,
+     "success": true,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": 1000000100000,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "claudeCode",
+     "model": "claude-opus-5-5",
+     "day": "2026-10-26",
+     "complete": true,
+     "score": 97.5,
+     "success": true,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": 1000000060000,
+     "counts": {
+      "fixAttempts": 1,
+      "fixFailures": 0,
+      "recovered": 1,
+      "recoverAttempts": 1
+     }
+    },
+    {
+     "source": "claudeCode",
+     "model": "claude-opus-5-5",
+     "day": "2026-10-28",
+     "complete": true,
+     "score": 43.75,
+     "success": false,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": 1000000010000,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "claudeCode",
+     "model": null,
+     "day": "2026-10-28",
+     "complete": true,
+     "score": 5.0,
+     "success": false,
+     "stalled": true,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "claudeCode",
+     "model": "claude-opus-5-5",
+     "day": "2026-10-28",
+     "complete": false,
+     "score": 99.0,
+     "success": true,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "codex",
+     "model": "gpt-5.5",
+     "day": "2026-10-20",
+     "complete": true,
+     "score": 10.0,
+     "success": false,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    }
+   ],
+   "first": "2026-10-26",
+   "last": "2026-10-28",
+   "source": "claudeCode",
+   "expect": {
+    "bySource": [
+     {
+      "source": "claudeCode",
+      "tasks": 3,
+      "scoredTasks": 3,
+      "medianScore": 43.75,
+      "medianShown": 44,
+      "lowerQuartile": 24.375,
+      "upperQuartile": 70.625,
+      "histogram": [
+       1,
+       0,
+       0,
+       0,
+       1,
+       0,
+       0,
+       0,
+       0,
+       1
+      ],
+      "successRate": 0.3333333333333333,
+      "stallRate": 0.3333333333333333,
+      "fixFailureRate": 0.0,
+      "recoverAttempts": 1.0,
+      "timeToFirstPassMs": 35000.0
+     }
+    ],
+    "byModel": [
+     {
+      "model": "claude-opus-5-5",
+      "sources": [
+       "claudeCode"
+      ],
+      "tasks": 2,
+      "scoredTasks": 2,
+      "medianScore": 70.625,
+      "medianShown": 71,
+      "lowerQuartile": 57.1875,
+      "upperQuartile": 84.0625,
+      "histogram": [
+       0,
+       0,
+       0,
+       0,
+       1,
+       0,
+       0,
+       0,
+       0,
+       1
+      ],
+      "successRate": 0.5,
+      "stallRate": 0.0,
+      "fixFailureRate": 0.0,
+      "recoverAttempts": 1.0,
+      "timeToFirstPassMs": 35000.0
+     },
+     {
+      "model": "",
+      "sources": [
+       "claudeCode"
+      ],
+      "tasks": 1,
+      "scoredTasks": 1,
+      "medianScore": 5.0,
+      "medianShown": 5,
+      "lowerQuartile": 5.0,
+      "upperQuartile": 5.0,
+      "histogram": [
+       1,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "successRate": 0.0,
+      "stallRate": 1.0,
+      "fixFailureRate": null,
+      "recoverAttempts": null,
+      "timeToFirstPassMs": null
      }
     ]
    }
@@ -13639,6 +14440,322 @@
    "expect": {
     "bySource": [],
     "byModel": []
+   }
+  },
+  {
+   "name": "quartiles and histogram bins at their edges; a model across sources",
+   "records": [
+    {
+     "source": "codex",
+     "model": "m1",
+     "day": "2026-10-28",
+     "complete": true,
+     "score": 100.0,
+     "success": false,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "codex",
+     "model": "m1",
+     "day": "2026-10-28",
+     "complete": true,
+     "score": 9.999,
+     "success": false,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "codex",
+     "model": "m1",
+     "day": "2026-10-28",
+     "complete": true,
+     "score": 90.0,
+     "success": false,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "codex",
+     "model": "m1",
+     "day": "2026-10-28",
+     "complete": true,
+     "score": 0.0,
+     "success": false,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "codex",
+     "model": "m1",
+     "day": "2026-10-28",
+     "complete": true,
+     "score": 89.99,
+     "success": false,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "codex",
+     "model": "m1",
+     "day": "2026-10-28",
+     "complete": true,
+     "score": 10.0,
+     "success": false,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "openclaw",
+     "model": "m1",
+     "day": "2026-10-28",
+     "complete": true,
+     "score": 50.0,
+     "success": false,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    {
+     "source": "openclaw",
+     "model": "m1",
+     "day": "2026-10-28",
+     "complete": true,
+     "score": null,
+     "success": false,
+     "stalled": true,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    }
+   ],
+   "first": "2026-10-28",
+   "last": "2026-10-28",
+   "expect": {
+    "bySource": [
+     {
+      "source": "codex",
+      "tasks": 6,
+      "scoredTasks": 6,
+      "medianScore": 49.995,
+      "medianShown": 50,
+      "lowerQuartile": 9.99925,
+      "upperQuartile": 89.9975,
+      "histogram": [
+       2,
+       1,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       1,
+       2
+      ],
+      "successRate": 0.0,
+      "stallRate": 0.0,
+      "fixFailureRate": null,
+      "recoverAttempts": null,
+      "timeToFirstPassMs": null
+     },
+     {
+      "source": "openclaw",
+      "tasks": 2,
+      "scoredTasks": 1,
+      "medianScore": 50.0,
+      "medianShown": 50,
+      "lowerQuartile": 50.0,
+      "upperQuartile": 50.0,
+      "histogram": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       1,
+       0,
+       0,
+       0,
+       0
+      ],
+      "successRate": 0.0,
+      "stallRate": 0.5,
+      "fixFailureRate": null,
+      "recoverAttempts": null,
+      "timeToFirstPassMs": null
+     }
+    ],
+    "byModel": [
+     {
+      "model": "m1",
+      "sources": [
+       "codex",
+       "openclaw"
+      ],
+      "tasks": 8,
+      "scoredTasks": 7,
+      "medianScore": 50.0,
+      "medianShown": 50,
+      "lowerQuartile": 9.999500000000001,
+      "upperQuartile": 89.995,
+      "histogram": [
+       2,
+       1,
+       0,
+       0,
+       0,
+       1,
+       0,
+       0,
+       1,
+       2
+      ],
+      "successRate": 0.0,
+      "stallRate": 0.125,
+      "fixFailureRate": null,
+      "recoverAttempts": null,
+      "timeToFirstPassMs": null
+     }
+    ]
+   }
+  },
+  {
+   "name": "no scored task: no quartiles, an empty histogram",
+   "first": "2026-10-27",
+   "last": "2026-10-27",
+   "records": [
+    {
+     "source": "pi",
+     "model": "m2",
+     "day": "2026-10-27",
+     "complete": true,
+     "score": null,
+     "success": false,
+     "stalled": false,
+     "startMs": 1000000000000,
+     "firstPassMs": null,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    }
+   ],
+   "expect": {
+    "bySource": [
+     {
+      "source": "pi",
+      "tasks": 1,
+      "scoredTasks": 0,
+      "medianScore": null,
+      "medianShown": null,
+      "lowerQuartile": null,
+      "upperQuartile": null,
+      "histogram": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "successRate": null,
+      "stallRate": 0.0,
+      "fixFailureRate": null,
+      "recoverAttempts": null,
+      "timeToFirstPassMs": null
+     }
+    ],
+    "byModel": [
+     {
+      "model": "m2",
+      "sources": [
+       "pi"
+      ],
+      "tasks": 1,
+      "scoredTasks": 0,
+      "medianScore": null,
+      "medianShown": null,
+      "lowerQuartile": null,
+      "upperQuartile": null,
+      "histogram": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "successRate": null,
+      "stallRate": 0.0,
+      "fixFailureRate": null,
+      "recoverAttempts": null,
+      "timeToFirstPassMs": null
+     }
+    ]
    }
   }
  ],

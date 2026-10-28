@@ -455,11 +455,11 @@ class Evaluation:
         for r in self.runs:
             blocks.setdefault(r.block, []).append(r)
         self.current_block = blocks.get(self.edits, [])
+        self.latest_block = blocks[max(blocks)] if blocks else []
         if self.current_block:
             self.state = "failing" if self._block_fails(self.current_block) else "passing"
         elif self.runs:
-            latest = blocks[max(blocks)]
-            self.state = "failing" if self._block_fails(latest) else "pending"
+            self.state = "failing" if self._block_fails(self.latest_block) else "pending"
         else:
             self.state = "unverified" if self.edits else "none"
 
@@ -539,6 +539,33 @@ class Evaluation:
         open_runs = [seq[-1] for check, seq in self.seq.items() if seq[-1].result == "fail" and seq[-1].check == check]
         return max(open_runs, key=lambda r: r.index) if open_runs else None
 
+    def held_v(self):
+        """While pending: the V the latest verified block would give without the edit after it."""
+        if self.state != "pending":
+            return None
+        return V_TEST if any(r.run_class == "test" and r.result == "pass" for r in self.latest_block) else V_BUILD
+
+    def open_failure_facts(self):
+        """While failing: the open failure's check, its error count against the check's peak, and whether an
+        effective edit followed it."""
+        if self.state != "failing":
+            return None
+        run = self.open_failure()
+        failed_count = run.failures.get("failedCount")
+        return {"suite": run.suite, "class": run.run_class, "key": run.command["key"], "errors": run.errors,
+                "peak": max(r.errors for r in self.seq[run.check]),
+                "counted": bool(run.fingerprints) or (_is_int(failed_count) and failed_count > 0),
+                "edited": run.block < self.edits}
+
+    def last_pass_facts(self):
+        """While passing or pending: the run that passed last and whether its block passed build or check runs only."""
+        if self.state not in ("passing", "pending"):
+            return None
+        block = self.current_block if self.state == "passing" else self.latest_block
+        run = block[-1]
+        return {"suite": run.suite, "class": run.run_class, "key": run.command["key"],
+                "buildOnly": not any(r.run_class == "test" and r.result == "pass" for r in block)}
+
 
 def fix_label(next_run):
     return 1 if next_run is None or next_run.result == "fail" else 0
@@ -561,7 +588,8 @@ def current_task(events, now=None):
 def task_result(ev):
     return {"state": ev.state, "score": ev.score, "shown": None if ev.score is None else round_half_away(ev.score),
             "dims": ev.dims(), "ig": ev.ig, "loop": ev.loop, "osc": ev.osc, "counts": ev.counts(),
-            "firstPassMs": ev.first_pass_ms(), "stallEnds": ev.stall_ends}
+            "firstPassMs": ev.first_pass_ms(), "stallEnds": ev.stall_ends, "vHeld": ev.held_v(),
+            "openFailure": ev.open_failure_facts(), "lastPass": ev.last_pass_facts()}
 
 
 # ----------------------------------------------------------------------------- values (6.9 Agent, group and set values)
@@ -778,33 +806,51 @@ def calibrate(records):
 
 # ----------------------------------------------------------------------------- comparison (6.11)
 
-def median(values):
+HISTOGRAM_EDGES = (10, 20, 30, 40, 50, 60, 70, 80, 90)
+
+
+def quantile(values, p):
+    """Linear interpolation between order statistics, h = (n − 1)·p; None for no values."""
     values = sorted(values)
     if not values:
         return None
-    middle = len(values) // 2
-    return values[middle] if len(values) % 2 else (values[middle - 1] + values[middle]) / 2
+    h = (len(values) - 1) * p
+    i = math.floor(h)
+    fraction = h - i
+    return values[i] if fraction == 0 else values[i] + fraction * (values[i + 1] - values[i])
+
+
+def histogram(scores):
+    """Ten bins [0, 10) … [80, 90) and [90, 100]: a score's bin is the number of edges it reaches."""
+    bins = [0] * (len(HISTOGRAM_EDGES) + 1)
+    for score in scores:
+        bins[sum(1 for edge in HISTOGRAM_EDGES if score >= edge)] += 1
+    return bins
 
 
 def aggregate(records):
     scored = [r for r in records if r["score"] is not None]
+    scores = [r["score"] for r in scored]
     fix_attempts = sum(r["counts"]["fixAttempts"] for r in records)
     recovered = sum(r["counts"]["recovered"] for r in records)
     first_pass = [r["firstPassMs"] - r["startMs"] for r in records if r["firstPassMs"] is not None]
-    med = median([r["score"] for r in scored])
+    med = quantile(scores, 0.5)
     return {
         "tasks": len(records), "scoredTasks": len(scored), "medianScore": med,
         "medianShown": None if med is None else round_half_away(med),
+        "lowerQuartile": quantile(scores, 0.25), "upperQuartile": quantile(scores, 0.75),
+        "histogram": histogram(scores),
         "successRate": sum(1 for r in scored if r["success"]) / len(scored) if scored else None,
         "stallRate": sum(1 for r in records if r["stalled"]) / len(records) if records else None,
         "fixFailureRate": sum(r["counts"]["fixFailures"] for r in records) / fix_attempts if fix_attempts else None,
         "recoverAttempts": sum(r["counts"]["recoverAttempts"] for r in records) / recovered if recovered else None,
-        "timeToFirstPassMs": median(first_pass),
+        "timeToFirstPassMs": quantile(first_pass, 0.5),
     }
 
 
-def compare(records, first, last):
-    chosen = [r for r in records if r["complete"] and first <= r["day"] <= last]
+def compare(records, first, last, source=None):
+    """6.11 Comparison over [first, last], for every source or for the one the window's picker chose."""
+    chosen = [r for r in records if r["complete"] and first <= r["day"] <= last and source in (None, r["source"])]
     by_source = []
     for source in SOURCE_ORDER:
         part = [r for r in chosen if r["source"] == source]
@@ -813,7 +859,8 @@ def compare(records, first, last):
     models = {}
     for r in chosen:
         models.setdefault(r["model"] or "", []).append(r)
-    by_model = [dict(model=m, **aggregate(part)) for m, part in models.items()]
+    by_model = [dict(model=m, sources=[s for s in SOURCE_ORDER if any(r["source"] == s for r in part)],
+                     **aggregate(part)) for m, part in models.items()]
     by_model.sort(key=lambda row: (-row["tasks"], row["model"].encode("utf-8")))
     return {"bySource": by_source, "byModel": by_model}
 
@@ -865,7 +912,8 @@ def compute(cases):
                 probes.append({"model": name, "p": p, "shown": round_half_away(p * 100)})
             expect[source] = {"models": models, "probes": probes}
         out["calibration"].append(dict(case, expect=expect))
-    out["comparison"] = [dict(c, expect=compare(c["records"], c["first"], c["last"])) for c in cases["comparison"]]
+    out["comparison"] = [dict(c, expect=compare(c["records"], c["first"], c["last"], c.get("source")))
+                         for c in cases["comparison"]]
     out["thinking"] = compute_thinking(cases["thinking"])
     return out
 

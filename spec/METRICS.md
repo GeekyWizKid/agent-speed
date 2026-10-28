@@ -2025,9 +2025,9 @@ a passing test run also earns the build credit, because runners such as `cargo t
 rather than only "after a targeted fix", so a task that ran the full suite from the start is not capped at 98.
 
 Cases: `tasks` (one per dimension and edge case: none, unverified, ideal, convergence and recovery, pending, regression
-and its penalty, loops, oscillation, whole-file writes, failed edits, build-only, verification without edits, targeted
-then full, continuation, a check beside a failing test, failed then edited, unknown outcomes, piped failures, stall,
-`other` tools).
+and its penalty, loops, oscillation, whole-file writes, failed edits, build-only, pending after a build-only pass, a
+failure without counts, verification without edits, targeted then full, continuation, a check beside a failing test,
+failed then edited, unknown outcomes, piped failures, stall, `other` tools).
 
 #### Score
 
@@ -2046,6 +2046,20 @@ It changes only when an event is read, never with time alone. It rises with prog
 
 A task that never runs a check scores at most 10 (E alone), within the plan's "roughly ≤ 25". A new prompt starts a new
 task, so the agent's value starts over; the finished task keeps its final score (6.11 records it).
+
+#### Task facts
+
+Besides its state, score and dimensions, a task gives the score card (DESIGN 12) these facts, from the same evaluation:
+
+| Fact | Value |
+| --- | --- |
+| `vHeld` | `pending` only: the V of the latest non-empty block (40 when it has a passing test run, else 20) — the credit a passing re-run restores; null in every other state |
+| `openFailure` | `failing` only: the *open failure*, the newest failing run that is still the last element of its check's sequence (in state `failing` there always is one): its `suite` (null when unknown), `class` and `key`; `errors`, its `F`; `peak`, its check's `F_peak`; `counted`, true when `F` comes from fingerprints or a `failedCount` above 0 rather than the minimum of 1; `edited`, true when an effective edit followed it. Null in every other state |
+| `lastPass` | `passing` and `pending` only: the last run of the current block (`passing`) or of the latest non-empty block (`pending`) — it passes, since that block does not fail: its `suite`, `class` and `key`; `buildOnly`, true when that block has no passing test run (V, or `vHeld`, is 20). Null in every other state |
+| `oscillations` | the task's oscillating effective edits (the numerator of `O`; also a record count, 6.11) |
+
+`IG`, `L` and `O` (*Dimensions*) and the counts of 6.11 *Task records* are facts too. A `suite` names a check for
+display; a `key` is a digest and only tells checks apart. Cases: the `tasks` queries carry every fact.
 
 #### Values
 
@@ -2265,8 +2279,8 @@ trend and undone edits make a fix more likely to fail), and their sizes give pla
 keeps finding something new reads about 35 % success and 5 % stall; a passing, converged task about 97 % success.
 
 For an agent's current task **with a score** (6.9), on every engine tick: `P(success)` and `P(stall)` from the live
-features; `P(fix fails)` only in state `failing`, from the fix-row features of the *open failure* — the newest failing
-run that is still the last element of its check's sequence — as they stood right after that run. Shown as percentages
+features; `P(fix fails)` only in state `failing`, from the fix-row features of the open failure (6.9 *Task facts*) as
+they stood right after that run. Shown as percentages
 rounded half away from zero (DESIGN). They use the coefficients of the agent's source (*Calibration*), with the flag
 "prior" or "calibrated on N tasks" per model. Cases: `predictions`.
 
@@ -2298,23 +2312,36 @@ Cases: `calibration` (a synthetic history: one source calibrated, one below 40 t
 
 #### Comparison
 
-The Usage History window's *task performance* (DESIGN) compares sources and models over its date range [`first`,
-`last`]: the complete records whose `day` lies in the range (incomplete ones join once complete). For each source with
-records, in the source order of section 1 (`bySource`), and for each model id with records across sources, the empty
-string for an unknown model (`byModel`, ordered by `tasks` descending, then the id's UTF-8 bytes):
+The Usage History window's *task performance* (DESIGN 12) compares sources and models over its date range
+[`first`, `last`]: the complete records whose `day` lies in the range (incomplete ones join once complete) — of every
+scored source, or only of the one source chosen in the window's source picker. For each source with records, in the
+source order of section 1 (`bySource`), and for each model id with records across those sources, the empty string for
+an unknown model (`byModel`, ordered by `tasks` descending, then the id's UTF-8 bytes; each row also lists its
+`sources`, the sources with records of that model, in source order):
 
-| Value | Computation (null when its denominator is 0) |
+| Value | Computation (null when its denominator is 0, or when there is no value to take a quantile of) |
 | --- | --- |
 | `tasks` | records |
 | `scoredTasks` | records with a score |
-| `medianScore` | the median of their scores (the mean of the two middle values for an even count); shown rounded half away from zero |
+| `medianScore` | `q(0.5)` of their scores; shown rounded half away from zero |
+| `lowerQuartile`, `upperQuartile` | `q(0.25)` and `q(0.75)` of their scores |
+| `histogram` | ten counts of their scores, bins `[0, 10)`, `[10, 20)`, … `[80, 90)` and `[90, 100]` (all zeros without a scored record) |
 | `successRate` | `success` records ÷ `scoredTasks` |
 | `stallRate` | `stalled` records ÷ `tasks` |
 | `fixFailureRate` | Σ `fixFailures` ÷ Σ `fixAttempts` |
 | `recoverAttempts` | Σ `recoverAttempts` ÷ Σ `recovered`: the mean attempts of a recovered episode |
-| `timeToFirstPassMs` | the median of `firstPassMs − startMs` over records with a pass |
+| `timeToFirstPassMs` | `q(0.5)` of `firstPassMs − startMs` over records with a pass |
 
-Cases: `comparison`.
+- *Scores* are the unrounded `score`s of the records with a score; tasks without one count only in `tasks` and
+  `stallRate`.
+- `q(p)` over values sorted ascending `v[0] … v[n − 1]`: `h = (n − 1)·p`, `i = ⌊h⌋`; `q = v[i]` when `h = i`, else
+  `v[i] + (h − i)·(v[i + 1] − v[i])` (linear interpolation between order statistics). So the median is the middle value,
+  or the two middle ones' midpoint, and one value is every quantile.
+- A score's bin is the number of the edges 10, 20, 30, 40, 50, 60, 70, 80 and 90 that it reaches (`score ≥ edge`),
+  compared exactly, never by dividing: 9.999 is in bin 0, 10 in bin 1, 90 and 100 in bin 9.
+
+Cases: `comparison` (a range, one source, an empty range, quartiles and bins at their edges with a model across two
+sources, a source without scored tasks).
 
 ## 7. Number formatting (both platforms)
 
