@@ -14,6 +14,18 @@ enum BoardEffectsRenderer {
     /// frames behind).
     private static let streakSeconds = 3.5 / 60
 
+    /// The bloom outside the board (DESIGN 2c Perimeter): the prototypes' `box-shadow` (blur `bloom × bloomBlur`, so
+    /// σ = half of it, and spread `bloom × bloomSpread`) fading out along the board's outline to nothing
+    /// `BoardEffects.bloomReach` points out, so the canvas edge never cuts it.
+    static func bloom(_ fx: BoardEffects) -> OrbInstance {
+        let m = BoardEffects.margin
+        return .outsideBloom(center: CGPoint(x: m + fx.side / 2, y: m + fx.side / 2),
+                             halfSize: CGSize(width: fx.side / 2, height: fx.side / 2),
+                             corner: CGFloat(fx.preset.cornerRadius), spread: CGFloat(fx.bloom * fx.preset.bloomSpread),
+                             sigma: CGFloat(fx.bloom * fx.preset.bloomBlur / 2), reach: CGFloat(BoardEffects.bloomReach),
+                             color: RGBColor(fx.bloomColor))
+    }
+
     static func overlay(_ fx: BoardEffects, into scene: inout OrbScene, highContrast: Bool = false) {
         scene.reset()
         guard fx.intensity != .off || fx.ringAlpha > 0 else { return }
@@ -25,12 +37,7 @@ enum BoardEffectsRenderer {
         let length = fx.outline.length
 
         if !highContrast {
-            let bloom = fx.bloom
-            scene.add(.outsideBloom(center: CGPoint(x: m + fx.side / 2, y: m + fx.side / 2),
-                                    halfSize: CGSize(width: fx.side / 2, height: fx.side / 2),
-                                    corner: CGFloat(fx.preset.cornerRadius), spread: CGFloat(bloom * fx.preset.bloomSpread),
-                                    sigma: CGFloat(bloom * fx.preset.bloomBlur / 2), color: RGBColor(fx.bloomColor)),
-                      blend: .over)
+            scene.add(bloom(fx), blend: .over)
             scene.add(.perimeter(center: center, halfSize: halfSize, corner: corner, width: 0,
                                  color: RGBColor(fx.ringColor), core: 0, glow: ringGlow.radius,
                                  glowAlpha: ringGlow.peak * min(1, fx.ringGlowAlpha)), blend: .over)

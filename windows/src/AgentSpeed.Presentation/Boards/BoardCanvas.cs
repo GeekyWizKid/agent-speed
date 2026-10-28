@@ -11,6 +11,12 @@ public readonly record struct BoardCanvas(double Side, double Radius)
 {
     public const double Margin = 40;
 
+    /// <summary>
+    /// The bloom fades out along the rounded square's outline to nothing this far outside it, 2 pt short of the window's edge
+    /// (DESIGN 2c Perimeter).
+    /// </summary>
+    public const double BloomReach = Margin - 2;
+
     /// <summary>Inset of the ring and the comets' track from the square's edge (fx.js <c>inset</c>).</summary>
     public const double TrackInset = 0.8;
 

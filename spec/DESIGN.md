@@ -1347,7 +1347,11 @@ Sub rows sort by live value, latest activity, id; they emit nothing. Shared case
   fading tail in the heat color (white-hot core above h = 0.85). Count by effect tier: idle 1 (dim), cruise 1,
   boost 2, overdrive 3, redline 4 (timing 1/1/2/2/3; neon 1/2/3/4/4). Lap time 7 s at idle down to 1.6 s at the
   redline. From h = 0.55 a full ring lights and blooms around the board; at the redline sparks fly outward from each
-  comet head every 120 ms. A bloom outside the board grows with heat.
+  comet head every 120 ms. A bloom outside the board grows with heat: the prototypes' `box-shadow` (blur `bloom × B`,
+  spread `bloom × S`; `bloom` = 0.15 + 0.6 h + 0.4 overdrive, B / S = 70 / 6 for glass and timing, 80 / 8 for neon), a
+  Gaussian edge of σ = bloom × B / 2 beyond the spread (never reduced), multiplied by (1 − (d / R)²)² for the distance
+  d outside the rounded square, R = 38 pt (the window's 40 pt margin less 2). So it fades out along the board's rounded
+  outline and is gone before the window's edge, which never cuts it into square corners.
 - **Overtake**: a light sweep crosses the climber's row in its source color, streak particles fly off along it, a
   burst leaves its rank and `▲n` pops before its value for 1.6 s (glass mint chip, timing green delta, neon mint
   chip); timing's position block flashes green; neon arcs lightning from the climber's rank to the row it passed.

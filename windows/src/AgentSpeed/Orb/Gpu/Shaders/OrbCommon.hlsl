@@ -4,7 +4,7 @@
 cbuffer Uniforms : register(b0)
 {
     float4 viewport;  // width, height (points), scale (pixels per point), clip radius (points; 0 none; < 0 keep outside)
-    float4 transform; // content scale about (y, z) (the canvas center), clip feather (points)
+    float4 transform; // content scale about (y, z) (the canvas center), clip feather (points; with a keep-outside box clip, where it has faded out)
     float4 globals;   // opacity of the whole orb; half width (< 0 keep outside), half height and corner radius of a rounded-rect clip (boards; 0 none)
 };
 
@@ -37,8 +37,11 @@ float orb_clip_coverage(float2 canvas)
     float box = 1.0;
     if (globals.y != 0.0)
     {
-        float inside = saturate(0.5 - orb_rounded_box(canvas - transform.yz, abs(globals.yz), globals.w) / aa);
-        box = globals.y > 0.0 ? inside : 1.0 - inside;
+        float d = orb_rounded_box(canvas - transform.yz, abs(globals.yz), globals.w);
+        float inside = saturate(0.5 - d / aa);
+        // Kept outside: faded out along the outline's rounded offsets, (1 - (d / reach)^2)^2, to nothing transform.w away.
+        float u = transform.w > 0.0 ? saturate(d / transform.w) : 0.0;
+        box = globals.y > 0.0 ? inside : (1.0 - inside) * (1.0 - u * u) * (1.0 - u * u);
     }
 
     if (viewport.w == 0.0)

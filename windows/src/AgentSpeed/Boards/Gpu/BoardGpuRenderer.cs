@@ -67,7 +67,7 @@ internal static class BoardGpuRenderer
         var uniforms = new Uniforms
         {
             Viewport = new Vector4(canvas, canvas, canvas > 0 ? pixelWidth / canvas : 1, 0),
-            Transform = new Vector4(1, center, center, 0),
+            Transform = new Vector4(1, center, center, (float)list.OutsideReach),
             Globals = new Vector4((float)list.Opacity, 0, (float)list.BoxHalf, (float)list.BoxRadius),
         };
         var clip = (BoardClip)(-1);

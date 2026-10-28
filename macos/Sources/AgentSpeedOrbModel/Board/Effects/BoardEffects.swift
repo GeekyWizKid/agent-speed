@@ -7,6 +7,9 @@ import Foundation
 public struct BoardEffects {
     /// How far the effects canvas reaches beyond the board (fx.js `inset: -40px`).
     public static let margin = 40.0
+    /// The bloom fades out along the board's outline to nothing this far outside it, 2 pt short of the canvas edge
+    /// (DESIGN 2c Perimeter).
+    public static let bloomReach = margin - 2
     public static let particleCapacity = 640
     public static let waveCapacity = 12
     public static let boltCapacity = 8

@@ -22,7 +22,8 @@ enum OrbShaderSource {
     //   extra.z: the whole outline when extra.w is 0, else the extra.w points behind the head a.z (distance along the
     //   outline, clockwise from the end of the top-left corner) with round caps, color2 → color, width extra2.y × → 1 ×
     //   and alpha extra2.z × → 1 × along t^extra2.w. extra2.x 1, a bloom outside only: extra.z points of full light,
-    //   then a Gaussian edge of σ b.w, faded out near the canvas border.
+    //   then a Gaussian edge of σ b.w, times (1 − (d / extra.w)²)² of the distance d from the outline, so it fades out
+    //   along the outline's rounded offsets and ends extra.w points out.
     // Circle (1) with b.z > 0: a soft disc, color.a × smoothstep(b.z, b.x, r) (full inside b.x, zero from b.z out).
     struct Instance {
         float4 a;
@@ -240,7 +241,7 @@ enum OrbShaderSource {
         } else if (shape > 10.5) {
             float aa_pad = 2.0 / uniforms.viewport.z;
             if (item.extra2.x > 0.5) {
-                local = corners[vid] * (item.b.xy + item.extra.z + 3.0 * item.b.w + aa_pad);
+                local = corners[vid] * (item.b.xy + min(item.extra.z + 3.0 * item.b.w, item.extra.w) + aa_pad);
             } else if (item.extra.w > 0.0) {
                 float2 size = item.b.xy * 2.0;
                 float r = min(item.b.z, min(item.b.x, item.b.y));
@@ -433,10 +434,10 @@ enum OrbShaderSource {
             if (fill > 0.5) {
                 float x = sd - item.extra.z;
                 float sigma = max(item.b.w, 0.0001);
-                float2 edges = min(in.canvas, uniforms.viewport.xy - in.canvas);
-                float border = clamp(min(edges.x, edges.y) / 20.0, 0.0, 1.0);
+                float u = clamp(sd / max(item.extra.w, 0.0001), 0.0, 1.0);
+                float fade = (1.0 - u * u) * (1.0 - u * u);
                 float light = 1.0 / (1.0 + exp(1.702 * x / sigma));
-                float alpha = color.a * light * clamp(sd / aa + 0.5, 0.0, 1.0) * border * border;
+                float alpha = color.a * light * clamp(sd / aa + 0.5, 0.0, 1.0) * fade;
                 if (alpha <= 0.0005) {
                     discard_fragment();
                 }

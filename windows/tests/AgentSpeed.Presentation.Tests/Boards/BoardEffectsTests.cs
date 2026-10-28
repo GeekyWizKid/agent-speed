@@ -195,6 +195,24 @@ public class BoardEffectsTests
         Assert.Contains(list.Batches.ToArray(), b => b.Clip == BoardClip.Inside && b.Blend == OrbBlend.Additive && b.Count >= 20);
     }
 
+    [Theory]
+    [InlineData(BoardStyle.Glass)]
+    [InlineData(BoardStyle.Timing)]
+    [InlineData(BoardStyle.Neon)]
+    public void TheBloomKeepsItsWholeBlurAtTheTopOfTheHeat(BoardStyle style)
+    {
+        // DESIGN 2c Perimeter: σ = bloom × blur / 2 at every heat; the Outside clip's fade, not a smaller blur, keeps it off the
+        // window's edge.
+        var effects = Effects(style);
+        effects.SetHeat(1, 1, SpeedTier.Redline, true);
+        Run(effects, 0.5);
+        var list = new BoardDrawList();
+        effects.EmitBack(list);
+        Assert.Equal(BoardClip.Outside, list.Batches[0].Clip);
+        var bloom = list.Instances[list.Batches[0].Start];
+        Assert.Equal(OrbGpuInstance.Glow(BoardEffectsPresets.For(style).BloomBlur * 1.15 / 2), bloom.B.W, 2);
+    }
+
     [Fact]
     public void ShockwavesStayInsideTheSquare()
     {

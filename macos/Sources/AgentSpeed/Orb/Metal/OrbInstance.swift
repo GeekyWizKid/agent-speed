@@ -172,13 +172,13 @@ struct OrbInstance {
     }
 
     /// Light outside a rounded rectangle only (a CSS `box-shadow` bloom): `spread` points of full light, then the
-    /// edge of a Gaussian blur of standard deviation `sigma`; nothing inside the rectangle, faded out near the canvas
-    /// border.
+    /// edge of a Gaussian blur of standard deviation `sigma`, times (1 − (d / reach)²)² of the distance d from the
+    /// rectangle; nothing inside it. It fades out along the rounded outline's offsets and ends `reach` points out.
     static func outsideBloom(center: CGPoint, halfSize: CGSize, corner: CGFloat, spread: CGFloat, sigma: CGFloat,
-                             color: RGBColor) -> OrbInstance {
+                             reach: CGFloat, color: RGBColor) -> OrbInstance {
         OrbInstance(shape: .perimeter, center: center, size: SIMD2(Float(halfSize.width), Float(halfSize.height)),
                     corner: Float(corner), glow: sigma, color: color, core: 0, glowAlpha: 1, p0: Float(spread),
-                    extra2: SIMD4(1, 1, 1, 1))
+                    p1: Float(reach), extra2: SIMD4(1, 1, 1, 1))
     }
 
     /// A polyline of `count` points starting at `first` in the scene's point buffer, drawn as three round-joined strokes

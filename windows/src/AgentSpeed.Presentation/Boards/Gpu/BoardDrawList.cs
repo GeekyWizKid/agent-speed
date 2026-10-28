@@ -21,7 +21,10 @@ public enum BoardClip
     /// <summary>Only what lies inside the rounded square (the aurora, the warp, the rows).</summary>
     Inside,
 
-    /// <summary>Only what lies outside it (the bloom, which must never tint the glass).</summary>
+    /// <summary>
+    /// Only what lies outside it, faded out along its outline to nothing <see cref="BoardDrawList.OutsideReach"/> points away (the
+    /// bloom, which must never tint the glass nor be cut by the window's edge).
+    /// </summary>
     Outside,
 }
 
@@ -71,6 +74,12 @@ public sealed class BoardDrawList
 
     /// <summary>Corner radius of the rounded square (points).</summary>
     public double BoxRadius { get; set; }
+
+    /// <summary>
+    /// Distance from the rounded square (points) at which an <see cref="BoardClip.Outside"/> batch has faded to nothing, by
+    /// (1 − (d / reach)²)² of the distance d; 0 keeps it unfaded.
+    /// </summary>
+    public double OutsideReach { get; set; }
 
     /// <summary>The clip of shapes and layers added from now on.</summary>
     public BoardClip Clip { get; set; }

@@ -58,6 +58,18 @@ public class BoardSceneTests
     }
 
     [Fact]
+    public void TheBloomFadesOutBeforeTheWindowsEdge()
+    {
+        var scene = Scene();
+        scene.Apply(Tick([("a", 1900)]), 0);
+        scene.Settle();
+        var list = new BoardDrawList();
+        Frames(scene, list, 0, 0.1);
+        Assert.Contains(list.Batches.ToArray(), b => b.Clip == BoardClip.Outside);
+        Assert.Equal(BoardCanvas.Margin - 2, list.OutsideReach);
+    }
+
+    [Fact]
     public void APassMovesRowsAtSixtyUntilTheySettle()
     {
         var scene = Scene();
