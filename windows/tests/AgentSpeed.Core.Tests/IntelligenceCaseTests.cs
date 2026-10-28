@@ -21,6 +21,8 @@ public sealed class IntelligenceCaseTests
 
     public static TheoryData<string> AgentWindowNames() => Names("agentWindows");
 
+    public static TheoryData<string> GroupWindowNames() => Names("groupWindows");
+
     [Theory]
     [MemberData(nameof(GradeNames))]
     public void GradeMatches(string name)
@@ -94,6 +96,59 @@ public sealed class IntelligenceCaseTests
                 EngineCaseTests.AssertClose(want.GetProperty("liveThinking").GetDouble(), intelligence.LiveThinking, label + " liveThinking");
                 EngineCaseTests.AssertClose(want.GetProperty("thinkingShare").GetDouble(), intelligence.ThinkingShare, label + " thinkingShare");
             }
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(GroupWindowNames))]
+    public void GroupWindowMatches(string name)
+    {
+        var item = Case("groupWindows", name);
+        var engine = Engine(item);
+        foreach (var query in item.GetProperty("queries").EnumerateArray())
+        {
+            var nowMs = query.GetProperty("nowMs").GetInt64();
+            var frame = engine.Compute(nowMs, 0, observeLive: false);
+            var at = $"[{name} @ {nowMs}]";
+            var set = frame.SourceIntelligence.Aggregate(IntelligenceSums.Zero, (total, sums) => total + sums);
+            AssertSums(query.GetProperty("expect"), set, at);
+
+            // Groups as a board forms them: a root (no listed parent) and every listed descendant, root first, depth first.
+            var statuses = frame.Agents.Select(a => new AgentStatus(a.Info.Id, a.Info.Source, a.Info.Project ?? string.Empty, a.Info.Model, a.Phase,
+                a.Info.IsSubagent, a.Live, a.RecentSpeed, DateTimeOffset.UnixEpoch, a.ParentId) { Grade = a.Grade, Intelligence = a.Intelligence })
+                .ToArray();
+            var groups = Groups(statuses);
+            var expected = query.GetProperty("groups").EnumerateObject().ToDictionary(p => p.Name, p => p.Value);
+            Assert.Equal(expected.Keys.Order(StringComparer.Ordinal), groups.Keys.Order(StringComparer.Ordinal));
+            var added = IntelligenceSums.Zero;
+            foreach (var (rootId, members) in groups)
+            {
+                var want = expected[rootId];
+                var label = $"{at} group {rootId}";
+                Assert.Equal(want.GetProperty("members").EnumerateArray().Select(e => e.GetString()!), members.Select(m => m.Id));
+                var intelligence = AgentIntelligence.Group(members[0], members.Skip(1).ToArray());
+                added += intelligence.Sums;
+                Assert.True(want.GetProperty("form").GetString() == Form(intelligence.Form), $"{label} form {intelligence.Form}");
+                Assert.Equal(NullableInt(want, "grade"), intelligence.Grade?.Value);
+                Assert.Equal(NullableInt(want, "shown"), intelligence.Shown);
+                if (want.GetProperty("intelligence").ValueKind == JsonValueKind.Null)
+                {
+                    Assert.Null(intelligence.Value);
+                }
+                else
+                {
+                    EngineCaseTests.AssertClose(want.GetProperty("intelligence").GetDouble(), intelligence.Value!.Value, label + " intelligence");
+                }
+
+                EngineCaseTests.AssertClose(want.GetProperty("liveThinking").GetDouble(), intelligence.LiveThinking, label + " liveThinking");
+                EngineCaseTests.AssertClose(want.GetProperty("thinkingShare").GetDouble(), intelligence.ThinkingShare, label + " thinkingShare");
+            }
+
+            // The groups partition the agents, so their sums add up to the set's.
+            EngineCaseTests.AssertClose(set.Output, added.Output, at + " groups' output");
+            EngineCaseTests.AssertClose(set.Graded, added.Graded, at + " groups' graded output");
+            EngineCaseTests.AssertClose(set.Thinking, added.Thinking, at + " groups' reasoning");
+            EngineCaseTests.AssertClose(set.ThinkingBasis, added.ThinkingBasis, at + " groups' reasoning basis");
         }
     }
 
@@ -216,6 +271,30 @@ public sealed class IntelligenceCaseTests
 
         EngineCaseTests.AssertClose(expect.GetProperty("liveThinking").GetDouble(), sums.LiveThinking, at + " liveThinking");
         EngineCaseTests.AssertClose(expect.GetProperty("thinkingShare").GetDouble(), sums.ThinkingShare, at + " thinkingShare");
+    }
+
+    // Root id → the root, then its descendants depth first in list order (a parent that is not listed makes a root).
+    private static Dictionary<string, List<AgentStatus>> Groups(IReadOnlyList<AgentStatus> agents)
+    {
+        var ids = agents.Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
+        var groups = new Dictionary<string, List<AgentStatus>>(StringComparer.Ordinal);
+        void Walk(AgentStatus agent, List<AgentStatus> members)
+        {
+            members.Add(agent);
+            foreach (var child in agents.Where(a => a.ParentId == agent.Id))
+            {
+                Walk(child, members);
+            }
+        }
+
+        foreach (var root in agents.Where(a => a.ParentId is null || !ids.Contains(a.ParentId)))
+        {
+            var members = new List<AgentStatus>();
+            Walk(root, members);
+            groups[root.Id] = members;
+        }
+
+        return groups;
     }
 
     private static ParsedResponse Response(string key, string agentId, string model, long startMs, long endMs, long output) =>

@@ -23,6 +23,23 @@ public readonly record struct AgentIntelligence(IntelligenceSums Sums, ModelGrad
 {
     public static AgentIntelligence None => default;
 
+    /// <summary>
+    /// A board group's intelligence (METRICS 6.9, Group intelligence): <b>live</b> over the members' added agent sums,
+    /// else <b>resting</b> on the root's grade, else <b>none</b> — even when a sub-agent has a grade.
+    /// </summary>
+    public static AgentIntelligence Group(AgentStatus root, IReadOnlyList<AgentStatus> subs)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(subs);
+        var sums = root.Intelligence.Sums;
+        for (var i = 0; i < subs.Count; i++)
+        {
+            sums += subs[i].Intelligence.Sums;
+        }
+
+        return new AgentIntelligence(sums, root.Grade);
+    }
+
     public AgentIntelligenceForm Form => Sums.IsActive ? AgentIntelligenceForm.Live
         : Grade is not null ? AgentIntelligenceForm.Resting
         : AgentIntelligenceForm.None;
