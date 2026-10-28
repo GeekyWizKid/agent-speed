@@ -29,20 +29,27 @@ struct TaskScoreCardHeader: View {
                 }
             }
             .frame(minHeight: TaskStateChip.height)
-            Text(meta(source))
-                .font(TaskCardFont.meta)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .padding(.leading, TaskCardLayout.headerIndent)
+            // A long model id gives way (middle truncation, as model ids are cut everywhere); the source and the
+            // sub-agent count stay whole.
+            HStack(spacing: 0) {
+                if let model = header.model, !model.isEmpty {
+                    Text(model)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(verbatim: " · ")
+                        .fixedSize()
+                }
+                Text(trailingMeta(source))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            .font(TaskCardFont.meta)
+            .foregroundStyle(.secondary)
+            .padding(.leading, TaskCardLayout.headerIndent)
         }
     }
 
-    private func meta(_ source: String) -> String {
-        var parts: [String] = []
-        if let model = header.model, !model.isEmpty { parts.append(model) }
-        parts.append(source)
-        if header.subAgents > 0 { parts.append(l10n("boards.subCount", header.subAgents)) }
-        return parts.joined(separator: " · ")
+    private func trailingMeta(_ source: String) -> String {
+        header.subAgents > 0 ? source + " · " + l10n("boards.subCount", header.subAgents) : source
     }
 }
