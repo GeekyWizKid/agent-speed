@@ -2209,11 +2209,14 @@ def js_close(toks, k):
 MISSING = object()
 
 
-def js_literal(toks, p, end):
-    """(value, next index) of the literal at toks[p] before `end`, or (MISSING, p) when it is not a literal."""
+def js_literal(toks, p, end, env=None):
+    """(value, next index) of the literal at toks[p] before `end`, or (MISSING, p) when it is not a literal. `env` maps
+    the names a plain script bound to literals (4.4)."""
     if p >= end:
         return MISSING, p
     t = toks[p]
+    if t.kind == "id" and env and t.text in env:
+        return env[t.text], p + 1
     if t.kind == "str":
         return (MISSING, p) if t.value is None else (t.value, p + 1)
     if t.kind == "num":
@@ -2240,7 +2243,7 @@ def js_literal(toks, p, end):
             key = key_tok.text if key_tok.kind == "id" else key_tok.value if key_tok.kind == "str" else \
                 str(key_tok.value) if key_tok.kind == "num" and isinstance(key_tok.value, int) else None
             if isinstance(key, str) and q + 1 < stop and is_punct(toks[q + 1], ":"):
-                value, after = js_literal(toks, q + 2, stop)
+                value, after = js_literal(toks, q + 2, stop, env)
                 if value is not MISSING and after == stop:
                     obj[key] = value
             q = stop + 1
@@ -2251,7 +2254,7 @@ def js_literal(toks, p, end):
             return MISSING, p
         items, q = [], p + 1
         while q < close:
-            value, after = js_literal(toks, q, close)
+            value, after = js_literal(toks, q, close, env)
             if value is MISSING or (after < close and not is_punct(toks[after], ",")):
                 return MISSING, p
             items.append(value)
@@ -2261,15 +2264,15 @@ def js_literal(toks, p, end):
 
 
 def code_script(source, tool, value):
-    """A Codex code-mode script (4.4): {calls: [{tool, input, digest, prints}], plain} or None."""
+    """A Codex code-mode script (4.4): {calls: [{tool, input, digest}], plain, prints: [[call, mode]]} or None."""
     if FAMILY.get(source) != "codex" or tool != "exec" or not isinstance(value, str) or decode_args(value) is not None:
         return None
+    text = scalars(value)
     try:
-        toks = js_lex(scalars(value))[0]
+        toks = js_lex(text)[0]
     except JsError:
         return None
-    text = scalars(value)
-    calls, at = [], {}
+    calls, spans = [], {}
     for k, t in enumerate(toks):
         if t.kind != "id" or t.text != "tools" or (k > 0 and is_punct(toks[k - 1], ".")):
             continue
@@ -2279,42 +2282,83 @@ def code_script(source, tool, value):
         close = js_close(toks, k + 3)
         if close is None:
             continue
-        if close == k + 4:
-            arg = None
-        else:
-            arg, after = js_literal(toks, k + 4, close)
-            if arg is MISSING or after != close:
-                arg = None
-        at[k] = len(calls)
-        calls.append({"tool": toks[k + 2].text, "input": arg, "digest": sha16(text[t.start:toks[close].end]),
-                      "prints": False, "close": close})
+        spans[k] = (len(calls), close)
+        calls.append({"tool": toks[k + 2].text, "input": call_input(toks, k, close, None),
+                      "digest": sha16(text[t.start:toks[close].end])})
     if not calls:
         return None
-    plain, p = True, 0
-    while p < len(toks):
-        t = toks[p]
-        if is_punct(t, ";"):
+    plain, prints, inputs = plain_statements(toks, spans)
+    if plain:
+        for index, value in inputs.items():
+            calls[index]["input"] = value
+    return {"calls": calls, "plain": plain, "prints": prints if plain else []}
+
+
+def call_input(toks, k, close, env):
+    if close == k + 4:
+        return None
+    arg, after = js_literal(toks, k + 4, close, env)
+    return None if arg is MISSING or after != close else arg
+
+
+def plain_statements(toks, spans):
+    """Whether the script is plain (4.4), its printing statements as [call index, "result" | "output"], and the calls'
+    inputs read with the literals bound before them."""
+    env, bound, prints, inputs, p, n = {}, {}, [], {}, 0, len(toks)
+
+    def at(i, text, kind="punct"):
+        return i < n and toks[i].kind == kind and toks[i].text == text
+
+    def awaited(i):
+        """The call of `await tools.NAME(…)` at toks[i], refreshed with the bindings so far, and the index after it."""
+        if at(i, "await", "id") and i + 1 in spans:
+            index, close = spans[i + 1]
+            inputs[index] = call_input(toks, i + 1, close, env)
+            return index, close + 1
+        return None, i
+
+    while p < n:
+        if at(p, ";"):
             p += 1
             continue
-        printing = t.kind == "id" and t.text == "text" and is_punct(toks[p + 1] if p + 1 < len(toks) else None, "(")
-        q = p + 2 if printing else p
-        if not (q < len(toks) and toks[q].kind == "id" and toks[q].text == "await" and q + 1 in at):
-            plain = False
-            break
-        call = calls[at[q + 1]]
-        q = call["close"] + 1
-        if printing:
-            if not is_punct(toks[q] if q < len(toks) else None, ")"):
-                plain = False
-                break
-            call["prints"] = True
-            q += 1
+        if toks[p].kind == "id" and toks[p].text in ("const", "let", "var") and p + 2 < n \
+                and toks[p + 1].kind == "id" and at(p + 2, "="):
+            name = toks[p + 1].text
+            index, q = awaited(p + 3)
+            if index is not None:
+                bound[name] = index
+                env.pop(name, None)
+            else:
+                literal, q = js_literal(toks, p + 3, n, env)
+                if literal is MISSING:
+                    return False, [], {}
+                env[name] = literal
+                bound.pop(name, None)
+            p = q
+            continue
+        if at(p, "text", "id") and at(p + 1, "("):
+            q, index, mode = p + 2, None, "result"
+            index, after = awaited(q)
+            if index is None and at(q, "("):
+                index, after = awaited(q + 1)
+                if index is not None and at(after, ")") and at(after + 1, ".") and at(after + 2, "output", "id"):
+                    mode, after = "output", after + 3
+                else:
+                    index = None
+            if index is None and q < n and toks[q].kind == "id" and toks[q].text in bound:
+                index, after = bound[toks[q].text], q + 1
+                if at(after, ".") and at(after + 1, "output", "id"):
+                    mode, after = "output", after + 2
+            if index is None or not at(after, ")"):
+                return False, [], {}
+            prints.append([index, mode])
+            p = after + 1
+            continue
+        index, q = awaited(p)
+        if index is None:
+            return False, [], {}
         p = q
-    for call in calls:
-        del call["close"]
-        if not plain:
-            call["prints"] = False
-    return {"calls": calls, "plain": plain}
+    return True, prints, inputs
 
 
 def code_items(source, result):

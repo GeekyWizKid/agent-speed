@@ -576,46 +576,65 @@ def notifications():
 
 
 # Codex code mode (4.4): `exec` scripts that call tools.
-def script_call(tool, source, value, prints):
-    return {"tool": tool, "input": value, "digest": sha16(source), "prints": prints}
+def script_call(tool, source, value):
+    return {"tool": tool, "input": value, "digest": sha16(source)}
+
+
+def script(calls, prints=None):
+    return {"calls": calls, "plain": prints is not None, "prints": prints or []}
 
 
 SCRIPTS = [
     ("one-print", 'text(await tools.exec_command({cmd: "cargo test", yield_time_ms: 10000}));',
-     {"plain": True, "calls": [script_call("exec_command", 'tools.exec_command({cmd: "cargo test", yield_time_ms: 10000})',
-                                           {"cmd": "cargo test", "yield_time_ms": 10000}, True)]}),
+     script([script_call("exec_command", 'tools.exec_command({cmd: "cargo test", yield_time_ms: 10000})',
+                         {"cmd": "cargo test", "yield_time_ms": 10000})], [[0, "result"]])),
     ("sequence", "text(await tools.write_stdin({session_id: 7, chars: '', max_output_tokens: 4000}));\n"
                  "await tools.apply_patch(`*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch`)\n"
                  "text(await tools.exec_command({'cmd': \"rg -n \\\"x\\\" src\", workdir: \"/w\",}))",
-     {"plain": True, "calls": [
-         script_call("write_stdin", "tools.write_stdin({session_id: 7, chars: '', max_output_tokens: 4000})",
-                     {"session_id": 7, "chars": "", "max_output_tokens": 4000}, True),
-         script_call("apply_patch", "tools.apply_patch(`*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch`)",
-                     "*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch", False),
-         script_call("exec_command", "tools.exec_command({'cmd': \"rg -n \\\"x\\\" src\", workdir: \"/w\",})",
-                     {"cmd": 'rg -n "x" src', "workdir": "/w"}, True)]}),
+     script([script_call("write_stdin", "tools.write_stdin({session_id: 7, chars: '', max_output_tokens: 4000})",
+                         {"session_id": 7, "chars": "", "max_output_tokens": 4000}),
+             script_call("apply_patch", "tools.apply_patch(`*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch`)",
+                         "*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch"),
+             script_call("exec_command", "tools.exec_command({'cmd': \"rg -n \\\"x\\\" src\", workdir: \"/w\",})",
+                         {"cmd": 'rg -n "x" src', "workdir": "/w"})], [[0, "result"], [2, "result"]])),
+    ("bound-output", "const r = await tools.exec_command({cmd: 'cargo test', workdir: '/w'});\ntext(r.output);",
+     script([script_call("exec_command", "tools.exec_command({cmd: 'cargo test', workdir: '/w'})",
+                         {"cmd": "cargo test", "workdir": "/w"})], [[0, "output"]])),
+    ("awaited-output", "text((await tools.exec_command({cmd:'ls',yield_time_ms:1})).output);",
+     script([script_call("exec_command", "tools.exec_command({cmd:'ls',yield_time_ms:1})",
+                         {"cmd": "ls", "yield_time_ms": 1})], [[0, "output"]])),
+    ("bound-literal", "const p = `*** Begin Patch\n*** Delete File: a\n*** End Patch`;\nconst c = 'make';\n"
+                      "text(await tools.apply_patch(p)); text(await tools.exec_command({cmd: c}));",
+     script([script_call("apply_patch", "tools.apply_patch(p)", "*** Begin Patch\n*** Delete File: a\n*** End Patch"),
+             script_call("exec_command", "tools.exec_command({cmd: c})", {"cmd": "make"})],
+            [[0, "result"], [1, "result"]])),
+    ("printed-later", "const a = await tools.exec_command({cmd:'a'}); const b = await tools.exec_command({cmd:'b'});"
+                      " text(b.output); text(a);",
+     script([script_call("exec_command", "tools.exec_command({cmd:'a'})", {"cmd": "a"}),
+             script_call("exec_command", "tools.exec_command({cmd:'b'})", {"cmd": "b"})],
+            [[1, "output"], [0, "result"]])),
     ("promise-all", "const r = await Promise.all([tools.exec_command({cmd: 'ls'}), tools.exec_command({cmd: 'pwd'})]);"
                     "\nfor (const x of r) text(x);",
-     {"plain": False, "calls": [script_call("exec_command", "tools.exec_command({cmd: 'ls'})", {"cmd": "ls"}, False),
-                                script_call("exec_command", "tools.exec_command({cmd: 'pwd'})", {"cmd": "pwd"}, False)]}),
+     script([script_call("exec_command", "tools.exec_command({cmd: 'ls'})", {"cmd": "ls"}),
+             script_call("exec_command", "tools.exec_command({cmd: 'pwd'})", {"cmd": "pwd"})])),
     ("non-literal", "const c = 'cargo ' + 'test';\ntext(await tools.exec_command({cmd: c, yield_time_ms: 1000}));",
-     {"plain": False, "calls": [script_call("exec_command", "tools.exec_command({cmd: c, yield_time_ms: 1000})",
-                                            {"yield_time_ms": 1000}, False)]}),
+     script([script_call("exec_command", "tools.exec_command({cmd: c, yield_time_ms: 1000})",
+                         {"yield_time_ms": 1000})])),
     ("template-opaque", "text(await tools.exec_command({cmd: `cargo test ${name}`}));",
-     {"plain": True, "calls": [script_call("exec_command", "tools.exec_command({cmd: `cargo test ${name}`})", {}, True)]}),
+     script([script_call("exec_command", "tools.exec_command({cmd: `cargo test ${name}`})", {})], [[0, "result"]])),
     ("escapes", "text(await tools.exec_command({cmd: \"printf '\\\\u00e9\\\\x41\\\\n'\", x: \"\\u00e9\\x41\\u{1F600}\\\nz\"}))",
-     {"plain": True, "calls": [script_call(
+     script([script_call(
          "exec_command", "tools.exec_command({cmd: \"printf '\\\\u00e9\\\\x41\\\\n'\", x: \"\\u00e9\\x41\\u{1F600}\\\nz\"})",
-         {"cmd": "printf '\\u00e9\\x41\\n'", "x": "\u00e9A\U0001F600z"}, True)]}),
+         {"cmd": "printf '\\u00e9\\x41\\n'", "x": "\u00e9A\U0001F600z"})], [[0, "result"]])),
     ("regex-and-comments", "// list files\nconst q = x => x.replace(/'/g, \"'\\\\''\"); /* tools.fake() */\n"
                            "text(await tools.exec_command({cmd: 'ls'}));",
-     {"plain": False, "calls": [script_call("exec_command", "tools.exec_command({cmd: 'ls'})", {"cmd": "ls"}, False)]}),
+     script([script_call("exec_command", "tools.exec_command({cmd: 'ls'})", {"cmd": "ls"})])),
     ("no-tools", "text(1 + 2);", None),
     ("json-object-input", '{"cmd": "ls"}', None),
     ("unterminated", "text(await tools.exec_command({cmd: 'ls}));", None),
     ("member-not-tools", "text(await x.tools.exec_command({cmd: 'ls'}));", None),
     ("no-argument", "text(await tools.list_agents());",
-     {"plain": True, "calls": [script_call("list_agents", "tools.list_agents()", None, True)]}),
+     script([script_call("list_agents", "tools.list_agents()", None)], [[0, "result"]])),
 ]
 
 

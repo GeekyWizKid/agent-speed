@@ -1958,9 +1958,9 @@ The call's input is held in memory until its result arrives, then released.
 `tools.apply_patch(…)` and so on (on this Mac, 84 760 such calls since 2026-07, against a few thousand direct ones).
 When `code_script(source, tool, input)` gives calls, the script adds no action of its own: each of its calls becomes an
 action in source order, with the script line's `t` and `cwd`, its own tool name and input, and the digest of its source
-text (in place of the 6.10 digest of the whole script). When the script's result arrives, the printing calls of a plain
-script get the items of `code_items(source, result)` in order — the k-th printing call the k-th item, each read as
-that call's result above — provided the counts match; every other call of the script gets no result. The 6.10 work
+text (in place of the 6.10 digest of the whole script). When the script's result arrives, the printing statements of
+a plain script take the items of `code_items(source, result)` in order — each item read as its call's result above —
+provided the counts match; every other call of the script gets no result. The 6.10 work
 signals keep one action per script (they never look inside the input).
 
 **Results.** A result belongs to the call with its id anywhere in the agent's stream (a result read after a new prompt
@@ -1981,7 +1981,8 @@ whose result left that session running:
    action, its command's `masked` flag and its output so far (the result's `result_text`). A later such result for the
    same K replaces the entry.
 2. A call with `continuation(source, tool, input) = K` is an action of its own (kind `other`, its own outcome). When
-   its result arrives and K is mapped, the result's `result_text` is appended to K's output (the parts joined with LF).
+   its result arrives and K is mapped, the result's `result_text` is appended to K's output (Codex parts concatenated
+   as they are, being slices of one stream; Claude parts joined with LF).
    When that result's own outcome has a non-null `exitCode` and a non-null `failed` (finished with an exit code), the
    mapped action's outcome becomes `{exitCode, failed, t}` of it — with `failed` null when the mapped command is
    `masked`, since the exit code is then the pipeline's — its `failures` (when it has `command`) are computed over the

@@ -146,6 +146,7 @@ class Composer:
 
     def __init__(self, state):
         self.path = state.path
+        self.source = family(state.source)
         self.cwd = None
         self.events = []
         self.models = []
@@ -335,7 +336,7 @@ class Composer:
         if not isinstance(call_id, str) or call_id in self.calls:
             return
         subs = [self.action(source, t, c["tool"], c["input"], c["digest"]) for c in script["calls"]]
-        self.calls[call_id] = [(sub, c["prints"]) for sub, c in zip(subs, script["calls"])]
+        self.calls[call_id] = (subs, script["prints"])
         self.stats["scripts"] = self.stats.get("scripts", 0) + 1
 
     def action(self, source, t, tool, value, dig):
@@ -355,18 +356,21 @@ class Composer:
 
     def result(self, source, call_id, result, t):
         entry = self.calls.get(call_id) if isinstance(call_id, str) else None
-        if isinstance(entry, list):
+        if isinstance(entry, tuple):
             del self.calls[call_id]
+            subs, prints = entry
             items = parsers.code_items(source, result)
-            printing = [sub for sub, prints in entry if prints]
-            for sub, _ in entry:
+            for sub in subs:
                 sub.answered = True
-                sub.value = None
-            if items is not None and printing and len(items) == len(printing):
+            if items is not None and prints and len(items) == len(prints):
                 self.stats["scriptsMapped"] = self.stats.get("scriptsMapped", 0) + 1
-                for sub, item in zip(printing, items):
-                    sub.answered = False
-                    self.answer(source, sub, item, t)
+                done = set()
+                for (index, _), item in zip(prints, items):
+                    if index not in done:
+                        done.add(index)
+                        self.answer(source, subs[index], item if item is not None else "", t)
+            for sub in subs:
+                sub.value = None
             return
         if entry is None or entry.answered:
             self.stats["orphanResults"] += 1
@@ -404,8 +408,8 @@ class Composer:
         final = {"exitCode": out["exitCode"], "failed": None if running.masked else out["failed"], "t": t}
         running.event["outcome"] = final
         if running.info is not None:
-            running.event["failures"] = parsers.failures(running.info, "\n".join(running.texts), running.cwd,
-                                                         final["failed"])
+            joined = ("" if self.source == "codex" else "\n").join(running.texts)
+            running.event["failures"] = parsers.failures(running.info, joined, running.cwd, final["failed"])
         del self.sessions[key]
         self.stats["stitched"] += 1
 

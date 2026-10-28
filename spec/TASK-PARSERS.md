@@ -13,7 +13,7 @@ outputs listed here are kept (section 7).
 | `result_text(source, result)` | the output text that `failures` reads (4.1) |
 | `continuation(source, tool, input)`, `running_session(source, result)` | a session key or null (4.3) |
 | `notification(source, line)` | `{session, exitCode}` of a Claude background-task notice, or null (4.3) |
-| `code_script(source, tool, input)`, `code_items(source, result)` | the tool calls of a Codex code-mode script and their printed results (4.4) |
+| `code_script(source, tool, input)`, `code_items(source, result)` | a Codex code-mode script's tool calls and printing statements, and its printed results (4.4) |
 | `failures(info, outputText, cwd, failed)` | `{fingerprints, failedCount, passedCount, framework}` (5) |
 | `edit_hunks(source, tool, input, cwd)` | `[{file, old, new}]` (6) |
 
@@ -493,7 +493,8 @@ Codex's unified exec returns after `yield_time_ms` (10 s by default) while the c
 The event layer (METRICS 6.9 *Composing the stream*, *Sessions*) keeps, per agent, a map from session key to the action
 whose result left that session running (a call that is not itself a continuation): the action keeps that result's
 outcome (state `running`) and gets no `failures` yet. A result of a continuation call whose session is in the map
-appends its `result_text` to that action's output (the parts joined with LF); when its own `outcome` has a non-null
+appends its `result_text` to that action's output (Codex parts are slices of one output stream and are concatenated
+as they are; Claude parts are joined with LF); when its own `outcome` has a non-null
 `exitCode` and a non-null `failed` (state `done` with an exit code), that outcome (with its `t`) becomes the original
 action's outcome — with `failed` null when the original command is `masked` (3.7) — `failures` is computed over the
 accumulated output with the original command's `info` and `cwd`, and the key leaves the map. The continuation call
@@ -513,7 +514,7 @@ logs through counts and structural skeletons only (2026-10-28).
 
 `code_script(source, tool, input)`: for Codex `exec` with a string input that is not a JSON object (1), the script is
 read as below; a script that cannot be tokenised, or that calls no tool, gives null (and the call keeps the rule of
-3.1). Otherwise `{calls, plain}`:
+3.1). Otherwise `{calls, plain, prints}`:
 
 - **Tokens.** Whitespace (space, tab, CR, LF, FF, VT), `//` and `/* */` comments are skipped. A string is `'…'` or
   `"…"` (a raw line break ends it unterminated: the script cannot be tokenised); a template is `` `…` ``, whose
@@ -533,19 +534,28 @@ read as below; a script that cannot be tokenised, or that calls no tool, gives n
   `false`, `null`, an array of literals, and an object whose keys are identifiers, strings or integers — a member whose
   value is not a literal (a variable, an expression, a template with `${…}`, a shorthand or a spread) is left out, and
   a repeated key keeps its last value.
-- **Plain.** The script is *plain* when its tokens are only `;` and statements `text ( await CALL )` (*printing*) or
-  `await CALL` (*silent*), each CALL a call above. In a plain script the printing calls have `prints` true; in any
-  other script every call has `prints` false.
+- **Plain.** The script is *plain* when its tokens are only `;` and these statements, read in order, each CALL being
+  `await` followed by a call above:
+  - `const`, `let` or `var` NAME `=` CALL — binds NAME to the call; `const`, `let` or `var` NAME `=` LITERAL — binds
+    NAME to the literal, which the arguments of later calls may use in place of a literal (a name bound again keeps
+    its latest binding);
+  - CALL alone;
+  - *printing*: `text ( CALL )`, `text ( NAME )` with NAME bound to a call — mode `result`; `text ( ( CALL ) .
+    output )`, `text ( NAME . output )` — mode `output`.
+
+  `prints` lists the printing statements in order as `[call index, mode]` (empty when the script is not plain). In a
+  plain script the calls' inputs are read with the bindings made before them; otherwise without any binding.
 
 `code_items(source, result)`: the Codex output value (4.1 step 1) as an array whose first item has a string `text`
 whose first line, LF-normalised, is `Script completed`: the texts of the other items, LF-normalised (null for an item
 without a string `text`); anything else (a failed or still running script, a string output) gives null.
 
-The event layer gives the printing calls of a plain script their results in order — the k-th printing call gets the
-k-th item as its Codex result (a string, read like an output value: a leading JSON object with `exit_code` or
-`session_id`, or plain text) — only when `code_items` is not null and has exactly as many items as there are printing
-calls. Every other call of a script gets no result. Through `session_id` results and `write_stdin` calls, scripts take
-part in 4.3 like direct calls.
+The event layer matches the printing statements of a plain script with the items in order — the k-th statement with
+the k-th item — only when `code_items` is not null and has exactly as many items as `prints`; a call printed more than
+once takes its first item. The item is the call's Codex result, a string read like an output value: in mode `result`
+usually a leading JSON object with `exit_code` or `session_id` (4.1 step 3); in mode `output` the command's output
+alone, so the run is left to its counts (5). Every other call of a script gets no result. Through `session_id` results
+and `write_stdin` calls, scripts take part in 4.3 like direct calls.
 
 ## 5. `failures`
 
