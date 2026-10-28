@@ -47,9 +47,6 @@ public struct IntelligenceGrade: Equatable, Sendable {
         let level = effort.flatMap { token in ModeDisplay.effortLevel(token).map { $0 + (ModeDisplay.isTopRung(token) ? 1 : 0) } }
         self.init(modelClass: modelClass, level: level ?? Self.defaultLevel)
     }
-
-    /// An unknown model at an unknown effort.
-    public static let unknown = IntelligenceGrade(modelClass: .standard, level: defaultLevel)
 }
 
 /// Grades responses and agents against the current price table (METRICS 6.9): a response by its own model, provider
@@ -67,8 +64,14 @@ struct IntelligenceGrader {
         grade(model: record.model, provider: record.provider, effort: record.modes.effortToken)
     }
 
+    /// The weight of the agent's in-flight estimate: an unknown model weighs as the standard class.
     func grade(of agent: EngineAgent) -> IntelligenceGrade {
         grade(model: agent.model, provider: agentProviders[agent.id], effort: agent.modes.effortToken)
+    }
+
+    /// The agent's own grade, nil while its current model is unknown (METRICS 6.9, Agent intelligence).
+    func ownGrade(of agent: EngineAgent) -> IntelligenceGrade? {
+        agent.model?.isEmpty == false ? grade(of: agent) : nil
     }
 }
 

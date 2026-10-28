@@ -170,7 +170,9 @@ public final class DemoDriver {
                 live: Rate(output: share, total: share * 24),
                 recentSpeed: active ? share : nil,
                 lastActivity: now,
-                parentId: agent.isSubagent ? "demo-nova" : nil
+                parentId: agent.isSubagent ? "demo-nova" : nil,
+                grade: Self.grade,
+                intelligence: Self.intelligence(output: share, from: agent.source)
             )
         }
         let sourceCount = SourceKind.allCases.count

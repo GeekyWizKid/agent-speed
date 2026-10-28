@@ -7,7 +7,7 @@ struct AgentCapsuleColumn: Equatable {
     var compact: Bool
 
     static let none = AgentCapsuleColumn(width: 0, compact: false)
-    /// Between the column and the live value.
+    /// Between the column and the intelligence cell.
     static let gap: CGFloat = 8
     static let minimumName: CGFloat = 72
 
@@ -16,21 +16,23 @@ struct AgentCapsuleColumn: Equatable {
         self.compact = compact
     }
 
-    /// `rows` pairs each visible row's capsule with its indent level; `rowWidth` is the agents list's width.
-    init(rows: [(capsule: EffortCapsule, depth: Int)], rowWidth: CGFloat) {
+    /// `rows` pairs each visible row's capsule with its indent level; `rowWidth` is the agents list's width and
+    /// `intelligence` the intelligence cell's.
+    init(rows: [(capsule: EffortCapsule, depth: Int)], rowWidth: CGFloat, intelligence: CGFloat) {
         let capsules = rows.map(\.capsule)
         let full = EffortCapsule.columnWidth(capsules, compact: false)
         let deepest = rows.map(\.depth).max() ?? 0
-        if Self.nameWidth(rowWidth: rowWidth, depth: deepest, column: full) >= Self.minimumName {
+        if Self.nameWidth(rowWidth: rowWidth, depth: deepest, column: full, intelligence: intelligence) >= Self.minimumName {
             self.init(width: full, compact: false)
         } else {
             self.init(width: EffortCapsule.columnWidth(capsules, compact: true), compact: true)
         }
     }
 
-    /// Room left for the name block: badge, two row gaps, the column and its gap, and the live value.
-    static func nameWidth(rowWidth: CGFloat, depth: Int, column: CGFloat) -> CGFloat {
-        let trailing = DashboardLayout.speedColumn + (column > 0 ? column + gap : 0)
+    /// Room left for the name block after the badge, the two row gaps and every trailing column: the capsule column
+    /// and its gap, the intelligence cell and its gap, and the live value.
+    static func nameWidth(rowWidth: CGFloat, depth: Int, column: CGFloat, intelligence: CGFloat) -> CGFloat {
+        let trailing = DashboardLayout.speedColumn + intelligence + AgentIntelligenceColumn.gap + (column > 0 ? column + gap : 0)
         return rowWidth - CGFloat(depth) * DashboardLayout.subagentIndent - DashboardLayout.badgeWidth - Spacing.s * 2 - trailing
     }
 }

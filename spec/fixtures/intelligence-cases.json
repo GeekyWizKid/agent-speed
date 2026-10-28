@@ -1,5 +1,5 @@
 {
- "_comment": "METRICS 6.9, written by hand and checked by spec/tools/intelligence.py. `grades` resolve against the fixture price table `table`; `effort` is the normalized effort token (EXECUTION-MODES) or absent. `windows` give engine responses (with `reasoning`, `effort`, `provider`) and agents (with `effort`) as engine-cases.json does; a query's `sources` restricts both to an orb's set. `shown` is the intelligence rounded half away from zero; null when nothing generated in the window.",
+ "_comment": "METRICS 6.9, written by hand and checked by spec/tools/intelligence.py. `grades` resolve against the fixture price table `table`; `effort` is the normalized effort token (EXECUTION-MODES) or absent. `windows` give engine responses (with `reasoning`, `effort`, `provider`) and agents (with `effort`) as engine-cases.json does; a query's `sources` restricts both to an orb's set. `shown` is the intelligence rounded half away from zero; null when nothing generated in the window. `agentWindows` (METRICS 6.9, Agent intelligence) have the shape of `windows` with every case's agents in each query's `agents`: `form` live / resting / none, `intelligence` (the live value, or the grade at rest; null for none), `shown`, the agent's own `liveThinking` and `thinkingShare`, and `grade` (its current model, effort and latest named provider; null without a model); `expect` is the whole set's, which the agents' sums add up to.",
  "table": "prices/v2.json",
  "grades": [
   {
@@ -410,6 +410,506 @@
       "shown": 96,
       "liveThinking": 20.0,
       "thinkingShare": 0.5
+     }
+    }
+   ]
+  }
+ ],
+ "agentWindows": [
+  {
+   "name": "a generating agent counts its measured response and its in-flight estimate; an idle agent rests on its grade; a generating agent without a model or an estimate has none",
+   "agents": [
+    {
+     "id": "a1",
+     "source": "codex",
+     "model": "gpt-5.5",
+     "effort": "xhigh",
+     "phase": "generating",
+     "inFlightStartMs": 1000000004000,
+     "lastLineMs": 1000000004000,
+     "parentId": null
+    },
+    {
+     "id": "a2",
+     "source": "codex",
+     "model": "plain-model-1",
+     "effort": "low",
+     "phase": "idle",
+     "inFlightStartMs": null,
+     "lastLineMs": 1000000001000,
+     "parentId": null
+    },
+    {
+     "id": "a3",
+     "source": "claudeCode",
+     "model": null,
+     "effort": null,
+     "phase": "generating",
+     "inFlightStartMs": 1000000003000,
+     "lastLineMs": 1000000003000,
+     "parentId": null
+    }
+   ],
+   "responses": [
+    {
+     "key": "r1",
+     "agentId": "a1",
+     "source": "codex",
+     "model": "gpt-5.5",
+     "startMs": 1000000000000,
+     "endMs": 1000000004000,
+     "input": 1000,
+     "output": 400,
+     "reasoning": 100,
+     "final": true,
+     "effort": "high"
+    },
+    {
+     "key": "r2",
+     "agentId": "a2",
+     "source": "codex",
+     "model": "plain-model-1",
+     "startMs": 999999940000,
+     "endMs": 999999950000,
+     "input": 1000,
+     "output": 500,
+     "reasoning": 0,
+     "final": true,
+     "effort": "low"
+    }
+   ],
+   "queries": [
+    {
+     "nowMs": 1000000005000,
+     "expect": {
+      "intelligence": 105.0,
+      "shown": 105,
+      "liveThinking": 25.0,
+      "thinkingShare": 0.25
+     },
+     "agents": {
+      "a1": {
+       "form": "live",
+       "intelligence": 105.0,
+       "shown": 105,
+       "liveThinking": 25.0,
+       "thinkingShare": 0.25,
+       "grade": 104
+      },
+      "a2": {
+       "form": "resting",
+       "intelligence": 66,
+       "shown": 66,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 66
+      },
+      "a3": {
+       "form": "none",
+       "intelligence": null,
+       "shown": null,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": null
+      }
+     }
+    },
+    {
+     "nowMs": 1000000009000,
+     "expect": {
+      "intelligence": 109.0,
+      "shown": 109,
+      "liveThinking": 25.0,
+      "thinkingShare": 0.25
+     },
+     "agents": {
+      "a1": {
+       "form": "live",
+       "intelligence": 109.0,
+       "shown": 109,
+       "liveThinking": 25.0,
+       "thinkingShare": 0.25,
+       "grade": 104
+      },
+      "a2": {
+       "form": "resting",
+       "intelligence": 66,
+       "shown": 66,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 66
+      },
+      "a3": {
+       "form": "none",
+       "intelligence": null,
+       "shown": null,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": null
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "two agents of one source: each shows its own value and the source blends them; at rest an agent shows the grade of its current effort",
+   "agents": [
+    {
+     "id": "b1",
+     "source": "claudeCode",
+     "model": "claude-opus-5-5",
+     "effort": "xhigh",
+     "phase": "idle",
+     "inFlightStartMs": null,
+     "lastLineMs": 1000000003000,
+     "parentId": null
+    },
+    {
+     "id": "b2",
+     "source": "claudeCode",
+     "model": "claude-sonnet-5-5",
+     "effort": "medium",
+     "phase": "idle",
+     "inFlightStartMs": null,
+     "lastLineMs": 1000000003000,
+     "parentId": null
+    }
+   ],
+   "responses": [
+    {
+     "key": "rb1",
+     "agentId": "b1",
+     "source": "claudeCode",
+     "model": "claude-opus-5-5",
+     "startMs": 1000000000000,
+     "endMs": 1000000003000,
+     "input": 1000,
+     "output": 300,
+     "reasoning": 120,
+     "final": true,
+     "effort": "xhigh"
+    },
+    {
+     "key": "rb2",
+     "agentId": "b2",
+     "source": "claudeCode",
+     "model": "claude-sonnet-5-5",
+     "startMs": 1000000000000,
+     "endMs": 1000000003000,
+     "input": 1000,
+     "output": 100,
+     "reasoning": 0,
+     "final": true,
+     "effort": "low"
+    }
+   ],
+   "queries": [
+    {
+     "nowMs": 1000000003000,
+     "expect": {
+      "intelligence": 125.5,
+      "shown": 126,
+      "liveThinking": 40.0,
+      "thinkingShare": 0.3
+     },
+     "agents": {
+      "b1": {
+       "form": "live",
+       "intelligence": 132.0,
+       "shown": 132,
+       "liveThinking": 40.0,
+       "thinkingShare": 0.4,
+       "grade": 124
+      },
+      "b2": {
+       "form": "live",
+       "intelligence": 106.0,
+       "shown": 106,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 112
+      }
+     }
+    },
+    {
+     "nowMs": 1000000007000,
+     "expect": {
+      "intelligence": null,
+      "shown": null,
+      "liveThinking": 0.0,
+      "thinkingShare": 0.0
+     },
+     "agents": {
+      "b1": {
+       "form": "resting",
+       "intelligence": 124,
+       "shown": 124,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 124
+      },
+      "b2": {
+       "form": "resting",
+       "intelligence": 112,
+       "shown": 112,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 112
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "a sub-agent is an agent of its own: its parent's value never includes it; an unmeasured response counts for its own agent",
+   "agents": [
+    {
+     "id": "c1",
+     "source": "claudeCode",
+     "model": "claude-opus-5-5",
+     "effort": "high",
+     "phase": "tools",
+     "inFlightStartMs": null,
+     "lastLineMs": 1000000002500,
+     "parentId": null
+    },
+    {
+     "id": "c2",
+     "source": "claudeCode",
+     "model": "claude-haiku-5",
+     "effort": "low",
+     "phase": "generating",
+     "inFlightStartMs": 1000000001000,
+     "lastLineMs": 1000000001000,
+     "parentId": "c1"
+    }
+   ],
+   "responses": [
+    {
+     "key": "rc1a",
+     "agentId": "c1",
+     "source": "claudeCode",
+     "model": "claude-opus-5-5",
+     "startMs": 999999990000,
+     "endMs": 999999994000,
+     "input": 1000,
+     "output": 400,
+     "reasoning": 100,
+     "final": true,
+     "effort": "high"
+    },
+    {
+     "key": "rc1b",
+     "agentId": "c1",
+     "source": "claudeCode",
+     "model": "claude-opus-5-5",
+     "startMs": 1000000000500,
+     "endMs": 1000000002500,
+     "input": 1000,
+     "output": 8,
+     "reasoning": 0,
+     "final": false,
+     "effort": "high"
+    },
+    {
+     "key": "rc2",
+     "agentId": "c2",
+     "source": "claudeCode",
+     "model": "claude-haiku-5",
+     "startMs": 999999991000,
+     "endMs": 999999993000,
+     "input": 1000,
+     "output": 100,
+     "reasoning": 40,
+     "final": true,
+     "effort": "low"
+    }
+   ],
+   "queries": [
+    {
+     "nowMs": 1000000003000,
+     "expect": {
+      "intelligence": 113.33333333333333,
+      "shown": 113,
+      "liveThinking": 30.0,
+      "thinkingShare": 0.3
+     },
+     "agents": {
+      "c1": {
+       "form": "live",
+       "intelligence": 123.0,
+       "shown": 123,
+       "liveThinking": 16.666666666666668,
+       "thinkingShare": 0.25,
+       "grade": 118
+      },
+      "c2": {
+       "form": "live",
+       "intelligence": 94.0,
+       "shown": 94,
+       "liveThinking": 13.333333333333334,
+       "thinkingShare": 0.4,
+       "grade": 86
+      }
+     }
+    },
+    {
+     "nowMs": 1000000007000,
+     "expect": {
+      "intelligence": 94.0,
+      "shown": 94,
+      "liveThinking": 20.0,
+      "thinkingShare": 0.4
+     },
+     "agents": {
+      "c1": {
+       "form": "resting",
+       "intelligence": 118,
+       "shown": 118,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 118
+      },
+      "c2": {
+       "form": "live",
+       "intelligence": 94.0,
+       "shown": 94,
+       "liveThinking": 20.0,
+       "thinkingShare": 0.4,
+       "grade": 86
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "an agent without a model is live while its estimate exists, from another agent's responses; it has no grade of its own and weighs as an unknown model",
+   "agents": [
+    {
+     "id": "f1",
+     "source": "gemini",
+     "model": null,
+     "effort": null,
+     "phase": "generating",
+     "inFlightStartMs": 1000000000000,
+     "lastLineMs": 1000000000000,
+     "parentId": null
+    },
+    {
+     "id": "f2",
+     "source": "gemini",
+     "model": "gemini-3-flash-preview",
+     "effort": "low",
+     "phase": "idle",
+     "inFlightStartMs": null,
+     "lastLineMs": 999999996000,
+     "parentId": null
+    }
+   ],
+   "responses": [
+    {
+     "key": "rf2",
+     "agentId": "f2",
+     "source": "gemini",
+     "model": "gemini-3-flash-preview",
+     "startMs": 999999992000,
+     "endMs": 999999996000,
+     "input": 1000,
+     "output": 400,
+     "reasoning": 100,
+     "final": true,
+     "effort": "low"
+    }
+   ],
+   "queries": [
+    {
+     "nowMs": 1000000003000,
+     "expect": {
+      "intelligence": 97.0,
+      "shown": 97,
+      "liveThinking": 25.0,
+      "thinkingShare": 0.25
+     },
+     "agents": {
+      "f1": {
+       "form": "live",
+       "intelligence": 97.0,
+       "shown": 97,
+       "liveThinking": 25.0,
+       "thinkingShare": 0.25,
+       "grade": null
+      },
+      "f2": {
+       "form": "resting",
+       "intelligence": 86,
+       "shown": 86,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 86
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "an agent's grade takes the provider of its latest response that names one",
+   "agents": [
+    {
+     "id": "e1",
+     "source": "opencode",
+     "model": "qwen3",
+     "effort": null,
+     "phase": "idle",
+     "inFlightStartMs": null,
+     "lastLineMs": 999999940000,
+     "parentId": null
+    }
+   ],
+   "responses": [
+    {
+     "key": "re1",
+     "agentId": "e1",
+     "source": "opencode",
+     "model": "qwen3",
+     "startMs": 999999870000,
+     "endMs": 999999880000,
+     "input": 1000,
+     "output": 300,
+     "reasoning": 0,
+     "final": true,
+     "provider": "ollama"
+    },
+    {
+     "key": "re2",
+     "agentId": "e1",
+     "source": "opencode",
+     "model": "qwen3",
+     "startMs": 999999930000,
+     "endMs": 999999940000,
+     "input": 1000,
+     "output": 300,
+     "reasoning": 0,
+     "final": true
+    }
+   ],
+   "queries": [
+    {
+     "nowMs": 1000000003000,
+     "expect": {
+      "intelligence": null,
+      "shown": null,
+      "liveThinking": 0.0,
+      "thinkingShare": 0.0
+     },
+     "agents": {
+      "e1": {
+       "form": "resting",
+       "intelligence": 72,
+       "shown": 72,
+       "liveThinking": 0.0,
+       "thinkingShare": 0.0,
+       "grade": 72
+      }
      }
     }
    ]

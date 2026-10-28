@@ -25,9 +25,12 @@ struct AgentsSection: View {
         let hidden = expanded ? 0 : total - visible
         let tree = AgentTree(rows)
         let depths = tree.depths.map { min($0, DashboardLayout.maxAgentDepth) }
+        let intelligenceCaption = l10n("intel.glyph")
+        let intelligenceWidth = AgentIntelligenceColumn.width(caption: intelligenceCaption)
         let column = AgentCapsuleColumn(
             rows: rows.indices.map { (EffortCapsule(rows[$0].modes), depths[$0]) },
-            rowWidth: rowWidth
+            rowWidth: rowWidth,
+            intelligence: intelligenceWidth
         )
 
         VStack(alignment: .leading, spacing: DashboardLayout.rowSpacing) {
@@ -35,7 +38,11 @@ struct AgentsSection: View {
                 SectionTitle(text: l10n("dashboard.agents"), latin: model.dashboardLatinCaps)
                 Spacer(minLength: 0)
                 if !rows.isEmpty {
-                    ColumnCaption(text: l10n("unit.tokS"), width: DashboardLayout.speedColumn)
+                    HStack(spacing: AgentIntelligenceColumn.gap) {
+                        ColumnCaption(text: intelligenceCaption, width: intelligenceWidth)
+                            .help(l10n("agents.intel.hint"))
+                        ColumnCaption(text: l10n("unit.tokS"), width: DashboardLayout.speedColumn)
+                    }
                 }
             }
             .padding(.bottom, 2)
@@ -57,7 +64,8 @@ struct AgentsSection: View {
                                 agent: agent,
                                 depth: depths[index],
                                 now: snapshot.timestamp,
-                                capsuleColumn: column
+                                capsuleColumn: column,
+                                intelligenceWidth: intelligenceWidth
                             )
                             .transition(.asymmetric(insertion: fadeIn, removal: .identity))
                             .zIndex(Double(rows.count - index))
