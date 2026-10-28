@@ -45,21 +45,26 @@ struct TrafficPane: View {
     }
 }
 
-/// `settings.bar.traffic` (DESIGN 10): the menu bar's traffic block; the same control in 選單列 and 網路流量.
+/// `settings.bar.traffic` (DESIGN 10, Menu bar and taskbar): the readout block after the menu bar value; the same
+/// control in 選單列 and 網路流量. The network choices need measuring: while it is off they are shown but not
+/// selectable, and a stored one stays selected and draws nothing. `off` and live intelligence are always selectable.
 struct BarTrafficPicker: View {
     let model: AppModel
 
     var body: some View {
         @Bindable var settings = model.settings
         let l10n = model.l10n
-        Picker(selection: $settings.barTraffic) {
+        PopupRow(
+            title: l10n("settings.bar.traffic"),
+            caption: settings.barTraffic == .intelligence ? l10n("settings.bar.traffic.hint.intel") : nil,
+            selection: $settings.barTraffic
+        ) {
             ForEach(BarTraffic.allCases) { option in
-                Text(l10n(option.titleKey)).tag(option)
+                Text(l10n(option.titleKey))
+                    .tag(option)
+                    .disabled(option.isNetwork && !settings.trafficEnabled)
             }
-        } label: {
-            RowTitle(l10n("settings.bar.traffic"))
         }
-        .pickerStyle(.menu)
     }
 }
 

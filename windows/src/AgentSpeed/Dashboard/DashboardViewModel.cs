@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using AgentSpeed.Controls;
 using AgentSpeed.Core;
+using AgentSpeed.Core.Intelligence;
 using AgentSpeed.Modes;
 using AgentSpeed.Presentation.Colors;
 using AgentSpeed.Presentation.Cost;
@@ -82,6 +83,7 @@ internal sealed class AgentRow : ObservableObject
 {
     private string _project = string.Empty;
     private string _detail = string.Empty;
+    private string _detailSuffix = string.Empty;
     private AgentPhase _phase = AgentPhase.Idle;
     private Color _color = Colors.Gray;
     private string _liveText = string.Empty;
@@ -95,6 +97,9 @@ internal sealed class AgentRow : ObservableObject
 
     public string Detail { get => _detail; set => Set(ref _detail, value); }
 
+    /// <summary>The agent's traffic today (<c> · ↓ 2.10 MB</c>, DESIGN 10): it stays whole while the detail truncates.</summary>
+    public string DetailSuffix { get => _detailSuffix; set => Set(ref _detailSuffix, value); }
+
     public AgentPhase Phase { get => _phase; set => Set(ref _phase, value); }
 
     public Color Color { get => _color; set => Set(ref _color, value); }
@@ -106,6 +111,14 @@ internal sealed class AgentRow : ObservableObject
 
     /// <summary>The speed with its unit, or the phase name when no number is shown.</summary>
     public string LiveAccessibleName { get => _liveAccessibleName; set => Set(ref _liveAccessibleName, value); }
+
+    /// <summary>The agent's intelligence: live index, resting grade or <c>–</c> (DESIGN 4, Intelligence column).</summary>
+    public string IntelligenceText { get => _intelligenceText; set => Set(ref _intelligenceText, value); }
+
+    public AgentIntelligenceForm IntelligenceForm { get => _intelligenceForm; set => Set(ref _intelligenceForm, value); }
+
+    /// <summary><c>a11y.agent.intel</c> or <c>a11y.agent.grade</c>; empty without a value.</summary>
+    public string IntelligenceAccessibleName { get => _intelligenceAccessibleName; set => Set(ref _intelligenceAccessibleName, value); }
 
     /// <summary>Left margin for the row's depth in the agent tree.</summary>
     public Thickness Indent { get => _indent; set => Set(ref _indent, value); }
@@ -122,13 +135,17 @@ internal sealed class AgentRow : ObservableObject
 
     /// <summary>
     /// <c>work.looping</c> while looping, <c>traffic.agent.tooltip</c> while the agent has attributed traffic today
-    /// (DESIGN 10), the capsule's lines when effort or speed is known, the agent's grade, then the work lines.
+    /// (DESIGN 10), the capsule's lines when effort or speed is known, the agent's live intelligence and grade, then the
+    /// work lines.
     /// </summary>
     public string? Tooltip { get => _tooltip; set => Set(ref _tooltip, value); }
 
     private EffortCapsule _capsule = new(null, null);
     private bool _isLooping;
     private string? _tooltip;
+    private string _intelligenceText = AgentIntelligenceCell.Dash;
+    private AgentIntelligenceForm _intelligenceForm = AgentIntelligenceForm.None;
+    private string _intelligenceAccessibleName = string.Empty;
 }
 
 /// <summary>One source of today's cost in the ⓘ popup: colour dot, name, amount and a thin share bar.</summary>
@@ -285,6 +302,16 @@ internal sealed partial class DashboardViewModel : ObservableObject
 
     public bool ReduceMotion { get => _reduceMotion; set => Set(ref _reduceMotion, value); }
 
+    /// <summary>The intelligence column's fixed width for the language (DESIGN 4, Intelligence column).</summary>
+    public double IntelligenceWidth { get => _intelligenceWidth; private set => Set(ref _intelligenceWidth, value); }
+
+    /// <summary>
+    /// The name block's room in a row at <paramref name="indent"/> without a capsule column: the badge, the intelligence
+    /// cell and its gap, and the live value come off.
+    /// </summary>
+    public static double NameRoom(double indent, double intelligenceWidth) =>
+        AgentRowWidth - indent - PhaseBadgeWidth - AgentIntelligenceColumn.Footprint(intelligenceWidth) - LiveValueWidth - NameGap;
+
     /// <summary>The agents' shared capsule column (DESIGN 4, Agents).</summary>
     public EffortCapsuleColumn CapsuleColumn { get => _capsuleColumn; private set => Set(ref _capsuleColumn, value); }
 
@@ -304,6 +331,7 @@ internal sealed partial class DashboardViewModel : ObservableObject
     public bool TitleSlides { get => _titleSlides; set => Set(ref _titleSlides, value); }
 
     private EffortCapsuleColumn _capsuleColumn;
+    private double _intelligenceWidth = 24;
     private CapsuleAppearance _capsuleAppearance;
     private string _languageCode = LanguageCodes.ZhHant;
     private int _titleLevel;
@@ -571,12 +599,14 @@ internal sealed partial class DashboardViewModel : ObservableObject
             {
                 // DESIGN 10: the agent's attributed download today ends its secondary line; the tooltip has both directions.
                 var text = new TrafficText(loc, _trafficBits);
-                row.Detail = $"{detail} · ↓ {Core.Traffic.TrafficFormat.Total(traffic.Rx)}";
+                row.Detail = detail;
+                row.DetailSuffix = $" · ↓ {Core.Traffic.TrafficFormat.Total(traffic.Rx)}";
                 tooltip.Add(loc.Format("traffic.agent.tooltip", text.Pair(traffic)));
             }
             else
             {
                 row.Detail = detail;
+                row.DetailSuffix = string.Empty;
             }
 
             var capsule = EffortCapsule.Of(agent.Modes);
@@ -586,7 +616,11 @@ internal sealed partial class DashboardViewModel : ObservableObject
                 tooltip.AddRange(capsule.TooltipLines(loc));
             }
 
-            tooltip.Add(IntelligenceText.Grade(agent.Grade, loc));
+            var intelligence = AgentIntelligenceCell.Of(agent, loc);
+            row.IntelligenceText = intelligence.Text;
+            row.IntelligenceForm = intelligence.Form;
+            row.IntelligenceAccessibleName = intelligence.Spoken;
+            tooltip.AddRange(intelligence.TooltipLines);
             tooltip.AddRange(WorkText.Closing(agent.Work, loc));
             row.Tooltip = string.Join("\n", tooltip);
 
@@ -609,14 +643,16 @@ internal sealed partial class DashboardViewModel : ObservableObject
             row.Indent = new Thickness(rows[i].Indent * TreeConnectors.LevelWidth, 0, 0, 0);
             row.Guides = rows[i].Guides;
             var accessible = row.LiveKind == LiveValueKind.Number
-                ? string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}, {phase}, {row.LiveAccessibleName}")
-                : string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}, {phase}");
+                ? string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}{row.DetailSuffix}, {phase}, {row.LiveAccessibleName}")
+                : string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}{row.DetailSuffix}, {phase}");
+            accessible = intelligence.Spoken.Length > 0 ? $"{accessible}, {intelligence.Spoken}" : accessible;
             accessible = capsule.IsKnown ? $"{accessible}, {capsule.AccessibilityText(loc)}" : accessible;
             row.AccessibleName = looping is null ? accessible : $"{accessible}, {looping}";
         }
 
+        IntelligenceWidth = IntelligenceColumnMeasure.Width(loc.LanguageCode, loc["intel.glyph"]);
         var deepest = rows.Count == 0 ? 0 : rows.Max(r => r.Indent);
-        var nameRoom = AgentRowWidth - deepest * TreeConnectors.LevelWidth - PhaseBadgeWidth - LiveValueWidth - NameGap;
+        var nameRoom = NameRoom(deepest * TreeConnectors.LevelWidth, IntelligenceWidth);
         CapsuleColumn = EffortCapsuleColumn.For(Agents.Select(r => r.Capsule), nameRoom, CapsuleWordMeasure.For(loc.LanguageCode));
         LanguageCode = loc.LanguageCode;
 

@@ -326,7 +326,8 @@ struct SpeedEngine: Sendable {
                 live: window.byAgent[agent.id] ?? .zero,
                 recentSpeed: references.recent(for: agent.id)?.output,
                 liveCost: window.costByAgent[agent.id] ?? .zero,
-                grade: grader.grade(of: agent),
+                grade: grader.ownGrade(of: agent),
+                intelligence: window.intelligenceByAgent[agent.id] ?? .zero,
                 signals: WorkSignals(agent.actions, nowMs: nowMs)
             )
         }

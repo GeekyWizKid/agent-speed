@@ -679,7 +679,7 @@ internal sealed partial class MonitorCore : IDisposable
                 a.Live,
                 a.RecentSpeed,
                 UnixTime.FromMs(a.Info.LastLineMs ?? nowMs),
-                a.ParentId) { LiveCost = a.LiveCost, Modes = a.Info.Modes, Grade = a.Grade, Work = a.Work })
+                a.ParentId) { LiveCost = a.LiveCost, Modes = a.Info.Modes, Grade = a.Grade, Intelligence = a.Intelligence, Work = a.Work })
             .ToList();
 
         var sources = Enum.GetValues<SourceKind>()

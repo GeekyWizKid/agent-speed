@@ -98,8 +98,10 @@ struct EngineAgentStatus: Equatable, Sendable {
     var parentId: String?
     /// The agent's live cost rate (METRICS 9.5).
     var liveCost: LiveCost = .zero
-    /// Its current model and effort's grade (METRICS 6.9).
-    var grade: IntelligenceGrade = .unknown
+    /// Its current model and effort's grade (METRICS 6.9); nil without a model.
+    var grade: IntelligenceGrade?
+    /// Its own live intelligence sums (METRICS 6.9, Agent intelligence).
+    var intelligence: IntelligenceSums = .zero
     var signals: WorkSignals = .none
 }
 

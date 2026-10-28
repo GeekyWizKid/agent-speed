@@ -92,8 +92,11 @@ public sealed record AgentStatus(
     /// <summary>The agent's live cost rate (METRICS 9.5).</summary>
     public LiveCost LiveCost { get; init; }
 
-    /// <summary>The grade of the agent's current model and effort (METRICS 6.9).</summary>
-    public Intelligence.ModelGrade Grade { get; init; } = Intelligence.ModelGrade.Unknown;
+    /// <summary>The grade of the agent's current model and effort (METRICS 6.9); null without a model.</summary>
+    public Intelligence.ModelGrade? Grade { get; init; }
+
+    /// <summary>The agent's own intelligence: live, resting on its grade, or none (METRICS 6.9, Agent intelligence).</summary>
+    public Intelligence.AgentIntelligence Intelligence { get; init; }
 
     /// <summary>What the agent's recent tool calls say (METRICS 6.10).</summary>
     public Work.WorkSignals Work { get; init; } = Core.Work.WorkSignals.None;

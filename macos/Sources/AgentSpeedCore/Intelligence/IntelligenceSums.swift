@@ -57,5 +57,5 @@ public struct IntelligenceSums: Equatable, Sendable {
 extension SourceKind {
     /// DeepSeek Harness counts reasoning inside its output (METRICS 4.3): its tokens add their grade to the index but
     /// nothing to the thinking share.
-    var recordsReasoningApart: Bool { self != .deepseek }
+    public var recordsReasoningApart: Bool { self != .deepseek }
 }

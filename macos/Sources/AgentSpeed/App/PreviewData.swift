@@ -74,7 +74,8 @@ enum PreviewData {
             lastResponse: nil,
             warnings: [],
             liveCost: liveCost,
-            todayCost: todayCost
+            todayCost: todayCost,
+            intelligence: agents.reduce(into: IntelligenceSums()) { $0.add($1.intelligence) }
         )
     }
 
@@ -141,7 +142,8 @@ enum PreviewData {
         _ id: String, _ source: SourceKind, _ project: String, _ model: String,
         _ phase: AgentPhase, _ isSubagent: Bool, _ live: Double, _ activity: Date, parent: String? = nil
     ) -> AgentStatus {
-        AgentStatus(
+        let grade = previewGrade(model)
+        return AgentStatus(
             id: "/preview/\(id).jsonl",
             source: source,
             project: project,
@@ -151,8 +153,32 @@ enum PreviewData {
             live: Rate(output: live, total: live * 26),
             recentSpeed: live > 0 ? live : nil,
             lastActivity: activity,
-            parentId: parent.map { "/preview/\($0).jsonl" }
+            parentId: parent.map { "/preview/\($0).jsonl" },
+            grade: grade,
+            intelligence: intelligence(output: live, grade: grade, thinkingShare: 0.3, source: source)
         )
+    }
+
+    /// A plausible grade for the preview models at `effort` (medium when unknown; METRICS 6.9).
+    static func previewGrade(_ model: String?, effort: String? = nil) -> IntelligenceGrade? {
+        guard let model, !model.isEmpty else { return nil }
+        let flagship = ["opus", "fable", "gpt-6.1-sol", "gpt-5.5"].contains { model.contains($0) } && !model.contains("mini")
+        let light = ["haiku", "flash", "mini", "glm", "kimi", "deepseek"].contains { model.contains($0) }
+        let level = effort.flatMap { token in ModeDisplay.effortLevel(token).map { $0 + (ModeDisplay.isTopRung(token) ? 1 : 0) } }
+        return IntelligenceGrade(modelClass: flagship ? .flagship : light ? .light : .standard, level: level ?? 2)
+    }
+
+    /// An agent's own sums (METRICS 6.9) for `output` tok/s at `grade` with `thinkingShare` of it reasoning.
+    static func intelligence(output: Double, grade: IntelligenceGrade?, thinkingShare: Double, source: SourceKind) -> IntelligenceSums {
+        var sums = IntelligenceSums()
+        guard output > 0 else { return sums }
+        sums.output = output
+        sums.gradedOutput = output * Double(grade?.value ?? 92)
+        if source.recordsReasoningApart {
+            sums.thinking = output * thinkingShare
+            sums.thinkingBase = output
+        }
+        return sums
     }
 
     /// DeepSeek not installed and Claude Desktop turned off: the dashboard hides the first and dims the second.

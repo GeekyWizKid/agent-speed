@@ -1,11 +1,15 @@
 namespace AgentSpeed.Presentation.Settings;
 
-/// <summary>The taskbar's traffic block (DESIGN 10, Menu bar and taskbar).</summary>
+/// <summary>
+/// The taskbar's readout block after the value (DESIGN 10, Menu bar and taskbar): network speed of this computer or of the
+/// agents, or the live intelligence, which needs no network measuring.
+/// </summary>
 public enum BarTraffic
 {
     Off,
     Machine,
     Agents,
+    Intelligence,
 }
 
 /// <summary>The unit of traffic rates (DESIGN 10): bytes (default) or bits; totals are always bytes.</summary>
@@ -32,6 +36,9 @@ public sealed record TrafficSettings
 
     public bool Bits => Unit == TrafficUnit.Bits;
 
+    /// <summary>The block shows network speed (and needs measuring on).</summary>
+    public static bool IsNetwork(BarTraffic bar) => bar is BarTraffic.Machine or BarTraffic.Agents;
+
     public TrafficSettings Validated() => this with
     {
         Unit = Enum.IsDefined(Unit) ? Unit : TrafficUnit.Bytes,
@@ -42,13 +49,16 @@ public sealed record TrafficSettings
     {
         BarTraffic.Machine => "machine",
         BarTraffic.Agents => "agents",
+        BarTraffic.Intelligence => "intelligence",
         _ => "off",
     };
 
+    /// <summary>An unknown stored value reads as off.</summary>
     public static BarTraffic ParseBar(string? key) => key switch
     {
         "machine" => BarTraffic.Machine,
         "agents" => BarTraffic.Agents,
+        "intelligence" => BarTraffic.Intelligence,
         _ => BarTraffic.Off,
     };
 }

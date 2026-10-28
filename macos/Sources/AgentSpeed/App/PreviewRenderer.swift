@@ -42,6 +42,12 @@ enum PreviewRenderer {
         if wants("intel") {
             IntelligencePreviews.render(model: model, into: directory)
         }
+        if wants("agentintel") {
+            AgentIntelligencePreviews.render(model: model, into: directory)
+        }
+        if wants("intelbar") {
+            IntelligenceBarPreviews.render(model: model, into: directory)
+        }
         if wants("cards") {
             TitleCardPreviews.render(model: model, into: directory)
         }

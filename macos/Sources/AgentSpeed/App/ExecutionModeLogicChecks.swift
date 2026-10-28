@@ -13,8 +13,8 @@ enum ExecutionModeLogicChecks {
         let future = capsule("warp-2")
         let mixed = SharedEffortCapsule(agents: [agent("a", .generating, "xhigh"), agent("b", .generating, "max"), agent("c", .idle, nil)])
         let generatingOnly = SharedEffortCapsule(agents: [agent("a", .generating, "max"), agent("b", .idle, "low")])
-        let column = AgentCapsuleColumn(rows: [(ultracode, 2), (fastXhigh, 0)], rowWidth: 328)
-        let narrow = AgentCapsuleColumn(rows: [(ultracode, 2), (fastXhigh, 0)], rowWidth: 200)
+        let column = AgentCapsuleColumn(rows: [(ultracode, 2), (fastXhigh, 0)], rowWidth: 328, intelligence: 24)
+        let narrow = AgentCapsuleColumn(rows: [(ultracode, 2), (fastXhigh, 0)], rowWidth: 200, intelligence: 24)
         return [
             ("modes: missing shows no capsule", !EffortCapsule(.empty).isVisible && SharedEffortCapsule(agents: [agent("a", .idle, nil)]) == nil),
             ("modes: configured is not a task mode", EffortCapsule(ExecutionModes([configured])) == EffortCapsule(effort: nil, speed: nil)),
@@ -31,7 +31,7 @@ enum ExecutionModeLogicChecks {
             ("modes: generating agents decide the orb row", generatingOnly == .capsule(EffortCapsule(effort: "max", speed: nil))),
             ("modes: the column fits the widest capsule", !column.compact && column.width == ultracode.width(compact: false)),
             ("modes: a narrow list drops every word", narrow.compact && narrow.width < column.width && !ultracode.showsWord(compact: true)),
-            ("modes: no capsule takes no column", AgentCapsuleColumn(rows: [(EffortCapsule(.empty), 0)], rowWidth: 328).width == 0),
+            ("modes: no capsule takes no column", AgentCapsuleColumn(rows: [(EffortCapsule(.empty), 0)], rowWidth: 328, intelligence: 24).width == 0),
         ]
     }
 

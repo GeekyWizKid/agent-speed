@@ -297,7 +297,26 @@
 
                     <!-- Agents -->
                     <Rectangle Style="{StaticResource Hairline}" Margin="0,12,0,12" />
-                    <TextBlock Text="{loc:Loc dashboard.agents}" Style="{StaticResource BodyStrongText}" Margin="0,0,0,6" />
+                    <!-- Column captions over the intelligence cell and the live value, while rows exist (DESIGN 4, Header). -->
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="56" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{loc:Loc dashboard.agents}" Style="{StaticResource BodyStrongText}" />
+                        <dash:ColumnCaption Grid.Column="1" Text="{loc:Loc intel.glyph}" Width="{Binding IntelligenceWidth}" Margin="0,0,6,0.75"
+                                            Background="Transparent" ToolTipService.InitialShowDelay="400"
+                                            Visibility="{Binding HasAgents, Converter={StaticResource Visible}}">
+                            <dash:ColumnCaption.ToolTip>
+                                <ToolTip>
+                                    <TextBlock Text="{loc:Loc agents.intel.hint}" TextWrapping="Wrap" MaxWidth="280" />
+                                </ToolTip>
+                            </dash:ColumnCaption.ToolTip>
+                        </dash:ColumnCaption>
+                        <dash:ColumnCaption Grid.Column="2" Text="{loc:Loc unit.tokS}" Margin="0,0,0,0.75"
+                                            Visibility="{Binding HasAgents, Converter={StaticResource Visible}}" />
+                    </Grid>
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,4" Visibility="{Binding HasAgents, Converter={StaticResource Hidden}}">
                         <controls:GaugeGlyph Width="18" Height="18" TextElement.Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <TextBlock Text="{loc:Loc agents.empty}" Style="{StaticResource CaptionText}" Margin="8,0,0,0" VerticalAlignment="Center" />
@@ -318,6 +337,7 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="30" />
                                                 <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="56" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel VerticalAlignment="Center" Margin="0,3,8,3">
@@ -327,19 +347,27 @@
                                                                       Appearance="{Binding DataContext.CapsuleAppearance, RelativeSource={RelativeSource AncestorType=Window}}" />
                                                     <TextBlock Text="{Binding Project}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                                 </DockPanel>
-                                                <TextBlock Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <!-- The detail truncates; the traffic suffix after it stays whole (DESIGN 4, Room). -->
+                                                <controls:ShrinkFirstPanel TextElement.FontSize="12" TextElement.Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                    <TextBlock Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding DetailSuffix}" Typography.NumeralAlignment="Tabular" />
+                                                </controls:ShrinkFirstPanel>
                                             </StackPanel>
                                             <dash:PhaseBadge Grid.Column="1" Phase="{Binding Phase}" Color="{Binding Color}"
                                                              ReduceMotion="{Binding DataContext.ReduceMotion, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                            <!-- The shared capsule column: as wide as the widest capsule, 8 DIP before the live value (DESIGN 4.4). -->
+                                            <!-- The shared capsule column: as wide as the widest capsule, 8 DIP before the intelligence cell (DESIGN 4.4). -->
                                             <modes:EffortCapsuleView Grid.Column="2" Capsule="{Binding Capsule}" Gap="8"
                                                                      ColumnWidth="{Binding DataContext.CapsuleColumn.Width, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                      Compact="{Binding DataContext.CapsuleColumn.Compact, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                      Appearance="{Binding DataContext.CapsuleAppearance, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                      LanguageCode="{Binding DataContext.LanguageCode, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            <!-- The fixed intelligence cell, 6 DIP before the live value: live, resting grade or dash (DESIGN 4). -->
+                                            <dash:IntelligenceCell Grid.Column="3" Text="{Binding IntelligenceText}" Form="{Binding IntelligenceForm}" Margin="0,0,6,0"
+                                                                   Width="{Binding DataContext.IntelligenceWidth, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                   HighContrast="{Binding DataContext.CapsuleAppearance.HighContrast, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                   AutomationProperties.Name="{Binding IntelligenceAccessibleName}" />
                                             <!-- Below 0.05 tok/s the slot shows a dash or, while tools run, an hourglass (DESIGN 4.4). -->
-                                            <dash:LiveValue Grid.Column="3" Text="{Binding LiveText}" Kind="{Binding LiveKind}"
+                                            <dash:LiveValue Grid.Column="4" Text="{Binding LiveText}" Kind="{Binding LiveKind}"
                                                             TextElement.FontSize="13" TextElement.FontWeight="SemiBold"
                                                             HorizontalAlignment="Right" VerticalAlignment="Center"
                                                             AutomationProperties.Name="{Binding LiveAccessibleName}"
