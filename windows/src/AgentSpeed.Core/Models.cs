@@ -118,6 +118,9 @@ public sealed record SourceStatus(
     /// <summary>Models of today's responses without a known price, most unpriced requests first.</summary>
     public IReadOnlyList<string> UnpricedModels { get; init; } = [];
 
+    /// <summary>Today's unpriced facts (METRICS 9.6 <c>today.unpricedFacts</c>, 9.10 <i>Live</i>), in the fact order.</summary>
+    public IReadOnlyList<Unpriced.UnpricedCount> UnpricedFacts { get; init; } = [];
+
     /// <summary>The live intelligence sums (METRICS 6.9).</summary>
     public Intelligence.IntelligenceSums Intelligence { get; init; }
 

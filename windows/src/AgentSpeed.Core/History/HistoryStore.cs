@@ -242,6 +242,7 @@ internal sealed partial class HistoryStore : IDisposable
         }
 
         LoadModes(byId);
+        LoadUnpriced(byId);
         var result = new Dictionary<string, StoredFile>(byId.Count, pathComparer);
         foreach (var entry in byId.Values)
         {
@@ -274,7 +275,10 @@ internal sealed partial class HistoryStore : IDisposable
         }
     }
 
-    /// <summary>Writes files with their owned key hashes and contributions in one transaction; assigns new ids.</summary>
+    /// <summary>
+    /// Writes files with their owned key hashes, contributions and unpriced facts (METRICS 9.10) in one transaction;
+    /// assigns new ids.
+    /// </summary>
     public void Save(IReadOnlyList<(StoredFile Entry, ulong[] Keys)> batch)
     {
         if (batch.Count == 0)
@@ -318,6 +322,7 @@ internal sealed partial class HistoryStore : IDisposable
                 deleteDays.Bind(1, entry.Id).Run();
                 deleteModels.Bind(1, entry.Id).Run();
                 SaveModes(entry);
+                SaveUnpriced(entry);
                 foreach (var (key, day) in entry.Days)
                 {
                     var source = SourceNames.Of(key.Source);
@@ -608,6 +613,7 @@ internal sealed partial class HistoryStore : IDisposable
 
             connection.Execute(TrafficSchema);
             connection.Execute(ModesSchema);
+            connection.Execute(UnpricedSchema);
             return new HistoryStore(connection);
         }
         catch

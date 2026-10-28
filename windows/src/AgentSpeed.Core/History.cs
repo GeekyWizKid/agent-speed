@@ -1,3 +1,5 @@
+using AgentSpeed.Core.Unpriced;
+
 namespace AgentSpeed.Core;
 
 /// <summary>One model's share of a source's day (METRICS 8).</summary>
@@ -33,6 +35,9 @@ public sealed record DailyUsage(
 
     /// <summary>The price table version bound to the day; null without cost data.</summary>
     public int? PriceVersion { get; init; }
+
+    /// <summary>The day's unpriced facts after <i>Reading</i> (METRICS 9.10), in the fact order.</summary>
+    public UnpricedReading Unpriced { get; init; } = UnpricedReading.None;
 
     /// <summary>Output tok/s over the day's measured responses.</summary>
     public double? AverageSpeed => MeasuredMs > 0 ? MeasuredOutput / (MeasuredMs / 1000.0) : null;
