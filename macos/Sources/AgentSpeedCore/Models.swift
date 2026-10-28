@@ -24,6 +24,8 @@ public enum SourceKind: String, CaseIterable, Codable, Sendable, Identifiable {
     case openclaw
     /// Hermes Agent (Nous Research), read from its `agent.log`.
     case hermes
+    /// Factory Droid (CLI `droid` and Factory Desktop): session transcripts with their settings files.
+    case droid
 
     public var id: String { rawValue }
 }
@@ -415,6 +417,8 @@ public struct MonitorConfiguration: Equatable, Sendable {
     public var openclawRoot: URL?
     /// A Hermes Agent home or one of its `logs` folders; nil reads the automatic home (METRICS 2, 4.15).
     public var hermesRoot: URL?
+    /// The `.factory` folder or its `sessions` folder; nil reads `~/.factory/sessions` (METRICS 2, 4.16).
+    public var droidRoot: URL?
     /// Tests: replaces the automatic roots of a family that are otherwise derived from the environment and the home
     /// folder (omp `sessions` roots, Antigravity store folders, WorkBuddy data folders).
     var automaticRoots: [TranscriptFamily: [URL]] = [:]
@@ -443,7 +447,8 @@ public struct MonitorConfiguration: Equatable, Sendable {
         grokBuildRoot: URL? = nil,
         piRoot: URL? = nil,
         openclawRoot: URL? = nil,
-        hermesRoot: URL? = nil
+        hermesRoot: URL? = nil,
+        droidRoot: URL? = nil
     ) {
         self.enabledSources = enabledSources
         self.codexRoot = codexRoot
@@ -461,5 +466,6 @@ public struct MonitorConfiguration: Equatable, Sendable {
         self.piRoot = piRoot
         self.openclawRoot = openclawRoot
         self.hermesRoot = hermesRoot
+        self.droidRoot = droidRoot
     }
 }

@@ -557,5 +557,11 @@
     "zh-Hans": "选择 Hermes Agent 的主文件夹或 logs 文件夹",
     "en": "Choose Hermes Agent's home folder or a logs folder",
     "ja": "Hermes Agent のホームフォルダまたは logs フォルダを選択"
+  },
+  "mac.settings.sources.chooseDroid": {
+    "zh-Hant": "選擇 Factory Droid 的 .factory 資料夾或 sessions 資料夾",
+    "zh-Hans": "选择 Factory Droid 的 .factory 文件夹或 sessions 文件夹",
+    "en": "Choose Factory Droid's .factory folder or its sessions folder",
+    "ja": "Factory Droid の .factory フォルダまたは sessions フォルダを選択"
   }
 }

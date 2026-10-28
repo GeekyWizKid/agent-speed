@@ -151,6 +151,9 @@ enum TranscriptLocations {
     /// The Hermes Agent home (METRICS 2, 4.15) for this process's environment and home folder.
     static var defaultHermesHome: URL { URL(fileURLWithPath: HermesHome.current.folder, isDirectory: true) }
 
+    /// Factory Droid's sessions folder (METRICS 2, 4.16); no environment variable moves it.
+    static var defaultDroidRoot: URL { home.appendingPathComponent(".factory/sessions", isDirectory: true) }
+
     static func sessionsFolder(_ folder: URL) -> URL {
         folder.lastPathComponent == "sessions" ? folder : folder.appendingPathComponent("sessions", isDirectory: true)
     }
