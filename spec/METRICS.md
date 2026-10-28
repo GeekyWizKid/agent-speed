@@ -2320,7 +2320,7 @@ cases through their own sampler-independent core.
 | --- | --- |
 | `rx` / `tx` | Bytes received (download, ↓) / sent (upload, ↑). Unsigned 64-bit counters, deltas and totals in bytes. |
 | Machine traffic | Bytes on the computer's physical network interfaces (10.2), all programs together. Includes protocol headers and VPN encryption overhead. |
-| Process traffic | Bytes of one process's TCP and UDP sockets on non-loopback interfaces (10.3): transport payload, including TLS and QUIC framing, excluding IP/TCP headers. |
+| Process traffic | Bytes of one process's TCP and UDP sockets that do not go over loopback (10.3), tunnel interfaces included: transport payload, including TLS and QUIC framing, excluding IP/TCP headers. |
 | Agent process | A process that runs a source (10.5). Its *tool processes* are all its descendants that are not agent processes themselves. |
 | Self / tools | A source's traffic is split into `self` (its agent processes) and `tools` (their tool processes). |
 | Agent traffic | Traffic attributed to one agent tree (6.7) by 10.6; best effort. |
@@ -2354,7 +2354,7 @@ Machine counters need no permission and work whether or not process traffic is a
 ### 10.3 Process counters
 
 - **macOS**: one long-running child process
-  `/usr/bin/nettop -P -L 0 -s <interval> -x -n -t external -J bytes_in,bytes_out` (interval 10.10). `nettop` ships
+  `/usr/bin/nettop -P -L 0 -s <interval> -x -n -t external -t undefined -J bytes_in,bytes_out` (interval 10.10). `nettop` ships
   with every macOS since 10.7 and carries Apple's private `com.apple.private.network.statistics` entitlement, which a
   third-party app cannot obtain; it is the only supported way for an unprivileged app to read every process's
   counters. Requirements, all verified on macOS 27.0.1 (M5 Pro):
@@ -2370,9 +2370,35 @@ Machine counters need no permission and work whether or not process traffic is a
     first field (names are the 15-character kernel name and may contain `.` and spaces; they are never used). Columns
     are located by header name; a line that does not parse is skipped. Values are plain integers (`-x`).
   - Semantics: per-process totals since the process started, including connections that already closed (a process
-    that opened three connections one after another showed one growing total), TCP and UDP; `-t external` excludes
-    loopback (a 20 MB transfer over `127.0.0.1` appeared only without it). An exited process stays in the output for
-    2–3 samples with its final totals, so its last bytes are not lost at 1 Hz.
+    that opened three connections one after another showed one growing total), TCP and UDP. An exited process stays
+    in the output for 2–3 samples with its final totals, so its last bytes are not lost at 1 Hz.
+  - **Interface types** (`-t`): nettop gives every socket the type of the interface it last sent through (the
+    kernel's `inp_last_outifp`), not of an interface it is bound to as its help text says: `wifi`, `wired`,
+    `loopback`, `awdl`, `expensive`, `undefined` (no outgoing interface yet, or one of no defined type), and
+    `external` (every defined type except loopback). Tunnel interfaces (`utun*`, `ipsec*`) have no defined type, so
+    the traffic of a program behind a TUN-mode proxy or a VPN is `undefined`, a sibling of `external`, not part of
+    it. Several `-t` add up, and nettop lists each socket once even when it matches more than one: a process with
+    sockets in both views showed the same total under `-t external -t undefined` as with no `-t`, not the sum of
+    the two views. The pair therefore selects every socket except loopback ones. Measured on macOS 27.0.1
+    (2026-10-28, issue #35), per-process totals (received + sent) in each view:
+
+    | Transfer | no `-t` | `external` | `undefined` | `loopback` | `external` + `undefined` |
+    | --- | --- | --- | --- | --- | --- |
+    | `curl` download over Ethernet, 9.0 MB | 9.0 MB | 9.0 MB | 0 | – | 9.0 MB |
+    | UDP sent through a tunnel interface (`utun4`), 283 KB | 283 KB | – | 283 KB | – | 283 KB |
+    | `curl` through a local HTTP proxy on `127.0.0.1`, 7.0 MB: `curl` | 7.0 MB | – | 0 | 7.0 MB | 0 |
+    | the same, the proxy process | 14.0 MB | 7.0 MB | 0 | 7.0 MB | 7.0 MB |
+
+    With `-t external` alone (until 1.4.1) a program behind a TUN-mode proxy or a VPN had no traffic at all. Loopback
+    stays excluded (local model servers, MCP servers, an app's own client and server): 40 MB a test process moved
+    over `127.0.0.1` were listed neither by `-t external` nor by the pair.
+  - **Counted once**: a byte counts for the process whose socket carried it. Behind a TUN or VPN, the agent's own
+    socket counts (`undefined`); the tunnel's encrypted packets count for the tunnel's process (a proxy core such as
+    mihomo, a VPN app's network extension) or for no process (the kernel's IPsec), which is not an agent process
+    and so belongs to no source (10.5), and the machine counters (10.2) count only the physical interface. Through a
+    local HTTP or SOCKS proxy, the agent's socket goes only over loopback and is not counted; the proxy's outgoing
+    socket counts for the proxy process, which belongs to no source either (10.12). Windows counts the same set: its
+    helper drops loopback addresses only, whatever the interface (WINDOWS-SERVICE 3, step 5).
   - `-d` (delta mode) is not used: its first sample is neither a delta nor a total, and deltas are computed by the app
     anyway (10.4). One-shot runs (`-L 1` every second, as some monitors do) cost ≈ 50 ms of CPU each (5 % of a core at
     1 Hz) versus ≈ 16 ms per sample when streaming.
@@ -2581,9 +2607,14 @@ Traffic is observed, not read from logs: there is no history before sampling sta
   wall per call (measured on the test machine, 47 rows), so reading it every second alone would cost 0.08 % of one
   core, four times the budget; every 10 s it costs 0.008 %. A new interface (Wi-Fi joined, tethering) is counted within
   10 s.
-- Process counters (macOS nettop child), measured on the M5 Pro with ≈ 760 open sockets: ≈ 1.6 % of one core at
-  `-s 1` (≈ 15 ms per sample plus ≈ 0.25 % fixed), ≈ 0.5 % at `-s 5`, 1.0 % at `-s 2`; memory 5 MB. To stay near the
-  app's budget the interval adapts:
+- Process counters (macOS nettop child), measured on the M5 Pro with ≈ 760 open sockets and `-t external` alone:
+  ≈ 1.6 % of one core at `-s 1` (≈ 15 ms per sample plus ≈ 0.25 % fixed), ≈ 0.5 % at `-s 5`, 1.0 % at `-s 2`;
+  memory 5 MB. Adding `-t undefined` (10.3) makes nettop follow ≈ 40 % more sockets (≈ 310 instead of ≈ 215 of
+  ≈ 335 open; the added ones are mostly idle UDP sockets and listeners) and costs ≈ 40 % more. Measured 2026-10-28,
+  both invocations side by side through a pseudo-terminal: 0.88 % → 1.22 % of one core at `-s 1` (180 s; four
+  earlier runs: +0.37 to +0.52 points), 0.38 % → 0.59 % at `-s 5` (120 s). `-c` saves nothing measurable; `-m tcp`
+  would cost less than `-t external` alone but would drop QUIC and other UDP traffic, so it is not used. To stay
+  near the app's budget the interval adapts:
   - no agent process in the process table → nettop is not running (0 %);
   - agent processes exist, but no agent is active (10.6) for 60 s and no visible surface shows per-source or per-agent
     traffic → `-s 5`;
@@ -2643,7 +2674,12 @@ translated. Cases: `spec/fixtures/traffic-cases.json` `format`.
   not counted (it is a baseline, 10.4.3).
 - macOS unprivileged interface counters move in 1 KiB steps.
 - Loopback traffic (local model servers such as Ollama or LM Studio, MCP servers on localhost, OpenCode's own client and
-  server) is excluded everywhere.
+  server) is excluded everywhere. So is an agent's traffic through a **local HTTP or SOCKS proxy** (`HTTPS_PROXY` or
+  a system proxy on `127.0.0.1`): the agent's socket only reaches the proxy over loopback, and the proxy's own process
+  is not an agent's. Behind a TUN-mode proxy or a VPN the agent's traffic counts (10.3).
+- An agent that starts a TUN-mode tunnel as its own tool (a user-space VPN client) and sends through it counts the
+  same bytes twice: once on its own tunnel socket (`self`) and once, encrypted, on the tool's socket (`tools`). A
+  proxy started as a tool counts once (as `tools`): the agent reaches it over loopback.
 - WorkBuddy's app processes (chat UI, cloud conversations, sync) are not counted; its CLI processes are recognized by
   rules derived from the 5.8 code, not yet from a running app.
 
