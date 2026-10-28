@@ -32,6 +32,9 @@ public sealed record BarIntelligenceBlock(
     /// <summary>The widest METRICS 7 form below 1 M tok/s; <c>888</c> fits in it too.</summary>
     public const string WidestNumber = "8.88k";
 
+    /// <summary>The language whose UI face draws the labels.</summary>
+    public string LanguageCode { get; init; } = LanguageCodes.ZhHant;
+
     /// <summary>Null unless the intelligence block is chosen and the widget shows a value (not glyph only).</summary>
     public static BarIntelligenceBlock? From(AppSettings settings, SpeedSnapshot snapshot, Localizer localizer)
     {
@@ -50,14 +53,17 @@ public sealed record BarIntelligenceBlock(
         var unit = localizer["unit.tokS"];
         if (sums.Shown is not { } shown)
         {
-            return new BarIntelligenceBlock(label, thinkingLabel, Dash, Dash, unit, Quiet: true, ThinkingDim: true, localizer["intel.none"]);
+            return new BarIntelligenceBlock(label, thinkingLabel, Dash, Dash, unit, Quiet: true, ThinkingDim: true, localizer["intel.none"])
+            {
+                LanguageCode = localizer.LanguageCode,
+            };
         }
 
         var index = shown.ToString(localizer.Culture);
         var zero = DisplayText.IsNegligibleSpeed(sums.LiveThinking);
         var thinking = zero ? "0" : SpeedFormat.Speed(sums.LiveThinking);
         return new BarIntelligenceBlock(label, thinkingLabel, index, thinking, unit, Quiet: false, zero,
-            localizer.Format("a11y.orb.intel", index, thinking));
+            localizer.Format("a11y.orb.intel", index, thinking)) { LanguageCode = localizer.LanguageCode };
     }
 
     /// <summary>
