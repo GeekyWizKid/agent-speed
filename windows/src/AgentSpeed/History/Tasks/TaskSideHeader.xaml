@@ -5,7 +5,7 @@
              xmlns:tasks="clr-namespace:AgentSpeed.History.Tasks"
              xmlns:layout="clr-namespace:AgentSpeed.Presentation.History.Tasks;assembly=AgentSpeed.Presentation"
              Focusable="False" IsTabStop="False">
-    <!-- A side header (DESIGN 12, Side headers): the source, its counts and chip, then the median beside the distribution.
+    <!-- A side header (DESIGN 12, Side headers): the source, its counts and chip, then the median (its caption beside it on one baseline) beside the distribution.
          The left side mirrors only its alignment, toward the centre; the distribution's axis still runs 0 → 100. -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
@@ -44,11 +44,12 @@
                     <ColumnDefinition Width="12" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel x:Name="MedianBlock" VerticalAlignment="Bottom">
+                <StackPanel x:Name="MedianBlock" Orientation="Horizontal" VerticalAlignment="Bottom">
                     <tasks:TaskFadeText x:Name="MedianText" Text="{Binding Median}" FontSize="{x:Static layout:TaskPerformanceLayout.MedianSize}"
-                                        FontWeight="SemiBold" FontFamily="{DynamicResource AppDisplayFontFamily}" LineHeight="40" />
+                                        FontWeight="SemiBold" FontFamily="{DynamicResource AppDisplayFontFamily}" LineHeight="40"
+                                        VerticalAlignment="Bottom" />
                     <TextBlock x:Name="CaptionText" Text="{Binding MedianCaption}" FontSize="{x:Static layout:TaskPerformanceLayout.CaptionSize}"
-                               Margin="0,1,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                               Margin="5,0,0,6" VerticalAlignment="Bottom" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
                 <tasks:TaskHistogramView x:Name="Distribution" Grid.Column="2" VerticalAlignment="Bottom" Margin="0,0,0,1"
                                          Histogram="{Binding Histogram}" Color="{Binding Color}"

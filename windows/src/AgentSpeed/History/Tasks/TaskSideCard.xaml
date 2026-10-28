@@ -30,10 +30,10 @@
 
                 <StackPanel Visibility="{Binding HasRecords, Converter={StaticResource Visible}}">
                     <WrapPanel Margin="0,6,0,0">
-                        <tasks:TaskFadeText Text="{Binding Median}" FontSize="{x:Static layout:TaskPerformanceLayout.NarrowMedianSize}"
+                        <tasks:TaskFadeText x:Name="MedianText" Text="{Binding Median}" FontSize="{x:Static layout:TaskPerformanceLayout.NarrowMedianSize}"
                                             FontWeight="SemiBold" FontFamily="{DynamicResource AppDisplayFontFamily}" LineHeight="29"
                                             VerticalAlignment="Bottom" />
-                        <TextBlock Text="{Binding MedianCaption}" FontSize="{x:Static layout:TaskPerformanceLayout.CaptionSize}" Margin="5,0,0,4"
+                        <TextBlock x:Name="CaptionText" Text="{Binding MedianCaption}" FontSize="{x:Static layout:TaskPerformanceLayout.CaptionSize}" Margin="5,0,0,4"
                                    VerticalAlignment="Bottom" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     </WrapPanel>
                     <WrapPanel Margin="0,2,0,0">

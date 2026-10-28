@@ -10,6 +10,7 @@ internal sealed partial class TaskSideCard : UserControl
     public TaskSideCard()
     {
         InitializeComponent();
+        Loaded += (_, _) => AlignCaption();
     }
 
     public static CornerRadius CardRadius { get; } = new(TaskPerformanceLayout.NarrowCardRadius);
@@ -19,6 +20,11 @@ internal sealed partial class TaskSideCard : UserControl
     protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
     {
         base.OnPropertyChanged(e);
+        if (e.Property == System.Windows.Documents.TextElement.FontFamilyProperty && CaptionText is not null)
+        {
+            AlignCaption();
+        }
+
         if (e.Property == TaskAppearance.HighContrastProperty && Fill is not null)
         {
             var highContrast = (bool)e.NewValue;
@@ -26,4 +32,7 @@ internal sealed partial class TaskSideCard : UserControl
             Outline.Visibility = highContrast ? Visibility.Visible : Visibility.Collapsed;
         }
     }
+
+    private void AlignCaption() => CaptionText.Margin = TaskBaseline.CaptionMargin(MedianText.FontFamily, MedianText.LineHeight,
+        CaptionText.FontFamily, CaptionText.FontSize, 5);
 }

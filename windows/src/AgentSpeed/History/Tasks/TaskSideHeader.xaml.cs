@@ -20,6 +20,7 @@ internal sealed partial class TaskSideHeader : UserControl
         InitializeComponent();
         Distribution.Width = HistogramWidth;
         ApplyAlignment();
+        Loaded += (_, _) => AlignCaption();
     }
 
     public bool Mirrored
@@ -49,8 +50,18 @@ internal sealed partial class TaskSideHeader : UserControl
         Grid.SetColumn(NameText, mirrored ? 0 : 2);
         Grid.SetColumn(MedianBlock, mirrored ? 2 : 0);
         Grid.SetColumn(Distribution, mirrored ? 0 : 2);
-        MedianText.HorizontalAlignment = toward;
-        MedianText.TextAlignment = text;
-        CaptionText.HorizontalAlignment = toward;
+        MedianBlock.HorizontalAlignment = toward;
     }
+
+    protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.Property == System.Windows.Documents.TextElement.FontFamilyProperty && CaptionText is not null)
+        {
+            AlignCaption();
+        }
+    }
+
+    private void AlignCaption() => CaptionText.Margin = TaskBaseline.CaptionMargin(MedianText.FontFamily, MedianText.LineHeight,
+        CaptionText.FontFamily, CaptionText.FontSize, 5);
 }
