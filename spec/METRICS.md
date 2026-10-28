@@ -1578,6 +1578,12 @@ trims and lowercases the value; the `/codex-runtime` command writes `codex_app_s
 - While running: read appended bytes. Changes are detected with the OS file watcher (FSEvents on macOS,
   `FileSystemWatcher` on Windows) plus a 1-second fallback that stats files modified in the last 2 minutes, plus a full
   rediscovery every 10 seconds. Newly discovered files are read from offset 0.
+- The fallbacks must not depend on the watcher: FSEvents reports nothing for appends to a file its writer keeps open
+  until the file is closed, and Codex keeps a session's rollout open for as long as the session lives, often for days.
+  So the rediscovery re-checks size, modification time and identity of every tracked file whose last observed change
+  is within the last 24 hours, and of the other tracked files in turns, each at least once a minute (macOS: one sixth
+  of them per round, by file id; Windows re-checks every tracked file in every round). Nothing in this depends on the
+  calendar day: a session that goes quiet in the evening and continues after midnight is read like any other.
 - Incomplete trailing lines are buffered until their newline arrives. A file that starts being read at its end
   skips the bytes before the first newline it reads only when the byte just before its start offset is not a newline
   (so a complete line appended later is never dropped). The 256 MiB tail rule always skips to the next newline.

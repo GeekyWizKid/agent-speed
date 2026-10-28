@@ -16,6 +16,8 @@ final class MonitorCore: @unchecked Sendable {
     private let configuration: MonitorConfiguration
     private let pricing: PriceBook?
     private let mailbox: SnapshotMailbox
+    /// `rediscoveryInterval`, except in tests.
+    private let rediscoveryEvery: DispatchTimeInterval
     private let queue = DispatchQueue(label: "app.agentspeed.monitor", qos: .utility)
     /// Whole-file reads (METRICS 5.3), one at a time, off the live loop.
     private let wholeFileQueue = DispatchQueue(label: "app.agentspeed.monitor.whole-file", qos: .utility)
@@ -41,11 +43,13 @@ final class MonitorCore: @unchecked Sendable {
         mailbox: SnapshotMailbox,
         subsets: Set<SourceSet> = [],
         pricing: PriceBook? = nil,
+        rediscoveryInterval: DispatchTimeInterval = MonitorCore.rediscoveryInterval,
         wholeFileReadHook: (@Sendable (String) -> Void)? = nil
     ) {
         self.configuration = configuration
         self.pricing = pricing
         self.mailbox = mailbox
+        rediscoveryEvery = rediscoveryInterval
         self.subsets = OSAllocatedUnfairLock(initialState: subsets)
         self.wholeFileReadHook = wholeFileReadHook
     }
@@ -88,7 +92,7 @@ final class MonitorCore: @unchecked Sendable {
         self.session = session
         guard session.hasAvailableRoot else {
             publishPlaceholder(.noSources, session: session)
-            timers = [makeTimer(every: Self.rediscoveryInterval) { [weak self] in self?.retryBootstrap() }]
+            timers = [makeTimer(every: rediscoveryEvery) { [weak self] in self?.retryBootstrap() }]
             return
         }
         seedAndGoLive(session)
@@ -135,7 +139,7 @@ final class MonitorCore: @unchecked Sendable {
         timers = [
             makeTimer(every: Self.publishInterval, leeway: .milliseconds(50)) { [weak self] in self?.publish() },
             makeTimer(every: Self.pollInterval, leeway: .milliseconds(100)) { [weak self] in self?.poll() },
-            makeTimer(every: Self.rediscoveryInterval, leeway: .seconds(1)) { [weak self] in self?.rediscover() },
+            makeTimer(every: rediscoveryEvery, leeway: .seconds(1)) { [weak self] in self?.rediscover() },
         ]
         publish()
     }
