@@ -107,8 +107,9 @@ calls and their timing from the transcript and their tokens from the counters (M
   `kimi-k3`, …; retired ids such as `gpt-5-codex` stay in old logs); `-fast` variants are ids of their own.
 - BYOK: `custom:<display name with whitespace runs as '-'>-<n>`, `<n>` counting entries of the same name from 0
   (droid 0.99 fixed ids changing between sessions). A bracket part is the user's own label (Factory's examples
-  "Sonnet 4.5 [Bedrock]", "GPT-OSS 120b [Groq]"). Recorded: `custom:GPT-5.4-Mini-[OpenAI-BYOK]-0`, `custom:superbased-0`; in readers'
-  fixtures also `custom:Kimi-K3-(free)-0`. A `customModels[].id` the user sets is used as is.
+  "Sonnet 4.5 [Bedrock]", "GPT-OSS 120b [Groq]"). Recorded: `custom:GPT-5.4-Mini-[OpenAI-BYOK]-0`,
+  `custom:superbased-0`; in readers' fixtures also `custom:Kimi-K3-(free)-0`. A `customModels[].id` the user sets
+  is used as is.
 - `reasoningEffort`: `none`, `dynamic`, `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, per model; an
   unsupported choice silently becomes `off` (Factory issue #4), so the value on the assistant message is the one used.
 
