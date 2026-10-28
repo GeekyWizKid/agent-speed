@@ -1,22 +1,31 @@
 using System.Windows.Threading;
 using AgentSpeed.Core;
+using AgentSpeed.Core.Intelligence;
+using AgentSpeed.Core.Pricing;
 
 namespace AgentSpeed.Services;
 
 /// <summary>
 /// Developer option <c>--demo-speed 24,96,400</c>: holds the hub (as a preview) at each speed in turn for a few seconds,
-/// with a small fixed set of agents in every phase, so speed titles and the zero-speed glyphs can be inspected.
+/// with a small fixed set of agents in every phase, so speed titles and the zero-speed glyphs can be inspected. The agents
+/// also cover every intelligence form (live, resting, none), a sub-agent two levels deep with the widest capsule, and a
+/// source without separate reasoning; at 0 tok/s every row rests and the taskbar block is quiet.
 /// </summary>
 internal sealed class PinnedSpeedDriver : IDisposable
 {
     private static readonly TimeSpan Step = TimeSpan.FromSeconds(3.5);
 
-    private static readonly (string Id, SourceKind Source, string Project, string Model, AgentPhase Phase, double Share)[] Agents =
+    /// <summary>The live window (METRICS 6.3) the agents' intelligence sums cover.</summary>
+    private const double WindowSeconds = 3;
+
+    private static readonly PinnedAgent[] Agents =
     [
-        ("pinned-atlas", SourceKind.Codex, "atlas", "gpt-6.1-sol", AgentPhase.Generating, 0.6),
-        ("pinned-quasar", SourceKind.DeepSeek, "quasar", "deepseek-flash", AgentPhase.Generating, 0.4),
-        ("pinned-nova", SourceKind.ClaudeCode, "nova", "claude-opus-5-5", AgentPhase.Tools, 0),
-        ("pinned-orbit", SourceKind.ClaudeDesktop, "orbit", "claude-opus-5-5", AgentPhase.Idle, 0),
+        new("pinned-atlas", SourceKind.Codex, "atlas", "gpt-6.1-sol", AgentPhase.Generating, 0.45, "xhigh", "fast", 0.3),
+        new("pinned-quasar", SourceKind.DeepSeek, "quasar", "deepseek-flash", AgentPhase.Generating, 0.25, "high", null, 0),
+        new("pinned-nova", SourceKind.ClaudeCode, "nova", "claude-opus-5-5", AgentPhase.Tools, 0, "max", null, 0),
+        new("pinned-nova-sub", SourceKind.ClaudeCode, "nova", "claude-sonnet-5-5", AgentPhase.Generating, 0.3, "medium", null, 0.2, "pinned-nova"),
+        new("pinned-nova-deep", SourceKind.ClaudeCode, "nova", "claude-haiku-5", AgentPhase.Idle, 0, "ultracode", "ultrafast", 0, "pinned-nova-sub"),
+        new("pinned-orbit", SourceKind.ClaudeDesktop, "orbit", null, AgentPhase.Idle, 0, null, null, 0),
     ];
 
     private readonly SpeedHub _hub;
@@ -75,15 +84,26 @@ internal sealed class PinnedSpeedDriver : IDisposable
         var agents = Agents.Select(a =>
         {
             var live = a.Share * speed;
-            return new AgentStatus(a.Id, a.Source, a.Project, a.Model, a.Phase, false, new Rate(live, live * 24),
-                live > 0 ? live : null, now);
+            var grade = a.Model is null ? (ModelGrade?)null : ModelGrade.Of(PriceBook.Bundled, a.Model, null, a.Effort);
+            var window = live * WindowSeconds;
+            var sums = IntelligenceSums.Zero.Add(a.Source, window, window * a.Thinking, grade ?? ModelGrade.Unknown);
+            return new AgentStatus(a.Id, a.Source, a.Project, a.Model, a.Phase, a.ParentId is not null, new Rate(live, live * 24),
+                live > 0 ? live : null, now, a.ParentId)
+            {
+                Modes = a.Modes,
+                Grade = grade,
+                Intelligence = new AgentIntelligence(sums, grade),
+            };
         }).ToArray();
         var today = new TokenTotals(120, 4_800_000, 4_100_000, 0, 96_000, 0);
         var sources = Agents.Select(a => a.Source).Distinct().Select(kind =>
         {
             var live = agents.Where(a => a.Source == kind).Sum(a => a.Live.Output);
             return new SourceStatus(kind, true, string.Empty, true, 3, new Rate(live, live * 24), today,
-                agents.Count(a => a.Source == kind && a.Phase == AgentPhase.Generating));
+                agents.Count(a => a.Source == kind && a.Phase == AgentPhase.Generating))
+            {
+                Intelligence = agents.Where(a => a.Source == kind).Aggregate(IntelligenceSums.Zero, (sum, a) => sum + a.Intelligence.Sums),
+            };
         }).ToArray();
 
         _hub.PublishPreview(new SpeedSnapshot(
@@ -102,5 +122,17 @@ internal sealed class PinnedSpeedDriver : IDisposable
             _history.ToArray(),
             null,
             []));
+    }
+
+    /// <param name="Thinking">The reasoning share of its output while it generates.</param>
+    private sealed record PinnedAgent(
+        string Id, SourceKind Source, string Project, string? Model, AgentPhase Phase, double Share, string? Effort, string? Speed,
+        double Thinking, string? ParentId = null)
+    {
+        public ExecutionModes Modes { get; } = new ExecutionModes(new[]
+        {
+            ExecutionModeNative.Effort(Effort, ExecutionModeEvidence.Recorded, ExecutionModeScope.Request),
+            ExecutionModeFact.Create(ExecutionModeKind.Speed, Speed, ExecutionModeEvidence.Recorded, scope: ExecutionModeScope.Request),
+        }.OfType<ExecutionModeFact>());
     }
 }

@@ -91,18 +91,24 @@ internal sealed class TrafficPaneViewModel : ObservableObject
         }
     }
 
-    /// <summary><c>settings.bar.traffic</c>: off, this computer, the agents (the same control as on the taskbar page).</summary>
+    /// <summary>
+    /// <c>settings.bar.traffic</c>: off, this computer, the agents or the live intelligence (the same control as on the
+    /// taskbar page).
+    /// </summary>
     public int BarIndex
     {
         get => (int)T.Bar;
         set
         {
-            if (value is >= 0 and <= 2)
+            if (value is >= 0 and <= (int)BarTraffic.Intelligence)
             {
                 _settings.Update(s => s with { Traffic = s.Traffic with { Bar = (BarTraffic)value } });
             }
         }
     }
+
+    /// <summary>The control's caption: <c>settings.bar.traffic.hint.intel</c> while the intelligence block is chosen, else none.</summary>
+    public string BarHint => T.Bar == BarTraffic.Intelligence ? _loc["settings.bar.traffic.hint.intel"] : string.Empty;
 
     private string? _reportHost;
 

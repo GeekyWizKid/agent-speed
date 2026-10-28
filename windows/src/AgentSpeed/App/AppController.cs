@@ -299,7 +299,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
                     return _settingsWindow?.FindName(char.ToUpperInvariant(_capturePage[0]) + _capturePage[1..] + "Page") as FrameworkElement;
                 })
                 {
-                    Taskbar = () => _lastTaskbarState is { } state ? TaskbarCapture.Render(state, _speed.Value, _speed.Tier, _speed.Redline) : null,
+                    Taskbar = (dark, scale) => _lastTaskbarState is { } state
+                        ? TaskbarCapture.Render(dark is { } d ? state with { TaskbarDark = d } : state, _speed.Value, _speed.Tier, _speed.Redline, scale)
+                        : null,
                     Badges = () => AgentSpeed.Orb.Hero.Badge.BadgeCapture.Presets(_loc),
                     Operation = op =>
                     {
@@ -730,6 +732,12 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             accessible = $"{accessible}{SpokenSeparator}{spokenTraffic}";
         }
 
+        var intelligence = BarIntelligenceBlock.From(s, _speed.Snapshot, _loc);
+        if (intelligence is not null)
+        {
+            accessible = $"{accessible}{SpokenSeparator}{intelligence.Spoken}";
+        }
+
         _lastTaskbarState = new TaskbarState(
             s.ShowOnTaskbar,
             _speed.Value,
@@ -746,7 +754,8 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             bar.Item1,
             money?.Unknown ?? false,
             secondary,
-            traffic);
+            traffic,
+            intelligence);
         _taskbar.Update(_lastTaskbarState);
     }
 
@@ -769,7 +778,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     private LiveMoney? LiveMoney() =>
         Settings.Cost.LiveUnit == LiveUnit.Cost ? _cost.Display.Live(_speed.Snapshot) : null;
 
-    /// <summary>The taskbar and tray tooltip line: tok/s or money, the second value when shown (DESIGN 3), then the title.</summary>
+    /// <summary>
+    /// The taskbar and tray tooltip line: tok/s or money, the second value when shown (DESIGN 3), the title, then the
+    /// readout block's words (DESIGN 10): network speed or the live intelligence.
+    /// </summary>
     private string LiveLine()
     {
         var title = _titles.Text(_speed.Title, _titles.General);
@@ -777,7 +789,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             ? $"{money.NumberText} {money.Unit}"
             : $"{SpeedFormat.Speed(_speed.Value)} {_loc["unit.tokS"]}";
         var line = BarSecondaryValue() is { } secondary ? $"{main} · {secondary.Spoken} · {title}" : $"{main} · {title}";
-        return BarTrafficBlock.From(Settings, _traffic.Snapshot, _loc)?.Spoken is { } traffic ? $"{line} · {traffic}" : line;
+        var readout = BarTrafficBlock.From(Settings, _traffic.Snapshot, _loc)?.Spoken
+            ?? BarIntelligenceBlock.From(Settings, _speed.Snapshot, _loc)?.Spoken;
+        return readout is not null ? $"{line} · {readout}" : line;
     }
 
     // ---- Traffic ----
@@ -791,7 +805,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         var snapshot = _traffic.Snapshot;
         _orbs?.UpdateTraffic(snapshot);
         RefreshDashboardTraffic();
-        if (Settings.Traffic.Bar != BarTraffic.Off)
+        if (TrafficSettings.IsNetwork(Settings.Traffic.Bar))
         {
             UpdateTaskbar();
             if (_tooltipShown)

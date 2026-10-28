@@ -50,11 +50,12 @@
                 </StackPanel>
             </Border>
         </controls:SettingsCard>
-        <controls:SettingsCard Header="{loc:Loc settings.bar.traffic}" Icon="&#xE7F4;" IsEnabled="{Binding Enabled}">
+        <controls:SettingsCard Header="{loc:Loc settings.bar.traffic}" Icon="&#xE7F4;" IsEnabled="{Binding Enabled}" Description="{Binding BarHint}">
             <ComboBox MinWidth="200" SelectedIndex="{Binding BarIndex, Mode=TwoWay}" AutomationProperties.Name="{loc:Loc settings.bar.traffic}">
                 <ComboBoxItem Content="{loc:Loc settings.bar.traffic.off}" />
                 <ComboBoxItem Content="{loc:Loc settings.bar.traffic.machine}" />
                 <ComboBoxItem Content="{loc:Loc settings.bar.traffic.agents}" />
+                <ComboBoxItem Content="{loc:Loc settings.bar.traffic.intelligence}" />
             </ComboBox>
         </controls:SettingsCard>
 

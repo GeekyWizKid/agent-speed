@@ -24,6 +24,9 @@ public sealed class DemoDriver : IDisposable
 
     private static readonly SourceKind[] Sources = Enum.GetValues<SourceKind>();
 
+    /// <summary>Every demo agent's grade: a flagship model at high effort.</summary>
+    private static readonly Intelligence.ModelGrade DemoGrade = new(Intelligence.ModelClass.Flagship, 3);
+
     private readonly SpeedHub _hub;
     private readonly object _gate = new();
     private readonly Random _random = new();
@@ -193,7 +196,11 @@ public sealed class DemoDriver : IDisposable
             var share = active ? speed * agent.Weight / activeWeight : 0;
             var phase = active ? AgentPhase.Generating : speed > 0.5 ? AgentPhase.Tools : AgentPhase.Idle;
             return new AgentStatus(agent.Id, agent.Source, agent.Project, agent.Model, phase, agent.IsSubagent,
-                new Rate(share, share * 24), active ? share : null, now, agent.IsSubagent ? "demo-nova" : null);
+                new Rate(share, share * 24), active ? share : null, now, agent.IsSubagent ? "demo-nova" : null)
+            {
+                Grade = DemoGrade,
+                Intelligence = new Intelligence.AgentIntelligence(DemoIntelligence(share), DemoGrade),
+            };
         }).ToList();
 
         var n = Sources.Length;
@@ -224,11 +231,11 @@ public sealed class DemoDriver : IDisposable
             []);
     }
 
-    /// <summary>A flagship model at high effort thinking 40 % of the time, for orbs that preview the intelligence readout.</summary>
+    /// <summary>A flagship model at high effort thinking 40 % of the time, for orbs and rows that preview intelligence.</summary>
     private static Intelligence.IntelligenceSums DemoIntelligence(double liveOutput)
     {
         var window = liveOutput * Engine.SpeedEngine.WindowMs / 1000.0;
-        return Intelligence.IntelligenceSums.Zero.Add(SourceKind.ClaudeCode, window, window * 0.4, new Intelligence.ModelGrade(Intelligence.ModelClass.Flagship, 3));
+        return Intelligence.IntelligenceSums.Zero.Add(SourceKind.ClaudeCode, window, window * 0.4, DemoGrade);
     }
 
     private sealed record FakeAgent(

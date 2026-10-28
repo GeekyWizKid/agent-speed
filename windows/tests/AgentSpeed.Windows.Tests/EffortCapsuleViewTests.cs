@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using AgentSpeed.Dashboard;
 using AgentSpeed.Modes;
 using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Modes;
@@ -14,7 +15,8 @@ namespace AgentSpeed.Windows.Tests;
 /// </summary>
 public class EffortCapsuleViewTests(ITestOutputHelper output)
 {
-    private const double DashboardNameRoom = 328 - 30 - 56 - 8;
+    /// <summary>A top-level row's name room in English without a capsule: the intelligence cell and its gap come off too.</summary>
+    private static double DashboardNameRoom => NameRoom(LanguageCodes.En);
 
     [Fact]
     public void TheViewTakesTheModelsWidthAndTheColumnAddsItsGap()
@@ -66,15 +68,18 @@ public class EffortCapsuleViewTests(ITestOutputHelper output)
     {
         var widest = new[] { new EffortCapsule("ultracode", "ultrafast") };
         var columns = OnStaThread(() => LanguageCodes.All
-            .Select(language => (language, EffortCapsuleColumn.For(widest, DashboardNameRoom, CapsuleWordMeasure.For(language))))
+            .Select(language => (language, NameRoom(language), EffortCapsuleColumn.For(widest, NameRoom(language), CapsuleWordMeasure.For(language))))
             .ToArray());
-        foreach (var (language, column) in columns)
+        foreach (var (language, room, column) in columns)
         {
-            output.WriteLine($"{language}: {column.Width:0.0} DIP, compact {column.Compact}");
+            output.WriteLine($"{language}: name room {room:0.0}, capsule {column.Width:0.0} DIP, compact {column.Compact}");
             Assert.False(column.Compact, language);
-            Assert.True(DashboardNameRoom - column.Footprint >= EffortCapsuleColumn.MinimumName, language);
+            Assert.True(room - column.Footprint >= EffortCapsuleColumn.MinimumName, language);
         }
     }
+
+    private static double NameRoom(string language) => DashboardViewModel.NameRoom(0,
+        IntelligenceColumnMeasure.Width(language, new Localizer(Localizer.LoadEmbeddedTable(), language)["intel.glyph"]));
 
     private static EffortCapsuleView View(EffortCapsule capsule, double columnWidth, double gap)
     {
