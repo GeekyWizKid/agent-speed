@@ -2,56 +2,46 @@ import Foundation
 import Testing
 @testable import AgentSpeedCore
 
-/// METRICS 6.9, Agent intelligence: exactly one of live, resting and none, never mixed.
-@Suite("Agent intelligence forms")
+/// METRICS 6.9 *Live thinking*: an agent's own thinking sums, which add up to the set's.
+@Suite("Agent thinking sums")
 struct AgentIntelligenceTests {
-    static func sums(output: Double, index: Double) -> IntelligenceSums {
+    static func sums(output: Double, thinking: Double, base: Double) -> IntelligenceSums {
         var sums = IntelligenceSums()
         sums.output = output
-        sums.gradedOutput = output * index
+        sums.thinking = thinking
+        sums.thinkingBase = base
         return sums
     }
 
-    @Test func liveWheneverTheAgentGeneratedInTheWindow() {
-        let grade = IntelligenceGrade(modelClass: .flagship, level: 4)
-        let form = AgentIntelligence(Self.sums(output: 40, index: 105.5), grade: grade)
-        #expect(form == .live(105.5))
-        #expect(form.isLive)
-        #expect(form.shown == 106)
+    @Test func theShareIsReasoningOverTheOutputOfSourcesThatRecordIt() {
+        #expect(Self.sums(output: 40, thinking: 10, base: 40).thinkingShare == 0.25)
+        // Output of a source that does not record reasoning apart (DeepSeek Harness) weighs nothing in the share.
+        #expect(Self.sums(output: 60, thinking: 10, base: 20).thinkingShare == 0.5)
+        #expect(Self.sums(output: 30, thinking: 0, base: 0).thinkingShare == 0)
+        #expect(IntelligenceSums.zero.thinkingShare == 0)
     }
 
-    @Test func aLiveValueUnderTheGradeStaysLive() {
-        let grade = IntelligenceGrade(modelClass: .flagship, level: 5)
-        let form = AgentIntelligence(Self.sums(output: 12, index: 104), grade: grade)
-        #expect(form.shown == 104)
-        #expect(form.isLive)
-    }
-
-    @Test func restingOnTheGradeAndNoneWithoutOne() {
-        let grade = IntelligenceGrade(modelClass: .standard, level: 2)
-        #expect(AgentIntelligence(.zero, grade: grade) == .resting(grade))
-        #expect(AgentIntelligence(.zero, grade: grade).shown == 92)
-        #expect(!AgentIntelligence(.zero, grade: grade).isLive)
-        #expect(AgentIntelligence(.zero, grade: nil) == .none)
-        #expect(AgentIntelligence(.zero, grade: nil).shown == nil)
-        // A model-less agent with an estimate is live.
-        #expect(AgentIntelligence(Self.sums(output: 20, index: 97), grade: nil).shown == 97)
-    }
-
-    @Test func shownRoundsHalfAwayFromZero() {
-        #expect(AgentIntelligence.live(124.5).shown == 125)
-        #expect(AgentIntelligence.live(124.49).shown == 124)
-    }
-
-    /// An agent without a model has no grade of its own, but its in-flight estimate weighs as an unknown model.
-    @Test func modelLessAgentsHaveNoGradeButWeighAsUnknown() throws {
-        let grader = IntelligenceGrader(table: try IntelligenceCaseTests.table(), agentProviders: [:])
-        for model in [nil, ""] as [String?] {
-            let agent = EngineAgent(id: "a", source: .claudeCode, project: "p", model: model)
-            #expect(grader.ownGrade(of: agent) == nil)
-            #expect(grader.grade(of: agent).value == 92)
+    /// Over every `agentWindows` query: the agents' own sums add up to the set's, and an agent without a contribution
+    /// in the window has zero sums.
+    @Test func agentSumsAddUpAndAreZeroWithoutAContribution() throws {
+        var checked = 0
+        for name in IntelligenceCaseTests.agentWindowNames {
+            var (engine, queries) = try IntelligenceCaseTests.engine("agentWindows", name)
+            for query in queries {
+                let now = try #require(query.int64("nowMs"))
+                let snapshot = IntelligenceCaseTests.snapshot(&engine, now)
+                IntelligenceCaseTests.expectAddUp(snapshot.agents.map(\.intelligence), snapshot.intelligence,
+                                                  "\(name) @ \(now)")
+                for (id, expected) in try #require(query["agents"] as? [String: [String: Any]])
+                where expected.double("weight") == 0 {
+                    let agent = try #require(snapshot.agents.first { $0.id == id })
+                    #expect(agent.intelligence.output == 0 && agent.intelligence.thinking == 0
+                        && agent.intelligence.thinkingBase == 0 && agent.intelligence.thinkingShare == 0,
+                        "\(name) @ \(now) \(id)")
+                    checked += 1
+                }
+            }
         }
-        let named = EngineAgent(id: "b", source: .claudeCode, project: "p", model: "claude-opus-5-5")
-        #expect(grader.ownGrade(of: named) == grader.grade(of: named))
+        #expect(checked > 0)
     }
 }
