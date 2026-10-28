@@ -216,6 +216,7 @@ public sealed class BoardScene
         list.Canvas = canvas.Extent;
         list.BoxHalf = canvas.Half;
         list.BoxRadius = canvas.Radius;
+        list.OutsideReach = BoardCanvas.BloomReach;
 
         BoardBackdrop.Emit(list, canvas, Style, palette, metrics);
         if (layers.TryGet(BackdropKey, out var backdrop))

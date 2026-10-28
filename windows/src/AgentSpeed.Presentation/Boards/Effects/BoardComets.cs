@@ -142,13 +142,9 @@ public sealed class BoardComets
 
         var bloom = 0.15 + _heat * 0.6 + _overdrive * 0.4;
         var spread = preset.BloomSpread * bloom;
-        // A CSS box-shadow blur B is a Gaussian of σ = B / 2; the window ends Margin outside the board, so the glow is held to
-        // reach ~1 % there instead of being cut.
-        var sigma = Math.Min(preset.BloomBlur * bloom / 2, (BoardCanvas.Margin - spread) / 3.2);
-        if (sigma <= 0.5)
-        {
-            return;
-        }
+        // A CSS box-shadow blur B is a Gaussian of σ = B / 2. The Outside clip fades it out along the board's outline to nothing
+        // BoardCanvas.BloomReach out, so the window's edge never cuts it, at any σ.
+        var sigma = preset.BloomBlur * bloom / 2;
 
         // The square grown by the spread and blurred: about half strength at its grown edge, no hard band.
         var color = HeatPalette.Sample(_heat).WithAlpha(0.55);
