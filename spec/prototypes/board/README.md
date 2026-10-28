@@ -84,15 +84,22 @@ readable (meter and bolts remain; the word is in the tooltip).
 | | S | M | L |
 | --- | --- | --- | --- |
 | A | 3 + `還有 N 個` | glass, neon 4 + `還有`; timing 5 | 5 + 1–2 sub rows |
-| B | 3 + `還有 N 個` | 5 | 5 + 2 sub rows |
+| B, 每列費用 off | 3 + `還有 N 個` | 5 | 5 + 2 sub rows |
+| B, 每列費用 on (default) | 3 + `還有 N 個` | 4 + `還有` | 5 (timing + 1 sub row) |
 | C | 3 + `還有 N 個` | 4 + `還有` | 5 (+ 0–1 sub rows) |
 
-**At S**: A's readouts become one line each (label left of the number); B's dial narrows to ~90 pt; C's rows return to
-one line (the per-row cost collapses, the totals stay in the footer); every option keeps 3 groups and the rest line.
+**At S**: A's readouts become one line each (label left of the number); B's sub-gauge narrows to 92 pt (timing's data
+box 110 pt); C's rows return to one line (the per-row cost collapses, the totals stay in the footer); every option keeps
+3 groups and the rest line.
 
-**Toggles** (would be `看板顯示 ▸ 智力 / 思考 / 費用 / 每列費用` in the board's context menu and the board editor; try
-them with 顯示 under the boards): a metric switched off collapses and the remaining readouts re-centre; with all three
-off a board looks exactly as before. 每列費用 adds C's second row line to A or B (always on in C).
+**Chosen (2026-10-28): B with 每列費用 on**, specified in `spec/DESIGN.md` 2c *Live metrics*; the page opens on it.
+Where this page and that section differ, the section wins.
+
+**Switches** (`看板顯示 ▸ 智力 / 思考 / 費用 / 每列費用` in the board's context menu and the board editor, all on by
+default and independent of each other; try them with 顯示 under the boards): a readout switched off folds away and the
+remaining readouts re-centre; 智力 also removes the rows' intelligence column; with all four off a board looks exactly as
+before. 每列費用 adds C's second row line to A or B (always on in C). 思考為 0 (`noreasoning=1`) simulates sources that do
+not record reasoning: 思考 reads 0 and, after 3 s, folds away (a settled frame replays those 3 s).
 
 **Simulation**: `sim.js` adds per agent `grade`, `intelligence` (none while idle), `thinking`, `costRate` (µUSD/s),
 `priced`, and per group and total the METRICS 6.9 window sums (`intelligence`, `thinking`, `thinkingShare`) and
@@ -100,6 +107,7 @@ off a board looks exactly as before. 每列費用 adds C's second row line to A 
 sequence, so every existing field is identical step for step. Prices follow `spec/assets/prices.json` (gpt-6.1-sol and
 gemini-3.5-pro assumed); Ultrafast has no list price, so the swarm and duel scenarios show `≥`.
 
-URL parameters: `style`, `option`, `view` (`single` / `grid` / `all`), `size`, `theme`, `scenario`, `currency`
-(`USD` / `TWD` / `CNY` / `JPY`), `metrics=intel,think,cost`, `rowcost=1`, `steps=N` (settled frame), `fx=1` (keep
-effects), `shot=1` (boards only).
+URL parameters: `style`, `option` (default `B`), `view` (`single` / `grid` / `all`), `size`, `theme`, `scenario`,
+`currency` (`USD` / `TWD` / `CNY` / `JPY`), `metrics=intel,think,cost`, `rowcost=0` (per-row cost off; on by default),
+`noreasoning=1` (思考 reads 0), `subs=all` (every source marked as a subscription), `steps=N` (settled frame), `fx=1`
+(keep effects), `shot=1` (boards only).

@@ -13,7 +13,14 @@
     neon: { radius: 22, fx: { radius: 22, comets: [1, 2, 3, 4, 4], ringWidth: 1.4, warp: true }, spring: [170, 0.9], rowExtra: 2, moreH: 20, firstY: 6, colsH: 12 },
   };
   const KEYS = ["intel", "think", "cost"];
-  const IQ_MIN = 60, IQ_SPAN = 90;
+  // DESIGN 2c Live metrics: the arc and the 12-segment meter span the index's whole range, 60 (light, off, no
+  // reasoning) to 156 (flagship top rung, all reasoning); one segment is 8 points.
+  const IQ_MIN = 60, IQ_SPAN = 96, SEGMENTS = 12;
+  // The sub table's number cell is as wide as this sample in its font, so the table never moves with its values.
+  const NUMBER_SAMPLE = "0.00088", WIDE_HOLD_MS = 6000;
+  // Thinking hidden at zero: a live 思考 that reads `0` for 3 s fades out (0.25 s) while the rest glides (smoothstep
+  // 0.3 s) to the re-centred stack; a value above 0 brings it back at once.
+  const THINK_HOLD_S = 3, FADE_MS = 250, GLIDE_MS = 300, SMOOTHSTEP = "cubic-bezier(.33,0,.67,1)";
   let uid = 0;
 
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
@@ -24,8 +31,8 @@
     if (old === text) return;
     node.dataset.t = text;
     if (node.hasAttribute("data-ghost")) node.setAttribute("data-ghost", text.replace(/[0-9]/g, "8"));
-    if (reduce || old === undefined || old.length !== text.length) {
-      node.replaceChildren(...[...text].map(c => { const s = el("span", "slot"), ch = el("span", "ch"); ch.textContent = c; s.appendChild(ch); return s; }));
+    if (reduce || old === undefined || old.length !== text.length || /[^0-9.,k]/.test(old + text)) {
+      node.replaceChildren(...[...text].map(c => { const s = el("span", "slot"), ch = el("span", old === undefined ? "ch" : "ch fade"); ch.textContent = c; s.appendChild(ch); return s; }));
       return;
     }
     [...text].forEach((c, i) => {
@@ -43,16 +50,18 @@
   }
 
   function create(host, options) {
-    const o = Object.assign({ style: "glass", option: "A", size: "M", metrics: { intel: true, think: true, cost: true },
-                              rowCost: false, currency: "USD", lang: "zh-Hant", reduceMotion: false, effects: true, tip: null }, options);
+    const o = Object.assign({ style: "glass", option: "B", size: "M", metrics: { intel: true, think: true, cost: true },
+                              rowCost: true, subscriptionOnly: false, noReasoning: false, currency: "USD", lang: "zh-Hant",
+                              reduceMotion: false, effects: true, tip: null }, options);
     const st = STYLES[o.style], id = ++uid;
     const L = F.LABELS[o.lang];
     const on = (k) => !!o.metrics[k];
     const anyMetric = () => KEYS.some(on);
     const optB = () => o.option === "B" && anyMetric();
     const unitTok = o.style === "timing" ? "TOK/S" : "tok/s";
-    // Two-line rows (model · cost per row): always in C, a toggle elsewhere; S keeps single-line rows.
-    const rows2 = (o.option === "C" || o.rowCost) && on("cost");
+    // Two-line rows (model · the group's cost per second): the 每列費用 switch, independent of the hero's 費用 (always on
+    // in C while its cost shows); S keeps single-line rows.
+    const rows2 = o.option === "C" ? on("cost") || o.rowCost : o.rowCost;
 
     // ── Build ─────────────────────────────────────────────────────────────────────────
     const panel = el("section", `mb ${o.style} opt${o.option}`);
@@ -93,7 +102,7 @@
       return c;
     }
 
-    let arc = null, segs = null;
+    let arc = null, segs = null, subsEl = null, dboxEl = null;
     if (o.option === "A" && anyMetric()) {
       const band = el("div", "band");
       KEYS.filter(on).forEach(k => band.appendChild(cell(k)));
@@ -101,8 +110,9 @@
     } else if (optB()) {
       if (o.style === "timing") {
         const box = el("div", "dbox");
-        KEYS.filter(on).forEach((k, i) => box.appendChild(cell(k, i === 0 ? "main" : "")));
+        KEYS.filter(on).forEach((k, i) => box.appendChild(cell(k, i === 0 && k === "intel" ? "main" : "")));
         hr.appendChild(box);
+        dboxEl = box;
       } else {
         const g = el("div", "gauge"), ks = KEYS.filter(on);
         const main = ks[0] === "intel" ? ks.shift() : null;
@@ -119,7 +129,7 @@
           g.appendChild(cell("intel", "main"));
           if (o.style === "neon") { segs = el("div", "segs"); for (let i = 0; i < 12; i++) segs.appendChild(el("i")); g.appendChild(segs); }
         }
-        if (ks.length) { const subs = el("div", "subs"); ks.forEach(k => subs.appendChild(cell(k))); g.appendChild(subs); }
+        if (ks.length) { subsEl = el("div", "subs"); ks.forEach(k => subsEl.appendChild(cell(k))); g.appendChild(subsEl); }
         hr.appendChild(g);
       }
       if (o.style !== "neon") { const strip = el("div", "strip"); strip.appendChild(history.node); panel.appendChild(strip); }
@@ -148,6 +158,41 @@
     foot.append(s1, s2, s3);
     panel.appendChild(foot);
     host.appendChild(panel);
+
+    // Fixed number cell of the sub table (DESIGN 2c): the sample's width; a wider value widens it at once and it
+    // narrows 6 s after the last value that needed it.
+    const subCell = { base: 0, cur: 0, wideAt: 0 };
+    const unitCost = () => { const u = F.rate(0, 1, o.currency, o.lang).unit; return o.style === "timing" ? u.toUpperCase() : u; };
+    const probeWidth = (host, cls, texts) => Math.max(0, ...texts.map(t => {
+      const probe = el("span", cls + " probe"); probe.textContent = t; host.appendChild(probe);
+      const cs = getComputedStyle(probe), w = probe.getBoundingClientRect().width + parseFloat(cs.marginLeft) + parseFloat(cs.marginRight);
+      probe.remove(); return w;
+    }));
+    const tableKeys = KEYS.filter(k => on(k) && !(k === "intel" && o.style !== "timing"));
+    // Measured once the board is in the document (a detached element has no computed style).
+    let cellsMeasured = false;
+    function measureCells() {
+      if (cellsMeasured || !panel.isConnected) return;
+      cellsMeasured = true;
+      if (subsEl) {
+        subCell.base = subCell.cur = Math.ceil(probeWidth(subsEl, "mn", [NUMBER_SAMPLE]));
+        subsEl.style.setProperty("--subnum", subCell.cur + "px");
+        // Label and unit cells are sized for every switched-on row, so hiding 思考 never moves the table sideways.
+        subsEl.style.setProperty("--sublabel", Math.ceil(probeWidth(subsEl, "ml", tableKeys.map(k => L[k === "think" ? "thinking" : k]))) + "px");
+        subsEl.style.setProperty("--subunit", Math.ceil(probeWidth(subsEl, "mu", tableKeys.map(k => k === "think" ? unitTok : unitCost()))) + "px");
+      }
+      if (dboxEl) dboxEl.style.setProperty("--tabw", Math.ceil(probeWidth(dboxEl, "ml", KEYS.filter(on).map(k => L[k === "think" ? "thinking" : k]))) + "px");
+    }
+    function fitSubCell() {
+      if (!subsEl || !cellsMeasured) return;
+      let need = subCell.base;
+      subsEl.querySelectorAll(".mn").forEach(n => { need = Math.max(need, Math.ceil(n.scrollWidth)); });
+      const now = performance.now();
+      if (need > subCell.cur) { subCell.cur = need; subCell.wideAt = now; }
+      else if (need > subCell.base) subCell.wideAt = now;
+      else if (subCell.cur > subCell.base && now - subCell.wideAt >= WIDE_HOLD_MS) subCell.cur = subCell.base;
+      subsEl.style.setProperty("--subnum", subCell.cur + "px");
+    }
 
     const fx = global.BoardFX.create(panel, st.fx);
     fx.setReduceMotion(o.reduceMotion || !o.effects);
@@ -225,12 +270,14 @@
 
     function iqCell(node, live, grade) {
       const shown = live !== null && live !== undefined;
-      node.textContent = on("intel") ? String(Math.round(shown ? live : grade)) : "";
+      const text = !on("intel") ? "" : shown ? String(Math.round(live)) : grade !== null && grade !== undefined ? String(grade) : "–";
+      if (node.dataset.t !== text) { node.dataset.t = text; node.innerHTML = text ? `<span>${text}</span>` : ""; }
       node.classList.toggle("grade", !shown);
     }
 
     function costLine(node, live, rate, share) {
-      if (!on("cost") || !(live > 0.05)) { node.textContent = ""; return; }
+      if (!rows2 || !(live > 0.05)) { node.textContent = ""; return; }
+      if (o.subscriptionOnly) { node.innerHTML = `<span class="tagword">${L.subscription}</span>`; node.classList.remove("partial"); node.classList.add("dim"); return; }
       const r = F.rate(rate, share, o.currency, o.lang);
       const unit = r.unknown ? "" : `<span class="u">${o.style === "timing" ? r.unit.toUpperCase() : r.unit}</span>`;
       node.innerHTML = `<span class="ge">≥</span>${r.number}${unit}`;
@@ -272,7 +319,14 @@
         }
         it.el.classList.toggle("lead", p.rank === 1);
       }
-      row.setAttribute("aria-label", p.rank ? `第 ${p.rank} 名，${p.name}，每秒 ${live ? S.formatSpeed(p.live) : 0} 個 token，智力 ${Math.round(p.intelligence ?? p.grade)}` : p.name);
+      const iqWords = !on("intel") ? "" : p.intelligence !== null && p.intelligence !== undefined ? `，智力 ${Math.round(p.intelligence)}`
+        : p.grade !== null && p.grade !== undefined ? `，等級 ${p.grade}` : "";
+      let costWords = "";
+      if (p.rank && rows2 && o.size !== "S" && live) {
+        const r = F.rate(p.costRate, p.costKnownShare, o.currency, o.lang);
+        costWords = o.subscriptionOnly ? "，訂閱" : r.unknown ? "，價格未知" : `，每秒費用 ${r.partial ? "至少 " : ""}${r.number} ${F.currencyName(o.currency)}`;
+      }
+      row.setAttribute("aria-label", p.rank ? `第 ${p.rank} 名，${p.name}，每秒 ${live ? S.formatSpeed(p.live) : 0} 個 token${iqWords}${costWords}` : p.name);
     }
 
     function accent(it, ev) {
@@ -330,35 +384,87 @@
 
     // ── Metrics ───────────────────────────────────────────────────────────────────────
     const prevNum = {};
+    // 思考 row visibility (DESIGN 2c, Thinking hidden at zero).
+    let thinkShown = true, zeroSince = null;
+    function rowItems(c) {
+      return o.style === "timing" ? [c.querySelector(".ml"), c.querySelector(".mv")]
+                                  : [c.querySelector(".ml"), c.querySelector(".ge"), c.querySelector(".mn"), c.querySelector(".mu")];
+    }
+    function setThink(show, instant) {
+      const c = cells.think; if (!c || show === thinkShown) return;
+      thinkShown = show;
+      const container = c.parentElement, stack = o.style === "timing" ? container : container.closest(".gauge");
+      const items = rowItems(c);
+      const below = KEYS.slice(KEYS.indexOf("think") + 1).filter(k => cells[k]).flatMap(k => rowItems(cells[k]));
+      const offsets = () => { const t = stack.getBoundingClientRect().top; return below.map(e => e.getBoundingClientRect().top - t); };
+      const h0 = stack.getBoundingClientRect().height, o0 = offsets();
+      if (!show) {
+        const cr = container.getBoundingClientRect();
+        const pos = items.map(e => { const r = e.getBoundingClientRect(); return [r.left - cr.left, r.top - cr.top, r.width]; });
+        items.forEach((e, i) => Object.assign(e.style, { position: "absolute", left: pos[i][0] + "px", top: pos[i][1] + "px", width: pos[i][2] + "px", margin: "0" }));
+        c.classList.add("leaving");
+      } else {
+        c.classList.remove("off", "leaving");
+        items.forEach(e => { e.getAnimations().forEach(a => a.cancel()); Object.assign(e.style, { position: "", left: "", top: "", width: "", margin: "" }); });
+      }
+      const h1 = stack.getBoundingClientRect().height, o1 = offsets();
+      const animate = !instant && !o.reduceMotion;
+      const finish = () => { if (!thinkShown) { c.classList.add("off"); c.classList.remove("leaving"); items.forEach(e => { e.getAnimations().forEach(a => a.cancel()); Object.assign(e.style, { position: "", left: "", top: "", width: "", margin: "" }); }); } };
+      if (!animate) { finish(); return; }
+      stack.animate([{ height: h0 + "px" }, { height: h1 + "px" }], { duration: GLIDE_MS, easing: SMOOTHSTEP });
+      below.forEach((e, i) => { const d = o0[i] - o1[i]; if (Math.abs(d) > 0.01) e.animate([{ transform: `translateY(${d}px)` }, { transform: "none" }], { duration: GLIDE_MS, easing: SMOOTHSTEP }); });
+      items.forEach(e => e.animate([{ opacity: show ? 0 : 1 }, { opacity: show ? 1 : 0 }], { duration: FADE_MS, easing: "ease-out", fill: show ? "none" : "forwards" }));
+      if (!show) setTimeout(finish, FADE_MS);
+    }
+    function thinkVisibility(total, t, instant) {
+      if (!cells.think) return;
+      const others = KEYS.some(k => k !== "think" && on(k));
+      if (total.intelligence === null) { zeroSince = null; return; }       // quiet: keep the current visibility
+      if (parseFloat(S.formatSpeed(total.thinking)) === 0) {             // reads zero: `0`, or `0.0` below 0.05
+        if (zeroSince === null) zeroSince = t;
+        if (thinkShown && others && t - zeroSince >= THINK_HOLD_S - 1e-9) setThink(false, instant);
+      } else {
+        zeroSince = null;
+        if (!thinkShown) setThink(true, instant);
+      }
+    }
     function paintMetrics(total) {
       const reduce = o.reduceMotion;
-      const put = (k, text, unit, cls) => {
+      const put = (k, text, unit, state) => {
         const c = cells[k]; if (!c) return;
         const mn = c.querySelector(".mn"), before = prevNum[k];
         roll(mn, text, before === undefined || parseFloat(text) >= before, reduce);
         prevNum[k] = parseFloat(text);
         c.querySelector(".mu").textContent = unit;
-        c.classList.toggle("partial", !!(cls && cls.partial));
-        c.classList.toggle("unknown", !!(cls && cls.unknown));
-        c.classList.toggle("none", !!(cls && cls.none));
+        for (const name of ["partial", "unknown", "none", "zero", "tag"]) c.classList.toggle(name, !!(state && state[name]));
       };
-      const iq = total.intelligence;
+      const iq = total.intelligence, shown = iq === null ? null : Math.round(iq);
+      // Quiet state (nothing generated in the window): 智力 and 思考 show `–`, the cost its real `0`, all in the quiet ink.
       put("intel", F.intelligence(iq), "", { none: iq === null });
-      put("think", S.formatSpeed(total.thinking), unitTok);
+      put("think", iq === null ? "–" : S.formatSpeed(total.thinking), unitTok, { none: iq === null, zero: iq !== null && !(total.thinking > 0) });
       const r = F.rate(total.costRate, total.costKnownShare, o.currency, o.lang);
-      put("cost", r.number, o.style === "timing" ? r.unit.toUpperCase() : r.unit, r);
-      const frac = iq === null ? 0 : Math.max(0, Math.min(1, (iq - IQ_MIN) / IQ_SPAN));
+      const costUnit = o.style === "timing" ? r.unit.toUpperCase() : r.unit;
+      if (o.subscriptionOnly) put("cost", L.subscription, "", { tag: true });
+      else put("cost", r.number, costUnit, { partial: r.partial, unknown: r.unknown, zero: r.number === "0" });
+      fitSubCell();
+      const frac = shown === null ? 0 : Math.max(0, Math.min(1, (shown - IQ_MIN) / IQ_SPAN));
       if (arc) {
         arc.path.setAttribute("stroke-dashoffset", (100 - frac * 100).toFixed(2));
-        arc.path.style.opacity = frac > 0.002 ? "1" : "0";
+        arc.path.style.opacity = frac > 0 ? "1" : "0";
         arc.tip.style.transform = `rotate(${(frac * 240).toFixed(2)}deg)`;
-        arc.tip.style.opacity = iq === null ? "0" : "1";
+        arc.tip.style.opacity = shown === null ? "0" : "1";
       }
-      if (segs) { const lit = Math.round(frac * 12); [...segs.children].forEach((s, i) => s.classList.toggle("on", i < lit)); }
-      const rate = F.rate(total.costRate, total.costKnownShare, o.currency, o.lang);
-      panel.setAttribute("aria-label", `排行看板，每秒 ${S.formatSpeed(total.live)} 個 token，${total.title.zh}` +
-        (on("intel") ? `，智力 ${F.intelligence(iq)}` : "") + (on("think") ? `，思考每秒 ${S.formatSpeed(total.thinking)} 個 token` : "") +
-        (on("cost") ? `，每秒費用 ${rate.partial ? "至少 " : ""}${rate.number} ${rate.unit}（API 等值）` : ""));
+      if (segs) {
+        const lit = shown === null ? 0 : Math.max(0, Math.min(SEGMENTS, Math.floor((shown - IQ_MIN) / 8 + 0.5)));
+        [...segs.children].forEach((seg, i) => seg.classList.toggle("on", i < lit));
+      }
+      const thinkOn = on("think") && thinkShown;
+      panel.setAttribute("aria-label", `排行看板，全部來源：每秒 ${S.formatSpeed(total.live)} 個 token，${total.title.zh}` +
+        (on("intel") && thinkOn ? (iq === null ? "，智力：目前沒有輸出" : `，智力 ${shown}，思考每秒 ${S.formatSpeed(total.thinking)} 個 token`)
+          : on("intel") ? (iq === null ? "，智力：目前沒有輸出" : `，智力 ${shown}`)
+          : thinkOn ? `，思考每秒 ${iq === null ? 0 : S.formatSpeed(total.thinking)} 個 token` : "") +
+        (on("cost") ? (o.subscriptionOnly ? "，這些來源標記為訂閱，不計入費用"
+          : r.unknown ? "，價格未知" : `，每秒費用 ${r.partial ? "至少 " : ""}${r.number} ${F.currencyName(o.currency)}（API 等值）`) : ""));
     }
 
     function drawHistory(hist, color, heat) {
@@ -392,9 +498,14 @@
 
     // ── Render ────────────────────────────────────────────────────────────────────────
     let last = null, lastTotal = 0;
+    const plain = (iq, share) => iq === null || iq === undefined || !o.noReasoning ? iq : iq - 20 * (share || 0);
+    const agentShare = (a) => a.recordsReasoning && a.live > 0 ? a.thinking / a.live : 0;
     function render(snap, instant) {
       last = snap;
-      const total = snap.total;
+      // `noreasoning=1`: sources that never report reasoning apart from output (METRICS 6.9: their weight leaves w', so
+      // the index loses its thinking term and 思考 reads 0, which hides after 3 s).
+      const total = o.noReasoning ? Object.assign({}, snap.total, { thinking: 0, thinkingShare: 0,
+                                                                    intelligence: plain(snap.total.intelligence, snap.total.thinkingShare) }) : snap.total;
       roll(num, S.formatSpeed(total.live), total.live >= lastTotal, o.reduceMotion || instant);
       lastTotal = total.live;
       fx.setHeat(total.heat, total.overdrive);
@@ -410,10 +521,12 @@
       title.textContent = total.title.zh;
       counts.textContent = o.style === "timing" ? `GEN ${total.generating} · TOOL ${total.tools}` : `· 生成中 ${total.generating} · 工具 ${total.tools}`;
       today.textContent = S.formatSpeed(total.today) + (o.style === "timing" ? " TOK" : "");
-      costToday.textContent = F.amount(total.costToday, o.currency, o.lang);
+      costToday.textContent = o.subscriptionOnly ? L.subscription : F.amount(total.costToday, o.currency, o.lang);
       peak.textContent = S.formatSpeed(total.peak);
       drawHistory(snap.history, heat, total.heat);
+      measureCells();
       paintMetrics(total);
+      thinkVisibility(total, snap.t, instant);
 
       const list = layout(snap), seen = new Set();
       for (const entry of list) {
@@ -426,13 +539,13 @@
           const g = entry.g, r = g.root, i = snap.groups.indexOf(g), ahead = i > 0 ? snap.groups[i - 1] : null;
           const subs = g.subs.length ? (o.style === "timing" ? `${g.subs.length} 子` : `${g.subs.length} 個子 agent`) : "";
           paintRow(it, r, { id: g.id, live: g.live, total: total.live, rank: g.rank, generating: g.generating > 0, name: r.project,
-                            detail: [r.model, subs].filter(Boolean).join(" · "), intelligence: g.intelligence, grade: r.grade,
+                            detail: [r.model, subs].filter(Boolean).join(" · "), intelligence: plain(g.intelligence, g.thinkingShare), grade: r.grade,
                             costRate: g.costRate, costKnownShare: g.costKnownShare,
                             gap: !ahead ? "領先" : (ahead.live - g.live >= 0 ? "−" : "+") + S.formatSpeed(Math.abs(ahead.live - g.live)) });
         } else if (entry.kind === "sub") {
           const s = entry.s;
           paintRow(it, s, { id: s.id, live: s.live, total: total.live, generating: false, name: s.label, detail: "",
-                            intelligence: s.intelligence, grade: s.grade, costRate: s.costRate, costKnownShare: s.priced ? 1 : 0 });
+                            intelligence: plain(s.intelligence, agentShare(s)), grade: s.grade, costRate: s.costRate, costKnownShare: s.priced ? 1 : 0 });
         } else {
           const row = it.el.firstElementChild;
           row.style.setProperty("--src", entry.g.root.sourceColor);
@@ -481,17 +594,19 @@
       const r = g.root, e = r.effort, cls = S.classOf(r.model);
       const klass = cls === 100 ? "旗艦" : cls === 80 ? "標準" : "輕量";
       const rate = F.rate(g.costRate, g.costKnownShare, o.currency, o.lang);
-      const iq = g.intelligence === null ? `等級 ${r.grade} · ${klass}（閒置）` : `智力 ${Math.round(g.intelligence)} · 思考 ${Math.round(g.thinkingShare * 100)}%`;
+      const iq = g.intelligence === null ? "" : `<br>智力 ${Math.round(plain(g.intelligence, g.thinkingShare))} · 思考 ${o.noReasoning ? "–" : Math.round(g.thinkingShare * 100) + "%"}`;
+      const cost = o.subscriptionOnly ? `<br>${r.sourceName} 標記為訂閱，不計入費用` : g.live > 0.05
+        ? `<br>每秒費用 ${rate.unknown ? "–" : (rate.partial ? "≥" : "") + rate.number + " " + rate.unit}（API 等值）` + (rate.partial ? "<br>部分模型價格未知，未計入" : "") : "";
       return `<b>${r.project}</b> · ${r.sourceName}<br>${r.model}<br>推理強度：${e ? e.value : "未記錄"}` +
-        `<br>速度 <b>${S.formatSpeed(g.live)}</b> tok/s<br>${iq}<br>等級 ${r.grade} · ${klass}` +
-        `<br>費用 ${rate.partial ? "≥" : ""}${rate.number} ${rate.unit}（API 等值）` +
-        `<span class="cap-note">智力為估算指數，不是測驗分數</span>`;
+        `<br>速度 <b>${S.formatSpeed(g.live)}</b> tok/s${iq}<br>等級 ${r.grade} · ${klass}${cost}` +
+        `<span class="cap-note">估算指數，不是測驗分數</span>`;
     }
 
     return {
       el: panel, render,
       setEffects(v) { o.effects = v; fx.setReduceMotion(o.reduceMotion || !v); },
       setReduceMotion(v) { o.reduceMotion = v; fx.setReduceMotion(v || !o.effects); },
+      setNoReasoning(v) { o.noReasoning = v; if (last) render(last, false); },
       destroy() { cancelAnimationFrame(raf); fx.setReduceMotion(true); panel.remove(); },
     };
   }

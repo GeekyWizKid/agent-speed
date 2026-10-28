@@ -15,10 +15,14 @@
     KRW: { digits: 0, symbol: "₩", rate: 1323.05 },
   };
 
+  // intel.glyph, intel.thinking.glyph, cost.glyph, cost.subscription.tag (spec/strings.json).
   const LABELS = {
-    "zh-Hant": { intel: "智力", thinking: "思考", cost: "費用", tokens: "tok/s" },
-    en: { intel: "IQ", thinking: "TH", cost: "Cost", tokens: "tok/s" },
+    "zh-Hant": { intel: "智力", thinking: "思考", cost: "費用", tokens: "tok/s", subscription: "訂閱" },
+    en: { intel: "IQ", thinking: "TH", cost: "Cost", tokens: "tok/s", subscription: "Subscription" },
   };
+  // currency.<code> in zh-Hant, for the accessibility labels.
+  const NAMES = { USD: "美元", TWD: "新臺幣", CNY: "人民幣", HKD: "港幣", JPY: "日圓", EUR: "歐元", KRW: "韓元" };
+  function currencyName(code) { return NAMES[code] || code; }
 
   function symbolOf(code, lang) {
     const c = CURRENCIES[code];
@@ -104,5 +108,5 @@
   /** METRICS 6.9: rounded half away from zero; none → `–`. */
   function intelligence(value) { return value === null || value === undefined ? "–" : String(Math.round(value)); }
 
-  global.MetricFormat = { CURRENCIES, LABELS, rate, amount, intelligence, rateNumber, amountNumber, symbolOf };
+  global.MetricFormat = { CURRENCIES, LABELS, rate, amount, intelligence, rateNumber, amountNumber, symbolOf, currencyName };
 })(typeof window !== "undefined" ? window : globalThis);
