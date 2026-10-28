@@ -1,9 +1,12 @@
 using System.Globalization;
 using AgentSpeed.Core;
+using AgentSpeed.Core.Intelligence;
+using AgentSpeed.Presentation.Boards.Live;
 using AgentSpeed.Presentation.Boards.Scene;
 using AgentSpeed.Presentation.Formatting;
 using AgentSpeed.Presentation.Heat;
 using AgentSpeed.Presentation.Localization;
+using AgentSpeed.Presentation.Titles;
 
 namespace AgentSpeed.Presentation.Boards.Demo;
 
@@ -17,6 +20,8 @@ public sealed class BoardDemoFeed
     private static readonly DateTimeOffset Epoch = new(2026, 10, 24, 9, 0, 0, TimeSpan.Zero);
 
     private readonly BoardRanking _ranking = new();
+    private readonly BoardThinkingHold _thinking = new();
+    private BoardTexts? _texts;
     private double _lastPeak;
 
     public BoardDemoFeed(BoardSimScenario scenario = BoardSimScenario.Swarm, uint seed = 7)
@@ -31,8 +36,14 @@ public sealed class BoardDemoFeed
 
     public SpeedMetric Metric { get; set; } = SpeedMetric.Output;
 
-    /// <summary>Localizes the speed title (none: the title stays empty).</summary>
+    /// <summary>Localizes the speed title and the live metrics (none: the title stays empty and the metrics read in English).</summary>
     public Localizer? Localizer { get; set; }
+
+    /// <summary>The board's live metrics switches (DESIGN 2c); none by default, the boards as before them.</summary>
+    public BoardReadouts Readouts { get; set; } = BoardReadouts.None;
+
+    /// <summary>The sources whose costs show (METRICS 9.4); an empty set makes every source a subscription (the tag).</summary>
+    public SourceSet Billable { get; set; } = SourceSet.Everything;
 
     /// <summary>Overtakes and new leaders since start.</summary>
     public int Events { get; private set; }
@@ -41,6 +52,7 @@ public sealed class BoardDemoFeed
     {
         Sim.Reset(scenario);
         _ranking.Reset();
+        _thinking.Reset();
         _lastPeak = Sim.Peak;
     }
 
@@ -55,7 +67,7 @@ public sealed class BoardDemoFeed
     public BoardTick Current(BoardStyle style, BoardSize size, string? expanded = null)
     {
         var agents = Sim.Statuses(Epoch);
-        var groups = BoardGrouping.Group(agents, Metric);
+        var groups = BoardGrouping.Group(agents, Metric, Billable);
         var inputs = new BoardRankInput[groups.Count];
         for (var i = 0; i < groups.Count; i++)
         {
@@ -65,7 +77,12 @@ public sealed class BoardDemoFeed
         var result = _ranking.Tick(inputs);
         var byId = groups.ToDictionary(g => g.Id, StringComparer.Ordinal);
         var ranked = result.Order.Where(byId.ContainsKey).Select(id => byId[id]).ToArray();
-        var entries = BoardLayoutPlan.Arrange(ranked, BoardSizes.Limits(size), BoardMetrics.For(style, size), Metric, expanded);
+        var readouts = Readouts;
+        var texts = Texts();
+        var entries = BoardReadoutRows.Word(BoardLayoutPlan.Arrange(ranked, BoardSizes.Limits(size), BoardMetrics.For(style, size, readouts), Metric,
+            expanded), readouts, Metric, texts);
+        var gauge = texts.Hero(agents.Aggregate(IntelligenceSums.Zero, (sum, a) => sum + a.Intelligence.Sums), Cost(agents));
+        _thinking.Update(readouts, gauge, Sim.Time);
         Events += result.Events.Count;
         var total = Sim.Total;
         var newPeak = Sim.Peak > _lastPeak + 1;
@@ -82,9 +99,53 @@ public sealed class BoardDemoFeed
             History = Seconds(Sim.History),
             PeakToday = Sim.Peak,
             TodayText = SpeedFormat.Tokens((long)Sim.Today),
-            CostText = "$" + Sim.Cost.ToString("0.00", CultureInfo.InvariantCulture),
+            CostText = Billable.IsEmpty ? texts.Localizer["cost.subscription.tag"] : "$" + Sim.Cost.ToString("0.00", CultureInfo.InvariantCulture),
             PeakText = SpeedFormat.Speed(Sim.Peak),
+            Readouts = readouts,
+            Gauge = gauge,
+            ThinkingHidden = _thinking.Hidden,
         };
+    }
+
+    private BoardTexts Texts()
+    {
+        var loc = Localizer ?? DefaultLocalizer.Value;
+        if (_texts is null || !ReferenceEquals(_texts.Localizer, loc))
+        {
+            _texts = new BoardTexts(loc, TitleTheme.Vehicles);
+        }
+
+        return _texts;
+    }
+
+    private static readonly Lazy<Localizer> DefaultLocalizer = new(() => new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.En));
+
+    // The board's live cost as OrbSubset.Cost reads it, from the agents' own costs (METRICS 9.5) over the billable sources.
+    private CostReading Cost(IReadOnlyList<AgentStatus> agents)
+    {
+        double micro = 0, known = 0, output = 0;
+        var excluded = new HashSet<SourceKind>();
+        var billable = 0;
+        foreach (var agent in agents)
+        {
+            if (!Billable.Contains(agent.Source))
+            {
+                excluded.Add(agent.Source);
+                continue;
+            }
+
+            billable++;
+            micro += agent.LiveCost.MicroUsdPerSecond;
+            known += agent.LiveCost.KnownOutput;
+            output += agent.Live.Output;
+        }
+
+        var share = new LiveCost(micro, known).KnownShare(output);
+        var state = billable == 0 && excluded.Count > 0 ? CostState.SubscriptionOnly
+            : output > 0 && known <= 0 ? CostState.NothingPriced
+            : share < CostReading.PartialThreshold && micro > 0 ? CostState.Partial
+            : CostState.Priced;
+        return new CostReading(micro, share, output, CostTally.Zero, 0, [], [.. excluded.Order()], state);
     }
 
     /// <summary>The sim's per-tick totals as one value per second, the latest last.</summary>
