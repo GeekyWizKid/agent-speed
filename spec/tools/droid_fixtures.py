@@ -38,7 +38,8 @@ H = "b8c7dae9-7cd5-4b81-8e45-9a0b1c2d3e47"  # forge: a sidecar without counters 
 I = "c9d8ebfa-8de6-4c92-9f56-0b1c2d3e4f58"  # quasar: counters but no call
 J = "dae9fc0b-9ef7-4da3-8a67-1c2d3e4f5a69"  # root: legacy layout, malformed sidecar
 FIELDS = ("inputTokens", "cacheCreationTokens", "cacheReadTokens", "outputTokens", "thinkingTokens")
-OPUS, SONNET_DATED, GPT, BYOK = "claude-opus-5-5", "claude-sonnet-4-5-20250929", "gpt-5.5", "custom:GPT-5.5-[OpenAI-BYOK]-0"
+OPUS, SONNET_DATED, GPT = "claude-opus-5-5", "claude-sonnet-4-5-20250929", "gpt-5.5"
+BYOK = "custom:GPT-5.5-[OpenAI-BYOK]-0"  # the user's own model (BYOK), priced by its name (METRICS 9.2 custom)
 
 
 # ---------------------------------------------------------------------------------------------------- lines
