@@ -128,6 +128,8 @@ struct EngineOutput: Sendable {
     var todayCost: CostTally = .zero
     var todayCostBySource: [SourceKind: CostTally] = [:]
     var todayCostByModel: [SourceKind: [String: CostTally]] = [:]
+    /// Today's unpriced facts per source (METRICS 9.6, 9.10 *Live*), in the fact order.
+    var todayUnpricedFacts: [SourceKind: [UnpricedFact]] = [:]
     var peakToday: Rate
     var peakTodayAtMs: Int64?
     /// Today's measured output peak of every requested source set (METRICS 6.8).

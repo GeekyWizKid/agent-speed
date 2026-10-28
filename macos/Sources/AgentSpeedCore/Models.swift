@@ -174,6 +174,8 @@ public struct SourceStatus: Identifiable, Equatable, Sendable {
     public var todayCost: CostTally
     /// Models of today's responses without a known price, most unpriced requests first.
     public var unpricedModels: [String]
+    /// Today's unpriced facts (METRICS 9.6, 9.10 *Live*), in the fact order.
+    public var unpricedFacts: [UnpricedFact]
     /// The live intelligence sums (METRICS 6.9).
     public var intelligence: IntelligenceSums
 
@@ -191,7 +193,8 @@ public struct SourceStatus: Identifiable, Equatable, Sendable {
         todayCost: CostTally = .zero,
         unpricedModels: [String] = [],
         configuredModes: ExecutionModes = .empty,
-        intelligence: IntelligenceSums = .zero
+        intelligence: IntelligenceSums = .zero,
+        unpricedFacts: [UnpricedFact] = []
     ) {
         self.kind = kind
         self.enabled = enabled
@@ -205,6 +208,7 @@ public struct SourceStatus: Identifiable, Equatable, Sendable {
         self.liveCost = liveCost
         self.todayCost = todayCost
         self.unpricedModels = unpricedModels
+        self.unpricedFacts = unpricedFacts
         self.configuredModes = configuredModes
         self.intelligence = intelligence
     }

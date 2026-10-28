@@ -5,6 +5,8 @@ struct ProbeArguments {
     enum Mode {
         case dumpToday
         case dumpHistory
+        /// The copied unpriced diagnostics text (METRICS 9.10), as `reference.py --dump-unpriced`.
+        case dumpUnpriced(UnpricedOptions)
         case watch(seconds: Int)
         /// Live network traffic for real (METRICS 10).
         case traffic(seconds: Int)
@@ -27,8 +29,21 @@ struct ProbeArguments {
     /// `--no-live`: traffic without the live transcript monitor (no per-agent attribution), to measure its own cost.
     var noLive = false
 
+    /// The range and source of `--dump-unpriced`.
+    struct UnpricedOptions: Equatable {
+        /// `--days N`: the last N local days with today (default 30).
+        var days: Int?
+        var first: String?
+        var last: String?
+        /// `--live`: today's engine responses instead of the history.
+        var live = false
+        var source: SourceKind?
+    }
+
     static let usage = """
-        usage: AgentSpeedProbe (--dump-today | --dump-history [--utc] [--history-store PATH] | --watch SECONDS
+        usage: AgentSpeedProbe (--dump-today | --dump-history [--utc] [--history-store PATH]
+                                | --dump-unpriced [--days N | --first YYYY-MM-DD --last YYYY-MM-DD | --live]
+                                  [--source ID] [--history-store PATH] | --watch SECONDS
                                 | --traffic SECONDS [--traffic-interval 0|1|5] [--no-live] [--history-store PATH])
                                [--prices PATH] [--codex PATH] [--claude PATH] [--dsh PATH] [--opencode PATH]
                                [--gemini PATH] [--omp PATH] [--antigravity PATH] [--workbuddy PATH] [--workbuddy-ai PATH]
@@ -45,6 +60,8 @@ struct ProbeArguments {
         var prices: String?
         var trafficInterval: Int?
         var noLive = false
+        var unpriced = UnpricedOptions()
+        var dumpsUnpriced = false
         var iterator = arguments.makeIterator()
         while let argument = iterator.next() {
             switch argument {
@@ -52,6 +69,22 @@ struct ProbeArguments {
                 mode = .dumpToday
             case "--dump-history":
                 mode = .dumpHistory
+            case "--dump-unpriced":
+                dumpsUnpriced = true
+            case "--days":
+                guard let value = iterator.next(), let days = Int(value), days >= 1, days <= 1_000_000 else { return nil }
+                unpriced.days = days
+            case "--first":
+                guard let value = iterator.next(), isDate(value) else { return nil }
+                unpriced.first = value
+            case "--last":
+                guard let value = iterator.next(), isDate(value) else { return nil }
+                unpriced.last = value
+            case "--live":
+                unpriced.live = true
+            case "--source":
+                guard let value = iterator.next(), let source = SourceKind(rawValue: value) else { return nil }
+                unpriced.source = source
             case "--utc":
                 utc = true
             case "--history-store":
@@ -132,6 +165,16 @@ struct ProbeArguments {
                 return nil
             }
         }
+        let usesUnpricedOptions = unpriced != UnpricedOptions()
+        if dumpsUnpriced {
+            guard mode.map({ _ in false }) ?? true, (unpriced.first == nil) == (unpriced.last == nil),
+                  unpriced.first.map({ $0 <= unpriced.last! }) ?? true,
+                  unpriced.days == nil || unpriced.first == nil,
+                  !unpriced.live || (unpriced.days == nil && unpriced.first == nil) else { return nil }
+            mode = .dumpUnpriced(unpriced)
+        } else if usesUnpricedOptions {
+            return nil
+        }
         guard let mode else { return nil }
         return ProbeArguments(mode: mode, configuration: configuration, utc: utc, historyStore: historyStore, prices: prices,
                               trafficInterval: trafficInterval, noLive: noLive)
@@ -139,6 +182,11 @@ struct ProbeArguments {
 }
 
 extension ProbeArguments {
+    /// `YYYY-MM-DD` of a real calendar date.
+    static func isDate(_ text: String) -> Bool {
+        UnpricedRange.isDate(text)
+    }
+
     /// The table of `--prices`, else the bundled one; exits when the file does not validate.
     func priceTable() -> PriceTable {
         guard let prices else { return PriceBook.bundled }

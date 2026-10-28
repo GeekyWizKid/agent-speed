@@ -54,6 +54,9 @@ public struct DailyUsage: Equatable, Sendable, Identifiable {
     /// The price table version bound to the day.
     public var priceVersion: Int?
     public var modeUsage: [ExecutionModeUsage]
+    /// The day's unpriced facts summed over its contributions, with the requests stored without cost data and the
+    /// derived ones (METRICS 9.10 *Reading*).
+    public var unpriced: UnpricedReading
 
     public init(
         day: String,
@@ -67,7 +70,8 @@ public struct DailyUsage: Equatable, Sendable, Identifiable {
         models: [ModelUsage],
         cost: CostTally? = nil,
         priceVersion: Int? = nil,
-        modeUsage: [ExecutionModeUsage] = []
+        modeUsage: [ExecutionModeUsage] = [],
+        unpriced: UnpricedReading? = nil
     ) {
         self.day = day
         self.source = source
@@ -81,6 +85,20 @@ public struct DailyUsage: Equatable, Sendable, Identifiable {
         self.cost = cost
         self.priceVersion = priceVersion
         self.modeUsage = modeUsage
+        self.unpriced = unpriced ?? Self.unpricedReading(requests: totals.requests, cost: cost, models: models)
+    }
+
+    /// The day as one diagnostics part (METRICS 9.10 *Rows*).
+    public var unpricedPart: UnpricedPart {
+        UnpricedPart(day: day, source: source, requests: unpriced.requests, noCostData: unpriced.noCostData,
+                     derived: unpriced.derived, facts: unpriced.facts)
+    }
+
+    /// Derived facts for rows built without them (previews): the per-model counts, as *Reading* derives them.
+    static func unpricedReading(requests: Int, cost: CostTally?, models: [ModelUsage]) -> UnpricedReading {
+        var counts: [String: Int] = [:]
+        for model in models { if let unpriced = model.cost?.unpricedRequests { counts[model.model, default: 0] += unpriced } }
+        return UnpricedReading.read(requests: requests, unpriced: cost?.unpricedRequests, models: counts, facts: nil)
     }
 
     /// Output tok/s over the day's measured responses.

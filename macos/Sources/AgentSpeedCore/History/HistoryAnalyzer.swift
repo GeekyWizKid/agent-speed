@@ -8,8 +8,8 @@ import Foundation
 final class HistoryAnalyzer {
     /// Bumped whenever a parser change alters results; stored files of other versions are analysed again.
     /// 2: per-model measured output and time (METRICS 8). 3: cost (METRICS 9.7). 5: reasoning effort and speed.
-    /// 6: the copied prefix of paginated Codex sub-agents (METRICS 3.5).
-    static let analysisVersion: Int64 = 6
+    /// 6: the copied prefix of paginated Codex sub-agents (METRICS 3.5). 7: the unpriced facts (METRICS 9.10).
+    static let analysisVersion: Int64 = 7
     /// The current price table version of the last complete run; when it changes, files with unpriced responses are
     /// analysed again (METRICS 9.7).
     static let priceVersionKey = "priceTableVersion"
@@ -507,12 +507,18 @@ final class HistoryAnalyzer {
 
     // MARK: - Results
 
-    /// Daily totals: sums over files, for the given sources, sorted by day then source.
+    /// Daily totals: sums over files, for the given sources, sorted by day then source. Each contribution's
+    /// unpriced facts are read on their own and then summed (METRICS 9.10 *Reading*).
     func days(sources: Set<SourceKind>) -> [DailyUsage] {
         var totals: [UsageKey: DayAggregate] = [:]
+        var unpriced: [UsageKey: [UnpricedPart]] = [:]
         for entry in entries.values {
             for (key, day) in entry.days where sources.contains(key.source) {
                 totals[key, default: DayAggregate()].merge(day)
+                let reading = day.unpricedReading
+                unpriced[key, default: []].append(UnpricedPart(
+                    day: key.day, source: key.source, requests: reading.requests, noCostData: reading.noCostData,
+                    derived: reading.derived, facts: reading.facts))
             }
         }
         return totals
@@ -520,8 +526,12 @@ final class HistoryAnalyzer {
                 lhs.key.day != rhs.key.day ? lhs.key.day < rhs.key.day : lhs.key.source.rawValue < rhs.key.source.rawValue
             }
             .map {
-                $0.value.usage(day: $0.key.day, source: $0.key.source, peak: peaks[$0.key.day],
-                               priceVersion: pricing.boundVersion(forDay: $0.key.day))
+                let part = UnpricedPart.merged(unpriced[$0.key] ?? []).first
+                return $0.value.usage(
+                    day: $0.key.day, source: $0.key.source, peak: peaks[$0.key.day],
+                    priceVersion: pricing.boundVersion(forDay: $0.key.day),
+                    unpriced: UnpricedReading(requests: part?.requests ?? 0, noCostData: part?.noCostData ?? 0,
+                                              facts: part?.facts ?? [], derived: part?.derived ?? 0))
             }
     }
 

@@ -64,7 +64,7 @@ struct HistoryTests {
             "output": day.totals.output, "reasoning": day.totals.reasoning, "measuredOutput": day.measuredOutput,
             "measuredMs": day.measuredMs, "unfinalized": day.unfinalized, "costMicroUsd": null(day.cost?.costMicroUsd),
             "unpricedRequests": null(day.cost?.unpricedRequests), "priceVersion": null(day.priceVersion),
-            "agents": day.agents, "models": models,
+            "agents": day.agents, "models": models, "unpriced": day.unpriced.facts.map(UnpricedCaseTests.json),
         ]
     }
 

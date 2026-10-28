@@ -14,6 +14,11 @@ case .dumpHistory:
         configuration: arguments.configuration, utc: arguments.utc, storePath: arguments.historyStore,
         table: arguments.priceTable()
     )
+case .dumpUnpriced(let options):
+    DumpUnpriced.run(
+        configuration: arguments.configuration, options: options, storePath: arguments.historyStore,
+        table: arguments.priceTable()
+    )
 case .watch(let seconds):
     WatchMode.run(configuration: arguments.configuration, seconds: seconds)
 case .traffic(let seconds):
