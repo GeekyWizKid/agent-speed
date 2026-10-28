@@ -15,25 +15,46 @@ internal sealed partial class GoRecognizer(FailureFound found) : FailureRecogniz
     private int broken;
 
     [GeneratedRegex("""\A(?:[ \t]*--- FAIL: ([^ ]+) \([0-9.]+s\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoFail();
+    private static partial Regex GoFailShared();
+
+
+    private static Regex GoFail() => ThreadRegex.Of(GoFailShared());
 
     [GeneratedRegex("""\A(?:[ \t]*--- (PASS|SKIP): ([^ ]+) \([0-9.]+s\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoPass();
+    private static partial Regex GoPassShared();
+
+
+    private static Regex GoPass() => ThreadRegex.Of(GoPassShared());
 
     [GeneratedRegex("""\A(?:=== (?:RUN|PAUSE|CONT|NAME) .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoRun();
+    private static partial Regex GoRunShared();
+
+
+    private static Regex GoRun() => ThreadRegex.Of(GoRunShared());
 
     [GeneratedRegex("""\A(?:(?:FAIL|PASS|\?[ \t]+[^ \t]+[ \t]+\[no test files\]))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoBare();
+    private static partial Regex GoBareShared();
+
+
+    private static Regex GoBare() => ThreadRegex.Of(GoBareShared());
 
     [GeneratedRegex("""\A(?:# [^ ]+(?: \[[^\]]+\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoHeader();
+    private static partial Regex GoHeaderShared();
+
+
+    private static Regex GoHeader() => ThreadRegex.Of(GoHeaderShared());
 
     [GeneratedRegex("""\A(?:(FAIL|ok)[ \t]+([^ \t]+)[ \t]+(?:[0-9.]+s|\(cached\)|\[([^\]]+)\])(?:[ \t].*)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoPkg();
+    private static partial Regex GoPkgShared();
+
+
+    private static Regex GoPkg() => ThreadRegex.Of(GoPkgShared());
 
     [GeneratedRegex("""\A(?:([^ \t][^ \t:]*\.go):([0-9]+)(?::([0-9]+))?: (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoError();
+    private static partial Regex GoErrorShared();
+
+
+    private static Regex GoError() => ThreadRegex.Of(GoErrorShared());
 
     public override int Step(string[] lines, int i)
     {

@@ -6,16 +6,27 @@ namespace AgentSpeed.Core.TaskParsers;
 internal sealed partial class PytestRecognizer(FailureFound found) : FailureRecognizer(found)
 {
     [GeneratedRegex("""\A(?:(?:\[gw[0-9]+\] \[ *[0-9]+%\] )?(FAILED|ERROR) (?!\()([^ ]+?)(?: - (.*))?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PytestFail();
+    private static partial Regex PytestFailShared();
+
+    private static Regex PytestFail() => ThreadRegex.Of(PytestFailShared());
 
     [GeneratedRegex("""\A(?:([^ ]+::.+?) (FAILED|ERROR)(?: +\[ *[0-9]+%\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PytestVerbose();
+    private static partial Regex PytestVerboseShared();
+
+
+    private static Regex PytestVerbose() => ThreadRegex.Of(PytestVerboseShared());
 
     [GeneratedRegex("""\A(?:(?:=+ )?((?:[0-9]+ (?:failed|passed|errors?|skipped|xfailed|xpassed|deselected|warnings?|rerun|reruns|subtests passed|subtests failed)(?:, )?)+) in [0-9]+(?:\.[0-9]+)?s(?: \([0-9:.]+\))?(?: =+)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PytestSummary();
+    private static partial Regex PytestSummaryShared();
+
+
+    private static Regex PytestSummary() => ThreadRegex.Of(PytestSummaryShared());
 
     [GeneratedRegex("""\A(?:(?:=+ )?no tests ran in [0-9]+(?:\.[0-9]+)?s(?: =+)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PytestNone();
+    private static partial Regex PytestNoneShared();
+
+
+    private static Regex PytestNone() => ThreadRegex.Of(PytestNoneShared());
 
     public override int Step(string[] lines, int i)
     {
@@ -67,19 +78,34 @@ internal sealed partial class UnittestRecognizer(FailureFound found) : FailureRe
     private long? ran;
 
     [GeneratedRegex("""\A(?:(FAIL|ERROR|UNEXPECTED SUCCESS): ([A-Za-z_][A-Za-z0-9_]*) \(([A-Za-z0-9_.]+)\)(?: .*)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex UnittestFail();
+    private static partial Regex UnittestFailShared();
+
+
+    private static Regex UnittestFail() => ThreadRegex.Of(UnittestFailShared());
 
     [GeneratedRegex("""\A(?:Ran ([0-9]+) tests? in [0-9]+(?:\.[0-9]+)?s)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex UnittestRan();
+    private static partial Regex UnittestRanShared();
+
+
+    private static Regex UnittestRan() => ThreadRegex.Of(UnittestRanShared());
 
     [GeneratedRegex("""\A(?:OK(?: \((.*)\))?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex UnittestOk();
+    private static partial Regex UnittestOkShared();
+
+
+    private static Regex UnittestOk() => ThreadRegex.Of(UnittestOkShared());
 
     [GeneratedRegex("""\A(?:FAILED \((.*)\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex UnittestFailed();
+    private static partial Regex UnittestFailedShared();
+
+
+    private static Regex UnittestFailed() => ThreadRegex.Of(UnittestFailedShared());
 
     [GeneratedRegex("""\A(?:[ \t]*([a-z ]+)=([0-9]+)[ \t]*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex UnittestPair();
+    private static partial Regex UnittestPairShared();
+
+
+    private static Regex UnittestPair() => ThreadRegex.Of(UnittestPairShared());
 
     public override int Step(string[] lines, int i)
     {

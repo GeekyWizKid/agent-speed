@@ -83,14 +83,18 @@ internal sealed class ClaudeTaskReader() : TaskLineReader(SourceKind.ClaudeCode)
         return task.IsEmpty ? null : task;
     }
 
-    private TaskLine ReadAssistant(ReadOnlySpan<byte> raw, in ClaudeLine line, long t)
+    /// <summary>
+    /// An assistant line with <c>tool_use</c> blocks: its calls (the composer takes the withdrawal decision of every
+    /// assistant line from the line itself, <see cref="IsDecidingAssistant"/>).
+    /// </summary>
+    private TaskLine? ReadAssistant(ReadOnlySpan<byte> raw, in ClaudeLine line, long t)
     {
-        var key = line.Key;
-        var task = new TaskLine { Assistant = true, DedupeKey = string.IsNullOrEmpty(key) ? null : key };
         if (!line.HasToolUse)
         {
-            return task;
+            return null;
         }
+
+        var task = new TaskLine();
 
         using var json = TaskJsonLine.Parse(raw);
         var message = json.IsObject ? TaskInputs.Get(json.Root, "message") : default;
@@ -113,8 +117,15 @@ internal sealed class ClaudeTaskReader() : TaskLineReader(SourceKind.ClaudeCode)
             }
         }
 
-        return task;
+        return task.Calls is null ? null : task;
     }
+
+    /// <summary>An <c>assistant</c> line that is not <c>&lt;synthetic&gt;</c>: it decides a pending withdrawal (6.9).</summary>
+    public static bool IsDecidingAssistant(in ClaudeLine line) =>
+        line.Kind == ClaudeLineKind.Assistant && !string.Equals(line.Model, Synthetic, StringComparison.Ordinal);
+
+    /// <summary>The line's dedupe key (4.1 step 2), null when blank.</summary>
+    public static string? DedupeKey(in ClaudeLine line) => string.IsNullOrEmpty(line.Key) ? null : line.Key;
 
     /// <summary><c>attachment.timestamp</c> when it is a timestamp (METRICS 3.1).</summary>
     private static long? QueuedTime(JsonElement attachment)

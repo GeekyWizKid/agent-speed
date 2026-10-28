@@ -8,37 +8,69 @@ namespace AgentSpeed.Core.TaskParsers;
 internal sealed partial class DotnetRecognizer(FailureFound found) : FailureRecognizer(found)
 {
     [GeneratedRegex("""\A(?:[ \t]*(.+?)\(([0-9]+)(?:,([0-9]+))?(?:,[0-9]+,[0-9]+)?\): error ([A-Za-z]+[0-9]+): (.*?)(?: \[([^\]]+)\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbError();
+    private static partial Regex MsbErrorShared();
+
+    private static Regex MsbError() => ThreadRegex.Of(MsbErrorShared());
 
     [GeneratedRegex("""\A(?:[ \t]*([A-Za-z][A-Za-z0-9_.-]*) : error ([A-Za-z]+[0-9]+): (.*?)(?: \[([^\]]+)\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbToolError();
+    private static partial Regex MsbToolErrorShared();
+
+
+    private static Regex MsbToolError() => ThreadRegex.Of(MsbToolErrorShared());
 
     [GeneratedRegex("""\A(?:[ \t]*.+?(?:\([0-9,]+\))? : warning [A-Za-z]+[0-9]+: .*|[ \t]*.+?\([0-9,]+\): warning [A-Za-z]+[0-9]+: .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbWarning();
+    private static partial Regex MsbWarningShared();
+
+
+    private static Regex MsbWarning() => ThreadRegex.Of(MsbWarningShared());
 
     [GeneratedRegex("""\A(?:[ \t]*([0-9]+) Error\(s\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbCount();
+    private static partial Regex MsbCountShared();
+
+
+    private static Regex MsbCount() => ThreadRegex.Of(MsbCountShared());
 
     [GeneratedRegex("""\A(?:Build (?:failed|succeeded)(?: with ([0-9]+) error\(s\)(?: and [0-9]+ warning\(s\))?)?(?: and [0-9]+ warning\(s\))? in [0-9.]+s)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbTerminal();
+    private static partial Regex MsbTerminalShared();
+
+
+    private static Regex MsbTerminal() => ThreadRegex.Of(MsbTerminalShared());
 
     [GeneratedRegex("""\A(?:[ \t]*[0-9]+ Warning\(s\)|Build FAILED\.|Build succeeded\.|Time Elapsed .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbNoise();
+    private static partial Regex MsbNoiseShared();
+
+
+    private static Regex MsbNoise() => ThreadRegex.Of(MsbNoiseShared());
 
     [GeneratedRegex("""\A(?:[ \t]*Failed ([^ ]+) \[[^\]]*\])\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VstestFailed();
+    private static partial Regex VstestFailedShared();
+
+
+    private static Regex VstestFailed() => ThreadRegex.Of(VstestFailedShared());
 
     [GeneratedRegex("""\A(?:[ \t]*(?:Passed|Skipped) ([^ ]+) \[[^\]]*\])\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VstestPassed();
+    private static partial Regex VstestPassedShared();
+
+
+    private static Regex VstestPassed() => ThreadRegex.Of(VstestPassedShared());
 
     [GeneratedRegex("""\A(?:(?:Failed|Passed)![ \t]*-[ \t]*Failed:[ \t]*([0-9]+),[ \t]*Passed:[ \t]*([0-9]+),[ \t]*Skipped:[ \t]*([0-9]+),[ \t]*Total:[ \t]*([0-9]+).*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VstestSummary();
+    private static partial Regex VstestSummaryShared();
+
+
+    private static Regex VstestSummary() => ThreadRegex.Of(VstestSummaryShared());
 
     [GeneratedRegex("""\A(?:[ \t]*Test summary: total: ([0-9]+), failed: ([0-9]+), succeeded: ([0-9]+), skipped: ([0-9]+).*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MtpSummary();
+    private static partial Regex MtpSummaryShared();
+
+
+    private static Regex MtpSummary() => ThreadRegex.Of(MtpSummaryShared());
 
     [GeneratedRegex("""\A(?:[ \t]*failed (.+?) \([0-9.]+m?s\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MtpFailed();
+    private static partial Regex MtpFailedShared();
+
+
+    private static Regex MtpFailed() => ThreadRegex.Of(MtpFailedShared());
 
     public override int Step(string[] lines, int i)
     {

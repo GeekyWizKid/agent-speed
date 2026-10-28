@@ -158,17 +158,21 @@ internal abstract class TranscriptParser
     /// Feeds one counted line to the composer, after the source handler: its assistant entry is a duplicate when the
     /// handler left its key to another file (4.1 step 2, 4.7 step 2, 4.16).
     /// </summary>
-    protected void ComposeTask(TaskLine? line, long t, bool suppressCalls = false)
+    /// <param name="assistant">The line is an assistant line that decides a withdrawal even without facts (Claude).</param>
+    /// <param name="dedupeKey">That line's dedupe key.</param>
+    protected void ComposeTask(TaskLine? line, long t, bool suppressCalls = false, bool assistant = false, string? dedupeKey = null)
     {
         if (_tasks is not { } tasks)
         {
             return;
         }
 
-        var duplicate = line?.DedupeKey is { } key && Deduper.TryGetOwner(key, out var owner)
+        var key = line?.DedupeKey ?? dedupeKey;
+        var duplicate = key is not null && Deduper.TryGetOwner(key, out var owner)
             && !string.Equals(owner, AgentId, StringComparison.Ordinal);
         var before = tasks.Revision;
-        tasks.Feed(line, t, duplicate, suppressCalls, Model, EffortAndSpeed.Effort(Modes)?.Mode);
+        tasks.Feed(line, t, assistant || line?.Assistant == true, duplicate, suppressCalls, Model,
+            tasks.KeepsNotes ? EffortAndSpeed.Effort(Modes)?.Mode : null);
         if (tasks.Revision != before)
         {
             Version++;

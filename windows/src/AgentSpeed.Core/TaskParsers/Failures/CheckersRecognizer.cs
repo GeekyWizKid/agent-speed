@@ -11,82 +11,160 @@ internal sealed partial class CheckersRecognizer(FailureFound found) : FailureRe
     private bool tscTable;
 
     [GeneratedRegex("""\A(?:[ \t]+[0-9]+[ \t]+.+:[0-9]+)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex TscRow();
+    private static partial Regex TscRowShared();
+
+
+    private static Regex TscRow() => ThreadRegex.Of(TscRowShared());
 
     [GeneratedRegex("""\A(?:(.+?)\(([0-9]+),([0-9]+)\): error (TS[0-9]+): (.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex TscParen();
+    private static partial Regex TscParenShared();
+
+
+    private static Regex TscParen() => ThreadRegex.Of(TscParenShared());
 
     [GeneratedRegex("""\A(?:(.+?):([0-9]+):([0-9]+) - error (TS[0-9]+): (.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex TscPretty();
+    private static partial Regex TscPrettyShared();
+
+
+    private static Regex TscPretty() => ThreadRegex.Of(TscPrettyShared());
 
     [GeneratedRegex("""\A(?:Found ([0-9]+) errors? in [0-9]+ files? \((?:checked [0-9]+ source files?|errors prevented further checking)\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MypyFound();
+    private static partial Regex MypyFoundShared();
+
+
+    private static Regex MypyFound() => ThreadRegex.Of(MypyFoundShared());
 
     [GeneratedRegex("""\A(?:Found ([0-9]+) errors? in .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex TscFound();
+    private static partial Regex TscFoundShared();
+
+
+    private static Regex TscFound() => ThreadRegex.Of(TscFoundShared());
 
     [GeneratedRegex("""\A(?:Found ([0-9]+) errors?(?: \(([0-9]+) fixed, ([0-9]+) remaining\))?\.)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex FoundErrors();
+    private static partial Regex FoundErrorsShared();
+
+
+    private static Regex FoundErrors() => ThreadRegex.Of(FoundErrorsShared());
 
     [GeneratedRegex("""\A(?:Errors +Files)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex TscTable();
+    private static partial Regex TscTableShared();
+
+
+    private static Regex TscTable() => ThreadRegex.Of(TscTableShared());
 
     [GeneratedRegex("""\A(?:(.+?):([0-9]+):([0-9]+): (.+) \[(Error|Warning)/(.+)\])\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex EslintUnix();
+    private static partial Regex EslintUnixShared();
+
+
+    private static Regex EslintUnix() => ThreadRegex.Of(EslintUnixShared());
 
     [GeneratedRegex("""\A(?:(/[^:]*|[A-Za-z]:[\\/][^:]*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex EslintFile();
+    private static partial Regex EslintFileShared();
+
+
+    private static Regex EslintFile() => ThreadRegex.Of(EslintFileShared());
 
     [GeneratedRegex("""\A(?:[ \t]+([0-9]+):([0-9]+)[ \t]+(error|warning)[ \t]+(.+?)(?:[ \t]{2,}([^ \t]+))?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex EslintMsg();
+    private static partial Regex EslintMsgShared();
+
+
+    private static Regex EslintMsg() => ThreadRegex.Of(EslintMsgShared());
 
     [GeneratedRegex("""\A(?:✖ ([0-9]+) problems? \(([0-9]+) errors?, ([0-9]+) warnings?\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex EslintSummary();
+    private static partial Regex EslintSummaryShared();
+
+
+    private static Regex EslintSummary() => ThreadRegex.Of(EslintSummaryShared());
 
     [GeneratedRegex("""\A(?:[ \t]+[0-9]+ errors? and [0-9]+ warnings? potentially fixable.*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex EslintFixable();
+    private static partial Regex EslintFixableShared();
+
+
+    private static Regex EslintFixable() => ThreadRegex.Of(EslintFixableShared());
 
     [GeneratedRegex("""\A(?:(.+?\.(?:py|pyi|ipynb)):([0-9]+):([0-9]+): ([A-Z]+[0-9]+|SyntaxError|invalid-syntax):? (?:\[\*\] )?(.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RuffConcise();
+    private static partial Regex RuffConciseShared();
+
+
+    private static Regex RuffConcise() => ThreadRegex.Of(RuffConciseShared());
 
     [GeneratedRegex("""\A(?:([A-Z]{1,4}[0-9]{1,4}|invalid-syntax|SyntaxError):? (?:\[\*\] )?(.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RuffHeader();
+    private static partial Regex RuffHeaderShared();
+
+
+    private static Regex RuffHeader() => ThreadRegex.Of(RuffHeaderShared());
 
     [GeneratedRegex("""\A(?: *--> (.+?):([0-9]+):([0-9]+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RuffLoc();
+    private static partial Regex RuffLocShared();
+
+
+    private static Regex RuffLoc() => ThreadRegex.Of(RuffLocShared());
 
     [GeneratedRegex("""\A(?:All checks passed!)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RuffPassed();
+    private static partial Regex RuffPassedShared();
+
+
+    private static Regex RuffPassed() => ThreadRegex.Of(RuffPassedShared());
 
     [GeneratedRegex("""\A(?:Would reformat: (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RuffWould();
+    private static partial Regex RuffWouldShared();
+
+
+    private static Regex RuffWould() => ThreadRegex.Of(RuffWouldShared());
 
     [GeneratedRegex("""\A(?:would reformat (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex BlackWould();
+    private static partial Regex BlackWouldShared();
+
+
+    private static Regex BlackWould() => ThreadRegex.Of(BlackWouldShared());
 
     [GeneratedRegex("""\A(?:(?:Oh no! .*)?([0-9]+) files? would be reformatted(?:, [0-9]+ files? (?:already formatted|would be left unchanged))?\.?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex FormatSummary();
+    private static partial Regex FormatSummaryShared();
+
+
+    private static Regex FormatSummary() => ThreadRegex.Of(FormatSummaryShared());
 
     [GeneratedRegex("""\A(?:(.+?\.pyi?):([0-9]+)(?::([0-9]+))?: error: (.+?)(?:  \[([a-z0-9-]+)\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MypyError();
+    private static partial Regex MypyErrorShared();
+
+
+    private static Regex MypyError() => ThreadRegex.Of(MypyErrorShared());
 
     [GeneratedRegex("""\A(?:(.+?\.pyi?):([0-9]+)(?::([0-9]+))?: note: .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MypyNote();
+    private static partial Regex MypyNoteShared();
+
+
+    private static Regex MypyNote() => ThreadRegex.Of(MypyNoteShared());
 
     [GeneratedRegex("""\A(?:Success: no issues found in [0-9]+ source files?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MypySuccess();
+    private static partial Regex MypySuccessShared();
+
+
+    private static Regex MypySuccess() => ThreadRegex.Of(MypySuccessShared());
 
     [GeneratedRegex("""\A(?:[ \t]*(.+?):([0-9]+):([0-9]+) - error: (.+?)(?: \((report[A-Za-z]+)\))?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PyrightError();
+    private static partial Regex PyrightErrorShared();
+
+
+    private static Regex PyrightError() => ThreadRegex.Of(PyrightErrorShared());
 
     [GeneratedRegex("""\A(?:[ \t]*(.+?):([0-9]+):([0-9]+) - (?:warning|information|info|note): .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PyrightOther();
+    private static partial Regex PyrightOtherShared();
+
+
+    private static Regex PyrightOther() => ThreadRegex.Of(PyrightOtherShared());
 
     [GeneratedRegex(""" \((report[A-Za-z]+)\)$""", RegexOptions.CultureInvariant)]
-    private static partial Regex PyrightRule();
+    private static partial Regex PyrightRuleShared();
+
+
+    private static Regex PyrightRule() => ThreadRegex.Of(PyrightRuleShared());
 
     [GeneratedRegex("""\A(?:([0-9]+) errors?, ([0-9]+) warnings?, ([0-9]+) (?:informations?|infos?|notes?) ?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PyrightSummary();
+    private static partial Regex PyrightSummaryShared();
+
+
+    private static Regex PyrightSummary() => ThreadRegex.Of(PyrightSummaryShared());
 
     public override int Step(string[] lines, int i)
     {

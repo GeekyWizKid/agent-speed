@@ -31,19 +31,17 @@ public sealed class TaskComposerStats
 /// with the line's <see cref="TaskLine"/> and whether the handler left the line's key to another file: it withdraws
 /// copied prompts, keeps one action per call id, matches results to calls anywhere in the agent, stitches running
 /// sessions back to their command and notes the model and effort after each line. Not thread-safe (the monitor or
-/// history thread). A live composer keeps only the current task's events.
+/// history thread). A live composer keeps only the current task's events and the calls that can still change them.
 /// </summary>
 public sealed class TaskComposer
 {
-    /// <summary>A live composer forgets answered calls of finished tasks beyond this many (a repeat of one is then new).</summary>
-    private const int MaxLiveCalls = 4096;
-
     private readonly bool _keepAll;
     private readonly bool _concatenates;
     private readonly List<TaskEvent> _events = [];
     private readonly List<TaskModelNote> _notes = [];
     private readonly Dictionary<string, Entry> _calls = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Running> _sessions = new(StringComparer.Ordinal);
+    private readonly List<string> _stale = [];
     private (bool Command, TaskPrompt Prompt)? _pending;
 
     /// <param name="keepAll">Keep every task's events (history, dumps); otherwise only the current task's.</param>
@@ -64,6 +62,9 @@ public sealed class TaskComposer
 
     public TaskComposerStats Stats { get; } = new();
 
+    /// <summary>Model and effort notes are kept (every task's events are: the history and the dumps).</summary>
+    public bool KeepsNotes => _keepAll;
+
     /// <summary>Changes whenever an event is added, removed or completed.</summary>
     public int Revision { get; private set; }
 
@@ -83,12 +84,12 @@ public sealed class TaskComposer
     /// assistant entry is a duplicate, whether its calls are suppressed (an OpenClaw mirror), and the agent's model and
     /// effort after it.
     /// </summary>
-    internal void Feed(TaskLine? line, long t, bool duplicate, bool suppressCalls, string? model, string? effort)
+    internal void Feed(TaskLine? line, long t, bool assistant, bool duplicate, bool suppressCalls, string? model, string? effort)
     {
         Stats.Lines++;
-        if (line is not null)
+        if (line is not null || assistant)
         {
-            Compose(line, t, duplicate, suppressCalls);
+            Compose(line, t, assistant, duplicate, suppressCalls);
         }
 
         if (_keepAll)
@@ -97,24 +98,24 @@ public sealed class TaskComposer
         }
     }
 
-    private void Compose(TaskLine line, long t, bool duplicate, bool suppressCalls)
+    private void Compose(TaskLine? line, long t, bool assistant, bool duplicate, bool suppressCalls)
     {
-        if (line.Prompt is { } prompt)
+        if (line?.Prompt is { } prompt)
         {
             OnPrompt(prompt, t);
         }
 
-        if (line.Notice is { } notice)
+        if (line?.Notice is { } notice)
         {
             Finish(notice.Session, new TaskOutcome(notice.ExitCode, notice.ExitCode != 0, null), null, notice.T);
         }
 
-        foreach (var result in line.Results ?? [])
+        foreach (var result in line?.Results ?? [])
         {
             OnResult(result, t);
         }
 
-        if (line.Assistant)
+        if (assistant)
         {
             if (_pending is not null && duplicate)
             {
@@ -124,7 +125,7 @@ public sealed class TaskComposer
             _pending = null;
         }
 
-        if (line.Calls is { } calls && !duplicate && !suppressCalls)
+        if (line?.Calls is { } calls && !duplicate && !suppressCalls)
         {
             foreach (var call in calls)
             {
@@ -319,21 +320,28 @@ public sealed class TaskComposer
             }
         }
 
-        if (start > 0)
+        if (start <= 0)
         {
-            _events.RemoveRange(0, start);
+            return;
         }
 
-        if (_calls.Count > MaxLiveCalls)
+        _events.RemoveRange(0, start);
+
+        // A finished task's answered calls only guard against repeats of their ids, which come with the call's own
+        // message; their results are in. Calls still waiting stay, since their results complete the earlier task.
+        var current = new HashSet<TaskEvent>(_events, ReferenceEqualityComparer.Instance);
+        _stale.Clear();
+        foreach (var (id, entry) in _calls)
         {
-            var current = new HashSet<TaskEvent>(_events, ReferenceEqualityComparer.Instance);
-            foreach (var (id, entry) in _calls.ToList())
+            if (entry.Answered && entry.Call.Action is { } action && !current.Contains(action))
             {
-                if (entry.Answered && entry.Call.Action is { } action && !current.Contains(action))
-                {
-                    _calls.Remove(id);
-                }
+                _stale.Add(id);
             }
+        }
+
+        foreach (var id in _stale)
+        {
+            _calls.Remove(id);
         }
     }
 

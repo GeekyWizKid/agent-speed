@@ -11,31 +11,58 @@ internal sealed partial class CcRecognizer(FailureFound found) : FailureRecogniz
     private bool symbols;
 
     [GeneratedRegex("""\A(?:[ \t]+\"(.+)\", referenced from:)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LdSymbol();
+    private static partial Regex LdSymbolShared();
+
+
+    private static Regex LdSymbol() => ThreadRegex.Of(LdSymbolShared());
 
     [GeneratedRegex("""\A(?:(.+?\.(?:c|cc|cpp|cxx|c\+\+|C|h|hh|hpp|hxx|h\+\+|m|mm|cu|cuh|ino|S|s|ipp|tpp|inl)):([0-9]+)(?::([0-9]+))?: (?:fatal )?error: (.+?)(?: \[([^\]]+)\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CcError();
+    private static partial Regex CcErrorShared();
+
+
+    private static Regex CcError() => ThreadRegex.Of(CcErrorShared());
 
     [GeneratedRegex("""\A(?:(.+?\.(?:c|cc|cpp|cxx|c\+\+|C|h|hh|hpp|hxx|h\+\+|m|mm|cu|cuh|ino|S|s|ipp|tpp|inl)):([0-9]+)(?::([0-9]+))?: (?:warning|note): .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CcWarning();
+    private static partial Regex CcWarningShared();
+
+
+    private static Regex CcWarning() => ThreadRegex.Of(CcWarningShared());
 
     [GeneratedRegex("""\A(?:In file included from .*|[ \t]+from .*|.+?: In (?:function|member function|constructor|destructor|instantiation of|static member function) .*:)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CcContext();
+    private static partial Regex CcContextShared();
+
+
+    private static Regex CcContext() => ThreadRegex.Of(CcContextShared());
 
     [GeneratedRegex("""\A(?:([0-9]+) errors? generated\.)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CcGenerated();
+    private static partial Regex CcGeneratedShared();
+
+
+    private static Regex CcGenerated() => ThreadRegex.Of(CcGeneratedShared());
 
     [GeneratedRegex("""\A(?:Undefined symbols for architecture [^ ]+:)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LdUndefinedArch();
+    private static partial Regex LdUndefinedArchShared();
+
+
+    private static Regex LdUndefinedArch() => ThreadRegex.Of(LdUndefinedArchShared());
 
     [GeneratedRegex("""undefined reference to [`'\u2018](.+?)['\u2019]""", RegexOptions.CultureInvariant)]
-    private static partial Regex LdReference();
+    private static partial Regex LdReferenceShared();
+
+
+    private static Regex LdReference() => ThreadRegex.Of(LdReferenceShared());
 
     [GeneratedRegex("""\A(?:(?:[^ ]*/)?ld(?:\.[a-z]+)?: .*|collect2: error: ld returned [0-9]+ exit status|clang(?:\+\+)?: error: linker command failed.*|[ \t]+(?:_?[A-Za-z0-9_]+(?:\(.*\))? in .+\.o|in function .*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LdNoise();
+    private static partial Regex LdNoiseShared();
+
+
+    private static Regex LdNoise() => ThreadRegex.Of(LdNoiseShared());
 
     [GeneratedRegex("""\A(?:g?make(?:\[[0-9]+\])?: \*\*\* .*|g?make(?:\[[0-9]+\])?: (?:Entering|Leaving) directory .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MakeNoise();
+    private static partial Regex MakeNoiseShared();
+
+
+    private static Regex MakeNoise() => ThreadRegex.Of(MakeNoiseShared());
 
     public override int Step(string[] lines, int i)
     {

@@ -11,55 +11,106 @@ internal sealed partial class JvmRecognizer(FailureFound found) : FailureRecogni
     private bool listing;
 
     [GeneratedRegex("""\A(?:\[(?:ERROR|WARNING|INFO)\] Tests run: ([0-9]+), Failures: ([0-9]+), Errors: ([0-9]+), Skipped: ([0-9]+)(?:, Flakes: [0-9]+)?(.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex SurefireRun();
+    private static partial Regex SurefireRunShared();
+
+
+    private static Regex SurefireRun() => ThreadRegex.Of(SurefireRunShared());
 
     [GeneratedRegex("""\A(?:\[ERROR\][ \t]+([A-Za-z0-9_$]+)\.([A-Za-z0-9_$\[\]]+)(?::[0-9]+)?(?:[ \t].*)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex SurefireListed();
+    private static partial Regex SurefireListedShared();
+
+
+    private static Regex SurefireListed() => ThreadRegex.Of(SurefireListedShared());
 
     [GeneratedRegex("""\A(?:([^ ]+) > (.+?) (FAILED|PASSED|SKIPPED))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GradleTest();
+    private static partial Regex GradleTestShared();
+
+
+    private static Regex GradleTest() => ThreadRegex.Of(GradleTestShared());
 
     [GeneratedRegex("""\A(?:([0-9]+) tests? completed, ([0-9]+) failed(?:, ([0-9]+) skipped)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GradleSummary();
+    private static partial Regex GradleSummaryShared();
+
+
+    private static Regex GradleSummary() => ThreadRegex.Of(GradleSummaryShared());
 
     [GeneratedRegex("""\A(?:> Task [^ ]+(?: [A-Z-]+)?|FAILURE: Build failed with an exception\.|BUILD (?:SUCCESSFUL|FAILED) in .*|\* What went wrong:|\* Try:)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GradleNoise();
+    private static partial Regex GradleNoiseShared();
+
+
+    private static Regex GradleNoise() => ThreadRegex.Of(GradleNoiseShared());
 
     [GeneratedRegex("""\A(?:\[ERROR\] ([A-Za-z0-9_.$]+)\.([A-Za-z0-9_$\[\]]+)(?:\(.*\))? -- Time elapsed: .* <<< (?:FAILURE|ERROR)!)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex SurefireTest();
+    private static partial Regex SurefireTestShared();
+
+
+    private static Regex SurefireTest() => ThreadRegex.Of(SurefireTestShared());
 
     [GeneratedRegex("""\A(?:(?:\[ERROR\] )?([A-Za-z0-9_$]+)\(([A-Za-z0-9_.$]+)\)[ \t]+Time elapsed: .* <<< (?:FAILURE|ERROR)!)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex SurefireOld();
+    private static partial Regex SurefireOldShared();
+
+
+    private static Regex SurefireOld() => ThreadRegex.Of(SurefireOldShared());
 
     [GeneratedRegex("""\A(?:\[ERROR\] (?:Failures|Errors): ?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex SurefireHeader();
+    private static partial Regex SurefireHeaderShared();
+
+
+    private static Regex SurefireHeader() => ThreadRegex.Of(SurefireHeaderShared());
 
     [GeneratedRegex("""\A(?:\[ERROR\] (.+?\.(?:java|kt|scala)):\[([0-9]+),([0-9]+)\] (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MavenJavac();
+    private static partial Regex MavenJavacShared();
+
+
+    private static Regex MavenJavac() => ThreadRegex.Of(MavenJavacShared());
 
     [GeneratedRegex("""\A(?:\[INFO\] ([0-9]+) errors?[ \t]*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MavenErrors();
+    private static partial Regex MavenErrorsShared();
+
+
+    private static Regex MavenErrors() => ThreadRegex.Of(MavenErrorsShared());
 
     [GeneratedRegex("""\A(?:\[ERROR\] COMPILATION ERROR :?|\[INFO\] BUILD (?:FAILURE|SUCCESS))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MavenNoise();
+    private static partial Regex MavenNoiseShared();
+
+
+    private static Regex MavenNoise() => ThreadRegex.Of(MavenNoiseShared());
 
     [GeneratedRegex("""\A(?:(.+?\.java):([0-9]+): error: (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex JavacError();
+    private static partial Regex JavacErrorShared();
+
+
+    private static Regex JavacError() => ThreadRegex.Of(JavacErrorShared());
 
     [GeneratedRegex("""\A(?:(.+?\.java):([0-9]+): warning: .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex JavacWarning();
+    private static partial Regex JavacWarningShared();
+
+
+    private static Regex JavacWarning() => ThreadRegex.Of(JavacWarningShared());
 
     [GeneratedRegex("""\A(?:([0-9]+) errors?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex JavacCount();
+    private static partial Regex JavacCountShared();
+
+
+    private static Regex JavacCount() => ThreadRegex.Of(JavacCountShared());
 
     [GeneratedRegex("""\A(?:e: (?:file://)?(.+?\.kts?):([0-9]+):([0-9]+) (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex KotlinError();
+    private static partial Regex KotlinErrorShared();
+
+
+    private static Regex KotlinError() => ThreadRegex.Of(KotlinErrorShared());
 
     [GeneratedRegex("""\A(?:e: (.+?\.kts?): \(([0-9]+), ([0-9]+)\): (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex KotlinErrorOld();
+    private static partial Regex KotlinErrorOldShared();
+
+
+    private static Regex KotlinErrorOld() => ThreadRegex.Of(KotlinErrorOldShared());
 
     [GeneratedRegex("""\A(?:w: .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex KotlinWarning();
+    private static partial Regex KotlinWarningShared();
+
+
+    private static Regex KotlinWarning() => ThreadRegex.Of(KotlinWarningShared());
 
     public override int Step(string[] lines, int i)
     {

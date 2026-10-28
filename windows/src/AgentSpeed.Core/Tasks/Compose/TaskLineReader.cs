@@ -16,7 +16,7 @@ internal abstract class TaskLineReader(SourceKind source)
     public const int MaxPendingCalls = 8192;
 
     private readonly Dictionary<string, Pending> _pending = new(StringComparer.Ordinal);
-    private readonly Queue<(string Id, Pending Call)> _order = new();
+    private long _sequence;
 
     /// <summary>The source whose parser tables apply (one per family).</summary>
     protected SourceKind Source { get; } = source;
@@ -28,7 +28,6 @@ internal abstract class TaskLineReader(SourceKind source)
     public virtual void Reset()
     {
         _pending.Clear();
-        _order.Clear();
         Cwd = null;
     }
 
@@ -43,7 +42,7 @@ internal abstract class TaskLineReader(SourceKind source)
         }
 
         var (action, info, continues) = Analyze(tool, input, digest, t);
-        Remember(id, new Pending(tool, Keep(input), Cwd, info, continues, null, null));
+        Remember(id, new Pending(tool, Keep(input), Cwd, info, continues, null, null, 0));
         return new TaskCall(id, action, continues, info, Cwd);
     }
 
@@ -63,10 +62,10 @@ internal abstract class TaskLineReader(SourceKind source)
             var input = call.Input ?? default;
             var (action, info, continues) = Analyze(call.Tool, input, call.Digest, t);
             calls[i] = new TaskCall(id, action, continues, info, Cwd);
-            pending[i] = new Pending(call.Tool, input, Cwd, info, continues, null, null);
+            pending[i] = new Pending(call.Tool, input, Cwd, info, continues, null, null, 0);
         }
 
-        Remember(id, new Pending("exec", default, Cwd, null, null, pending, script.Prints));
+        Remember(id, new Pending("exec", default, Cwd, null, null, pending, script.Prints, 0));
         return new TaskCall(id, null, null, null, Cwd) { Script = calls };
     }
 
@@ -136,13 +135,22 @@ internal abstract class TaskLineReader(SourceKind source)
     private TaskAnswer Answer(Pending call, JsonElement result, long t)
     {
         var outcome = TaskParser.Outcome(Source, result, t, call.Tool, call.Input, call.Cwd);
-        var text = TaskParser.ResultText(Source, result);
-        var session = call.Continues is null ? TaskParser.RunningSession(Source, result) : null;
+        // A result that leaves a session running has neither an exit code nor a verdict (TASK-PARSERS 4.2, 4.3).
+        var session = call.Continues is null && outcome.ExitCode is null && outcome.Failed is null
+            ? TaskParser.RunningSession(Source, result)
+            : null;
         if (session is not null)
         {
-            return new TaskAnswer(outcome) { Session = session, Masked = Masked(call), Text = text };
+            return new TaskAnswer(outcome) { Session = session, Masked = Masked(call), Text = TaskParser.ResultText(Source, result) };
         }
 
+        // The output text only matters to a command's failures and a session's output (a file read's is never kept).
+        if (call.Info is null && call.Continues is null)
+        {
+            return new TaskAnswer(outcome);
+        }
+
+        var text = TaskParser.ResultText(Source, result);
         return new TaskAnswer(outcome)
         {
             Failures = call.Info is { } info ? TaskParser.Failures(info, text, call.Cwd, outcome.Failed) : null,
@@ -161,24 +169,11 @@ internal abstract class TaskLineReader(SourceKind source)
             return;
         }
 
-        _pending[id] = call;
-        _order.Enqueue((id, call));
-        while (_pending.Count > MaxPendingCalls && _order.TryDequeue(out var oldest))
+        _pending[id] = call with { Sequence = ++_sequence };
+        if (_pending.Count > MaxPendingCalls)
         {
-            if (_pending.TryGetValue(oldest.Id, out var current) && ReferenceEquals(current, oldest.Call))
-            {
-                _pending.Remove(oldest.Id);
-            }
-        }
-
-        if (_order.Count > 4 * MaxPendingCalls)
-        {
-            var live = _order.Where(e => _pending.TryGetValue(e.Id, out var c) && ReferenceEquals(c, e.Call)).ToList();
-            _order.Clear();
-            foreach (var entry in live)
-            {
-                _order.Enqueue(entry);
-            }
+            var oldest = _pending.MinBy(p => p.Value.Sequence).Key;
+            _pending.Remove(oldest);
         }
     }
 
@@ -193,5 +188,6 @@ internal abstract class TaskLineReader(SourceKind source)
         CommandInfo? Info,
         string? Continues,
         Pending[]? Script,
-        IReadOnlyList<CodePrint>? Prints);
+        IReadOnlyList<CodePrint>? Prints,
+        long Sequence);
 }

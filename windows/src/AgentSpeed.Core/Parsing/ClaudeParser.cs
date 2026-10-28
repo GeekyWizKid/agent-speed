@@ -47,7 +47,9 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
         ApplyLine(in line, sink);
         if (line.TaskTracked)
         {
-            ComposeTask(line.Task, line.TimestampMs);
+            var assistant = global::AgentSpeed.Core.Tasks.ClaudeTaskReader.IsDecidingAssistant(in line);
+            ComposeTask(line.Task, line.TimestampMs, assistant: assistant,
+                dedupeKey: assistant ? global::AgentSpeed.Core.Tasks.ClaudeTaskReader.DedupeKey(in line) : null);
         }
     }
 

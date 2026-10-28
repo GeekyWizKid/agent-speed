@@ -29,6 +29,9 @@ internal sealed partial class MonitorCore : IDisposable
     public const long LargeFileTailBytes = 64L * 1024 * 1024;
     public const long RecentWriteWindowMs = 2 * 60_000;
 
+    /// <summary>From this much to read at once, readers borrow their own pattern copies (<c>ThreadRegex</c>).</summary>
+    private const long OwnPatternsBytes = 64L * 1024 * 1024;
+
     /// <summary>A conversation database that keeps changing is read at most this often (METRICS 5.4).</summary>
     public static readonly TimeSpan DatabaseReadInterval = TimeSpan.FromMilliseconds(500);
 
@@ -896,6 +899,9 @@ internal sealed partial class MonitorCore : IDisposable
 
         var totalBytes = Math.Max(1, plans.Sum(p => Math.Max(0, p.ExpectedLength - p.StartOffset)));
         var degree = Math.Clamp(Environment.ProcessorCount - 1, 1, 8);
+
+        // A large backlog read on several threads matches the task parsers' patterns with borrowed copies (no contention).
+        var ownPatterns = degree > 1 && totalBytes >= OwnPatternsBytes;
         var inFlight = new Queue<(ReadPlan Plan, Task<Prepared> Task)>();
         long doneBytes = 0, bytesRead = 0;
         var filesRead = 0;
@@ -909,7 +915,8 @@ internal sealed partial class MonitorCore : IDisposable
                 {
                     var plan = plans[next++];
                     plan.File.Tailer.StartAt(plan.StartOffset, plan.Align);
-                    inFlight.Enqueue((plan, Task.Run(() => Prepare(plan.File, cancellationToken), cancellationToken)));
+                    inFlight.Enqueue((plan, Task.Run(() => ownPatterns ? PrepareOwn(plan.File, cancellationToken) : Prepare(plan.File, cancellationToken),
+                        cancellationToken)));
                 }
 
                 var (current, task) = inFlight.Dequeue();
@@ -952,9 +959,20 @@ internal sealed partial class MonitorCore : IDisposable
                 {
                 }
             }
+
+            if (ownPatterns)
+            {
+                TaskParsers.ThreadRegex.ReleasePool();
+            }
         }
 
         return (filesRead, bytesRead);
+    }
+
+    private static Prepared PrepareOwn(TrackedFile tracked, CancellationToken cancellationToken)
+    {
+        using var lease = TaskParsers.ThreadRegex.Borrow();
+        return Prepare(tracked, cancellationToken);
     }
 
     private static Prepared Prepare(TrackedFile tracked, CancellationToken cancellationToken)

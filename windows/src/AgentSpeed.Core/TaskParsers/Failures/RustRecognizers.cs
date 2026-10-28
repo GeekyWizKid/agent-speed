@@ -11,34 +11,64 @@ internal sealed partial class CargoRecognizer(FailureFound found) : FailureRecog
     private bool listing;
 
     [GeneratedRegex("""\A(?:    ([^ ].*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LibtestListed();
+    private static partial Regex LibtestListedShared();
+
+
+    private static Regex LibtestListed() => ThreadRegex.Of(LibtestListedShared());
 
     [GeneratedRegex("""\A(?:test (.+) \.\.\. (FAILED|ok|ignored(?:, .*)?|bench: .*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LibtestLine();
+    private static partial Regex LibtestLineShared();
+
+
+    private static Regex LibtestLine() => ThreadRegex.Of(LibtestLineShared());
 
     [GeneratedRegex("""\A(?:---- (.+) (?:stdout|stderr) ----)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LibtestStdout();
+    private static partial Regex LibtestStdoutShared();
+
+
+    private static Regex LibtestStdout() => ThreadRegex.Of(LibtestStdoutShared());
 
     [GeneratedRegex("""\A(?:test result: (?:ok|FAILED)\. ([0-9]+) passed; ([0-9]+) failed; ([0-9]+) ignored; ([0-9]+) measured; ([0-9]+) filtered out(?:; finished in .*)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LibtestResult();
+    private static partial Regex LibtestResultShared();
+
+
+    private static Regex LibtestResult() => ThreadRegex.Of(LibtestResultShared());
 
     [GeneratedRegex("""\A(?:failures:)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LibtestFailures();
+    private static partial Regex LibtestFailuresShared();
+
+
+    private static Regex LibtestFailures() => ThreadRegex.Of(LibtestFailuresShared());
 
     [GeneratedRegex("""\A(?: *(?:FAIL|SIGSEGV|SIGABRT|SIGKILL|SIGBUS|TIMEOUT|LEAK-FAIL|ABORT) \[ *[0-9.]+m?s\] (?:\( *[0-9]+/[0-9]+\) )?([^ ]+) (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex NextestFail();
+    private static partial Regex NextestFailShared();
+
+
+    private static Regex NextestFail() => ThreadRegex.Of(NextestFailShared());
 
     [GeneratedRegex("""\A(?: *(?:PASS|SKIP|LEAK|SLOW|FLAKY|START|RETRY|TRY [0-9]+ [A-Z-]+) \[.*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex NextestOther();
+    private static partial Regex NextestOtherShared();
+
+
+    private static Regex NextestOther() => ThreadRegex.Of(NextestOtherShared());
 
     [GeneratedRegex("""\A(?: *Summary \[[^\]]*\] +([0-9]+) tests? run: (.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex NextestSummary();
+    private static partial Regex NextestSummaryShared();
+
+
+    private static Regex NextestSummary() => ThreadRegex.Of(NextestSummaryShared());
 
     [GeneratedRegex("""\(line [0-9]+\)""", RegexOptions.CultureInvariant)]
-    private static partial Regex DoctestLine();
+    private static partial Regex DoctestLineShared();
+
+
+    private static Regex DoctestLine() => ThreadRegex.Of(DoctestLineShared());
 
     [GeneratedRegex(""" \([^)]*\)""", RegexOptions.CultureInvariant)]
-    private static partial Regex NextestNote();
+    private static partial Regex NextestNoteShared();
+
+
+    private static Regex NextestNote() => ThreadRegex.Of(NextestNoteShared());
 
     public override int Step(string[] lines, int i)
     {
@@ -127,22 +157,39 @@ internal sealed partial class CargoRecognizer(FailureFound found) : FailureRecog
 internal sealed partial class RustcRecognizer(FailureFound found) : FailureRecognizer(found)
 {
     [GeneratedRegex("""\A(?:error: could not compile `[^`]+`(?: \([^)]*\))?(?:;.*)?(?: due to ([0-9]+) previous errors?| due to previous error)?(?:;.*)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustCouldNot();
+    private static partial Regex RustCouldNotShared();
+
+    private static Regex RustCouldNot() => ThreadRegex.Of(RustCouldNotShared());
 
     [GeneratedRegex("""\A(?:error: aborting due to (?:([0-9]+) )?previous errors?(?:;.*)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustAborting();
+    private static partial Regex RustAbortingShared();
+
+
+    private static Regex RustAborting() => ThreadRegex.Of(RustAbortingShared());
 
     [GeneratedRegex("""\A(?:error: (?:test failed|build failed|failed to run|[0-9]+ targets? failed|process didn't exit successfully|Recipe ).*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustStatus();
+    private static partial Regex RustStatusShared();
+
+
+    private static Regex RustStatus() => ThreadRegex.Of(RustStatusShared());
 
     [GeneratedRegex("""\A(?:error(?:\[(E[0-9]{4})\])?: (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustHeader();
+    private static partial Regex RustHeaderShared();
+
+
+    private static Regex RustHeader() => ThreadRegex.Of(RustHeaderShared());
 
     [GeneratedRegex("""\A(?: *--> (.+?):([0-9]+):([0-9]+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustLoc();
+    private static partial Regex RustLocShared();
+
+
+    private static Regex RustLoc() => ThreadRegex.Of(RustLocShared());
 
     [GeneratedRegex("""\A(?:warning(?:\[[A-Za-z0-9_:]+\])?: .+)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustWarn();
+    private static partial Regex RustWarnShared();
+
+
+    private static Regex RustWarn() => ThreadRegex.Of(RustWarnShared());
 
     public override int Step(string[] lines, int i)
     {

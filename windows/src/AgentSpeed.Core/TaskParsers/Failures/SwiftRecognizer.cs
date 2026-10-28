@@ -14,55 +14,106 @@ internal sealed partial class SwiftRecognizer(FailureFound found) : FailureRecog
     private bool commands;
 
     [GeneratedRegex("""\A(?:[ \t]+(.+?)(?: \(.*\))?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XbListed();
+    private static partial Regex XbListedShared();
+
+
+    private static Regex XbListed() => ThreadRegex.Of(XbListedShared());
 
     [GeneratedRegex("""\A(?:\(([0-9]+) failures?\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XbCount();
+    private static partial Regex XbCountShared();
+
+
+    private static Regex XbCount() => ThreadRegex.Of(XbCountShared());
 
     [GeneratedRegex("""\A(?:[^ \tA-Za-z0-9]+ Test (.+?) failed after [0-9]+(?:\.[0-9]+)? seconds(?: with [0-9]+ issues?)?(?: \(including [0-9]+ known issues?\))?\.)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex StFailed();
+    private static partial Regex StFailedShared();
+
+
+    private static Regex StFailed() => ThreadRegex.Of(StFailedShared());
 
     [GeneratedRegex(""" with [0-9]+ test cases?$""", RegexOptions.CultureInvariant)]
-    private static partial Regex StCases();
+    private static partial Regex StCasesShared();
+
+
+    private static Regex StCases() => ThreadRegex.Of(StCasesShared());
 
     [GeneratedRegex("""\A(?:[^ \tA-Za-z0-9]+ Test run with ([0-9]+) tests?(?: in [0-9]+ suites?)? (passed|failed) after [0-9]+(?:\.[0-9]+)? seconds(?: with ([0-9]+) issues?)?(?: \(including [0-9]+ known issues?\))?\.)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex StRun();
+    private static partial Regex StRunShared();
+
+
+    private static Regex StRun() => ThreadRegex.Of(StRunShared());
 
     [GeneratedRegex("""\A(?:[^ \tA-Za-z0-9]+ Test (.+?) recorded an issue.*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex StIssue();
+    private static partial Regex StIssueShared();
+
+
+    private static Regex StIssue() => ThreadRegex.Of(StIssueShared());
 
     [GeneratedRegex("""\A(?:[^ \tA-Za-z0-9]+ (?:Test .+? (?:passed after .*|started\.|skipped.*)|Suite .+? (?:passed|failed|started).*|Test run started\.|Testing Library Version: .*|Target Platform: .*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex StOther();
+    private static partial Regex StOtherShared();
+
+
+    private static Regex StOther() => ThreadRegex.Of(StOtherShared());
 
     [GeneratedRegex("""\A(?:Test [Cc]ase '(-\[[^\]]+\]|[^']+)' (failed|passed|started|skipped)(?: on '[^']*')?(?: \([0-9.]+ seconds\))?\.?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XcCase();
+    private static partial Regex XcCaseShared();
+
+
+    private static Regex XcCase() => ThreadRegex.Of(XcCaseShared());
 
     [GeneratedRegex("""\A(?:(.+?):([0-9]+): error: (-\[[^\]]+\]|[A-Za-z0-9_.()/]+) : .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XcError();
+    private static partial Regex XcErrorShared();
+
+
+    private static Regex XcError() => ThreadRegex.Of(XcErrorShared());
 
     [GeneratedRegex("""\A(?:Test [Ss]uite '.+' (?:started|passed|failed).*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XcSuite();
+    private static partial Regex XcSuiteShared();
+
+
+    private static Regex XcSuite() => ThreadRegex.Of(XcSuiteShared());
 
     [GeneratedRegex("""\A(?:[ \t]*Executed ([0-9]+) tests?, with (?:([0-9]+) tests? skipped and )?([0-9]+) failures? \(([0-9]+) unexpected\) in [0-9.]+ \([0-9.]+\) seconds)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XcExecuted();
+    private static partial Regex XcExecutedShared();
+
+
+    private static Regex XcExecuted() => ThreadRegex.Of(XcExecutedShared());
 
     [GeneratedRegex("""\A(?:Failing tests:)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XbFailing();
+    private static partial Regex XbFailingShared();
+
+
+    private static Regex XbFailing() => ThreadRegex.Of(XbFailingShared());
 
     [GeneratedRegex("""\A(?:\*\* (?:TEST|BUILD|ANALYZE|ARCHIVE|CLEAN|TEST BUILD|INSTALL) (?:FAILED|SUCCEEDED|INTERRUPTED) \*\*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XbResult();
+    private static partial Regex XbResultShared();
+
+
+    private static Regex XbResult() => ThreadRegex.Of(XbResultShared());
 
     [GeneratedRegex("""\A(?:The following build commands failed:)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XbCommands();
+    private static partial Regex XbCommandsShared();
+
+
+    private static Regex XbCommands() => ThreadRegex.Of(XbCommandsShared());
 
     [GeneratedRegex("""\A(?:(.+\.swift):([0-9]+):([0-9]+): error: (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex SwiftcError();
+    private static partial Regex SwiftcErrorShared();
+
+
+    private static Regex SwiftcError() => ThreadRegex.Of(SwiftcErrorShared());
 
     [GeneratedRegex("""\A(?:(.+\.swift):([0-9]+):([0-9]+): (?:warning|note): .+)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex SwiftcWarn();
+    private static partial Regex SwiftcWarnShared();
+
+
+    private static Regex SwiftcWarn() => ThreadRegex.Of(SwiftcWarnShared());
 
     [GeneratedRegex("""\A(?:error: (?:emit-module command failed|fatalError|compile command failed|link command failed).*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex SwiftNoise();
+    private static partial Regex SwiftNoiseShared();
+
+
+    private static Regex SwiftNoise() => ThreadRegex.Of(SwiftNoiseShared());
 
     public override int Step(string[] lines, int i)
     {
