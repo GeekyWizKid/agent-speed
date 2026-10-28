@@ -446,17 +446,21 @@ rel = "claude/projects/-Users-dev-projects-orbit/s-desk/subagents/agent-wf1.json
 w = dict(d, entry="claude-desktop-3p", sidechain=True, agentId="wf1")
 write_jsonl(rel, [
     user(at(3, 1), "Count to 50 and report", **w),
-    assistant(at(3, 3), "msg_W", ["text"], cl_usage(3, 0, 900, 40), None, effort="medium", **w),
-    assistant(at(3, 4), "msg_W", ["tool_use"], cl_usage(3, 0, 900, 60), "tool_use", effort="medium", **w),
+    assistant(at(3, 3), "msg_W", ["text"], cl_usage(3, 0, 900, 40, speed="fast"), None, effort="medium",
+              model="claude-sonnet-5-5", **w),
+    assistant(at(3, 4), "msg_W", ["tool_use"], cl_usage(3, 0, 900, 60, speed="fast"), "tool_use", effort="medium",
+              model="claude-sonnet-5-5", **w),
     claude("attachment", at(3, 4, 4), attachment={"type": "structured_output", "data": {"count": 50}}, **w),
     user(at(3, 4, 6), [{"type": "tool_result", "tool_use_id": "t9", "content": "Structured output provided successfully"}],
          toolEndsTurn=True, **w),
 ])
-expect(rel, source="claudeDesktop", project="orbit", model="claude-opus-5-5", isSubagent=True,
+# Fast mode on a model without fast prices: no price (METRICS 9.1), the `noFastPrice` diagnostic (9.10).
+expect(rel, source="claudeDesktop", project="orbit", model="claude-sonnet-5-5", isSubagent=True,
        parentFile="claude/projects/-Users-dev-projects-orbit/s-desk.jsonl",
        phase="idle", inFlightStartMs=None, lastLineMs=at(3, 4, 6), malformedLines=0,
-       responses=[resp("msg_W", at(3, 1), at(3, 4), 903, 900, 0, 60, 0, "claude-opus-5-5")],
-       effort=mode("medium"), speed=None, responseModes={"msg_W": {"effort": mode("medium"), "speed": None}})
+       responses=[resp("msg_W", at(3, 1), at(3, 4), 903, 900, 0, 60, 0, "claude-sonnet-5-5", fast=True)],
+       effort=mode("medium"), speed=mode("fast", "served", "anthropic"),
+       responseModes={"msg_W": {"effort": mode("medium"), "speed": mode("fast", "served", "anthropic")}})
 
 
 # --- DeepSeek Harness (dsh): zstd frame streams ------------------------------
@@ -801,7 +805,7 @@ def price_table(version, updated, opus, opus_tier, opus_fast, pro31_out, extra=(
                         "and history-expected.json. Never edit by hand: spec/tools/generate_fixtures.py.",
             "schema": 1, "version": version, "updated": updated, "currency": "USD", "unit": "perMillionTokens",
             "providers": {k: {"name": k, "url": FIXTURE_URL} for k in
-                          ("anthropic", "openai", "google", "deepseek", "fixture")},
+                          ("anthropic", "openai", "google", "deepseek", "xiaomi", "fixture")},
             "normalize": NORMALIZE,
             "models": models,
             "unknown": [{"match": "prefix", "value": "neko-model-", "reason": "opaque local router alias"},
@@ -814,7 +818,8 @@ def price_table(version, updated, opus, opus_tier, opus_fast, pro31_out, extra=(
 price_v1 = price_table(1, "2026-10-01", pr(5, 0.5, 6.25, 10, 25), pr(10, 1, 12.5, 20, 37.5, above=200_000),
                        pr(10, 1, 12.5, 20, 50), 12)
 price_v2 = price_table(2, "2026-10-15", pr(4, 0.4, 5, 8, 20), pr(8, 0.8, 10, 16, 30, above=200_000),
-                       pr(8, 0.8, 10, 16, 40), 10, [price_model("gpt-6.1-sol-mini", "openai", pr(0.4, 0.04, out=3.2))])
+                       pr(8, 0.8, 10, 16, 40), 10, [price_model("gpt-6.1-sol-mini", "openai", pr(0.4, 0.04, out=3.2)),
+                                                    price_model("mimo-v2.6-pro", "xiaomi", pr(0.435, 0.0036, 0, out=0.87))])
 os.makedirs(os.path.join(ROOT, "prices"), exist_ok=True)
 for table in (price_v1, price_v2):
     with open(os.path.join(ROOT, "prices", "v%d.json" % table["version"]), "w", encoding="utf-8") as f:
@@ -894,6 +899,10 @@ cost_cases = [
               pico((300, 8), (600, 0.8), (100, 10), (50, 40))),
     dict(cost_case("fast mode without a fast price is unknown", "v2", "claude-sonnet-5-5", tk(1000, 0, 0, 0, 50),
                    None), fast=True),
+    cost_case("an explicit zero cache-write price is free, not the input price", "v2", "mimo-v2.6-pro",
+              tk(10_000, 6000, 3000, 0, 400), pico((1000, 0.435), (6000, 0.0036), (400, 0.87)), provider="custom"),
+    cost_case("a model added by a newer table has no price in the older one", "v1", "mimo-v2.6-pro",
+              tk(10_000, 6000, 3000, 0, 400), None, provider="custom"),
 ]
 day_cases = [
     {"name": "a bound day keeps its table", "bindings": {"2026-10-20": 1}, "date": "2026-10-20",
@@ -908,6 +917,9 @@ day_cases = [
     {"name": "a binding to a missing table is replaced by the current table", "bindings": {"2026-10-19": 7},
      "date": "2026-10-19", "model": "claude-opus-5-5", "tokens": tk(1000, 0, 0, 0, 100), "version": 2,
      "costMicroUsd": (pico((1000, 4), (100, 20)) + 500_000) // 1_000_000},
+    {"name": "late pricing reaches a custom provider's model added later (issue #20)", "bindings": {"2026-10-20": 1},
+     "date": "2026-10-20", "model": "mimo-v2.6-pro", "provider": "custom", "tokens": tk(10_000, 6000, 3000, 0, 400),
+     "version": 1, "costMicroUsd": (pico((1000, 0.435), (6000, 0.0036), (400, 0.87)) + 500_000) // 1_000_000},
     {"name": "unknown in every table stays unknown", "bindings": {}, "date": "2026-10-20",
      "model": "neko-model-f1097c63", "tokens": tk(5000, 0, 0, 0, 500), "version": 2, "costMicroUsd": None},
 ]
@@ -957,6 +969,11 @@ resolve_cases = [{"table": t, "model": m, "provider": p, "expect": e} for t, m, 
     ("v2", None, None, "unknown"),
     ("v1", "gpt-6.1-sol-mini", None, "unknown"),
     ("v2", "gpt-6.1-sol-mini", None, "gpt-6.1-sol-mini"),
+    ("v1", "mimo-v2.6-pro", "custom", "unknown"),
+    ("v2", "mimo-v2.6-pro", "custom", "mimo-v2.6-pro"),
+    ("v2", "MiMo-V2.6-Pro", None, "mimo-v2.6-pro"),
+    ("v2", "xiaomi/mimo-v2.6-pro", "custom", "mimo-v2.6-pro"),
+    ("v2", "mimo-v2.6-pro-fast", "custom", "unknown"),
 ]]
 with open(os.path.join(ROOT, "price-cases.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "METRICS 9.2-9.3 against the fixture tables in `tables` (paths relative to this folder). "

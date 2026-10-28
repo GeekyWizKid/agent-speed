@@ -274,6 +274,36 @@
       "model": "gpt-6.1-sol-mini",
       "provider": null,
       "expect": "gpt-6.1-sol-mini"
+    },
+    {
+      "table": "v1",
+      "model": "mimo-v2.6-pro",
+      "provider": "custom",
+      "expect": "unknown"
+    },
+    {
+      "table": "v2",
+      "model": "mimo-v2.6-pro",
+      "provider": "custom",
+      "expect": "mimo-v2.6-pro"
+    },
+    {
+      "table": "v2",
+      "model": "MiMo-V2.6-Pro",
+      "provider": null,
+      "expect": "mimo-v2.6-pro"
+    },
+    {
+      "table": "v2",
+      "model": "xiaomi/mimo-v2.6-pro",
+      "provider": "custom",
+      "expect": "mimo-v2.6-pro"
+    },
+    {
+      "table": "v2",
+      "model": "mimo-v2.6-pro-fast",
+      "provider": "custom",
+      "expect": "unknown"
     }
   ],
   "cost": [
@@ -774,6 +804,44 @@
         "tier": null
       },
       "fast": true
+    },
+    {
+      "name": "an explicit zero cache-write price is free, not the input price",
+      "table": "v2",
+      "model": "mimo-v2.6-pro",
+      "tokens": {
+        "input": 10000,
+        "cachedInput": 6000,
+        "cacheWriteInput": 3000,
+        "cacheWrite1hInput": 0,
+        "output": 400,
+        "reasoning": 0
+      },
+      "expect": {
+        "costPicoUsd": 804600000,
+        "costMicroUsd": 805,
+        "tier": null
+      },
+      "provider": "custom"
+    },
+    {
+      "name": "a model added by a newer table has no price in the older one",
+      "table": "v1",
+      "model": "mimo-v2.6-pro",
+      "tokens": {
+        "input": 10000,
+        "cachedInput": 6000,
+        "cacheWriteInput": 3000,
+        "cacheWrite1hInput": 0,
+        "output": 400,
+        "reasoning": 0
+      },
+      "expect": {
+        "costPicoUsd": null,
+        "costMicroUsd": null,
+        "tier": null
+      },
+      "provider": "custom"
     }
   ],
   "days": [
@@ -848,6 +916,25 @@
       },
       "version": 2,
       "costMicroUsd": 6000
+    },
+    {
+      "name": "late pricing reaches a custom provider's model added later (issue #20)",
+      "bindings": {
+        "2026-10-20": 1
+      },
+      "date": "2026-10-20",
+      "model": "mimo-v2.6-pro",
+      "provider": "custom",
+      "tokens": {
+        "input": 10000,
+        "cachedInput": 6000,
+        "cacheWriteInput": 3000,
+        "cacheWrite1hInput": 0,
+        "output": 400,
+        "reasoning": 0
+      },
+      "version": 1,
+      "costMicroUsd": 805
     },
     {
       "name": "unknown in every table stays unknown",

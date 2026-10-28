@@ -2712,6 +2712,72 @@
     "en": "%d requests with unknown model prices are not included",
     "ja": "モデル価格が不明なリクエスト %d 件は含まれていません"
   },
+  "cost.noModelName": {
+    "zh-Hant": "無模型中繼資料",
+    "zh-Hans": "无模型元数据",
+    "en": "No model metadata",
+    "ja": "モデルのメタデータなし"
+  },
+  "cost.reason.noModel": {
+    "zh-Hant": "缺少模型",
+    "zh-Hans": "缺少模型",
+    "en": "Missing model",
+    "ja": "モデル欠落"
+  },
+  "cost.reason.noModel.hint": {
+    "zh-Hant": "紀錄裡沒有模型名稱，無法查價。通常是工具沒有記下模型，或模型資訊比用量晚寫入。",
+    "zh-Hans": "记录里没有模型名称，无法查价。通常是工具没有记下模型，或模型信息比用量晚写入。",
+    "en": "The log names no model, so there is nothing to look up. Usually the tool didn't record it, or recorded it after the usage.",
+    "ja": "記録にモデル名がないため、価格を調べられません。ツールがモデルを記録していないか、使用量より後に記録した場合に起こります。"
+  },
+  "cost.reason.notInTable": {
+    "zh-Hant": "價格表沒有此模型",
+    "zh-Hans": "价格表中没有此模型",
+    "en": "Not in price table",
+    "ja": "価格表にない"
+  },
+  "cost.reason.notInTable.hint": {
+    "zh-Hant": "價格表找不到這個名稱或別名。價格表加入後，這些請求會自動補上費用。",
+    "zh-Hans": "价格表找不到这个名称或别名。价格表加入后，这些请求会自动补上费用。",
+    "en": "The price table has no model or alias by this name. Once it's added, these requests are priced automatically.",
+    "ja": "価格表にこの名前またはエイリアスのモデルがありません。追加されると、これらのリクエストに自動で費用が反映されます。"
+  },
+  "cost.reason.noFastPrice": {
+    "zh-Hant": "沒有 Fast 價格",
+    "zh-Hans": "没有 Fast 价格",
+    "en": "No Fast price",
+    "ja": "Fast の価格なし"
+  },
+  "cost.reason.noFastPrice.hint": {
+    "zh-Hant": "已認出模型，但請求以 Fast 模式執行，而價格表沒有它的 Fast 價格。不會改用較便宜的標準價格。",
+    "zh-Hans": "已识别出模型，但请求以 Fast 模式运行，而价格表没有它的 Fast 价格。不会改用较便宜的标准价格。",
+    "en": "The model is known, but the requests ran in Fast mode and the price table has no Fast price for it. The cheaper standard price is never used instead.",
+    "ja": "モデルは識別できましたが、リクエストは Fast モードで実行され、価格表にその Fast 価格がありません。安い標準価格で代用することはありません。"
+  },
+  "cost.reason.unpriceable": {
+    "zh-Hant": "無公開價格",
+    "zh-Hans": "无公开价格",
+    "en": "No public price",
+    "ja": "公開価格なし"
+  },
+  "cost.reason.unpriceable.hint": {
+    "zh-Hant": "這是內部模型或路由標籤，看不出實際用了哪個模型，所以刻意不定價，也不會套用相似模型的價格。",
+    "zh-Hans": "这是内部模型或路由标签，看不出实际用了哪个模型，所以有意不定价，也不会套用相似模型的价格。",
+    "en": "An internal model or a router label that doesn't say which model ran, so it's deliberately left unpriced rather than given a similar model's price.",
+    "ja": "内部モデルまたはルーターのラベルで、実際に使われたモデルが分からないため、あえて価格を付けていません。似たモデルの価格も使いません。"
+  },
+  "cost.reason.noDate": {
+    "zh-Hant": "時間無效",
+    "zh-Hans": "时间无效",
+    "en": "Invalid time",
+    "ja": "時刻が無効"
+  },
+  "cost.reason.noDate.hint": {
+    "zh-Hant": "這筆回應的時間戳記超出範圍，無法對應到日期，也就沒有當天的價格。",
+    "zh-Hans": "这条响应的时间戳超出范围，无法对应到日期，也就没有当天的价格。",
+    "en": "The response's timestamp is out of range, so it has no date and no day's prices.",
+    "ja": "レスポンスのタイムスタンプが範囲外のため日付がなく、その日の価格も決められません。"
+  },
   "cost.subscriptionExcluded": {
     "zh-Hant": "未計入訂閱來源：%@",
     "zh-Hans": "未计入订阅来源：%@",
@@ -2982,6 +3048,12 @@
     "en": "Models without a price today: %@",
     "ja": "今日価格不明のモデル：%@"
   },
+  "prices.unknownToday.item": {
+    "zh-Hant": "%@（%@）",
+    "zh-Hans": "%@（%@）",
+    "en": "%@ (%@)",
+    "ja": "%@（%@）"
+  },
   "settings.network": {
     "zh-Hant": "網路連線",
     "zh-Hans": "网络连接",
@@ -3101,6 +3173,60 @@
     "zh-Hans": "新模型通常会在几天内加入价格表，届时这些请求会自动补上费用。",
     "en": "New models usually join the price table within a few days; these requests are then priced automatically.",
     "ja": "新しいモデルは通常数日で価格表に追加され、その時点でこれらのリクエストにも費用が反映されます。"
+  },
+  "history.unpricedModels.via": {
+    "zh-Hant": "經由 %@",
+    "zh-Hans": "经由 %@",
+    "en": "via %@",
+    "ja": "%@ 経由"
+  },
+  "history.unpricedModels.lookup": {
+    "zh-Hant": "查詢名稱 %@",
+    "zh-Hans": "查询名称 %@",
+    "en": "looked up as %@",
+    "ja": "照合名 %@"
+  },
+  "history.unpricedModels.seen": {
+    "zh-Hant": "出現日期：%@",
+    "zh-Hans": "出现日期：%@",
+    "en": "Seen: %@",
+    "ja": "発生日：%@"
+  },
+  "history.unpricedModels.more": {
+    "zh-Hant": "另有 %d 項 · %d 筆請求",
+    "zh-Hans": "另有 %d 项 · %d 条请求",
+    "en": "%d more · %d requests",
+    "ja": "ほか %d 件 · %d リクエスト"
+  },
+  "history.unpricedModels.pricedNow": {
+    "zh-Hant": "%d 筆請求在目前的價格表已有價格；紀錄還在的，會在下次分析時補上費用。",
+    "zh-Hans": "%d 条请求在当前价格表中已有价格；记录还在的，会在下次分析时补上费用。",
+    "en": "%d requests have a price in the current table; those whose logs still exist are priced at the next analysis.",
+    "ja": "%d 件のリクエストは現在の価格表で価格が付きます。記録が残っているものは、次回の分析で費用が反映されます。"
+  },
+  "history.unpricedModels.copy": {
+    "zh-Hant": "複製診斷資訊",
+    "zh-Hans": "复制诊断信息",
+    "en": "Copy Diagnostics",
+    "ja": "診断情報をコピー"
+  },
+  "history.unpricedModels.copied": {
+    "zh-Hant": "已複製",
+    "zh-Hans": "已复制",
+    "en": "Copied",
+    "ja": "コピーしました"
+  },
+  "history.unpricedModels.copyFailed": {
+    "zh-Hant": "無法複製，請再試一次",
+    "zh-Hans": "无法复制，请重试",
+    "en": "Couldn't copy. Try again.",
+    "ja": "コピーできませんでした。もう一度お試しください"
+  },
+  "history.unpricedModels.copyHint": {
+    "zh-Hant": "只含模型名稱、provider、原因與次數，不含路徑、專案名稱或對話內容。",
+    "zh-Hans": "仅含模型名称、provider、原因与次数，不含路径、项目名称或对话内容。",
+    "en": "Only model names, providers, reasons and counts. No paths, project names or conversation content.",
+    "ja": "モデル名、provider、理由、件数のみ。パス、プロジェクト名、会話の内容は含みません。"
   },
   "a11y.orb.cost": {
     "zh-Hant": "每秒 %@ %@（API 等值），%@",

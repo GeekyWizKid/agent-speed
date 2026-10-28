@@ -520,7 +520,7 @@
     "claude/projects/-Users-dev-projects-orbit/s-desk/subagents/agent-wf1.jsonl": {
       "source": "claudeDesktop",
       "project": "orbit",
-      "model": "claude-opus-5-5",
+      "model": "claude-sonnet-5-5",
       "isSubagent": true,
       "parentFile": "claude/projects/-Users-dev-projects-orbit/s-desk.jsonl",
       "phase": "idle",
@@ -538,9 +538,9 @@
           "cacheWrite1hInput": 0,
           "output": 60,
           "reasoning": 0,
-          "model": "claude-opus-5-5",
+          "model": "claude-sonnet-5-5",
           "provider": null,
-          "fast": false,
+          "fast": true,
           "final": true
         }
       ],
@@ -548,14 +548,22 @@
         "mode": "medium",
         "evidence": "recorded"
       },
-      "speed": null,
+      "speed": {
+        "mode": "fast",
+        "evidence": "served",
+        "provider": "anthropic"
+      },
       "responseModes": {
         "msg_W": {
           "effort": {
             "mode": "medium",
             "evidence": "recorded"
           },
-          "speed": null
+          "speed": {
+            "mode": "fast",
+            "evidence": "served",
+            "provider": "anthropic"
+          }
         }
       }
     },
