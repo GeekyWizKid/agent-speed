@@ -1,8 +1,9 @@
 import AgentSpeedCore
+import AppKit
 import SwiftUI
 
-/// One agent: phase badge, looping mark, project, source and model, effort capsule, live speed. The phase in words, the
-/// model's grade and the work signals are in the tooltip and for VoiceOver.
+/// One agent: phase badge, looping mark, project, source and model, effort capsule, intelligence, live speed. The phase
+/// in words, the model's grade and the work signals are in the tooltip and for VoiceOver.
 struct AgentRow: View {
     let model: AppModel
     let agent: AgentStatus
@@ -12,8 +13,14 @@ struct AgentRow: View {
     let now: Date
     /// The shared effort capsule column of the visible rows.
     var capsuleColumn = AgentCapsuleColumn.none
+    /// The intelligence cell's width, the same for every row.
+    let intelligenceWidth: CGFloat
+
+    /// Below this a truncated detail would show only a clipped sliver of its first glyph, so it steps aside.
+    static let minimumDetail: CGFloat = 20
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var detailFits = true
 
     var body: some View {
         let l10n = model.l10n
@@ -39,6 +46,7 @@ struct AgentRow: View {
         let projectLabel = agent.isSubagent ? "\(project), \(l10n("agents.subagent"))" : project
         let looping = AgentSignalText.looping(agent.signals, l10n)
         let reduceMotion = model.accessibility.reduceMotion
+        let intelligence = agent.intelligenceForm
 
         HStack(spacing: Spacing.s) {
             PhaseBadge(
@@ -58,9 +66,12 @@ struct AgentRow: View {
                 .layoutPriority(1)
                 .animation(LoopingMark.animation(appearing: looping != nil, reduceMotion: reduceMotion), value: looping != nil)
                 HStack(spacing: 0) {
+                    let readable = min(Self.minimumDetail, Self.detailWidth(detail) - 1)
                     Text(detail)
                         .lineLimit(1)
                         .truncationMode(.tail)
+                        .opacity(detailFits ? 1 : 0)
+                        .onGeometryChange(for: Bool.self) { $0.size.width >= readable } action: { detailFits = $0 }
                     if let trafficSuffix {
                         Text(trafficSuffix)
                             .lineLimit(1)
@@ -83,24 +94,33 @@ struct AgentRow: View {
                     )
                     .animation(.easeInOut(duration: 0.2), value: capsuleColumn)
                 }
-                live
+                HStack(alignment: .firstTextBaseline, spacing: AgentIntelligenceColumn.gap) {
+                    AgentIntelligenceCell(intelligence: intelligence, width: intelligenceWidth)
+                    live
+                }
             }
         }
         .frame(height: DashboardLayout.rowHeight)
         .padding(.leading, CGFloat(depth) * DashboardLayout.subagentIndent)
         .contentShape(Rectangle())
         .help(([looping, traffic.map { "\(project) · \(status)\n" + l10n("traffic.agent.tooltip", TrafficText(model: model).pair($0)) }
-            ?? "\(project) · \(status)"] + modeLines + [agent.grade.map { AgentSignalText.grade($0, l10n) }]
+            ?? "\(project) · \(status)"] + modeLines + AgentSignalText.intelligence(agent, l10n)
             + AgentSignalText.closing(agent.signals, l10n)).compactMap { $0 }.joined(separator: "\n"))
         .accessibilityElement(children: .ignore)
-        // The label ends with the capsule's effort and speed lines (DESIGN 4, Agents).
+        // The intelligence follows the live value; the label ends with the capsule's effort and speed lines (DESIGN 4).
         .accessibilityLabel(
             [projectLabel, looping, detail, received, live.accessibilityText,
+             AgentSignalText.intelligenceAccessibility(intelligence, l10n),
              modeLines.isEmpty ? nil : capsule.accessibilityText(l10n)]
                 .compactMap { $0?.isEmpty == false ? $0 : nil }
                 .joined(separator: ", ")
         )
         .accessibilityValue(status)
+    }
+
+    /// The detail's untruncated width in the row's detail font.
+    private static func detailWidth(_ detail: String) -> CGFloat {
+        (detail as NSString).size(withAttributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)]).width
     }
 
     /// Today's traffic attributed to this agent's tree (roots only; sub-agents run inside their parent's process).

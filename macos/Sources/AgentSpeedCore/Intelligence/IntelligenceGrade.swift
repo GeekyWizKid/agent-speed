@@ -47,9 +47,6 @@ public struct IntelligenceGrade: Equatable, Sendable {
         let level = effort.flatMap { token in ModeDisplay.effortLevel(token).map { $0 + (ModeDisplay.isTopRung(token) ? 1 : 0) } }
         self.init(modelClass: modelClass, level: level ?? Self.defaultLevel)
     }
-
-    /// An unknown model at an unknown effort.
-    public static let unknown = IntelligenceGrade(modelClass: .standard, level: defaultLevel)
 }
 
 /// Grades responses and agents against the current price table (METRICS 6.9): a response by its own model, provider
