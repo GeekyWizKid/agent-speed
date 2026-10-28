@@ -353,7 +353,6 @@ public struct ModelResolver: Sendable {
         return Array(key[..<at])
     }
 
-    /// Removes a trailing `-` + 8 digits.
     /// Factory Droid's ids of the user's own models, `custom:<name>-<n>` (METRICS 4.16).
     static let customPrefix: Key = Array("custom:".unicodeScalars)
 
@@ -372,6 +371,7 @@ public struct ModelResolver: Sendable {
         return Array(key[first...last])
     }
 
+    /// Removes a trailing `-` + 8 digits.
     static func removeDateSuffix(_ key: Key) -> Key {
         guard key.count >= 9, key[key.count - 9] == "-", key[(key.count - 8)...].allSatisfy(isDigit) else { return key }
         return Array(key[..<(key.count - 9)])

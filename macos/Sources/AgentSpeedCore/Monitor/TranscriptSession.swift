@@ -676,9 +676,12 @@ final class TranscriptSession {
         } else {
             unreadablePaths.remove(file.path)
         }
-        if file.family == .grokBuild || file.family == .droid, let stat = file.family.stat(file.path) {
-            // Both read more than the transcript's own bytes: Grok Build its summary, Factory Droid its sidecar.
+        if file.family == .grokBuild, let stat = file.family.stat(file.path) {
             file.lastStat = stat
+        } else if file.family == .droid, let stat = result.stat {
+            // The transcript as it was read, with the sidecar's time folded in like `DroidPaths.stat`, so lines written
+            // after this read still count as a change.
+            file.lastStat = DroidPaths.folding(stat, ofTranscript: file.path)
         } else if let stat = result.stat {
             file.lastStat = stat
         }

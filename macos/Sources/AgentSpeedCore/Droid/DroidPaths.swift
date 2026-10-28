@@ -56,7 +56,13 @@ enum DroidPaths {
     /// A transcript's stat with the sidecar's modification time folded in (the newer of the two): startup order, the
     /// startup window and the hot window follow the session's latest write. Nil unless the transcript is a regular file.
     static func stat(_ path: String) -> FileStat? {
-        guard var stat = FileStat.lstat(path), stat.isRegularFile else { return nil }
+        guard let stat = FileStat.lstat(path), stat.isRegularFile else { return nil }
+        return folding(stat, ofTranscript: path)
+    }
+
+    /// A transcript's own stat with its sidecar's modification time folded in.
+    static func folding(_ transcript: FileStat, ofTranscript path: String) -> FileStat {
+        var stat = transcript
         if let sidecar = FileStat.lstat(sidecarPath(ofTranscript: path)), sidecar.isRegularFile {
             stat.modifiedNs = max(stat.modifiedNs, sidecar.modifiedNs)
         }
