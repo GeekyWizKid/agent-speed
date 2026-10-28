@@ -34,6 +34,12 @@ internal sealed class MiddleTrimmedText : FrameworkElement
 
     private FormattedText? _shown;
 
+    public MiddleTrimmedText()
+    {
+        // The tooltip (the whole text) only matters when something was cut.
+        ToolTipOpening += (_, e) => e.Handled = !IsTrimmed;
+    }
+
     public string Text { get => (string)GetValue(TextProperty); set => SetValue(TextProperty, value); }
 
     public FontFamily FontFamily { get => (FontFamily)GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
