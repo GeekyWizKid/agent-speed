@@ -20,6 +20,7 @@ import unicodedata
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import live_thinking as thinking  # noqa: E402
+from live_thinking import seq_sum  # noqa: E402
 import reference as engine  # noqa: E402
 
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures", "task-score-cases.json")
@@ -68,6 +69,7 @@ ASCII_LETTERS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 CLAUDE_OUTPUT_TAGS = ("local-command-stdout", "local-command-stderr")
 CLAUDE_IGNORED_TAGS = ("local-command-caveat", "bash-input", "bash-stdout", "bash-stderr", "user-memory-input",
                        "system-reminder", "task-notification")
+
 
 
 def normalize_prompt(text):
@@ -406,7 +408,7 @@ def stall_ends(counted):
     ends = []
     for end in range(STALL_WINDOW, len(counted) + 1):
         window = counted[end - STALL_WINDOW:end]
-        if sum(a.weight * a.gain for a in window) <= STALL_SHARE * sum(a.weight for a in window):
+        if seq_sum(a.weight * a.gain for a in window) <= STALL_SHARE * seq_sum(a.weight for a in window):
             ends.append(end)
     return ends
 
@@ -449,12 +451,12 @@ class Evaluation:
                 self.counted.append(a)
         self.edits = edits
         effective = [a for a in self.acts if a.effective]
-        self.oscillations = sum(1 for a in effective if a.oscillating)
+        self.oscillations = seq_sum(1 for a in effective if a.oscillating)
         self.osc = self.oscillations / len(effective) if effective else 0.0
-        total = sum(a.weight for a in self.counted)
-        self.ig = sum(a.weight * a.gain for a in self.counted) / total if total else 0.0
+        total = seq_sum(a.weight for a in self.counted)
+        self.ig = seq_sum(a.weight * a.gain for a in self.counted) / total if total else 0.0
         marks = loop_marks([a.key for a in self.counted])
-        self.loop_actions = sum(marks)
+        self.loop_actions = seq_sum(marks)
         self.loop = self.loop_actions / len(self.counted) if self.counted else 0.0
         self.stall_ends = stall_ends(self.counted)
 
@@ -517,7 +519,7 @@ class Evaluation:
             self.V = 0.0
         self.C = self._convergence()
         if self.episodes:
-            self.R = R_MAX * sum(2 / (len(fails) + 1) if recovered else 0.0
+            self.R = R_MAX * seq_sum(2 / (len(fails) + 1) if recovered else 0.0
                                  for _, fails, recovered in self.episodes) / len(self.episodes)
         else:
             self.R = R_MAX if any(r.result == "pass" for r in self.runs) else 0.0
@@ -556,11 +558,11 @@ class Evaluation:
     def counts(self):
         recovered = [fails for _, fails, ok in self.episodes if ok]
         fix_attempts = [r for r in self.runs if r.result == "fail"]
-        fix_failures = sum(1 for r in fix_attempts if fix_label(self.next_in_seq.get(r.index)))
+        fix_failures = seq_sum(1 for r in fix_attempts if fix_label(self.next_in_seq.get(r.index)))
         return {"actions": len(self.acts), "counted": len(self.counted), "edits": self.edits,
                 "oscillations": self.oscillations, "loopActions": self.loop_actions, "runs": len(self.runs),
                 "failingRuns": len(fix_attempts), "episodes": len(self.episodes), "recovered": len(recovered),
-                "recoverAttempts": sum(len(f) for f in recovered), "fixAttempts": len(fix_attempts),
+                "recoverAttempts": seq_sum(len(f) for f in recovered), "fixAttempts": len(fix_attempts),
                 "fixFailures": fix_failures}
 
     def dims(self):
@@ -687,7 +689,7 @@ def fix_features(events, run_event_index, now=None):
 
 
 def linear(coefficients, features, names):
-    return coefficients[0] + sum(c * features[name] for c, name in zip(coefficients[1:], names))
+    return coefficients[0] + seq_sum(c * features[name] for c, name in zip(coefficients[1:], names))
 
 
 def predictions(events, now, models):
@@ -789,16 +791,16 @@ def cholesky_solve(matrix, vector):
     d = len(vector)
     lower = [[0.0] * d for _ in range(d)]
     for j in range(d):
-        s = matrix[j][j] - sum(lower[j][k] * lower[j][k] for k in range(j))
+        s = matrix[j][j] - seq_sum(lower[j][k] * lower[j][k] for k in range(j))
         lower[j][j] = math.sqrt(s)
         for i in range(j + 1, d):
-            lower[i][j] = (matrix[i][j] - sum(lower[i][k] * lower[j][k] for k in range(j))) / lower[j][j]
+            lower[i][j] = (matrix[i][j] - seq_sum(lower[i][k] * lower[j][k] for k in range(j))) / lower[j][j]
     z = [0.0] * d
     for i in range(d):
-        z[i] = (vector[i] - sum(lower[i][k] * z[k] for k in range(i))) / lower[i][i]
+        z[i] = (vector[i] - seq_sum(lower[i][k] * z[k] for k in range(i))) / lower[i][i]
     x = [0.0] * d
     for i in reversed(range(d)):
-        x[i] = (z[i] - sum(lower[k][i] * x[k] for k in range(i + 1, d))) / lower[i][i]
+        x[i] = (z[i] - seq_sum(lower[k][i] * x[k] for k in range(i + 1, d))) / lower[i][i]
     return x
 
 
@@ -808,7 +810,7 @@ def gradient_and_hessian(beta, prior, rows, names):
     hessian = [[L2 if i == j else 0.0 for j in range(d)] for i in range(d)]
     for features, y, weight in rows:
         x = [1.0] + [features[name] for name in names]
-        p = sigmoid(sum(b * v for b, v in zip(beta, x)))
+        p = sigmoid(seq_sum(b * v for b, v in zip(beta, x)))
         for i in range(d):
             gradient[i] += weight * (p - y) * x[i]
             for j in range(d):
@@ -831,8 +833,8 @@ def calibrate(records):
     models = {}
     for name, names in MODEL_FEATURES.items():
         rows, tasks = model_rows(chosen, name)
-        positive = sum(w for _, y, w in rows if y == 1)
-        negative = sum(w for _, y, w in rows if y == 0)
+        positive = seq_sum(w for _, y, w in rows if y == 1)
+        negative = seq_sum(w for _, y, w in rows if y == 0)
         if tasks >= MIN_TASKS and positive >= MIN_CLASS_WEIGHT and negative >= MIN_CLASS_WEIGHT:
             models[name] = {"coefficients": fit(rows, names, PRIORS[name]), "calibrated": True, "tasks": tasks}
         else:
@@ -860,26 +862,31 @@ def histogram(scores):
     """Ten bins [0, 10) … [80, 90) and [90, 100]: a score's bin is the number of edges it reaches."""
     bins = [0] * (len(HISTOGRAM_EDGES) + 1)
     for score in scores:
-        bins[sum(1 for edge in HISTOGRAM_EDGES if score >= edge)] += 1
+        bins[seq_sum(1 for edge in HISTOGRAM_EDGES if score >= edge)] += 1
     return bins
 
 
 def aggregate(records):
     scored = [r for r in records if r["score"] is not None]
     scores = [r["score"] for r in scored]
-    fix_attempts = sum(r["counts"]["fixAttempts"] for r in records)
-    recovered = sum(r["counts"]["recovered"] for r in records)
+    fix_attempts = seq_sum(r["counts"]["fixAttempts"] for r in records)
+    recovered = seq_sum(r["counts"]["recovered"] for r in records)
     first_pass = [r["firstPassMs"] - r["startMs"] for r in records if r["firstPassMs"] is not None]
     med = quantile(scores, 0.5)
+    successes = seq_sum(1 for r in scored if r["success"])
+    stalls = seq_sum(1 for r in records if r["stalled"])
+    fix_failures = seq_sum(r["counts"]["fixFailures"] for r in records)
     return {
         "tasks": len(records), "scoredTasks": len(scored), "medianScore": med,
         "medianShown": None if med is None else round_half_away(med),
         "lowerQuartile": quantile(scores, 0.25), "upperQuartile": quantile(scores, 0.75),
         "histogram": histogram(scores),
-        "successRate": sum(1 for r in scored if r["success"]) / len(scored) if scored else None,
-        "stallRate": sum(1 for r in records if r["stalled"]) / len(records) if records else None,
-        "fixFailureRate": sum(r["counts"]["fixFailures"] for r in records) / fix_attempts if fix_attempts else None,
-        "recoverAttempts": sum(r["counts"]["recoverAttempts"] for r in records) / recovered if recovered else None,
+        "successes": successes, "stalls": stalls, "fixFailures": fix_failures, "fixAttempts": fix_attempts,
+        "recovered": recovered,
+        "successRate": successes / len(scored) if scored else None,
+        "stallRate": stalls / len(records) if records else None,
+        "fixFailureRate": fix_failures / fix_attempts if fix_attempts else None,
+        "recoverAttempts": seq_sum(r["counts"]["recoverAttempts"] for r in records) / recovered if recovered else None,
         "timeToFirstPassMs": quantile(first_pass, 0.5),
     }
 
@@ -1016,10 +1023,10 @@ def stationarity(case):
 def counts(data):
     return {
         "continuations": len(data["continuations"]), "promptLines": len(data["promptLines"]),
-        "segmentation": len(data["segmentation"]), "taskQueries": sum(len(c["queries"]) for c in data["tasks"]),
+        "segmentation": len(data["segmentation"]), "taskQueries": seq_sum(len(c["queries"]) for c in data["tasks"]),
         "values": len(data["values"]), "predictions": len(data["predictions"]), "records": len(data["records"]),
         "calibration": len(data["calibration"]), "comparison": len(data["comparison"]),
-        "thinkingQueries": sum(len(c["queries"]) for k in ("windows", "agentWindows", "groupWindows")
+        "thinkingQueries": seq_sum(len(c["queries"]) for k in ("windows", "agentWindows", "groupWindows")
                                for c in data["thinking"][k]),
     }
 
