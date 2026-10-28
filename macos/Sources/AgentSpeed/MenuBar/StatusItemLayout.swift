@@ -24,8 +24,8 @@ struct StatusItemLayout: Equatable {
     let height: CGFloat
     /// The money block's width (gap included); 0 without it.
     var secondaryWidth: CGFloat = 0
-    /// The traffic block's width (gap included); 0 without it.
-    var trafficWidth: CGFloat = 0
+    /// The readout block's width (gap included): network speed or intelligence; 0 without it.
+    var readoutWidth: CGFloat = 0
 
     init(mode: BarDisplayMode, showsUnit: Bool, unit: String, valueWidth: CGFloat, height: CGFloat) {
         showsGlyph = mode.showsGlyph
@@ -66,14 +66,14 @@ struct StatusItemLayout: Equatable {
         if showsGlyph && showsValue { width += Self.glyphGap }
         if showsValue { width += valueWidth }
         if unit != nil { width += Self.unitGap + unitWidth }
-        return width + secondaryWidth + trafficWidth
+        return width + secondaryWidth + readoutWidth
     }
 
     /// Left edge of the money block (its gap starts here).
-    var secondaryX: CGFloat { length - Self.padding - trafficWidth - secondaryWidth }
+    var secondaryX: CGFloat { length - Self.padding - readoutWidth - secondaryWidth }
 
-    /// Left edge of the traffic block (its gap starts here).
-    var trafficX: CGFloat { length - Self.padding - trafficWidth }
+    /// Left edge of the readout block (its gap starts here).
+    var readoutX: CGFloat { length - Self.padding - readoutWidth }
 
     /// Ring center, optically centered on the digits (their cap height) next to it, or on the bar alone.
     var glyphCenter: CGPoint {

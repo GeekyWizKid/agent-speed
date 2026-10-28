@@ -20,7 +20,11 @@ final class StatusItemAccessibility {
             _ = (self.model.gauge.readoutValue, self.model.gauge.title, self.model.l10n.language)
             _ = (self.model.settings.liveUnit, self.model.snapshot.liveCost, self.model.cost.currency)
             if self.model.settings.barSecondary { _ = self.model.snapshot.sources }
-            if self.model.settings.barTraffic != .off { _ = self.model.traffic.snapshot.timestamp }
+            switch self.model.settings.barTraffic {
+            case .machine, .agents: _ = self.model.traffic.snapshot.timestamp
+            case .intelligence: _ = self.model.snapshot.intelligence
+            case .off: break
+            }
             self.schedule()
         }
     }
@@ -59,11 +63,11 @@ final class StatusItemAccessibility {
         let title = model.titles.text(model.gauge.title, in: model.titles.general, l10n: l10n).capitalized(with: l10n.locale)
         let name = l10n("app.name")
         if button.accessibilityLabel() != name { button.setAccessibilityLabel(name) }
-        // The traffic block reads its rates as words (DESIGN 10); arrows are never read.
+        // The readout block reads its rates as words (DESIGN 10); arrows are never read.
         let traffic = StatusItemTraffic(model: model).flatMap { block -> String? in
             guard let rx = block.rx, let tx = block.tx else { return nil }
             return l10n("a11y.orb.traffic", TrafficText.spoken(rx), TrafficText.spoken(tx))
-        }
+        } ?? StatusItemIntelligence(model: model)?.spoken
         let separator = l10n.language == .ja ? "、" : l10n.language.usesLatinCase ? ", " : "，"
         let secondary = StatusItemSecondary(model: model)?.spoken
         func withTraffic(_ text: String) -> String {

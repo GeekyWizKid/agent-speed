@@ -55,12 +55,15 @@ enum TrafficUnit: String, CaseIterable, Identifiable, Sendable {
     var titleKey: String { "settings.traffic.unit.\(rawValue)" }
 }
 
-/// The menu bar block of traffic rates (DESIGN 10, Menu bar and taskbar).
+/// The menu bar's readout block after the value (DESIGN 10, Menu bar and taskbar): network speed of this computer or
+/// of the agents, or live intelligence. An unknown stored value reads as `off`.
 enum BarTraffic: String, CaseIterable, Identifiable, Sendable {
-    case off, machine, agents
+    case off, machine, agents, intelligence
 
     var id: String { rawValue }
     var titleKey: String { "settings.bar.traffic.\(rawValue)" }
+    /// The two network choices, which need traffic measuring.
+    var isNetwork: Bool { self == .machine || self == .agents }
 }
 
 /// The live value's unit (DESIGN 9): token speed or the API-equivalent cost per second.
