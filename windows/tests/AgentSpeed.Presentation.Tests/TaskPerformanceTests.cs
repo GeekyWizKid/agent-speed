@@ -194,10 +194,34 @@ public class TaskPerformanceTests
         Assert.Equal(2, TaskMetrics.Better(TaskMetric.Attempts, 2.0, 1.9, 50, 50));
         Assert.Equal(0, TaskMetrics.Better(TaskMetric.FirstPass, null, 1000, 50, 50));
 
+        // Two sides that both read 5 分鐘 are not ranked, although they are 5 % apart.
+        Assert.Equal(2, TaskMetrics.Better(TaskMetric.FirstPass, 300_000, 285_000, 50, 50));
+        Assert.Equal(0, TaskMetrics.Better(TaskMetric.FirstPass, 300_000, 285_000, 50, 50, "5 分鐘", "5 分鐘"));
+        var close = Comparison((SourceKind.Codex, Codex with { TimeToFirstPassMs = 300_000 }), (SourceKind.ClaudeCode, ClaudeCode with { TimeToFirstPassMs = 285_000 }));
+        var firstPass = TaskPerformanceView.Build(new(close), 900, Loc()).Rows.Single(r => r.Metric == TaskMetric.FirstPass);
+        Assert.Equal(("5 分鐘", "5 分鐘", 0), (firstPass.A.Text, firstPass.B.Text, firstPass.Better));
+
         var view = TaskPerformanceView.Build(new(Comparison((SourceKind.Codex, Codex), (SourceKind.Pi, Pi))), 900, Loc());
         Assert.All(view.Rows, r => Assert.Equal(0, r.Better));
         Assert.All(view.Rows, r => Assert.Equal(TaskEmphasis.Plain, r.A.Emphasis));
     }
+
+    [Fact]
+    public void ARatesTooltipNeedsItsNumerator()
+    {
+        var withoutCounts = Codex with { Successes = null, Stalls = null, FixFailures = null };
+        var view = TaskPerformanceView.Build(new(Comparison((SourceKind.Codex, withoutCounts), (SourceKind.ClaudeCode, ClaudeCode))), 900, Loc());
+        var rows = view.Rows.ToDictionary(r => r.Metric);
+        Assert.Equal("78%", rows[TaskMetric.Success].A.Text);
+        Assert.Null(rows[TaskMetric.Success].A.Tooltip);
+        Assert.Null(rows[TaskMetric.Stall].A.Tooltip);
+        Assert.Null(rows[TaskMetric.FixFail].A.Tooltip);
+        Assert.Equal("118 / 171 個已評分的任務", rows[TaskMetric.Success].B.Tooltip);
+    }
+
+    [Fact]
+    public void TheInfoButtonHasItsOwnLabel() =>
+        Assert.Equal("這些數字怎麼算", TaskPerformanceView.Build(new(Both), 900, Loc()).InfoLabel);
 
     [Fact]
     public void AMissingValueShowsTheDashAndSpeaksWhy()
@@ -219,7 +243,10 @@ public class TaskPerformanceTests
 
     [Theory]
     [InlineData(45_000, "45 秒")]
+    [InlineData(59_400, "59 秒")]
     [InlineData(59_600, "1 分鐘")]
+    [InlineData(89_500, "1 分鐘")]
+    [InlineData(90_000, "2 分鐘")]
     [InlineData(180_000, "3 分鐘")]
     [InlineData(3_570_000, "1 小時")]
     [InlineData(3_660_000, "1 小時 1 分鐘")]
@@ -231,6 +258,7 @@ public class TaskPerformanceTests
     {
         Assert.Equal("–", TaskPerformanceText.Rate(null));
         Assert.Equal("13%", TaskPerformanceText.Rate(0.125));
+        Assert.Equal("15%", TaskPerformanceText.Rate(29 / 200.0));
         Assert.Equal("0%", TaskPerformanceText.Rate(0.003));
         Assert.Equal("1.4", TaskPerformanceText.Attempts(1.42, Loc(LanguageCodes.En)));
         Assert.Equal("2.0 次", TaskPerformanceText.Attempts(2.04, Loc()));

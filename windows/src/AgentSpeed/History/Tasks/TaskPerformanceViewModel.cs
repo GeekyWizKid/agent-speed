@@ -38,6 +38,7 @@ internal sealed class TaskPerformanceViewModel : ObservableObject, IDisposable
     private TaskSourceOption? _pickedB;
     private string _title = string.Empty;
     private string _info = string.Empty;
+    private string _infoLabel = string.Empty;
     private IReadOnlyList<TaskInfoTerm> _infoTerms = [];
     private string _versus = string.Empty;
     private string _pickA = string.Empty;
@@ -148,6 +149,9 @@ internal sealed class TaskPerformanceViewModel : ObservableObject, IDisposable
     public string Title { get => _title; private set => Set(ref _title, value); }
 
     public string Info { get => _info; private set => Set(ref _info, value); }
+
+    /// <summary>The ⓘ button's name and tooltip.</summary>
+    public string InfoLabel { get => _infoLabel; private set => Set(ref _infoLabel, value); }
 
     /// <summary>The ⓘ popover's definition list: every metric's full name with its hint.</summary>
     public IReadOnlyList<TaskInfoTerm> InfoTerms { get => _infoTerms; private set => Set(ref _infoTerms, value); }
@@ -345,6 +349,7 @@ internal sealed class TaskPerformanceViewModel : ObservableObject, IDisposable
 
         Title = view.Title;
         Info = view.Info;
+        InfoLabel = view.InfoLabel;
         if (!InfoTerms.SequenceEqual(view.InfoTerms))
         {
             InfoTerms = view.InfoTerms;

@@ -164,6 +164,7 @@ public class TaskScoreCardTests
         Assert.Equal("還沒有修改，也還沒有執行測試或建置", card.StatusText);
         var e = card.Dimensions[3];
         Assert.Equal((TaskDimensionValueKind.Absent, "–", true), (e.Kind, e.ValueText, e.DottedTrack));
+        Assert.Equal("行為效率：尚無評分", e.Spoken);
         Assert.All(card.Dimensions.Take(3), r => Assert.Equal(TaskDimensionValueKind.Unverified, r.Kind));
         Assert.StartsWith("智力：尚無評分，還沒有修改", card.FullDescription, StringComparison.Ordinal);
     }

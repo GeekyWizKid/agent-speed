@@ -43,11 +43,16 @@ internal static class TaskData
     public static TaskCardSubject Subject(TaskScoreFacts facts, string project = "nova", SourceKind source = SourceKind.ClaudeCode,
         string? model = "claude-sonnet-5-5") => new(source, project, model, facts);
 
-    /// <summary>Comparison values of a group of records, from the histogram's counts.</summary>
+    /// <summary>Comparison values of a group of records, from their numerators.</summary>
     public static TaskStats Stats(int tasks, int scored, double? median, double? q1 = null, double? q3 = null, int[]? histogram = null,
-        int successes = 0, int stalls = 0, int fixFailures = 0, int fixAttempts = 0, double? attempts = null, double? firstPassMs = null) =>
-        new(tasks, scored, median, q1 ?? median, q3 ?? median, histogram ?? new int[TaskStats.Bins], successes, stalls, fixFailures, fixAttempts,
-            attempts, firstPassMs);
+        int successes = 0, int stalls = 0, int fixFailures = 0, int fixAttempts = 0, double? attempts = null, double? firstPassMs = null)
+    {
+        // A mean of attempts from whole numbers: 100 recovered episodes carry 100 × the mean.
+        var recovered = attempts is null ? 0 : 100;
+        var recoverAttempts = attempts is { } a ? (int)Math.Round(a * recovered) : 0;
+        return TaskStats.FromCounts(tasks, scored, median, q1 ?? median, q3 ?? median, histogram ?? new int[TaskStats.Bins], successes, stalls,
+            fixFailures, fixAttempts, recovered, recoverAttempts, firstPassMs);
+    }
 
     public static TaskStats Codex { get; } = Stats(128, 96, 71.2, 48.6, 86.9, [2, 3, 4, 5, 6, 8, 12, 22, 20, 14],
         successes: 75, stalls: 13, fixFailures: 25, fixAttempts: 100, attempts: 2.04, firstPassMs: 300_000);

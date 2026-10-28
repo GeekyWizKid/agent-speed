@@ -116,12 +116,18 @@ public static class TaskMetrics
     }
 
     /// <summary>
-    /// Which side is better: only when both have at least <see cref="LowSample"/> scored tasks and the values differ by a
-    /// percentage point (rates) or 5 % of the larger value — higher success, lower everything else. 0 none, 1 A, 2 B.
+    /// Which side is better: only when both have at least <see cref="LowSample"/> scored tasks, the values differ by a
+    /// percentage point (rates) or 5 % of the larger value, and the two texts as shown differ (two sides that both read
+    /// <c>5 分鐘</c> are not ranked) — higher success, lower everything else. 0 none, 1 A, 2 B.
     /// </summary>
-    public static int Better(TaskMetric metric, double? a, double? b, int scoredA, int scoredB)
+    public static int Better(TaskMetric metric, double? a, double? b, int scoredA, int scoredB, string? shownA = null, string? shownB = null)
     {
         if (a is not { } va || b is not { } vb || scoredA < LowSample || scoredB < LowSample)
+        {
+            return 0;
+        }
+
+        if (shownA is not null && string.Equals(shownA, shownB, StringComparison.Ordinal))
         {
             return 0;
         }
@@ -157,9 +163,9 @@ public static class TaskMetrics
 
         return metric switch
         {
-            TaskMetric.Success when raw is not null => loc.Format("history.tasks.rate.scored", stats.Successes, stats.ScoredTasks),
-            TaskMetric.Stall when raw is not null => loc.Format("history.tasks.rate.tasks", stats.Stalls, stats.Tasks),
-            TaskMetric.FixFail when raw is not null => loc.Format("history.tasks.rate.fixes", stats.FixFailures, stats.FixAttempts),
+            TaskMetric.Success when raw is not null && stats.Successes is { } n => loc.Format("history.tasks.rate.scored", n, stats.ScoredTasks),
+            TaskMetric.Stall when raw is not null && stats.Stalls is { } n => loc.Format("history.tasks.rate.tasks", n, stats.Tasks),
+            TaskMetric.FixFail when raw is not null && stats is { FixFailures: { } n, FixAttempts: { } d } => loc.Format("history.tasks.rate.fixes", n, d),
             TaskMetric.Attempts when raw is null => loc["history.tasks.noValue.attempts"],
             TaskMetric.FirstPass when raw is null => loc["history.tasks.noValue.firstPass"],
             _ => null,

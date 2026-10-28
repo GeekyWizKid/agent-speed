@@ -339,7 +339,7 @@ public sealed record TaskScoreCard(
             {
                 rows.Add(dimension == TaskDimension.Efficiency
                     ? new TaskDimensionRow(dimension, label, TaskDimensionValueKind.Absent, 0, max, TaskScoreText.Dash, string.Empty, 0, 0, true,
-                        description, label)
+                        description, HistoryText.Labelled(label, loc["task.state.none"], loc))
                     : new TaskDimensionRow(dimension, label, TaskDimensionValueKind.Unverified, 0, max, loc["task.state.unverified"], string.Empty,
                         0, 0, true, description, loc.Format("a11y.task.unverified", label)));
                 continue;

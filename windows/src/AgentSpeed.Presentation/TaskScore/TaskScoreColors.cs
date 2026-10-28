@@ -36,6 +36,13 @@ public static class TaskScoreColors
     /// <summary>A prediction cell's fill: the label color at 5 % (dark 6 %).</summary>
     public static double PredictionFill(bool dark) => dark ? 0.06 : 0.05;
 
+    /// <summary>
+    /// The card's reading text — the dimensions' meanings, the prediction note, the footnote: the prototype's description
+    /// ink, a little darker than tertiary, so two lines at 10.5 DIP keep 4.5:1 on the card (DESIGN 7). High contrast uses
+    /// the system text color.
+    /// </summary>
+    public static Rgba CaptionInk(bool dark) => dark ? Rgba255(235, 235, 245, 0.56) : Rgba255(60, 60, 67, 0.72);
+
     /// <summary>The card's solid fill with transparency effects off.</summary>
     public static Rgba SolidCard(bool dark) => dark ? Rgba.FromHex("#26272B") : Rgba.FromHex("#FFFFFF");
 

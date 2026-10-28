@@ -137,11 +137,11 @@ public class TaskPerformanceSectionTests
         (Comparison((SourceKind.ClaudeCode, ClaudeCode)), SourceKind.ClaudeCode, false),
     ];
 
-    private static TaskStats Codex { get; } = new(128, 96, 71.2, 48.6, 86.9, [2, 3, 4, 5, 6, 8, 12, 22, 20, 14], 75, 13, 25, 100, 2.04, 300_000);
+    private static TaskStats Codex { get; } = TaskStats.FromCounts(128, 96, 71.2, 48.6, 86.9, [2, 3, 4, 5, 6, 8, 12, 22, 20, 14], 75, 13, 25, 100, 50, 102, 300_000);
 
-    private static TaskStats ClaudeCode { get; } = new(214, 171, 65.9, 41.2, 79.5, [4, 6, 8, 10, 14, 22, 30, 36, 25, 16], 118, 34, 48, 150, 1.42, 180_000);
+    private static TaskStats ClaudeCode { get; } = TaskStats.FromCounts(214, 171, 65.9, 41.2, 79.5, [4, 6, 8, 10, 14, 22, 30, 36, 25, 16], 118, 34, 48, 150, 50, 71, 180_000);
 
-    private static TaskStats Small { get; } = new(6, 4, 52, 50, 55, [0, 0, 0, 1, 1, 1, 1, 0, 0, 0], 2, 1, 0, 0, null, null);
+    private static TaskStats Small { get; } = TaskStats.FromCounts(6, 4, 52, 50, 55, [0, 0, 0, 1, 1, 1, 1, 0, 0, 0], 2, 1, 0, 0, 0, 0, null);
 
     private static TaskComparison Comparison(params (SourceKind Source, TaskStats Stats)[] sources) => new(
         [.. sources.Select(s => new TaskSourceStats(s.Source, s.Stats))],

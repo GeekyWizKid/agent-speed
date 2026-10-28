@@ -101,6 +101,7 @@ public sealed record TaskPerformanceInput(
     bool? SortDescending = null);
 
 /// <summary>The Usage History window's task performance section (DESIGN 12, section 3c of 4b), in the selected language.</summary>
+/// <param name="InfoLabel">The ⓘ button's accessibility label and tooltip (<c>history.tasks.info.a11y</c>).</param>
 /// <param name="Pair">The sources side by side (Pair mode).</param>
 /// <param name="OptionsA">The left picker's choices.</param>
 /// <param name="OnlyOne"><c>history.tasks.onlyOne</c>, replacing the pickers when one source alone has records; else null.</param>
@@ -112,6 +113,7 @@ public sealed record TaskPerformanceView(
     TaskPerformanceWidth Width,
     string Title,
     string Info,
+    string InfoLabel,
     IReadOnlyList<TaskInfoTerm> InfoTerms,
     TaskPair? Pair,
     IReadOnlyList<SourceKind> OptionsA,
@@ -188,6 +190,7 @@ public sealed record TaskPerformanceView(
             width,
             loc["history.tasks.title"],
             loc["history.tasks.info"],
+            loc["history.tasks.info.a11y"],
             InfoTermsOf(loc),
             pair,
             optionsA,
@@ -287,7 +290,8 @@ public sealed record TaskPerformanceView(
         var rawA = TaskMetrics.Raw(metric, a);
         var rawB = TaskMetrics.Raw(metric, b);
         var scale = TaskMetrics.Scale(metric, rawA, rawB);
-        var better = TaskMetrics.Better(metric, rawA, rawB, a.ScoredTasks, b.ScoredTasks);
+        var better = TaskMetrics.Better(metric, rawA, rawB, a.ScoredTasks, b.ScoredTasks, TaskMetrics.Format(metric, rawA, loc),
+            TaskMetrics.Format(metric, rawB, loc));
         var valueA = TaskMetrics.Value(metric, a, scale, Emphasis(better, 1), loc);
         var valueB = TaskMetrics.Value(metric, b, scale, Emphasis(better, 2), loc);
         var name = loc[TaskMetrics.Key(metric)];
