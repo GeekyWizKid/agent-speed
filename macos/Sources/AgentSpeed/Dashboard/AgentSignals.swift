@@ -1,8 +1,9 @@
 import AgentSpeedCore
+import AgentSpeedOrbModel
 import SwiftUI
 
-/// The agent row's lines about how it works (DESIGN 4, Looping mark) and how strong its model is (DESIGN 4,
-/// Intelligence column). Descriptive only: they never change the row's order or value.
+/// The agent row's lines about how it works (DESIGN 4, Looping mark) and its task score's words (DESIGN 4, 智力
+/// column). Descriptive only: they never change the row's order or value.
 @MainActor
 enum AgentSignalText {
     /// `work.looping` while the agent goes in circles: the row's first tooltip line and part of its label.
@@ -21,21 +22,10 @@ enum AgentSignalText {
         return lines
     }
 
-    /// The tooltip's intelligence lines (DESIGN 4, Intelligence column): while live, `intel.tooltip` with the shown
-    /// task score and the thinking share as a whole percent (`–` for a source that keeps no reasoning apart from output).
-    static func intelligence(_ agent: AgentStatus, _ l10n: Localizer) -> [String] {
-        var lines: [String] = []
-        if case .live = agent.intelligenceForm, let shown = agent.intelligenceForm.shown {
-            let share = agent.source.recordsReasoningApart ? percent(agent.intelligence.thinkingShare) : "–"
-            lines.append(l10n("intel.tooltip", String(shown), share))
-        }
-        return lines
-    }
-
-    /// Read right after the live value: `a11y.agent.intel` while live, `a11y.agent.grade` while resting.
-    static func intelligenceAccessibility(_ intelligence: AgentIntelligence, _ l10n: Localizer) -> String? {
-        guard let shown = intelligence.shown else { return nil }
-        return l10n(intelligence.isLive ? "a11y.agent.intel" : "a11y.agent.grade", String(shown))
+    /// Read right after the live value (DESIGN 4, 智力 column): `a11y.agent.intel` with the score words of DESIGN 12
+    /// (`智力 86`, `智力 9，尚未驗證`, `智力 72，閒置中`); nothing while none.
+    static func intelligenceAccessibility(_ reading: TaskSetReading, _ l10n: Localizer) -> String? {
+        TaskScoreText.words(TaskScoreValue(reading), l10n).map { l10n("a11y.agent.intel", $0) }
     }
 
     /// A share as a whole percent, rounded half away from zero.

@@ -1,4 +1,5 @@
 import AgentSpeedCore
+import AgentSpeedOrbModel
 import AppKit
 import SwiftUI
 
@@ -30,37 +31,28 @@ enum AgentIntelligenceColumn {
     }
 }
 
-/// One row's intelligence: live in the live value's color, the resting grade and `–` quieter. A change of form
-/// crossfades the color in 0.2 s, kept with Reduce Motion since nothing moves; the digits are replaced in place. The
-/// row says the value in words, so the cell itself is hidden from accessibility.
+/// One row's task score (DESIGN 4, 智力 column; DESIGN 12): live in the live value's color, resting and `–` in the
+/// tertiary color (Increase Contrast: secondary), the proof mark under an unverified or pending score. A rise of 3 or
+/// more rolls the changed digits upward, a fall crossfades, smaller rises replace the digits; a change of form
+/// crossfades the color in 0.2 s, kept with Reduce Motion. The row says the value in words, so the cell is hidden from
+/// accessibility.
 struct AgentIntelligenceCell: View {
-    static let fade = Animation.easeOut(duration: 0.2)
+    static let fade = Animation.easeOut(duration: TaskScoreMotion.formSeconds)
 
-    let intelligence: AgentIntelligence
+    let reading: TaskSetReading
     let width: CGFloat
 
     @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        let text = intelligence.shown.map(String.init) ?? "–"
-        let live = intelligence.isLive
-        ZStack(alignment: Alignment(horizontal: .trailing, vertical: .firstTextBaseline)) {
-            number(text)
-                .foregroundStyle(.primary)
-                .opacity(live ? 1 : 0)
-            number(text)
-                .foregroundStyle(contrast == .increased ? AnyShapeStyle(.dashboardSecondary) : AnyShapeStyle(.tertiary))
-                .opacity(live ? 0 : 1)
-        }
-        .frame(width: width, alignment: .trailing)
-        .animation(Self.fade, value: live)
-        .accessibilityHidden(true)
-    }
-
-    private func number(_ text: String) -> some View {
-        Text(verbatim: text)
-            .font(AgentIntelligenceColumn.font)
+        let live = reading.form == .live && reading.shown != nil
+        let quiet = contrast == .increased ? AnyShapeStyle(.dashboardSecondary) : AnyShapeStyle(.tertiary)
+        TaskScoreNumber(value: reading.shown, style: .roll, font: AgentIntelligenceColumn.font)
             .lineLimit(1)
-            .contentTransition(.identity)
+            .proofMark(reading.isUnproven, textSize: AgentIntelligenceColumn.numberSize)
+            .foregroundStyle(live ? AnyShapeStyle(.primary) : quiet)
+            .frame(width: width, alignment: .trailing)
+            .animation(Self.fade, value: live)
+            .accessibilityHidden(true)
     }
 }

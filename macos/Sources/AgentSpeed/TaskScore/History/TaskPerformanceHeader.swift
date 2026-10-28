@@ -135,8 +135,8 @@ struct TaskPerformanceInfoButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
-        .help(l10n("mac.dashboard.info"))
-        .accessibilityLabel(l10n("mac.dashboard.info"))
+        .help(l10n("history.tasks.info.a11y"))
+        .accessibilityLabel(l10n("history.tasks.info.a11y"))
         .popover(isPresented: $shown, arrowEdge: .bottom) {
             TaskPerformanceInfo(l10n: l10n)
         }

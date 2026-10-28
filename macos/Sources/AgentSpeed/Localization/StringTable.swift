@@ -17,7 +17,6 @@ enum StringTable {
     }
 
     static let entries: [String: Entry] = [
-        "a11y.agent.grade": Entry("等級 %@", "等级 %@", "grade %@", "等級 %@"),
         "a11y.agent.intel": Entry("智力 %@", "智力 %@", "intelligence %@", "知能 %@"),
         "a11y.bar.money": Entry("每秒 %@，今日 %@", "每秒 %@，今日 %@", "%@ per second, %@ today", "毎秒 %@、今日 %@"),
         "a11y.board": Entry("排行看板，%@：每秒 %@ 個 token，%@", "排行看板，%@：每秒 %@ 个 token，%@", "Leaderboard, %@: %@ tokens per second, %@", "ランキングボード、%@：毎秒 %@ トークン、%@"),
@@ -249,6 +248,7 @@ enum StringTable {
         "history.tasks.empty.hint": Entry("任務評分需要會記錄工具呼叫的來源：Claude Code、Claude Desktop、Codex、omp、Pi、OpenClaw 或 Factory Droid。", "任务评分需要会记录工具调用的来源：Claude Code、Claude Desktop、Codex、omp、Pi、OpenClaw 或 Factory Droid。", "Task scores need a source that records tool calls: Claude Code, Claude Desktop, Codex, omp, Pi, OpenClaw or Factory Droid.", "タスクの採点には、ツール呼び出しを記録するソースが必要です：Claude Code、Claude Desktop、Codex、omp、Pi、OpenClaw、Factory Droid。"),
         "history.tasks.footnote": Entry("依工具紀錄估算，不是模型能力測驗；權重尚未校準。", "依工具记录估算，不是模型能力测试；权重尚未校准。", "Estimated from tool records, not a model benchmark. Weights are not calibrated yet.", "ツールの記録からの推定で、モデルのベンチマークではありません。重みはまだ較正されていません。"),
         "history.tasks.info": Entry("智力是 Agent Speed 依工具紀錄估算的任務評分（0–100）：每個新要求從 0 開始，修改通過測試、錯誤減少才會上升，沒有可靠驗證的任務分數偏低。這裡比較所選期間結束的任務；專案和任務難度相近時，比較才有意義。", "智力是 Agent Speed 依工具记录估算的任务评分（0–100）：每个新请求从 0 开始，修改通过测试、错误减少才会上升，没有可靠验证的任务分数偏低。这里比较所选期间结束的任务；项目和任务难度相近时，比较才有意义。", "Intelligence is a task score (0–100) that Agent Speed estimates from tool records: each new request starts at 0 and climbs as changes pass tests and errors shrink, and tasks without reliable checks stay low. This compares the tasks that ended in the selected period; comparisons mean most for similar projects and tasks.", "知能は Agent Speed がツールの記録から推定するタスクのスコア（0〜100）です。新しい依頼ごとに 0 から始まり、変更がテストを通りエラーが減るにつれて上がります。信頼できる検証のないタスクは低いままです。ここでは選択した期間に終わったタスクを比べます。プロジェクトや難しさが近いほど、比較の意味があります。"),
+        "history.tasks.info.a11y": Entry("這些數字怎麼算", "这些数字怎么算", "How these numbers are computed", "これらの数値の算出方法"),
         "history.tasks.lowerBetter": Entry("越低越好", "越低越好", "Lower is better", "低いほど良い"),
         "history.tasks.metric.attempts": Entry("平均恢復嘗試", "平均恢复尝试", "Mean attempts to recover", "回復までの平均試行"),
         "history.tasks.metric.attempts.hint": Entry("有修好的錯誤，平均失敗幾次才通過。", "修好的错误，平均失败几次才通过。", "For errors that got fixed, the average number of failing runs before the pass.", "直ったエラーについて、通過までに失敗した実行の平均回数。"),
@@ -307,15 +307,10 @@ enum StringTable {
         "history.updated": Entry("更新於 %@", "更新于 %@", "Updated %@", "%@ に更新"),
         "history.weekdayDate": Entry("%@（%@）", "%@（%@）", "%@, %@", "%@（%@）"),
         "history.yesterday": Entry("昨天", "昨天", "Yesterday", "昨日"),
-        "intel.class.flagship": Entry("旗艦", "旗舰", "Flagship", "フラッグシップ"),
-        "intel.class.light": Entry("輕量", "轻量", "Light", "ライト"),
-        "intel.class.standard": Entry("標準", "标准", "Standard", "スタンダード"),
         "intel.disclaimer": Entry("任務進展的估算，不是模型能力測驗", "任务进展的估算，不是模型能力测试", "An estimate of task progress, not a model benchmark", "タスクの進み具合の推定で、モデルのベンチマークではありません"),
         "intel.glyph": Entry("智力", "智力", "IQ", "知"),
-        "intel.grade": Entry("等級 %@ · %@", "等级 %@ · %@", "Grade %@ · %@", "等級 %@・%@"),
         "intel.none": Entry("智力：尚無評分", "智力：暂无评分", "intelligence: no score yet", "知能：スコアなし"),
         "intel.thinking.glyph": Entry("思考", "思考", "TH", "思考"),
-        "intel.tooltip": Entry("智力 %@ · 思考 %@", "智力 %@ · 思考 %@", "Intelligence %@ · thinking %@", "知能 %@・思考 %@"),
         "language.en": Entry("English", "English", "English", "English"),
         "language.ja": Entry("日本語", "日本語", "日本語", "日本語"),
         "language.zhHans": Entry("简体中文", "简体中文", "简体中文", "简体中文"),

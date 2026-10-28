@@ -103,7 +103,8 @@ enum ProofMark {
 /// dotted tracks and held-credit outlines.
 struct ProofMarkDots: View {
     var diameter: CGFloat
-    var color: Color
+    /// Nil: the foreground style around it (the number's own, vibrancy included).
+    var color: Color?
     /// Centre-to-centre distance as a multiple of the diameter (the underline's 2.4).
     var pitch: CGFloat = 2.4
 
@@ -117,7 +118,7 @@ struct ProofMarkDots: View {
             for index in 0..<count {
                 path.addEllipse(in: CGRect(x: CGFloat(index) * step, y: y, width: diameter, height: diameter))
             }
-            context.fill(path, with: .color(color))
+            context.fill(path, with: color.map { .color($0) } ?? .foreground)
         }
         .accessibilityHidden(true)
         .allowsHitTesting(false)
@@ -129,7 +130,7 @@ struct ProofMarkDots: View {
 private struct ProofMarkModifier: ViewModifier {
     let shown: Bool
     let textSize: CGFloat
-    let color: Color
+    let color: Color?
     let depth: CGFloat
 
     @Environment(\.displayScale) private var scale
@@ -140,18 +141,19 @@ private struct ProofMarkModifier: ViewModifier {
         let increased = contrast == .increased
         let diameter = ProofMark.dotDiameter(textSize: textSize, scale: scale, increasedContrast: increased)
         content.overlay(alignment: Alignment(horizontal: .leading, vertical: .lastTextBaseline)) {
-            ProofMarkDots(diameter: diameter, color: increased ? color : color.opacity(ProofMark.opacity))
+            ProofMarkDots(diameter: diameter, color: color)
                 .frame(height: diameter)
                 .alignmentGuide(.lastTextBaseline) { _ in diameter / 2 - depth * textSize }
-                .opacity(shown ? 1 : 0)
+                .opacity(shown ? (increased ? 1 : ProofMark.opacity) : 0)
                 .animation(reduceMotion ? nil : .easeOut(duration: ProofMark.fadeSeconds), value: shown)
         }
     }
 }
 
 extension View {
-    /// Draws the proof mark under this number while `shown`. `color` is the number's color.
-    func proofMark(_ shown: Bool, textSize: CGFloat, color: Color, depth: CGFloat = ProofMark.textDepth) -> some View {
+    /// Draws the proof mark under this number while `shown`, in the number's color (`color`, else its foreground
+    /// style).
+    func proofMark(_ shown: Bool, textSize: CGFloat, color: Color? = nil, depth: CGFloat = ProofMark.textDepth) -> some View {
         modifier(ProofMarkModifier(shown: shown, textSize: textSize, color: color, depth: depth))
     }
 }

@@ -10,6 +10,8 @@ import SwiftUI
 final class HistoryViewModel {
     /// The window's own `history.includeSubscriptions` choice (DESIGN 9); absent until the user changes it.
     static let includeSubscriptionsKey = "historyIncludeSubscriptions"
+    /// The pair 任務表現 compares side by side (DESIGN 12), as `first,second` source ids.
+    static let taskPairKey = "historyTaskPair"
 
     let store: HistoryStore
     let l10n: Localizer
@@ -28,6 +30,8 @@ final class HistoryViewModel {
     private(set) var chartMetric: HistoryChartMetric = .output
     /// Whether subscription sources count at their API-equivalent cost in this window.
     private(set) var includeSubscriptions: Bool
+    /// The remembered pair of 任務表現; nil until the user picks one.
+    private(set) var taskPair: TaskPerformancePair?
     private(set) var content: HistoryContent
     /// Whether the window is open. A closed window keeps its filter but neither rebuilds its content nor shows its
     /// views: the data it follows changes every few seconds, and none of it is laid out until the window opens again.
@@ -48,6 +52,7 @@ final class HistoryViewModel {
         let stored = cost.settings.storage.object(forKey: Self.includeSubscriptionsKey) as? Bool
         let include = stored ?? cost.settings.includeSubscriptions
         includeSubscriptions = include
+        taskPair = Self.storedPair(cost.settings.storage.string(forKey: Self.taskPairKey))
         let today = DayKey(Date(), calendar: HistoryDates.calendar)
         content = HistoryContent.build(
             usage: store.days, source: nil, rangeKind: .days30, customRange: nil, sort: HistorySort(), today: today, l10n: l10n,
@@ -117,6 +122,20 @@ final class HistoryViewModel {
         chartMetric = metric
         interaction.hover(nil, from: .chart)
         rebuild()
+    }
+
+    /// The 任務表現 pickers; the window remembers the pair.
+    func setTaskPair(_ pair: TaskPerformancePair?) {
+        guard pair != taskPair else { return }
+        taskPair = pair
+        let value = pair.map { "\($0.first.rawValue),\($0.second.rawValue)" }
+        cost.settings.storage.set(value, forKey: Self.taskPairKey)
+    }
+
+    private static func storedPair(_ value: String?) -> TaskPerformancePair? {
+        let parts = (value ?? "").split(separator: ",").compactMap { SourceKind(rawValue: String($0)) }
+        guard parts.count == 2, parts[0] != parts[1] else { return nil }
+        return TaskPerformancePair(first: parts[0], second: parts[1])
     }
 
     /// The toolbar checkbox; the window remembers its own choice.
