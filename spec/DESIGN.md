@@ -1537,7 +1537,7 @@ every pause. The cells and widths stay, so nothing moves sideways:
   flash (cached row content, *Frame policy*); a fall of 智力 crossfades in 0.2 s; a change between live and resting
   crossfades the color in 0.2 s (an opacity change, kept with Reduce Motion).
 - Quiet (`Σ w = 0` over `A`): 思考 reads `–` and 費用 shows its real `0`. 智力 keeps its own form (section 12): live
-  while an agent of `A` is busy with a scored task (a long test run generates nothing and is still live), the highest
+  while an agent of `A` is busy with a scored task (a running test generates nothing and is still live), the highest
   resting score in pale after work, `–` with an empty arc and meter (track and unlit segments only) when no agent of
   `A` has a score. `–`, `0` and the tag are drawn in `ink-3` without glow. The sub-gauge stays, like a system
   meter (section 10, *Menu bar and taskbar*), so the hero never changes its layout when work stops.
@@ -3601,7 +3601,7 @@ no value. Strings: `task.*`, `a11y.task.*`, `history.tasks.*`, `a11y.history.tas
 
 - **Number**: an integer from 0 to 100, rounded half away from zero (METRICS 6.9, *Score*), at most three digits. Every
   智力 cell is already measured with `888`, so no cell, column or block changes width.
-- **live** (the agent is busy with a scored task — a long test run counts, though it generates nothing): the
+- **live** (the agent is busy with a scored task — a test that is running counts, though it generates nothing): the
   surface's number color. **resting** (the agent is idle and its current task has a score; it stays until the next
   prompt): the surface's pale color. **none**: `–` (U+2013, the app's absent mark everywhere) in the pale color,
   never `0` — 0 is a real score.
