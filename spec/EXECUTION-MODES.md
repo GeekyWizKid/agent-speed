@@ -63,13 +63,16 @@ Mode changes affect their native scope and time, not earlier responses. Upserts 
 - DSH: `request/header` `data.header.config.reasoningEffort` is the effort the harness sent with that request (see
   *Reasoning effort and speed*). Observed on DeepSeek Harness 0.2.1 (Windows, 2026-10-25): `max`; headers of older
   sessions have no such field.
+- Factory Droid: each assistant message's `message.reasoningEffort` is the effort of that call (see *Reasoning effort
+  and speed*). Observed in issue #33 (droid 0.250.0) and in public recordings of droid and Factory Desktop.
 
 ## Reasoning effort and speed
 
 What the agent rows, the floating windows and the history show per agent and per response (DESIGN 4, 4b, 2c) is two
 values derived from the facts above: the **reasoning effort** and the **speed**. Both are verified against real logs
 (Claude Code 2.1.219+, Claude Desktop, Codex desktop/CLI with `thread_settings_applied`, OpenCode 2.x, DeepSeek
-Harness 0.2.1); every other source has no effort until its native field is verified.
+Harness 0.2.1; Factory Droid from public recordings, METRICS 4.16); every other source has no effort until its native
+field is verified.
 
 ### Effort facts
 
@@ -159,8 +162,16 @@ from its current facts, below.
   the context's effort fact with its `config.reasoningEffort` (adapter `effort`, evidence `recorded`, scope `request`)
   or, when the field is absent, removes it. A response (`assistant/message`) takes a snapshot of the context. No speed
   facts. Current: the context.
+- **Factory Droid** (per session transcript; METRICS 4.16): every call (an accepted assistant message) replaces the
+  context's effort fact with its `message.reasoningEffort` (adapter `effort`, evidence `recorded`, scope `request`)
+  or, when the field is absent, removes it; the call's response takes a snapshot of the context then, and keeps it when
+  its tokens are allocated later. Droid's tokens are `none` (→ `off`), `off`, `minimal`, `low`, `medium`, `high`,
+  `xhigh`, `max` and `dynamic` (a word without a meter level); droid silently runs a model that lacks the chosen effort
+  at `off` and records that. Messages ignored by deduplication contribute nothing. The sidecar's `reasoningEffort`
+  (the selection) and `effectiveFactoryRouterModel.reasoningEffort` are not used. No speed facts (`-fast` model ids
+  are priced by METRICS 9.2, not facts). Current: the context, so a call shows its effort as soon as its line is read.
 
-`parser-expected.json` checks these for the Claude, Codex, OpenCode, Pi and DeepSeek Harness fixtures: per file (or
+`parser-expected.json` checks these for the Claude, Codex, OpenCode, Pi, DeepSeek Harness and Factory Droid fixtures: per file (or
 OpenCode session) `effort` and `speed` (the current attributions) and `responseModes` (per response key), each
 attribution an object `{mode, evidence[, provider]}` or `null` when unknown. Files without these keys are not checked. `reference.py
 --dump-today` adds `effort` and `speed` to every response row (`null` when unknown); `compare_dumps.py` compares them

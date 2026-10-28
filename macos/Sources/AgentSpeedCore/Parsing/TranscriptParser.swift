@@ -19,6 +19,8 @@ enum TranscriptFamily: String, CaseIterable, Sendable {
     case kimi
     case grokBuild
     case pi
+    /// Factory Droid: a session transcript read with its settings file (METRICS 4.16).
+    case droid
 
     /// Nil for sources that are not read from transcript files: OpenCode, ZCode and OpenClaw keep databases
     /// (`OpencodeSource`, `ZcodeSource`, `OpenClawSource`); Hermes Agent's log sets share one state per folder
@@ -36,6 +38,7 @@ enum TranscriptFamily: String, CaseIterable, Sendable {
         case .kimi: self = .kimi
         case .grokBuild: self = .grokBuild
         case .pi: self = .pi
+        case .droid: self = .droid
         case .opencode, .zcode, .openclaw, .hermes: return nil
         }
     }
@@ -54,6 +57,7 @@ enum TranscriptFamily: String, CaseIterable, Sendable {
         case .kimi: [.kimi]
         case .grokBuild: [.grokBuild]
         case .pi: [.pi]
+        case .droid: [.droid]
         }
     }
 
@@ -71,6 +75,7 @@ enum TranscriptFamily: String, CaseIterable, Sendable {
         case .kimi: .kimiSession
         case .grokBuild: .grokBuildSession
         case .pi: .piSession
+        case .droid: .droidSession
         }
     }
 
@@ -84,12 +89,15 @@ enum TranscriptFamily: String, CaseIterable, Sendable {
     func stat(_ path: String) -> FileStat? {
         if isDatabase { return FileStat.databaseStat(path) }
         if self == .grokBuild { return GrokBuildParser.stat(path) }
+        if self == .droid { return DroidPaths.stat(path) }
         guard let stat = FileStat.lstat(path), stat.isRegularFile else { return nil }
         return stat
     }
 
-    /// The transcript a changed path belongs to: an Antigravity `<id>.db-wal` stands for `<id>.db`.
+    /// The transcript a changed path belongs to: an Antigravity `<id>.db-wal` stands for `<id>.db`, a Factory Droid
+    /// `<id>.settings.json` for `<id>.jsonl`.
     func transcriptPath(forChanged path: String) -> String {
+        if self == .droid { return DroidPaths.transcriptPath(ofSidecar: path) ?? path }
         if self == .grokBuild, (path as NSString).lastPathComponent == "summary.json" {
             return ((path as NSString).deletingLastPathComponent as NSString).appendingPathComponent("updates.jsonl")
         }
@@ -108,6 +116,7 @@ enum DecodedLine: Sendable {
     case kimi(LineExtraction<KimiLine>)
     case grokBuild(LineExtraction<GrokBuildLine>)
     case pi(LineExtraction<PiLine>)
+    case droid(DroidLineRead)
 }
 
 /// Lines decoded ahead of time (off the state-machine thread) so seeding can extract in parallel. An Antigravity read
@@ -123,6 +132,8 @@ enum DecodedLines: Sendable {
     case kimi([LineExtraction<KimiLine>])
     case grokBuild([LineExtraction<GrokBuildLine>])
     case pi([LineExtraction<PiLine>])
+    /// With where the reader began (METRICS 4.16 Allocation).
+    case droid([DroidLineRead], start: Int64?)
 }
 
 /// A family-agnostic per-file parser. Exactly one of the machines is set.
@@ -138,6 +149,7 @@ struct TranscriptParser: Sendable {
     private var kimi: KimiParser?
     private var grokBuild: GrokBuildParser?
     private var pi: PiParser?
+    private var droid: DroidParser?
 
     /// `root` is the root folder the file was discovered under (omp and WorkBuddy derive `isSubagent` from it,
     /// METRICS 4.7, 4.9).
@@ -155,19 +167,21 @@ struct TranscriptParser: Sendable {
         case .kimi: kimi = KimiParser(agentId: agentId, fileID: fileID)
         case .grokBuild: grokBuild = GrokBuildParser(agentId: agentId, fileID: fileID)
         case .pi: pi = PiParser(agentId: agentId, fileID: fileID)
+        case .droid: droid = DroidParser(agentId: agentId, fileID: fileID)
         }
     }
 
     var state: AgentState {
-        codex?.state ?? claude?.state ?? dsh?.state ?? gemini?.state ?? omp?.state ?? workbuddy?.state ?? kimi?.state ?? grokBuild?.state ?? pi?.state ?? antigravity!.state
+        codex?.state ?? claude?.state ?? dsh?.state ?? gemini?.state ?? omp?.state ?? workbuddy?.state ?? kimi?.state ?? grokBuild?.state ?? pi?.state ?? droid?.state ?? antigravity!.state
     }
 
     /// An Antigravity database without the expected tables (`unsupportedFormat`).
     var isUnsupported: Bool { antigravity?.isUnsupported ?? false }
 
     /// Decodes one unit of input: a line, or a whole document for Gemini CLI legacy `.json` files. Antigravity
-    /// databases are never fed bytes; their reads arrive as batches.
-    func decode(_ bytes: UnsafeRawBufferPointer) -> DecodedLine? {
+    /// databases are never fed bytes; their reads arrive as batches. `offset` is the line's position in the file
+    /// (Factory Droid only).
+    func decode(_ bytes: UnsafeRawBufferPointer, offset: Int64 = 0) -> DecodedLine? {
         switch family {
         case .codex: .codex(CodexLineExtractor.extract(bytes))
         case .claude: .claude(ClaudeLineExtractor.extract(bytes))
@@ -180,6 +194,7 @@ struct TranscriptParser: Sendable {
         case .kimi: .kimi(KimiLineExtractor.extract(bytes))
         case .grokBuild: .grokBuild(GrokBuildLine.extract(bytes))
         case .pi: .pi(PiLineExtractor.extract(bytes))
+        case .droid: .droid(DroidLineRead(extraction: DroidLineExtractor.extract(bytes), offset: offset, length: bytes.count))
         }
     }
 
@@ -201,6 +216,7 @@ struct TranscriptParser: Sendable {
         kimi?.noteMalformedLine()
         grokBuild?.noteMalformedLine()
         pi?.noteMalformedLine()
+        droid?.noteMalformedLine()
     }
 
     /// `tools`: the line's tool calls and results, read only from live lines (METRICS 6.10).
@@ -215,12 +231,19 @@ struct TranscriptParser: Sendable {
         case .kimi(let extraction): kimi?.consume(extraction, deduper: &deduper, emit: emit)
         case .grokBuild(let extraction): grokBuild?.consume(extraction, deduper: &deduper, emit: emit)
         case .pi(let extraction): pi?.consume(extraction, tools: tools, deduper: &deduper, emit: emit)
+        case .droid(let line): droid?.consume(line, deduper: &deduper)
         }
     }
 
-    /// A live line: its responses and its tool calls. Seeding and history decode ahead and read no tools.
-    mutating func consume(rawLine bytes: UnsafeRawBufferPointer, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
-        guard let line = decode(bytes) else { return }
+    /// A live line: its responses and its tool calls. Seeding and history decode ahead and read no tools. `offset` is
+    /// the line's position in the file (Factory Droid only).
+    mutating func consume(
+        rawLine bytes: UnsafeRawBufferPointer,
+        offset: Int64 = 0,
+        deduper: inout Deduper,
+        emit: (ResponseUpsert) -> Void
+    ) {
+        guard let line = decode(bytes, offset: offset) else { return }
         consume(line, tools: ToolEventExtractor.events(family, bytes), deduper: &deduper, emit: emit)
     }
 
@@ -246,7 +269,47 @@ struct TranscriptParser: Sendable {
             for extraction in extractions { grokBuild?.consume(extraction, deduper: &deduper, emit: emit) }
         case .pi(let extractions):
             for extraction in extractions { pi?.consume(extraction, deduper: &deduper, emit: emit) }
+        case .droid(let lines, let start):
+            droid?.noteReadStart(start)
+            for line in lines { droid?.consume(line, deduper: &deduper) }
         }
+    }
+
+    // MARK: - Factory Droid read cycles (METRICS 4.16)
+
+    /// Where the reader began, for a live read of new lines.
+    mutating func noteReadStart(_ offset: Int64?) {
+        droid?.noteReadStart(offset)
+    }
+
+    /// After a read's lines: reads a changed sidecar and emits the calls its growth covers. True when anything changed.
+    mutating func finishReadCycle(emit: (ResponseUpsert) -> Void) -> Bool {
+        droid?.finishReadCycle(emit: emit) ?? false
+    }
+
+    /// A Factory Droid session whose transcript is read from its end takes its sidecar's counters as a baseline.
+    mutating func takeBaseline(_ snapshot: DroidSidecar.Snapshot) {
+        droid?.takeBaseline(snapshot)
+    }
+
+    /// History only: a Factory Droid session's counters left without a call.
+    mutating func finishHistory(emit: (ResponseUpsert) -> Void) {
+        droid?.finishHistory(emit: emit)
+    }
+
+    /// A Factory Droid sidecar that is not the version last looked at.
+    var sidecarHasChanged: Bool { droid?.sidecarHasChanged ?? false }
+
+    /// A Factory Droid session's counter growth not yet allocated (P).
+    var droidPending: DroidCounters? { droid?.pending }
+
+    /// The last read of a Factory Droid session could not tell its own counters: history does not store it.
+    var droidOwnCountersUnknown: Bool { droid?.ownCountersUnknown ?? false }
+
+    /// The parent sidecar a Factory Droid session last found unreadable, kept between history analyses.
+    var droidUnreadableParent: DroidPaths.Signature? {
+        get { droid?.unreadableParent }
+        set { droid?.unreadableParent = newValue }
     }
 }
 
@@ -285,6 +348,14 @@ enum TranscriptDecoder {
         case .pi:
             let (lines, read) = extract(PiLineExtractor.extract, reader: &reader)
             return (.pi(lines), read)
+        case .droid:
+            var lines: [DroidLineRead] = []
+            let read = reader.read(onLineAt: { bytes, offset in
+                let extraction = DroidLineExtractor.extract(bytes)
+                if case .blank = extraction { return }
+                lines.append(DroidLineRead(extraction: extraction, offset: offset, length: bytes.count))
+            })
+            return (.droid(lines, start: read.startOffset), read)
         }
     }
 

@@ -297,6 +297,7 @@ White-hot core for highlights: `#FFF7D6`. With overdrive `o > 0`, highlights ble
 | Pi | `#A855F7` violet |
 | OpenClaw | `#DE2E1F` lobster red |
 | Hermes Agent | `#B8860B` dark goldenrod |
+| Factory Droid | `#9E5F46` rust copper |
 
 Pink is `#EC4899`, not the lighter `#F472B6` (too close to coral and lilac); lime is `#84CC16`, not the lighter `#A3E635`, which nearly vanishes on light backgrounds.
 
@@ -316,6 +317,13 @@ every other source color, including OpenClaw's `#DE2E1F` (0.18), and from the sl
 coral 0.148, amber 0.153, slate 0.164) and reads on both appearances (contrast against `#1E1E1E`: 5.1; against white:
 3.3). Like every source it has no icon and no short name: its dot and `source.hermes` "Hermes Agent", in source order
 (METRICS 1) after OpenClaw.
+
+Factory Droid takes rust copper `#9E5F46`, a muted, industrial copper for Factory. The warm side of the wheel is
+crowded (coral, amber, rose, lobster red, dark goldenrod), so it keeps their hue family but drops chroma and lightness
+(OKLCH L 0.55, C 0.09, h 42°): it is at least 0.13 (OKLab) from every other source color and from the slate `#7C8798`
+(closest: OpenClaw's lobster red 0.131, Hermes Agent's dark goldenrod 0.132, slate 0.135, Grok Build's steel 0.157)
+and reads on both appearances (contrast against `#1E1E1E`: 3.3; against white: 5.0). Like every source it has no icon
+and no short name: its dot and `source.droid` "Factory Droid", in source order (METRICS 1) after Hermes Agent.
 
 The two WorkBuddy editions share one app icon, teal-green (`#0EC8A8` → `#05C890`), which is nearly Codex mint (OKLab
 distance about 0.04; the closest existing pair, coral and amber, is 0.11 apart). So both take a darker member of that teal family,
@@ -2005,6 +2013,7 @@ rows, section 10); the file name is `agent-speed-history-<code>-<first date>-<la
 | `pi` | `pi` |
 | `openclaw` | `openclaw` |
 | `hermes` | `hermes` |
+| `droid` | `droid` |
 
 Empty state (the range has neither token usage nor agent traffic, section 10): centered muted gauge glyph,
 `history.empty` and `history.empty.hint`. First launch after upgrading:
@@ -2439,6 +2448,12 @@ with Mica). Sections:
     picks a Hermes home or one `logs` folder and replaces the automatic home (`mac.settings.sources.chooseHermes` on
     macOS); Reset returns to it. A home without logs (installed, never run) shows `source.sessions` with 0. Caption
     `settings.sources.hermesHint`, which also says that turns of Hermes's Codex runtime count under Codex.
+  - Factory Droid: one row after Hermes Agent. The path is the sessions folder (`~/.factory/sessions`, Windows
+    `%USERPROFILE%\.factory\sessions`; METRICS 2, 4.16); the status counts today's main sessions (`source.sessions`;
+    Task-tool workers are not counted). Change… picks the `.factory` folder or its `sessions` folder and replaces the
+    automatic root (`mac.settings.sources.chooseDroid` on macOS); Reset returns to it. Caption
+    `settings.sources.droidHint`, which also says that token usage comes from each session's settings file, so a
+    call's tokens appear once droid saves them, and that sub-agents count on their own.
   - Antigravity: one row. The path lists the stores found (`~/.gemini/antigravity-cli`, `antigravity`,
     `antigravity-ide`); the status counts conversation databases (`source.sessions`). Change… picks one store folder
     (or its `conversations` folder) and replaces all three; Reset returns to them. A chosen `*-backup` store is never

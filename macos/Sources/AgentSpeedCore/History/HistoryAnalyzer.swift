@@ -1,8 +1,9 @@
 import Foundation
 
 /// Computes the daily history (METRICS 8): every transcript of the enabled sources (plus Codex `archived_sessions`,
-/// every omp and Pi root, every Antigravity conversation database and every Hermes Agent log of every profile) and every
-/// OpenCode session, parsed completely with the live rules, in startup order, incrementally against a `HistoryDatabase`.
+/// every omp and Pi root, every Antigravity conversation database, every Hermes Agent log of every profile and every
+/// Factory Droid session with its sidecar) and every OpenCode session, parsed completely with the live rules, in startup
+/// order, incrementally against a `HistoryDatabase`.
 ///
 /// Not thread-safe: one owner (a serial queue) drives it.
 final class HistoryAnalyzer {
@@ -65,6 +66,11 @@ final class HistoryAnalyzer {
     private(set) var entries: [String: HistoryDatabase.Entry]
     private var peaks: [String: Double]
     private var indexes: [String: DirectoryIndex] = [:]
+    /// Factory Droid sessions' parent ids by transcript, read once per transcript identity (`DroidHistoryIdentity`).
+    private var droidParents = DroidHistoryIdentity.ParentCache()
+    /// The parent sidecar each Factory Droid session last found unreadable, carried from one analysis to the next
+    /// (METRICS 4.16 Own counters); a relaunch starts without it.
+    private var droidUnreadableParents: [String: DroidPaths.Signature] = [:]
 
     init(database: HistoryDatabase, pricing: PriceBook = PriceBook()) throws {
         self.database = database
@@ -95,6 +101,8 @@ final class HistoryAnalyzer {
         /// For an Antigravity database, the `.db` with its `-wal` folded in.
         var stat: FileStat
         var previous: HistoryDatabase.Entry?
+        /// A Factory Droid session's stored identity: its transcript with its sidecar and its parent's sidecar.
+        var droidIdentity: DroidHistoryIdentity?
     }
 
     private struct PlannedSession {
@@ -164,12 +172,16 @@ final class HistoryAnalyzer {
                 guard let stat = family.stat(path) else { continue }
                 plan.discovered += 1
                 let previous = entries[path]
+                let droidIdentity = family == .droid ? DroidHistoryIdentity(path: path, stat: stat, parents: &droidParents) : nil
+                let size = droidIdentity?.size ?? stat.size
+                let modified = droidIdentity?.modified ?? stat.modifiedNs
                 if let previous, !zoneChanged, previous.version == options.analysisVersion,
-                   previous.family == family.rawValue, previous.size == stat.size, previous.modified == stat.modifiedNs,
+                   previous.family == family.rawValue, previous.size == size, previous.modified == modified,
                    !(repricing && previous.hasUnpriced) {
                     continue
                 }
-                plan.files.append(PlannedFile(path: path, family: family, root: root, stat: stat, previous: previous))
+                plan.files.append(PlannedFile(path: path, family: family, root: root, stat: stat, previous: previous,
+                                              droidIdentity: droidIdentity))
             }
         }
         plan.files.sort { lhs, rhs in
@@ -419,22 +431,36 @@ final class HistoryAnalyzer {
                     continue
                 }
                 // Parsers bridge paths through NSString; drain those per file on this long-running thread.
-                let (days, keys) = autoreleasepool { () -> ([UsageKey: DayAggregate], [UInt64]) in
+                let (days, keys, unknown) = autoreleasepool { () -> ([UsageKey: DayAggregate], [UInt64], Bool) in
                     var parser = TranscriptParser(
                         family: file.family, agentId: file.path, fileID: FileID(truncatingIfNeeded: index), root: file.root)
+                    if file.family == .droid { parser.droidUnreadableParent = droidUnreadableParents[file.path] }
                     var latest: [String: ResponseRecord] = [:]
                     parser.consume(output.lines, deduper: &deduper) { latest[$0.record.key] = $0.record }
+                    // Factory Droid's history rule: the whole transcript, then one sidecar read (METRICS 4.16).
+                    _ = parser.finishReadCycle { latest[$0.record.key] = $0.record }
+                    if file.family == .droid {
+                        droidUnreadableParents[file.path] = parser.droidUnreadableParent
+                        if parser.droidOwnCountersUnknown { return ([:], deduper.finishFile(), true) }
+                    }
+                    parser.finishHistory { latest[$0.record.key] = $0.record }
                     let days = DayAggregate.contributions(
                         of: latest.values, source: parser.state.source, labeler: &labeler, pricing: pricing)
-                    return (days, deduper.finishFile())
+                    return (days, deduper.finishFile(), false)
+                }
+                if unknown {
+                    // A Factory Droid session whose parent sidecar could not be read: not stored, so the next analysis
+                    // tries again (METRICS 4.16 Own counters).
+                    progress(state)
+                    continue
                 }
                 let stat = file.family == .grokBuild ? file.family.stat(file.path) ?? output.read.stat ?? file.stat
                     : output.read.stat ?? file.stat
                 let entry = HistoryDatabase.Entry(
                     id: file.previous?.id,
                     family: file.family.rawValue,
-                    size: stat.size,
-                    modified: stat.modifiedNs,
+                    size: file.droidIdentity?.size ?? stat.size,
+                    modified: file.droidIdentity?.modified ?? stat.modifiedNs,
                     version: options.analysisVersion,
                     days: days
                 )

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import antigravity_fixtures  # noqa: E402
+import droid_fixtures  # noqa: E402
 import gemini_fixtures  # noqa: E402
 import hermes_fixtures  # noqa: E402
 import omp_fixtures  # noqa: E402
@@ -684,6 +685,14 @@ hermes = hermes_fixtures.write_fixtures(ROOT)
 assert min(hermes["mtimes"].values()) > max(mtimes.values())
 mtimes.update(hermes["mtimes"])
 
+# --- Factory Droid: transcripts with their sidecars ---------------------------------
+droid = droid_fixtures.write_fixtures(ROOT)
+assert min(droid["mtimes"].values()) > max(mtimes.values())
+order += droid["order"]
+files.update(droid["files"])
+mtimes.update(droid["mtimes"])
+traces_droid = droid["traces"]
+
 # --- Task score end to end (METRICS 6.9): its own tree, spec/fixtures/tasks ------------
 # Its expectations are task-e2e-expected.json, written by reference.py --write-task-fixture.
 task_e2e_fixtures.write(ROOT)
@@ -713,7 +722,9 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                            "the rollouts of the Codex roots next to them (METRICS 2); a trace gives the phase of a "
                            "window after its row `afterSeq`, after the databases before it; reading must not create "
                            "any file. Hermes Agent: see `hermes._comment`; its log files are not in `order` (one "
-                           "parser state per log folder) but their modification times are in `mtimes`.",
+                           "parser state per log folder) but their modification times are in `mtimes`. Factory "
+                           "Droid: see `droid._comment`; its transcripts are in `order` (each read with its sidecar, "
+                           "whose modification time is in `mtimes` too) and its `traces` work like the omp ones.",
                "order": order, "files": files, "mtimes": mtimes,
                "opencode": {"database": opencode_rel, "agents": opencode_expected},
                "gemini": {"discover": gemini["discover"], "traces": gemini["traces"]},
@@ -725,7 +736,8 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                "openclaw": {"dbOrder": openclaw["dbOrder"], "discover": openclaw["discover"],
                             "codexDiscover": openclaw["codexDiscover"], "databases": openclaw["databases"],
                             "traces": openclaw["traces"]},
-               "hermes": hermes},
+               "hermes": hermes,
+               "droid": dict(droid["droid"], traces=traces_droid)},
               f, indent=2, ensure_ascii=False)
     f.write("\n")
 
@@ -1018,6 +1030,16 @@ resolve_cases = [{"table": t, "model": m, "provider": p, "expect": e} for t, m, 
     ("v2", "MiMo-V2.6-Pro", None, "mimo-v2.6-pro"),
     ("v2", "xiaomi/mimo-v2.6-pro", "custom", "mimo-v2.6-pro"),
     ("v2", "mimo-v2.6-pro-fast", "custom", "unknown"),
+    ("v2", "custom:GPT-5.5-[OpenAI-BYOK]-0", "custom", "gpt-5.5"),
+    ("v2", "Custom:Claude-Opus-5.5-Thinking-0", "custom", "claude-opus-5-5"),
+    ("v2", "custom:Claude-Opus-5.5-[Bedrock]-12", "custom", "claude-opus-5-5"),
+    ("v2", "custom:Claude Opus 5.5-0", "custom", "unknown"),
+    ("v2", "custom:claude-opus-5-5-fast-0", "custom", "claude-opus-5-5 fast"),
+    ("v2", "custom:gpt-5.5", "custom", "gpt-5.5"),
+    ("v2", "custom:superbased-0", "custom", "unknown"),
+    ("v2", "custom:Kimi-K3-(free)-0", "custom", "unknown"),
+    ("v2", "custom:-0", "custom", "unknown"),
+    ("v2", "gpt-5.5-0", None, "unknown"),
 ]]
 with open(os.path.join(ROOT, "price-cases.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "METRICS 9.2-9.3 against the fixture tables in `tables` (paths relative to this folder). "

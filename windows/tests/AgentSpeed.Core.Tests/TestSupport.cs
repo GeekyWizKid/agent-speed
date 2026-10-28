@@ -199,6 +199,16 @@ internal static class HermesFixture
     public static TimeZoneInfo Zone => Hermes.HermesClock.FindZone(Expected.GetProperty("timeZone").GetString()!);
 }
 
+/// <summary>The fixture folder <c>droid</c> plays the home folder: its sessions root is <c>droid/.factory/sessions</c> (METRICS 4.16).</summary>
+internal static class DroidFixture
+{
+    public static string Root => RootIn(FixtureLocator.FixturesDirectory);
+
+    public static string RootIn(string fixtures) => Droid.DroidPaths.DefaultRoot(Path.Combine(fixtures, "droid"));
+
+    public static System.Text.Json.JsonElement Expected => ParserFixtureTests.Expected.GetProperty("droid");
+}
+
 /// <summary>The fixture folder <c>omp</c> plays <c>~/.omp</c>: its automatic roots are the default root and every profile.</summary>
 internal static class OmpFixture
 {

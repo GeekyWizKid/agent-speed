@@ -1,5 +1,5 @@
 {
-  "_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this folder. `mtimes` (Unix ms) give the modification times that produce both orders; apply them to a copy of this folder before computing daily history. `traces` (Gemini, omp) give the phase after feeding a file up to and including physical line `afterLine` (after the files before it in `order`). omp: the folder `omp` plays ~/.omp, so its automatic roots are omp/agent/sessions and omp/profiles/*/agent/sessions; `omp.discover` lists what discovery finds there. Antigravity: the folder `antigravity` plays ~/.gemini (stores antigravity-cli, antigravity, antigravity-ide); each database is one agent whose id is its path; `{\"unsupported\": true}` marks a database that contributes no agent; reading must not create any file (no -wal or -shm). WorkBuddy: the folder `workbuddy` plays the home folder (data folders .workbuddy and .workbuddy-ai); `workbuddy.discover` lists what discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both roots; its `traces` work like the omp ones. OpenClaw: the folder `openclaw` plays the home folder (state folders .openclaw and the profile .openclaw-work); after the OpenCode and Antigravity databases, the agent databases of `openclaw.dbOrder` are read with the same dedupe set, each one agent per transcript window (agent id `<database>#<session id>`, relative to this folder); `{\"unsupported\": true}` marks a database without session tables; `openclaw.discover` lists the databases discovery finds, `openclaw.codexDiscover` the rollouts of the Codex roots next to them (METRICS 2); a trace gives the phase of a window after its row `afterSeq`, after the databases before it; reading must not create any file. Hermes Agent: see `hermes._comment`; its log files are not in `order` (one parser state per log folder) but their modification times are in `mtimes`.",
+  "_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this folder. `mtimes` (Unix ms) give the modification times that produce both orders; apply them to a copy of this folder before computing daily history. `traces` (Gemini, omp) give the phase after feeding a file up to and including physical line `afterLine` (after the files before it in `order`). omp: the folder `omp` plays ~/.omp, so its automatic roots are omp/agent/sessions and omp/profiles/*/agent/sessions; `omp.discover` lists what discovery finds there. Antigravity: the folder `antigravity` plays ~/.gemini (stores antigravity-cli, antigravity, antigravity-ide); each database is one agent whose id is its path; `{\"unsupported\": true}` marks a database that contributes no agent; reading must not create any file (no -wal or -shm). WorkBuddy: the folder `workbuddy` plays the home folder (data folders .workbuddy and .workbuddy-ai); `workbuddy.discover` lists what discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both roots; its `traces` work like the omp ones. OpenClaw: the folder `openclaw` plays the home folder (state folders .openclaw and the profile .openclaw-work); after the OpenCode and Antigravity databases, the agent databases of `openclaw.dbOrder` are read with the same dedupe set, each one agent per transcript window (agent id `<database>#<session id>`, relative to this folder); `{\"unsupported\": true}` marks a database without session tables; `openclaw.discover` lists the databases discovery finds, `openclaw.codexDiscover` the rollouts of the Codex roots next to them (METRICS 2); a trace gives the phase of a window after its row `afterSeq`, after the databases before it; reading must not create any file. Hermes Agent: see `hermes._comment`; its log files are not in `order` (one parser state per log folder) but their modification times are in `mtimes`. Factory Droid: see `droid._comment`; its transcripts are in `order` (each read with its sidecar, whose modification time is in `mtimes` too) and its `traces` work like the omp ones.",
   "order": [
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl",
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-20-subagent.jsonl",
@@ -43,7 +43,17 @@
     "pi/agent/sessions/--Users-dev-projects-halo--/2026-10-20T12-20-00-000Z_01a15941-1580-7402-be06-0015035e2982.jsonl",
     "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333.jsonl",
     "pi/custom-sessions/2026-10-20T12-30-00-000Z_01a1594a-3d40-76f3-bfd9-0015a195a333/helper.jsonl",
-    "openclaw/.openclaw/agents/main/agent/codex-home/sessions/2026/10/20/rollout-2026-10-20T13-10-00-019a0b1c-2d3e-7f40-8a51-c2d3e4f5a6b7.jsonl"
+    "openclaw/.openclaw/agents/main/agent/codex-home/sessions/2026/10/20/rollout-2026-10-20T13-10-00-019a0b1c-2d3e-7f40-8a51-c2d3e4f5a6b7.jsonl",
+    "droid/.factory/sessions/dae9fc0b-9ef7-4da3-8a67-1c2d3e4f5a69.jsonl",
+    "droid/.factory/sessions/-Users-dev-projects-forge/b8c7dae9-7cd5-4b81-8e45-9a0b1c2d3e47.jsonl",
+    "droid/.factory/sessions/-C-Users-dev-projects-halo/c3d2e5f4-2d80-4e3c-9f90-4b5c6d7e8f92.jsonl",
+    "droid/.factory/sessions/-C-Users-dev-projects-halo/f6a5b8c7-5ab3-4f6f-8c23-7e8f9a0b1c25.jsonl",
+    "droid/.factory/sessions/-Users-dev-projects-quasar/d4e3f6a5-3e91-4f4d-8a01-5c6d7e8f9a03.jsonl",
+    "droid/.factory/sessions/-Users-dev-projects-quasar/e5f4a7b6-4fa2-4a5e-9b12-6d7e8f9a0b14.jsonl",
+    "droid/.factory/sessions/-Users-dev-projects-forge/b2e1d4c3-1c7f-4d2b-8e8f-3a4b5c6d7e81.jsonl",
+    "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+    "droid/.factory/sessions/-Users-dev-projects-forge/a7b6c9d8-6bc4-4a70-9d34-8f9a0b1c2d36.jsonl",
+    "droid/.factory/sessions/-Users-dev-projects-quasar/c9d8ebfa-8de6-4c92-9f56-0b1c2d3e4f58.jsonl"
   ],
   "files": {
     "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl": {
@@ -2354,6 +2364,472 @@
           "final": true
         }
       ]
+    },
+    "droid/.factory/sessions/dae9fc0b-9ef7-4da3-8a67-1c2d3e4f5a69.jsonl": {
+      "source": "droid",
+      "project": "legacy",
+      "model": "claude-opus-5-5",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792479602000,
+      "malformedLines": 0,
+      "responses": [],
+      "effort": null,
+      "speed": null,
+      "responseModes": {}
+    },
+    "droid/.factory/sessions/-Users-dev-projects-forge/b8c7dae9-7cd5-4b81-8e45-9a0b1c2d3e47.jsonl": {
+      "source": "droid",
+      "project": "forge",
+      "model": "claude-sonnet-4-5",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792483205000,
+      "malformedLines": 0,
+      "responses": [],
+      "effort": {
+        "mode": "low",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {}
+    },
+    "droid/.factory/sessions/-C-Users-dev-projects-halo/c3d2e5f4-2d80-4e3c-9f90-4b5c6d7e8f92.jsonl": {
+      "source": "droid",
+      "project": "halo",
+      "model": "custom:GPT-5.5-[OpenAI-BYOK]-0",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792494005100,
+      "malformedLines": 0,
+      "responses": [
+        {
+          "key": "droid:c3-m1",
+          "startMs": 1792494000015,
+          "endMs": 1792494003500,
+          "model": "custom:GPT-5.5-[OpenAI-BYOK]-0",
+          "provider": "custom",
+          "fast": false,
+          "final": true,
+          "input": 13698,
+          "cachedInput": 11955,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 252,
+          "reasoning": 90
+        },
+        {
+          "key": "droid:c3-m2",
+          "startMs": 1792494003600,
+          "endMs": 1792494005100,
+          "model": "custom:GPT-5.5-[OpenAI-BYOK]-0",
+          "provider": "custom",
+          "fast": false,
+          "final": true,
+          "input": 13802,
+          "cachedInput": 12045,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 168,
+          "reasoning": 60
+        }
+      ],
+      "effort": null,
+      "speed": null,
+      "responseModes": {
+        "droid:c3-m1": {
+          "effort": {
+            "mode": "low",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "droid:c3-m2": {
+          "effort": null,
+          "speed": null
+        }
+      }
+    },
+    "droid/.factory/sessions/-C-Users-dev-projects-halo/f6a5b8c7-5ab3-4f6f-8c23-7e8f9a0b1c25.jsonl": {
+      "source": "droid",
+      "project": "halo",
+      "model": "custom:GPT-5.5-[OpenAI-BYOK]-0",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792494608000,
+      "malformedLines": 0,
+      "responses": [
+        {
+          "key": "droid:f6-m1",
+          "startMs": 1792494605010,
+          "endMs": 1792494608000,
+          "model": "custom:GPT-5.5-[OpenAI-BYOK]-0",
+          "provider": "custom",
+          "fast": false,
+          "final": true,
+          "input": 1700,
+          "cachedInput": 0,
+          "cacheWriteInput": 500,
+          "cacheWrite1hInput": 0,
+          "output": 300,
+          "reasoning": 300
+        }
+      ],
+      "effort": {
+        "mode": "xhigh",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "droid:f6-m1": {
+          "effort": {
+            "mode": "xhigh",
+            "evidence": "recorded"
+          },
+          "speed": null
+        }
+      }
+    },
+    "droid/.factory/sessions/-Users-dev-projects-quasar/d4e3f6a5-3e91-4f4d-8a01-5c6d7e8f9a03.jsonl": {
+      "source": "droid",
+      "project": "quasar",
+      "model": "claude-opus-5-5",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792504809900,
+      "malformedLines": 0,
+      "responses": [
+        {
+          "key": "droid:d4-m1",
+          "startMs": 1792504800012,
+          "endMs": 1792504806000,
+          "model": "claude-opus-5-5",
+          "provider": null,
+          "fast": false,
+          "final": true,
+          "input": 15935,
+          "cachedInput": 0,
+          "cacheWriteInput": 14939,
+          "cacheWrite1hInput": 0,
+          "output": 922,
+          "reasoning": 369
+        },
+        {
+          "key": "droid:d4-m2",
+          "startMs": 1792504806400,
+          "endMs": 1792504809900,
+          "model": "claude-opus-5-5",
+          "provider": null,
+          "fast": false,
+          "final": true,
+          "input": 16065,
+          "cachedInput": 0,
+          "cacheWriteInput": 15061,
+          "cacheWrite1hInput": 0,
+          "output": 578,
+          "reasoning": 231
+        }
+      ],
+      "effort": {
+        "mode": "max",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "droid:d4-m1": {
+          "effort": {
+            "mode": "max",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "droid:d4-m2": {
+          "effort": {
+            "mode": "max",
+            "evidence": "recorded"
+          },
+          "speed": null
+        }
+      }
+    },
+    "droid/.factory/sessions/-Users-dev-projects-quasar/e5f4a7b6-4fa2-4a5e-9b12-6d7e8f9a0b14.jsonl": {
+      "source": "droid",
+      "project": "quasar",
+      "model": "claude-opus-5-5",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792506615000,
+      "malformedLines": 0,
+      "responses": [
+        {
+          "key": "droid:e5-m1",
+          "startMs": 1792506610020,
+          "endMs": 1792506615000,
+          "model": "claude-opus-5-5",
+          "provider": null,
+          "fast": false,
+          "final": true,
+          "input": 31700,
+          "cachedInput": 31000,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 250,
+          "reasoning": 100
+        }
+      ],
+      "effort": {
+        "mode": "high",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "droid:e5-m1": {
+          "effort": {
+            "mode": "high",
+            "evidence": "recorded"
+          },
+          "speed": null
+        }
+      }
+    },
+    "droid/.factory/sessions/-Users-dev-projects-forge/b2e1d4c3-1c7f-4d2b-8e8f-3a4b5c6d7e81.jsonl": {
+      "source": "droid",
+      "project": "forge",
+      "model": "gpt-5.5",
+      "isSubagent": true,
+      "parentFile": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792540785250,
+      "malformedLines": 0,
+      "responses": [
+        {
+          "key": "droid:b2-m1",
+          "startMs": 1792540690005,
+          "endMs": 1792540694000,
+          "model": "gpt-5.5",
+          "provider": null,
+          "fast": false,
+          "final": true,
+          "input": 14947,
+          "cachedInput": 10463,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 368,
+          "reasoning": 126
+        },
+        {
+          "key": "droid:b2-m2",
+          "startMs": 1792540780000,
+          "endMs": 1792540785250,
+          "model": "gpt-5.5",
+          "provider": null,
+          "fast": false,
+          "final": true,
+          "input": 15053,
+          "cachedInput": 10537,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 332,
+          "reasoning": 114
+        }
+      ],
+      "effort": {
+        "mode": "medium",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "droid:b2-m1": {
+          "effort": {
+            "mode": "medium",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "droid:b2-m2": {
+          "effort": {
+            "mode": "medium",
+            "evidence": "recorded"
+          },
+          "speed": null
+        }
+      }
+    },
+    "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl": {
+      "source": "droid",
+      "project": "forge",
+      "model": "claude-sonnet-4-5-20250929",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792573231500,
+      "malformedLines": 2,
+      "responses": [
+        {
+          "key": "droid:a1-m1",
+          "startMs": 1792540680010,
+          "endMs": 1792540684210,
+          "model": "claude-opus-5-5",
+          "provider": null,
+          "fast": false,
+          "final": true,
+          "input": 69758,
+          "cachedInput": 61218,
+          "cacheWriteInput": 1935,
+          "cacheWrite1hInput": 0,
+          "output": 1252,
+          "reasoning": 218
+        },
+        {
+          "key": "droid:a1-m2",
+          "startMs": 1792540684900,
+          "endMs": 1792540689400,
+          "model": "claude-opus-5-5",
+          "provider": null,
+          "fast": false,
+          "final": true,
+          "input": 111661,
+          "cachedInput": 97991,
+          "cacheWriteInput": 3097,
+          "cacheWrite1hInput": 0,
+          "output": 1234,
+          "reasoning": 215
+        },
+        {
+          "key": "droid:a1-m3",
+          "startMs": 1792540830000,
+          "endMs": 1792540833500,
+          "model": "claude-opus-5-5",
+          "provider": null,
+          "fast": false,
+          "final": true,
+          "input": 112306,
+          "cachedInput": 98557,
+          "cacheWriteInput": 3115,
+          "cacheWrite1hInput": 0,
+          "output": 849,
+          "reasoning": 147
+        },
+        {
+          "key": "droid:a1-m4",
+          "startMs": 1792573220000,
+          "endMs": 1792573226000,
+          "model": "claude-opus-5-5",
+          "provider": null,
+          "fast": false,
+          "final": true,
+          "input": 69289,
+          "cachedInput": 60806,
+          "cacheWriteInput": 1922,
+          "cacheWrite1hInput": 0,
+          "output": 1076,
+          "reasoning": 187
+        },
+        {
+          "key": "droid:a1-m5",
+          "startMs": 1792573227000,
+          "endMs": 1792573231500,
+          "model": "claude-sonnet-4-5-20250929",
+          "provider": null,
+          "fast": false,
+          "final": true,
+          "input": 70017,
+          "cachedInput": 61445,
+          "cacheWriteInput": 1942,
+          "cacheWrite1hInput": 0,
+          "output": 796,
+          "reasoning": 138
+        }
+      ],
+      "effort": {
+        "mode": "dynamic",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {
+        "droid:a1-m1": {
+          "effort": {
+            "mode": "high",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "droid:a1-m2": {
+          "effort": {
+            "mode": "high",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "droid:a1-m3": {
+          "effort": {
+            "mode": "high",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "droid:a1-m4": {
+          "effort": {
+            "mode": "off",
+            "evidence": "recorded"
+          },
+          "speed": null
+        },
+        "droid:a1-m5": {
+          "effort": {
+            "mode": "dynamic",
+            "evidence": "recorded"
+          },
+          "speed": null
+        }
+      }
+    },
+    "droid/.factory/sessions/-Users-dev-projects-forge/a7b6c9d8-6bc4-4a70-9d34-8f9a0b1c2d36.jsonl": {
+      "source": "droid",
+      "project": "forge",
+      "model": "glm-4.6",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "generating",
+      "inFlightStartMs": 1792577100000,
+      "lastLineMs": 1792577100000,
+      "malformedLines": 0,
+      "responses": [],
+      "effort": {
+        "mode": "medium",
+        "evidence": "recorded"
+      },
+      "speed": null,
+      "responseModes": {}
+    },
+    "droid/.factory/sessions/-Users-dev-projects-quasar/c9d8ebfa-8de6-4c92-9f56-0b1c2d3e4f58.jsonl": {
+      "source": "droid",
+      "project": "quasar",
+      "model": "claude-opus-5-5",
+      "isSubagent": false,
+      "parentFile": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1792594800010,
+      "malformedLines": 0,
+      "responses": [],
+      "effort": null,
+      "speed": null,
+      "responseModes": {}
     }
   },
   "mtimes": {
@@ -2417,7 +2893,26 @@
     "hermes/home/logs/agent.log.2": 1792584060000,
     "hermes/home/logs/agent.log.1": 1792584061000,
     "hermes/home/logs/agent.log": 1792584062000,
-    "hermes/home/profiles/work/logs/agent.log": 1792584063000
+    "hermes/home/profiles/work/logs/agent.log": 1792584063000,
+    "droid/.factory/sessions/dae9fc0b-9ef7-4da3-8a67-1c2d3e4f5a69.settings.json": 1792584119500,
+    "droid/.factory/sessions/dae9fc0b-9ef7-4da3-8a67-1c2d3e4f5a69.jsonl": 1792584120000,
+    "droid/.factory/sessions/-Users-dev-projects-forge/b8c7dae9-7cd5-4b81-8e45-9a0b1c2d3e47.settings.json": 1792584120500,
+    "droid/.factory/sessions/-Users-dev-projects-forge/b8c7dae9-7cd5-4b81-8e45-9a0b1c2d3e47.jsonl": 1792584121000,
+    "droid/.factory/sessions/-C-Users-dev-projects-halo/c3d2e5f4-2d80-4e3c-9f90-4b5c6d7e8f92.settings.json": 1792584121500,
+    "droid/.factory/sessions/-C-Users-dev-projects-halo/c3d2e5f4-2d80-4e3c-9f90-4b5c6d7e8f92.jsonl": 1792584122000,
+    "droid/.factory/sessions/-C-Users-dev-projects-halo/f6a5b8c7-5ab3-4f6f-8c23-7e8f9a0b1c25.settings.json": 1792584122500,
+    "droid/.factory/sessions/-C-Users-dev-projects-halo/f6a5b8c7-5ab3-4f6f-8c23-7e8f9a0b1c25.jsonl": 1792584123000,
+    "droid/.factory/sessions/-Users-dev-projects-quasar/d4e3f6a5-3e91-4f4d-8a01-5c6d7e8f9a03.settings.json": 1792584123500,
+    "droid/.factory/sessions/-Users-dev-projects-quasar/d4e3f6a5-3e91-4f4d-8a01-5c6d7e8f9a03.jsonl": 1792584124000,
+    "droid/.factory/sessions/-Users-dev-projects-quasar/e5f4a7b6-4fa2-4a5e-9b12-6d7e8f9a0b14.settings.json": 1792584124500,
+    "droid/.factory/sessions/-Users-dev-projects-quasar/e5f4a7b6-4fa2-4a5e-9b12-6d7e8f9a0b14.jsonl": 1792584125000,
+    "droid/.factory/sessions/-Users-dev-projects-forge/b2e1d4c3-1c7f-4d2b-8e8f-3a4b5c6d7e81.settings.json": 1792584125500,
+    "droid/.factory/sessions/-Users-dev-projects-forge/b2e1d4c3-1c7f-4d2b-8e8f-3a4b5c6d7e81.jsonl": 1792584126000,
+    "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.settings.json": 1792584126500,
+    "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl": 1792584127000,
+    "droid/.factory/sessions/-Users-dev-projects-forge/a7b6c9d8-6bc4-4a70-9d34-8f9a0b1c2d36.jsonl": 1792584128000,
+    "droid/.factory/sessions/-Users-dev-projects-quasar/c9d8ebfa-8de6-4c92-9f56-0b1c2d3e4f58.settings.json": 1792584128500,
+    "droid/.factory/sessions/-Users-dev-projects-quasar/c9d8ebfa-8de6-4c92-9f56-0b1c2d3e4f58.jsonl": 1792584129000
   },
   "opencode": {
     "database": "opencode/opencode.db",
@@ -6075,5 +6570,2853 @@
         }
       ]
     }
+  },
+  "droid": {
+    "_comment": "Factory Droid (METRICS 4.16). The folder `droid` plays the home folder; `discover` lists the sessions discovery finds under droid/.factory/sessions. Its sessions are in `order` and `files` (each read from the start: the history rule); the history analysis also emits the own counters of a session without calls (I) as `droid:<session id>:session`. `roots`: create the folders `make` in a scratch folder, resolve the setting (null: the automatic root of the scratch folder as home) and compare with `expected` (relative). `sidecars`: a sidecar's text (`size`: padded with spaces to that many bytes) and whether it is readable, its counters and session model (`encoding`: the text's bytes in that encoding instead of UTF-8). `allocations`: the largest-remainder split of `total` by `weights`. `live`: scripted read cycles in a scratch home (see its _comment). `history`: scripted history analyses in a scratch home (see its _comment).",
+    "discover": [
+      "droid/.factory/sessions/-C-Users-dev-projects-halo/c3d2e5f4-2d80-4e3c-9f90-4b5c6d7e8f92.jsonl",
+      "droid/.factory/sessions/-C-Users-dev-projects-halo/f6a5b8c7-5ab3-4f6f-8c23-7e8f9a0b1c25.jsonl",
+      "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+      "droid/.factory/sessions/-Users-dev-projects-forge/a7b6c9d8-6bc4-4a70-9d34-8f9a0b1c2d36.jsonl",
+      "droid/.factory/sessions/-Users-dev-projects-forge/b2e1d4c3-1c7f-4d2b-8e8f-3a4b5c6d7e81.jsonl",
+      "droid/.factory/sessions/-Users-dev-projects-forge/b8c7dae9-7cd5-4b81-8e45-9a0b1c2d3e47.jsonl",
+      "droid/.factory/sessions/-Users-dev-projects-quasar/c9d8ebfa-8de6-4c92-9f56-0b1c2d3e4f58.jsonl",
+      "droid/.factory/sessions/-Users-dev-projects-quasar/d4e3f6a5-3e91-4f4d-8a01-5c6d7e8f9a03.jsonl",
+      "droid/.factory/sessions/-Users-dev-projects-quasar/e5f4a7b6-4fa2-4a5e-9b12-6d7e8f9a0b14.jsonl",
+      "droid/.factory/sessions/dae9fc0b-9ef7-4da3-8a67-1c2d3e4f5a69.jsonl"
+    ],
+    "roots": [
+      {
+        "make": [
+          ".factory/sessions"
+        ],
+        "setting": null,
+        "expected": ".factory/sessions"
+      },
+      {
+        "make": [],
+        "setting": null,
+        "expected": ".factory/sessions"
+      },
+      {
+        "make": [
+          ".factory/sessions"
+        ],
+        "setting": ".factory",
+        "expected": ".factory/sessions"
+      },
+      {
+        "make": [
+          ".factory/sessions"
+        ],
+        "setting": ".factory/sessions",
+        "expected": ".factory/sessions"
+      },
+      {
+        "make": [
+          "moved/sessions/-tmp-x"
+        ],
+        "setting": "moved",
+        "expected": "moved/sessions"
+      },
+      {
+        "make": [
+          "elsewhere/-tmp-x"
+        ],
+        "setting": "elsewhere",
+        "expected": "elsewhere"
+      }
+    ],
+    "sidecars": [
+      {
+        "name": "plain",
+        "text": "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":120,\"outputTokens\":30,\"cacheCreationTokens\":7,\"cacheReadTokens\":900,\"thinkingTokens\":4}}",
+        "readable": true,
+        "counters": {
+          "inputTokens": 120,
+          "cacheCreationTokens": 7,
+          "cacheReadTokens": 900,
+          "outputTokens": 30,
+          "thinkingTokens": 4
+        },
+        "model": "claude-opus-5-5"
+      },
+      {
+        "name": "byte order mark",
+        "text": "﻿{\"model\":\" gpt-5.5 \",\"tokenUsage\":{\"inputTokens\":120,\"outputTokens\":30,\"cacheCreationTokens\":7,\"cacheReadTokens\":900,\"thinkingTokens\":4}}",
+        "readable": true,
+        "counters": {
+          "inputTokens": 120,
+          "cacheCreationTokens": 7,
+          "cacheReadTokens": 900,
+          "outputTokens": 30,
+          "thinkingTokens": 4
+        },
+        "model": "gpt-5.5"
+      },
+      {
+        "name": "router pick",
+        "text": "{\"model\":\"AUTO\",\"effectiveFactoryRouterModel\":{\"modelId\":\"claude-opus-5\"},\"tokenUsage\":{\"inputTokens\":120,\"outputTokens\":30,\"cacheCreationTokens\":7,\"cacheReadTokens\":900,\"thinkingTokens\":4}}",
+        "readable": true,
+        "counters": {
+          "inputTokens": 120,
+          "cacheCreationTokens": 7,
+          "cacheReadTokens": 900,
+          "outputTokens": 30,
+          "thinkingTokens": 4
+        },
+        "model": "claude-opus-5"
+      },
+      {
+        "name": "auto without a pick",
+        "text": "{\"model\":\"auto\",\"tokenUsage\":{\"inputTokens\":120,\"outputTokens\":30,\"cacheCreationTokens\":7,\"cacheReadTokens\":900,\"thinkingTokens\":4}}",
+        "readable": true,
+        "counters": {
+          "inputTokens": 120,
+          "cacheCreationTokens": 7,
+          "cacheReadTokens": 900,
+          "outputTokens": 30,
+          "thinkingTokens": 4
+        },
+        "model": null
+      },
+      {
+        "name": "blank pick falls back to the model",
+        "text": "{\"model\":\"glm-5.3\",\"effectiveFactoryRouterModel\":{\"modelId\":\" \"},\"tokenUsage\":{\"inputTokens\":120,\"outputTokens\":30,\"cacheCreationTokens\":7,\"cacheReadTokens\":900,\"thinkingTokens\":4}}",
+        "readable": true,
+        "counters": {
+          "inputTokens": 120,
+          "cacheCreationTokens": 7,
+          "cacheReadTokens": 900,
+          "outputTokens": 30,
+          "thinkingTokens": 4
+        },
+        "model": "glm-5.3"
+      },
+      {
+        "name": "no tokenUsage (droid before 0.123)",
+        "text": "{\"model\":\"claude-sonnet-4-5\"}",
+        "readable": true,
+        "counters": null,
+        "model": "claude-sonnet-4-5"
+      },
+      {
+        "name": "tokenUsage not an object",
+        "text": "{\"model\":\"x\",\"tokenUsage\":[1,2]}",
+        "readable": true,
+        "counters": null,
+        "model": "x"
+      },
+      {
+        "name": "token values",
+        "text": "{\"tokenUsage\":{\"inputTokens\":12.9,\"outputTokens\":-7,\"cacheCreationTokens\":\"5\",\"cacheReadTokens\":1e20,\"thinkingTokens\":null,\"factoryCredits\":3.5}}",
+        "readable": true,
+        "counters": {
+          "inputTokens": 12,
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 1000000000000,
+          "outputTokens": 0,
+          "thinkingTokens": 0
+        },
+        "model": null
+      },
+      {
+        "name": "missing fields count 0",
+        "text": "{\"tokenUsage\":{\"outputTokens\":3}}",
+        "readable": true,
+        "counters": {
+          "inputTokens": 0,
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "outputTokens": 3,
+          "thinkingTokens": 0
+        },
+        "model": null
+      },
+      {
+        "name": "cut off mid-write",
+        "text": "{\"model\":\"x\",\"tokenUsage\":{\"inputTokens\":10",
+        "readable": false,
+        "counters": null,
+        "model": null
+      },
+      {
+        "name": "not an object",
+        "text": "[{\"tokenUsage\":{}}]",
+        "readable": false,
+        "counters": null,
+        "model": null
+      },
+      {
+        "name": "NaN is not JSON",
+        "text": "{\"tokenUsage\":{\"inputTokens\":NaN}}",
+        "readable": false,
+        "counters": null,
+        "model": null
+      },
+      {
+        "name": "not UTF-8",
+        "text": "{\"model\":\"café\"}",
+        "readable": false,
+        "counters": null,
+        "model": null,
+        "encoding": "latin-1"
+      },
+      {
+        "name": "exactly 1 MiB",
+        "text": "{\"model\":\"m\",\"tokenUsage\":{\"inputTokens\":120,\"outputTokens\":30,\"cacheCreationTokens\":7,\"cacheReadTokens\":900,\"thinkingTokens\":4}}",
+        "readable": true,
+        "counters": {
+          "inputTokens": 120,
+          "cacheCreationTokens": 7,
+          "cacheReadTokens": 900,
+          "outputTokens": 30,
+          "thinkingTokens": 4
+        },
+        "model": "m",
+        "size": 1048576
+      },
+      {
+        "name": "one byte more",
+        "text": "{\"model\":\"m\",\"tokenUsage\":{\"inputTokens\":120,\"outputTokens\":30,\"cacheCreationTokens\":7,\"cacheReadTokens\":900,\"thinkingTokens\":4}}",
+        "readable": false,
+        "counters": null,
+        "model": null,
+        "size": 1048577
+      }
+    ],
+    "allocations": [
+      {
+        "total": 10,
+        "weights": [
+          1,
+          1,
+          1
+        ],
+        "shares": [
+          4,
+          3,
+          3
+        ]
+      },
+      {
+        "total": 7,
+        "weights": [
+          3,
+          2,
+          2
+        ],
+        "shares": [
+          3,
+          2,
+          2
+        ]
+      },
+      {
+        "total": 5,
+        "weights": [
+          65536,
+          65536
+        ],
+        "shares": [
+          3,
+          2
+        ]
+      },
+      {
+        "total": 1,
+        "weights": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "shares": [
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "total": 0,
+        "weights": [
+          5,
+          9
+        ],
+        "shares": [
+          0,
+          0
+        ]
+      },
+      {
+        "total": 1000000000000,
+        "weights": [
+          8388608,
+          1,
+          8388607
+        ],
+        "shares": [
+          500000000000,
+          59605,
+          499999940395
+        ]
+      },
+      {
+        "total": 101,
+        "weights": [
+          70000,
+          70100,
+          140200
+        ],
+        "shares": [
+          25,
+          25,
+          51
+        ]
+      }
+    ],
+    "live": {
+      "_comment": "Steps, in order, in a scratch home: `append` writes `lines` (each followed by \\n) to a transcript; `rewrite` replaces it with `lines` through a new file (a new identity); `sidecar` writes the transcript's sidecar (`doc` as JSON) and sets its modification time (ms); `open` starts following a transcript (`atEnd`: it starts at its end, older than the startup window); a `sidecar` step with `text` writes that text instead of `doc`; `read` runs one read cycle of that transcript and compares every response emitted so far (the latest version of each key, in first-emission order), the growth still waiting (P) and, when given, the phase.",
+      "steps": [
+        {
+          "append": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c",
+              "title": "Live",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a"
+            },
+            {
+              "type": "message",
+              "id": "context-u1",
+              "timestamp": "2026-10-20T13:00:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "<system-reminder>The date is today.</system-reminder>"
+                  }
+                ],
+                "visibility": "llm_only"
+              }
+            },
+            {
+              "type": "message",
+              "id": "u1",
+              "timestamp": "2026-10-20T13:00:00.010Z",
+              "parentId": "context-u1",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Add a flag"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:00:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "tool_use",
+                    "id": "toolu_l1",
+                    "name": "Read",
+                    "input": {
+                      "file_path": "cli.ts"
+                    }
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "l-m1"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 1000,
+              "outputTokens": 120,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 0,
+              "thinkingTokens": 30,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 1000,
+              "outputTokens": 120,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 0,
+              "thinkingTokens": 30,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          },
+          "mtime": 1792501203050
+        },
+        {
+          "open": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "atEnd": false
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "responses": [
+            {
+              "key": "droid:l-m1",
+              "startMs": 1792501200010,
+              "endMs": 1792501203000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 0,
+              "cacheWriteInput": 4000,
+              "cacheWrite1hInput": 0,
+              "output": 120,
+              "reasoning": 30
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          },
+          "phase": "tools"
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "lines": [
+            {
+              "type": "message",
+              "id": "l-r1",
+              "timestamp": "2026-10-20T13:00:03.200Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_l1",
+                    "content": "export {}",
+                    "is_error": false
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 1200,
+              "outputTokens": 200,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 4800,
+              "thinkingTokens": 30,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 1200,
+              "outputTokens": 200,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 4800,
+              "thinkingTokens": 30,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          },
+          "mtime": 1792501204990
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "responses": [
+            {
+              "key": "droid:l-m1",
+              "startMs": 1792501200010,
+              "endMs": 1792501203000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 0,
+              "cacheWriteInput": 4000,
+              "cacheWrite1hInput": 0,
+              "output": 120,
+              "reasoning": 30
+            }
+          ],
+          "pending": {
+            "inputTokens": 200,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 4800,
+            "outputTokens": 80,
+            "thinkingTokens": 0
+          },
+          "phase": "generating"
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "lines": [
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:00:05.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Added --dry-run."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "l-m2"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "u1",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "responses": [
+            {
+              "key": "droid:l-m1",
+              "startMs": 1792501200010,
+              "endMs": 1792501203000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 0,
+              "cacheWriteInput": 4000,
+              "cacheWrite1hInput": 0,
+              "output": 120,
+              "reasoning": 30
+            },
+            {
+              "key": "droid:l-m2",
+              "startMs": 1792501203200,
+              "endMs": 1792501205000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 4800,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 80,
+              "reasoning": 0
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          },
+          "phase": "idle"
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "lines": [
+            {
+              "type": "message",
+              "id": "u2",
+              "timestamp": "2026-10-20T13:01:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Also document it"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:01:04.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "tool_use",
+                    "id": "toolu_l3",
+                    "name": "Edit",
+                    "input": {
+                      "file_path": "README.md",
+                      "new_string": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    }
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "l-m3"
+            },
+            {
+              "type": "message",
+              "id": "l-r3",
+              "timestamp": "2026-10-20T13:01:04.100Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_l3",
+                    "content": "ok",
+                    "is_error": false
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:01:09.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Documented."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "l-m4"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "u2",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 1800,
+              "outputTokens": 700,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 13800,
+              "thinkingTokens": 150,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 1800,
+              "outputTokens": 700,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 13800,
+              "thinkingTokens": 150,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          },
+          "mtime": 1792501269050
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "responses": [
+            {
+              "key": "droid:l-m1",
+              "startMs": 1792501200010,
+              "endMs": 1792501203000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 0,
+              "cacheWriteInput": 4000,
+              "cacheWrite1hInput": 0,
+              "output": 120,
+              "reasoning": 30
+            },
+            {
+              "key": "droid:l-m2",
+              "startMs": 1792501203200,
+              "endMs": 1792501205000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 4800,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 80,
+              "reasoning": 0
+            },
+            {
+              "key": "droid:l-m3",
+              "startMs": 1792501260000,
+              "endMs": 1792501264000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 4762,
+              "cachedInput": 4464,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 401,
+              "reasoning": 96
+            },
+            {
+              "key": "droid:l-m4",
+              "startMs": 1792501264100,
+              "endMs": 1792501269000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 4838,
+              "cachedInput": 4536,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 99,
+              "reasoning": 24
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 1200,
+              "outputTokens": 200,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 4800,
+              "thinkingTokens": 30,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 1200,
+              "outputTokens": 200,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 4800,
+              "thinkingTokens": 30,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          },
+          "mtime": 1792501290000
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "responses": [
+            {
+              "key": "droid:l-m1",
+              "startMs": 1792501200010,
+              "endMs": 1792501203000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 0,
+              "cacheWriteInput": 4000,
+              "cacheWrite1hInput": 0,
+              "output": 120,
+              "reasoning": 30
+            },
+            {
+              "key": "droid:l-m2",
+              "startMs": 1792501203200,
+              "endMs": 1792501205000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 4800,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 80,
+              "reasoning": 0
+            },
+            {
+              "key": "droid:l-m3",
+              "startMs": 1792501260000,
+              "endMs": 1792501264000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 4762,
+              "cachedInput": 4464,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 401,
+              "reasoning": 96
+            },
+            {
+              "key": "droid:l-m4",
+              "startMs": 1792501264100,
+              "endMs": 1792501269000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 4838,
+              "cachedInput": 4536,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 99,
+              "reasoning": 24
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "lines": [
+            {
+              "type": "message",
+              "id": "u3",
+              "timestamp": "2026-10-20T13:02:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Run it"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:02:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "It runs."
+                  }
+                ],
+                "modelId": "claude-sonnet-4-5-20250929",
+                "reasoningEffort": "medium"
+              },
+              "id": "l-m5"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 1900,
+              "outputTokens": 260,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 14300,
+              "thinkingTokens": 35,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 1900,
+              "outputTokens": 260,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 14300,
+              "thinkingTokens": 35,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          },
+          "mtime": 1792501323050
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "responses": [
+            {
+              "key": "droid:l-m1",
+              "startMs": 1792501200010,
+              "endMs": 1792501203000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 0,
+              "cacheWriteInput": 4000,
+              "cacheWrite1hInput": 0,
+              "output": 120,
+              "reasoning": 30
+            },
+            {
+              "key": "droid:l-m2",
+              "startMs": 1792501203200,
+              "endMs": 1792501205000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 4800,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 80,
+              "reasoning": 0
+            },
+            {
+              "key": "droid:l-m3",
+              "startMs": 1792501260000,
+              "endMs": 1792501264000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 4762,
+              "cachedInput": 4464,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 401,
+              "reasoning": 96
+            },
+            {
+              "key": "droid:l-m4",
+              "startMs": 1792501264100,
+              "endMs": 1792501269000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 4838,
+              "cachedInput": 4536,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 99,
+              "reasoning": 24
+            },
+            {
+              "key": "droid:l-m5",
+              "startMs": 1792501320000,
+              "endMs": 1792501323000,
+              "model": "claude-sonnet-4-5-20250929",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 600,
+              "cachedInput": 500,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 0,
+              "reasoning": 0
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 2200,
+              "outputTokens": 260,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 14300,
+              "thinkingTokens": 35,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 2200,
+              "outputTokens": 260,
+              "cacheCreationTokens": 4000,
+              "cacheReadTokens": 14300,
+              "thinkingTokens": 35,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          },
+          "mtime": 1792501350000
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "responses": [
+            {
+              "key": "droid:l-m1",
+              "startMs": 1792501200010,
+              "endMs": 1792501203000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 0,
+              "cacheWriteInput": 4000,
+              "cacheWrite1hInput": 0,
+              "output": 120,
+              "reasoning": 30
+            },
+            {
+              "key": "droid:l-m2",
+              "startMs": 1792501203200,
+              "endMs": 1792501205000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 4800,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 80,
+              "reasoning": 0
+            },
+            {
+              "key": "droid:l-m3",
+              "startMs": 1792501260000,
+              "endMs": 1792501264000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 4762,
+              "cachedInput": 4464,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 401,
+              "reasoning": 96
+            },
+            {
+              "key": "droid:l-m4",
+              "startMs": 1792501264100,
+              "endMs": 1792501269000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 4838,
+              "cachedInput": 4536,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 99,
+              "reasoning": 24
+            },
+            {
+              "key": "droid:l-m5",
+              "startMs": 1792501320000,
+              "endMs": 1792501323000,
+              "model": "claude-sonnet-4-5-20250929",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 600,
+              "cachedInput": 500,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 0,
+              "reasoning": 0
+            }
+          ],
+          "pending": {
+            "inputTokens": 300,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "lines": [
+            {
+              "type": "message",
+              "id": "u4",
+              "timestamp": "2026-10-20T13:03:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Thanks"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:03:02.500Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "You're welcome."
+                  }
+                ],
+                "modelId": "claude-sonnet-4-5-20250929"
+              },
+              "id": "l-m6"
+            }
+          ]
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "responses": [
+            {
+              "key": "droid:l-m1",
+              "startMs": 1792501200010,
+              "endMs": 1792501203000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 0,
+              "cacheWriteInput": 4000,
+              "cacheWrite1hInput": 0,
+              "output": 120,
+              "reasoning": 30
+            },
+            {
+              "key": "droid:l-m2",
+              "startMs": 1792501203200,
+              "endMs": 1792501205000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 5000,
+              "cachedInput": 4800,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 80,
+              "reasoning": 0
+            },
+            {
+              "key": "droid:l-m3",
+              "startMs": 1792501260000,
+              "endMs": 1792501264000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 4762,
+              "cachedInput": 4464,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 401,
+              "reasoning": 96
+            },
+            {
+              "key": "droid:l-m4",
+              "startMs": 1792501264100,
+              "endMs": 1792501269000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 4838,
+              "cachedInput": 4536,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 99,
+              "reasoning": 24
+            },
+            {
+              "key": "droid:l-m5",
+              "startMs": 1792501320000,
+              "endMs": 1792501323000,
+              "model": "claude-sonnet-4-5-20250929",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 600,
+              "cachedInput": 500,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 0,
+              "reasoning": 0
+            },
+            {
+              "key": "droid:l-m6",
+              "startMs": 1792501380000,
+              "endMs": 1792501382500,
+              "model": "claude-sonnet-4-5-20250929",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 300,
+              "cachedInput": 0,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 0,
+              "reasoning": 0
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/6b2e8d4f-1a5c-4f3b-9d7e-0c1f2a3b4c5d.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "6b2e8d4f-1a5c-4f3b-9d7e-0c1f2a3b4c5d",
+              "title": "Old",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a"
+            },
+            {
+              "type": "message",
+              "id": "v1",
+              "timestamp": "2026-10-20T09:00:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Old work"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T09:00:04.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Done long ago."
+                  }
+                ],
+                "modelId": "gpt-5.5",
+                "reasoningEffort": "low"
+              },
+              "id": "s-m1"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "v1",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/6b2e8d4f-1a5c-4f3b-9d7e-0c1f2a3b4c5d.jsonl",
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 50000,
+              "outputTokens": 9000,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 200000,
+              "thinkingTokens": 1000,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 50000,
+              "outputTokens": 9000,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 200000,
+              "thinkingTokens": 1000,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          },
+          "mtime": 1792486804050
+        },
+        {
+          "open": ".factory/sessions/-Users-dev-p/6b2e8d4f-1a5c-4f3b-9d7e-0c1f2a3b4c5d.jsonl",
+          "atEnd": true
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/6b2e8d4f-1a5c-4f3b-9d7e-0c1f2a3b4c5d.jsonl",
+          "responses": [],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/6b2e8d4f-1a5c-4f3b-9d7e-0c1f2a3b4c5d.jsonl",
+          "lines": [
+            {
+              "type": "message",
+              "id": "v2",
+              "timestamp": "2026-10-20T13:05:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Resume"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:05:02.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Resumed."
+                  }
+                ],
+                "modelId": "gpt-5.5",
+                "reasoningEffort": "low"
+              },
+              "id": "s-m2"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/6b2e8d4f-1a5c-4f3b-9d7e-0c1f2a3b4c5d.jsonl",
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 50400,
+              "outputTokens": 9080,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 210000,
+              "thinkingTokens": 1010,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 50400,
+              "outputTokens": 9080,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 210000,
+              "thinkingTokens": 1010,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          },
+          "mtime": 1792501502050
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/6b2e8d4f-1a5c-4f3b-9d7e-0c1f2a3b4c5d.jsonl",
+          "responses": [
+            {
+              "key": "droid:s-m2",
+              "startMs": 1792501500000,
+              "endMs": 1792501502000,
+              "model": "gpt-5.5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 10400,
+              "cachedInput": 10000,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 80,
+              "reasoning": 10
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "rewrite": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c",
+              "title": "Live",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a"
+            },
+            {
+              "type": "message",
+              "id": "context-u1",
+              "timestamp": "2026-10-20T13:00:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "<system-reminder>The date is today.</system-reminder>"
+                  }
+                ],
+                "visibility": "llm_only"
+              }
+            },
+            {
+              "type": "message",
+              "id": "u1",
+              "timestamp": "2026-10-20T13:00:00.010Z",
+              "parentId": "context-u1",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Add a flag"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:00:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "tool_use",
+                    "id": "toolu_l1",
+                    "name": "Read",
+                    "input": {
+                      "file_path": "cli.ts"
+                    }
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "l-m1"
+            },
+            {
+              "type": "message",
+              "id": "l-r1",
+              "timestamp": "2026-10-20T13:00:03.200Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_l1",
+                    "content": "export {}",
+                    "is_error": false
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:00:05.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Added --dry-run."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "l-m2"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "u1",
+              "reason": "completed",
+              "resultKind": "text"
+            },
+            {
+              "type": "message",
+              "id": "u2",
+              "timestamp": "2026-10-20T13:01:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Also document it"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:01:04.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "tool_use",
+                    "id": "toolu_l3",
+                    "name": "Edit",
+                    "input": {
+                      "file_path": "README.md",
+                      "new_string": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    }
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "l-m3"
+            },
+            {
+              "type": "message",
+              "id": "l-r3",
+              "timestamp": "2026-10-20T13:01:04.100Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_l3",
+                    "content": "ok",
+                    "is_error": false
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:01:09.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Documented."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "l-m4"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "u2",
+              "reason": "completed",
+              "resultKind": "text"
+            },
+            {
+              "type": "message",
+              "id": "u3",
+              "timestamp": "2026-10-20T13:02:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Run it"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:02:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "It runs."
+                  }
+                ],
+                "modelId": "claude-sonnet-4-5-20250929",
+                "reasoningEffort": "medium"
+              },
+              "id": "l-m5"
+            },
+            {
+              "type": "message",
+              "id": "u4",
+              "timestamp": "2026-10-20T13:03:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Thanks"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T13:03:02.500Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "You're welcome."
+                  }
+                ],
+                "modelId": "claude-sonnet-4-5-20250929"
+              },
+              "id": "l-m6"
+            }
+          ]
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/5a1d7c3e-0f4b-4e2a-8c6d-9b0e1f2a3b4c.jsonl",
+          "responses": [
+            {
+              "key": "droid:l-m1",
+              "startMs": 1792501200010,
+              "endMs": 1792501203000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 3343,
+              "cachedInput": 2332,
+              "cacheWriteInput": 652,
+              "cacheWrite1hInput": 0,
+              "output": 34,
+              "reasoning": 4
+            },
+            {
+              "key": "droid:l-m2",
+              "startMs": 1792501203200,
+              "endMs": 1792501205000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 3366,
+              "cachedInput": 2348,
+              "cacheWriteInput": 657,
+              "cacheWrite1hInput": 0,
+              "output": 29,
+              "reasoning": 4
+            },
+            {
+              "key": "droid:l-m3",
+              "startMs": 1792501260000,
+              "endMs": 1792501264000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 3390,
+              "cachedInput": 2365,
+              "cacheWriteInput": 661,
+              "cacheWrite1hInput": 0,
+              "output": 113,
+              "reasoning": 15
+            },
+            {
+              "key": "droid:l-m4",
+              "startMs": 1792501264100,
+              "endMs": 1792501269000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 3445,
+              "cachedInput": 2403,
+              "cacheWriteInput": 672,
+              "cacheWrite1hInput": 0,
+              "output": 28,
+              "reasoning": 4
+            },
+            {
+              "key": "droid:l-m5",
+              "startMs": 1792501320000,
+              "endMs": 1792501323000,
+              "model": "claude-sonnet-4-5-20250929",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 3468,
+              "cachedInput": 2419,
+              "cacheWriteInput": 677,
+              "cacheWrite1hInput": 0,
+              "output": 29,
+              "reasoning": 4
+            },
+            {
+              "key": "droid:l-m6",
+              "startMs": 1792501380000,
+              "endMs": 1792501382500,
+              "model": "claude-sonnet-4-5-20250929",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 3488,
+              "cachedInput": 2433,
+              "cacheWriteInput": 681,
+              "cacheWrite1hInput": 0,
+              "output": 27,
+              "reasoning": 4
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/7a1b2c3d-0000-4000-8000-000000000001.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "7a1b2c3d-0000-4000-8000-000000000001",
+              "title": "Parent",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a"
+            },
+            {
+              "type": "message",
+              "id": "p-7a1b",
+              "timestamp": "2026-10-20T14:00:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Start"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T14:00:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Started."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "pm-7a1b"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "p-7a1b",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/7a1b2c3d-0000-4000-8000-000000000001.jsonl",
+          "mtime": 1792504803100,
+          "text": "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":4"
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/8b2c3d4e-0000-4000-8000-000000000002.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "8b2c3d4e-0000-4000-8000-000000000002",
+              "title": "Continue",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a",
+              "parent": "7a1b2c3d-0000-4000-8000-000000000001"
+            },
+            {
+              "type": "compaction_state",
+              "id": "fc-8b2c",
+              "timestamp": "2026-10-20T14:01:00.000Z",
+              "summaryText": "USER: earlier work",
+              "summaryTokens": 1800,
+              "summaryKind": "auto",
+              "removedCount": 3
+            },
+            {
+              "type": "message",
+              "id": "f-8b2c",
+              "timestamp": "2026-10-20T14:01:01.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continue"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T14:01:04.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continued."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "fm-8b2c"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "f-8b2c",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/8b2c3d4e-0000-4000-8000-000000000002.jsonl",
+          "mtime": 1792504864050,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 5600,
+              "outputTokens": 520,
+              "cacheCreationTokens": 1000,
+              "cacheReadTokens": 41000,
+              "thinkingTokens": 60,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 5600,
+              "outputTokens": 520,
+              "cacheCreationTokens": 1000,
+              "cacheReadTokens": 41000,
+              "thinkingTokens": 60,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "open": ".factory/sessions/-Users-dev-p/8b2c3d4e-0000-4000-8000-000000000002.jsonl",
+          "atEnd": false
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/8b2c3d4e-0000-4000-8000-000000000002.jsonl",
+          "responses": [],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/7a1b2c3d-0000-4000-8000-000000000001.jsonl",
+          "mtime": 1792504865000,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 5000,
+              "outputTokens": 400,
+              "cacheCreationTokens": 1000,
+              "cacheReadTokens": 20000,
+              "thinkingTokens": 50,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 5000,
+              "outputTokens": 400,
+              "cacheCreationTokens": 1000,
+              "cacheReadTokens": 20000,
+              "thinkingTokens": 50,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/8b2c3d4e-0000-4000-8000-000000000002.jsonl",
+          "responses": [
+            {
+              "key": "droid:fm-8b2c",
+              "startMs": 1792504861000,
+              "endMs": 1792504864000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 21600,
+              "cachedInput": 21000,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 120,
+              "reasoning": 10
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/9c3d4e5f-0000-4000-8000-000000000003.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "9c3d4e5f-0000-4000-8000-000000000003",
+              "title": "Parent",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a"
+            },
+            {
+              "type": "message",
+              "id": "p-9c3d",
+              "timestamp": "2026-10-20T14:10:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Start"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T14:10:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Started."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "pm-9c3d"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "p-9c3d",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/9c3d4e5f-0000-4000-8000-000000000003.jsonl",
+          "mtime": 1792505403100,
+          "text": "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":4"
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/ad4e5f60-0000-4000-8000-000000000004.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "ad4e5f60-0000-4000-8000-000000000004",
+              "title": "Continue",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a",
+              "parent": "9c3d4e5f-0000-4000-8000-000000000003"
+            },
+            {
+              "type": "compaction_state",
+              "id": "fc-ad4e",
+              "timestamp": "2026-10-20T14:11:00.000Z",
+              "summaryText": "USER: earlier work",
+              "summaryTokens": 1800,
+              "summaryKind": "auto",
+              "removedCount": 3
+            },
+            {
+              "type": "message",
+              "id": "f-ad4e",
+              "timestamp": "2026-10-20T14:11:01.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continue"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T14:11:04.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continued."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "fm-ad4e"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "f-ad4e",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/ad4e5f60-0000-4000-8000-000000000004.jsonl",
+          "mtime": 1792505464050,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 1500,
+              "outputTokens": 90,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 6000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 1500,
+              "outputTokens": 90,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 6000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "open": ".factory/sessions/-Users-dev-p/ad4e5f60-0000-4000-8000-000000000004.jsonl",
+          "atEnd": false
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/ad4e5f60-0000-4000-8000-000000000004.jsonl",
+          "responses": [],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/ad4e5f60-0000-4000-8000-000000000004.jsonl",
+          "responses": [
+            {
+              "key": "droid:fm-ad4e",
+              "startMs": 1792505461000,
+              "endMs": 1792505464000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 7500,
+              "cachedInput": 6000,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 90,
+              "reasoning": 0
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/be5f6071-0000-4000-8000-000000000005.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "be5f6071-0000-4000-8000-000000000005",
+              "title": "Parent",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a"
+            },
+            {
+              "type": "message",
+              "id": "p-be5f",
+              "timestamp": "2026-10-20T08:00:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Start"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T08:00:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Started."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "pm-be5f"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "p-be5f",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/be5f6071-0000-4000-8000-000000000005.jsonl",
+          "mtime": 1792483203100,
+          "text": "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":4"
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "lines": [
+            {
+              "type": "session_start",
+              "id": "cf607182-0000-4000-8000-000000000006",
+              "title": "Continue",
+              "owner": "dev",
+              "version": 2,
+              "cwd": "/Users/dev/p",
+              "hostId": "host-7f3a",
+              "parent": "be5f6071-0000-4000-8000-000000000005"
+            },
+            {
+              "type": "compaction_state",
+              "id": "fc-cf60",
+              "timestamp": "2026-10-20T08:01:00.000Z",
+              "summaryText": "USER: earlier work",
+              "summaryTokens": 1800,
+              "summaryKind": "auto",
+              "removedCount": 3
+            },
+            {
+              "type": "message",
+              "id": "f-cf60",
+              "timestamp": "2026-10-20T08:01:01.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continue"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T08:01:04.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Continued."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "fm-cf60"
+            },
+            {
+              "type": "agent_turn_outcome",
+              "turnId": "f-cf60",
+              "reason": "completed",
+              "resultKind": "text"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "mtime": 1792483264050,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 4500,
+              "outputTokens": 380,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 18000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 4500,
+              "outputTokens": 380,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 18000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "open": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "atEnd": true
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/be5f6071-0000-4000-8000-000000000005.jsonl",
+          "mtime": 1792506000000,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 4000,
+              "outputTokens": 300,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 10000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 4000,
+              "outputTokens": 300,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 10000,
+              "thinkingTokens": 0,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "responses": [],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        },
+        {
+          "append": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "lines": [
+            {
+              "type": "message",
+              "id": "g-k3",
+              "timestamp": "2026-10-20T14:30:00.000Z",
+              "parentId": null,
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "More"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "message",
+              "timestamp": "2026-10-20T14:30:03.000Z",
+              "parentId": null,
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "More done."
+                  }
+                ],
+                "modelId": "claude-opus-5-5",
+                "reasoningEffort": "high"
+              },
+              "id": "gm-k3"
+            }
+          ]
+        },
+        {
+          "sidecar": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "mtime": 1792506603050,
+          "doc": {
+            "model": "claude-opus-5-5",
+            "reasoningEffort": "high",
+            "interactionMode": "auto",
+            "autonomyLevel": "medium",
+            "assistantActiveTimeMs": 61000,
+            "tokenUsage": {
+              "inputTokens": 4900,
+              "outputTokens": 460,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 30000,
+              "thinkingTokens": 5,
+              "factoryCredits": 0
+            },
+            "inclusiveTokenUsage": {
+              "inputTokens": 4900,
+              "outputTokens": 460,
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 30000,
+              "thinkingTokens": 5,
+              "factoryCredits": 0
+            },
+            "childInclusiveTokenUsageBySessionId": {},
+            "lastCallTokenUsage": {
+              "inputTokens": 10,
+              "outputTokens": 5,
+              "cacheReadTokens": 0
+            }
+          }
+        },
+        {
+          "read": ".factory/sessions/-Users-dev-p/cf607182-0000-4000-8000-000000000006.jsonl",
+          "responses": [
+            {
+              "key": "droid:gm-k3",
+              "startMs": 1792506600000,
+              "endMs": 1792506603000,
+              "model": "claude-opus-5-5",
+              "provider": null,
+              "fast": false,
+              "final": true,
+              "input": 12400,
+              "cachedInput": 12000,
+              "cacheWriteInput": 0,
+              "cacheWrite1hInput": 0,
+              "output": 80,
+              "reasoning": 5
+            }
+          ],
+          "pending": {
+            "inputTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "outputTokens": 0,
+            "thinkingTokens": 0
+          }
+        }
+      ]
+    },
+    "history": {
+      "_comment": "Steps in a scratch home with only Factory Droid sessions: `write` sets a file's `text` and modification time (ms); `analyze` runs a history analysis of the home's sessions (METRICS 8, the history rule of 4.16), keeping the remembered parent signatures from the analyses before, and compares the responses per session file and the session files skipped because their own counters are unknown.",
+      "steps": [
+        {
+          "write": ".factory/sessions/-Users-dev-h/1a2b3c4d-0000-4000-8000-00000000000a.jsonl",
+          "mtime": 1792512004000,
+          "text": "{\"type\":\"session_start\",\"id\":\"1a2b3c4d-0000-4000-8000-00000000000a\",\"title\":\"Parent\",\"owner\":\"dev\",\"version\":2,\"cwd\":\"/Users/dev/h\",\"hostId\":\"host-7f3a\"}\n{\"type\":\"message\",\"id\":\"p-1a2b\",\"timestamp\":\"2026-10-20T16:00:00.000Z\",\"parentId\":null,\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Start\"}]}}\n{\"type\":\"message\",\"timestamp\":\"2026-10-20T16:00:03.000Z\",\"parentId\":null,\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Started.\"}],\"modelId\":\"claude-opus-5-5\",\"reasoningEffort\":\"high\"},\"id\":\"pm-1a2b\"}\n{\"type\":\"agent_turn_outcome\",\"turnId\":\"p-1a2b\",\"reason\":\"completed\",\"resultKind\":\"text\"}\n"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/1a2b3c4d-0000-4000-8000-00000000000a.settings.json",
+          "mtime": 1792512005000,
+          "text": "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":4"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/2b3c4d5e-0000-4000-8000-00000000000b.jsonl",
+          "mtime": 1792512065000,
+          "text": "{\"type\":\"session_start\",\"id\":\"2b3c4d5e-0000-4000-8000-00000000000b\",\"title\":\"Continue\",\"owner\":\"dev\",\"version\":2,\"cwd\":\"/Users/dev/h\",\"hostId\":\"host-7f3a\",\"parent\":\"1a2b3c4d-0000-4000-8000-00000000000a\"}\n{\"type\":\"compaction_state\",\"id\":\"fc-2b3c\",\"timestamp\":\"2026-10-20T16:01:00.000Z\",\"summaryText\":\"USER: earlier work\",\"summaryTokens\":1800,\"summaryKind\":\"auto\",\"removedCount\":3}\n{\"type\":\"message\",\"id\":\"f-2b3c\",\"timestamp\":\"2026-10-20T16:01:01.000Z\",\"parentId\":null,\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Continue\"}]}}\n{\"type\":\"message\",\"timestamp\":\"2026-10-20T16:01:04.000Z\",\"parentId\":null,\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Continued.\"}],\"modelId\":\"claude-opus-5-5\",\"reasoningEffort\":\"high\"},\"id\":\"fm-2b3c\"}\n{\"type\":\"agent_turn_outcome\",\"turnId\":\"f-2b3c\",\"reason\":\"completed\",\"resultKind\":\"text\"}\n"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/2b3c4d5e-0000-4000-8000-00000000000b.settings.json",
+          "mtime": 1792512065500,
+          "text": "{\n  \"model\": \"claude-opus-5-5\",\n  \"reasoningEffort\": \"high\",\n  \"interactionMode\": \"auto\",\n  \"autonomyLevel\": \"medium\",\n  \"assistantActiveTimeMs\": 61000,\n  \"tokenUsage\": {\n    \"inputTokens\": 3800,\n    \"outputTokens\": 450,\n    \"cacheCreationTokens\": 0,\n    \"cacheReadTokens\": 20000,\n    \"thinkingTokens\": 20,\n    \"factoryCredits\": 0\n  },\n  \"inclusiveTokenUsage\": {\n    \"inputTokens\": 3800,\n    \"outputTokens\": 450,\n    \"cacheCreationTokens\": 0,\n    \"cacheReadTokens\": 20000,\n    \"thinkingTokens\": 20,\n    \"factoryCredits\": 0\n  },\n  \"childInclusiveTokenUsageBySessionId\": {},\n  \"lastCallTokenUsage\": {\n    \"inputTokens\": 10,\n    \"outputTokens\": 5,\n    \"cacheReadTokens\": 0\n  }\n}"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/3c4d5e6f-0000-4000-8000-00000000000c.jsonl",
+          "mtime": 1792512604000,
+          "text": "{\"type\":\"session_start\",\"id\":\"3c4d5e6f-0000-4000-8000-00000000000c\",\"title\":\"Parent\",\"owner\":\"dev\",\"version\":2,\"cwd\":\"/Users/dev/h\",\"hostId\":\"host-7f3a\"}\n{\"type\":\"message\",\"id\":\"p-3c4d\",\"timestamp\":\"2026-10-20T16:10:00.000Z\",\"parentId\":null,\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Start\"}]}}\n{\"type\":\"message\",\"timestamp\":\"2026-10-20T16:10:03.000Z\",\"parentId\":null,\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Started.\"}],\"modelId\":\"claude-opus-5-5\",\"reasoningEffort\":\"high\"},\"id\":\"pm-3c4d\"}\n{\"type\":\"agent_turn_outcome\",\"turnId\":\"p-3c4d\",\"reason\":\"completed\",\"resultKind\":\"text\"}\n"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/3c4d5e6f-0000-4000-8000-00000000000c.settings.json",
+          "mtime": 1792512605000,
+          "text": "{\"model\":\"claude-opus-5-5\",\"tokenUsage\":{\"inputTokens\":4"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/4d5e6f70-0000-4000-8000-00000000000d.jsonl",
+          "mtime": 1792512665000,
+          "text": "{\"type\":\"session_start\",\"id\":\"4d5e6f70-0000-4000-8000-00000000000d\",\"title\":\"Continue\",\"owner\":\"dev\",\"version\":2,\"cwd\":\"/Users/dev/h\",\"hostId\":\"host-7f3a\",\"parent\":\"3c4d5e6f-0000-4000-8000-00000000000c\"}\n{\"type\":\"compaction_state\",\"id\":\"fc-4d5e\",\"timestamp\":\"2026-10-20T16:11:00.000Z\",\"summaryText\":\"USER: earlier work\",\"summaryTokens\":1800,\"summaryKind\":\"auto\",\"removedCount\":3}\n{\"type\":\"message\",\"id\":\"f-4d5e\",\"timestamp\":\"2026-10-20T16:11:01.000Z\",\"parentId\":null,\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Continue\"}]}}\n{\"type\":\"message\",\"timestamp\":\"2026-10-20T16:11:04.000Z\",\"parentId\":null,\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Continued.\"}],\"modelId\":\"claude-opus-5-5\",\"reasoningEffort\":\"high\"},\"id\":\"fm-4d5e\"}\n{\"type\":\"agent_turn_outcome\",\"turnId\":\"f-4d5e\",\"reason\":\"completed\",\"resultKind\":\"text\"}\n"
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/4d5e6f70-0000-4000-8000-00000000000d.settings.json",
+          "mtime": 1792512665500,
+          "text": "{\n  \"model\": \"claude-opus-5-5\",\n  \"reasoningEffort\": \"high\",\n  \"interactionMode\": \"auto\",\n  \"autonomyLevel\": \"medium\",\n  \"assistantActiveTimeMs\": 61000,\n  \"tokenUsage\": {\n    \"inputTokens\": 2500,\n    \"outputTokens\": 180,\n    \"cacheCreationTokens\": 100,\n    \"cacheReadTokens\": 7000,\n    \"thinkingTokens\": 10,\n    \"factoryCredits\": 0\n  },\n  \"inclusiveTokenUsage\": {\n    \"inputTokens\": 2500,\n    \"outputTokens\": 180,\n    \"cacheCreationTokens\": 100,\n    \"cacheReadTokens\": 7000,\n    \"thinkingTokens\": 10,\n    \"factoryCredits\": 0\n  },\n  \"childInclusiveTokenUsageBySessionId\": {},\n  \"lastCallTokenUsage\": {\n    \"inputTokens\": 10,\n    \"outputTokens\": 5,\n    \"cacheReadTokens\": 0\n  }\n}"
+        },
+        {
+          "analyze": true,
+          "responses": {},
+          "skipped": [
+            ".factory/sessions/-Users-dev-h/2b3c4d5e-0000-4000-8000-00000000000b.jsonl",
+            ".factory/sessions/-Users-dev-h/4d5e6f70-0000-4000-8000-00000000000d.jsonl"
+          ]
+        },
+        {
+          "write": ".factory/sessions/-Users-dev-h/1a2b3c4d-0000-4000-8000-00000000000a.settings.json",
+          "mtime": 1792513200000,
+          "text": "{\n  \"model\": \"claude-opus-5-5\",\n  \"reasoningEffort\": \"high\",\n  \"interactionMode\": \"auto\",\n  \"autonomyLevel\": \"medium\",\n  \"assistantActiveTimeMs\": 61000,\n  \"tokenUsage\": {\n    \"inputTokens\": 3000,\n    \"outputTokens\": 300,\n    \"cacheCreationTokens\": 0,\n    \"cacheReadTokens\": 9000,\n    \"thinkingTokens\": 0,\n    \"factoryCredits\": 0\n  },\n  \"inclusiveTokenUsage\": {\n    \"inputTokens\": 3000,\n    \"outputTokens\": 300,\n    \"cacheCreationTokens\": 0,\n    \"cacheReadTokens\": 9000,\n    \"thinkingTokens\": 0,\n    \"factoryCredits\": 0\n  },\n  \"childInclusiveTokenUsageBySessionId\": {},\n  \"lastCallTokenUsage\": {\n    \"inputTokens\": 10,\n    \"outputTokens\": 5,\n    \"cacheReadTokens\": 0\n  }\n}"
+        },
+        {
+          "analyze": true,
+          "responses": {
+            ".factory/sessions/-Users-dev-h/1a2b3c4d-0000-4000-8000-00000000000a.jsonl": [
+              {
+                "key": "droid:pm-1a2b",
+                "startMs": 1792512000000,
+                "endMs": 1792512003000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 12000,
+                "cachedInput": 9000,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 300,
+                "reasoning": 0
+              }
+            ],
+            ".factory/sessions/-Users-dev-h/2b3c4d5e-0000-4000-8000-00000000000b.jsonl": [
+              {
+                "key": "droid:fm-2b3c",
+                "startMs": 1792512061000,
+                "endMs": 1792512064000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 11800,
+                "cachedInput": 11000,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 150,
+                "reasoning": 20
+              }
+            ],
+            ".factory/sessions/-Users-dev-h/4d5e6f70-0000-4000-8000-00000000000d.jsonl": [
+              {
+                "key": "droid:fm-4d5e",
+                "startMs": 1792512661000,
+                "endMs": 1792512664000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 9600,
+                "cachedInput": 7000,
+                "cacheWriteInput": 100,
+                "cacheWrite1hInput": 0,
+                "output": 180,
+                "reasoning": 10
+              }
+            ]
+          },
+          "skipped": []
+        },
+        {
+          "analyze": true,
+          "responses": {
+            ".factory/sessions/-Users-dev-h/1a2b3c4d-0000-4000-8000-00000000000a.jsonl": [
+              {
+                "key": "droid:pm-1a2b",
+                "startMs": 1792512000000,
+                "endMs": 1792512003000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 12000,
+                "cachedInput": 9000,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 300,
+                "reasoning": 0
+              }
+            ],
+            ".factory/sessions/-Users-dev-h/2b3c4d5e-0000-4000-8000-00000000000b.jsonl": [
+              {
+                "key": "droid:fm-2b3c",
+                "startMs": 1792512061000,
+                "endMs": 1792512064000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 11800,
+                "cachedInput": 11000,
+                "cacheWriteInput": 0,
+                "cacheWrite1hInput": 0,
+                "output": 150,
+                "reasoning": 20
+              }
+            ],
+            ".factory/sessions/-Users-dev-h/4d5e6f70-0000-4000-8000-00000000000d.jsonl": [
+              {
+                "key": "droid:fm-4d5e",
+                "startMs": 1792512661000,
+                "endMs": 1792512664000,
+                "model": "claude-opus-5-5",
+                "provider": null,
+                "fast": false,
+                "final": true,
+                "input": 9600,
+                "cachedInput": 7000,
+                "cacheWriteInput": 100,
+                "cacheWrite1hInput": 0,
+                "output": 180,
+                "reasoning": 10
+              }
+            ]
+          },
+          "skipped": []
+        }
+      ]
+    },
+    "traces": [
+      {
+        "file": "droid/.factory/sessions/-C-Users-dev-projects-halo/c3d2e5f4-2d80-4e3c-9f90-4b5c6d7e8f92.jsonl",
+        "afterLine": 3,
+        "phase": "generating",
+        "inFlightStartMs": 1792494000015
+      },
+      {
+        "file": "droid/.factory/sessions/-C-Users-dev-projects-halo/c3d2e5f4-2d80-4e3c-9f90-4b5c6d7e8f92.jsonl",
+        "afterLine": 4,
+        "phase": "tools",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-quasar/e5f4a7b6-4fa2-4a5e-9b12-6d7e8f9a0b14.jsonl",
+        "afterLine": 3,
+        "phase": "generating",
+        "inFlightStartMs": 1792504800012
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-quasar/e5f4a7b6-4fa2-4a5e-9b12-6d7e8f9a0b14.jsonl",
+        "afterLine": 4,
+        "phase": "generating",
+        "inFlightStartMs": 1792504800012
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-quasar/e5f4a7b6-4fa2-4a5e-9b12-6d7e8f9a0b14.jsonl",
+        "afterLine": 5,
+        "phase": "generating",
+        "inFlightStartMs": 1792506600000
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-quasar/e5f4a7b6-4fa2-4a5e-9b12-6d7e8f9a0b14.jsonl",
+        "afterLine": 8,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+        "afterLine": 3,
+        "phase": "generating",
+        "inFlightStartMs": 1792540680010
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+        "afterLine": 4,
+        "phase": "tools",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+        "afterLine": 6,
+        "phase": "generating",
+        "inFlightStartMs": 1792540684900
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+        "afterLine": 7,
+        "phase": "tools",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+        "afterLine": 9,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+        "afterLine": 10,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+        "afterLine": 15,
+        "phase": "generating",
+        "inFlightStartMs": 1792573200020
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+        "afterLine": 16,
+        "phase": "generating",
+        "inFlightStartMs": 1792573220000
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+        "afterLine": 17,
+        "phase": "tools",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+        "afterLine": 19,
+        "phase": "generating",
+        "inFlightStartMs": 1792573227000
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a1f0c3d2-0b6e-4c1a-9d7e-2f3a4b5c6d70.jsonl",
+        "afterLine": 21,
+        "phase": "idle",
+        "inFlightStartMs": null
+      },
+      {
+        "file": "droid/.factory/sessions/-Users-dev-projects-forge/a7b6c9d8-6bc4-4a70-9d34-8f9a0b1c2d36.jsonl",
+        "afterLine": 4,
+        "phase": "generating",
+        "inFlightStartMs": 1792577100000
+      }
+    ]
   }
 }

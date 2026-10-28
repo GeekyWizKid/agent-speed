@@ -151,6 +151,9 @@ enum TranscriptLocations {
     /// The Hermes Agent home (METRICS 2, 4.15) for this process's environment and home folder.
     static var defaultHermesHome: URL { URL(fileURLWithPath: HermesHome.current.folder, isDirectory: true) }
 
+    /// Factory Droid's sessions folder (METRICS 2, 4.16); no environment variable moves it.
+    static var defaultDroidRoot: URL { DroidPaths.defaultRoot(home: home) }
+
     static func sessionsFolder(_ folder: URL) -> URL {
         folder.lastPathComponent == "sessions" ? folder : folder.appendingPathComponent("sessions", isDirectory: true)
     }
@@ -169,6 +172,7 @@ enum TranscriptLocations {
         case .kimi: [defaultKimiRoot]
         case .grokBuild: [defaultGrokBuildRoot]
         case .pi: defaultPiRoots
+        case .droid: [defaultDroidRoot]
         }
     }
 
@@ -205,6 +209,7 @@ extension MonitorConfiguration {
         case .kimi: kimiRoot.map(TranscriptLocations.sessionsFolder)
         case .grokBuild: grokBuildRoot.map(TranscriptLocations.sessionsFolder)
         case .pi: piRoot
+        case .droid: droidRoot.map(DroidPaths.sessionsFolder)
         }
     }
 

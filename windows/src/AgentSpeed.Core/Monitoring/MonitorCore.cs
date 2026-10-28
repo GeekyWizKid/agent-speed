@@ -336,6 +336,7 @@ internal sealed partial class MonitorCore : IDisposable
         foreach (var incoming in paths)
         {
             var path = incoming;
+            path = DroidTranscriptOf(path);
             if (Path.GetFileName(path) == "summary.json")
             {
                 var updates = Path.Combine(Path.GetDirectoryName(path) ?? string.Empty, "updates.jsonl");
@@ -588,7 +589,7 @@ internal sealed partial class MonitorCore : IDisposable
             return _hermes?.ActiveSessionCount(todayStartMs) ?? 0;
         }
 
-        var mainOnly = WorkBuddyPaths.IsWorkBuddy(kind) || kind is SourceKind.Kimi or SourceKind.GrokBuild or SourceKind.Pi;
+        var mainOnly = WorkBuddyPaths.IsWorkBuddy(kind) || kind is SourceKind.Kimi or SourceKind.GrokBuild or SourceKind.Pi or SourceKind.Droid;
         var count = 0;
         foreach (var tracked in _files.Values)
         {
@@ -831,6 +832,11 @@ internal sealed partial class MonitorCore : IDisposable
         var modifiedMs = new DateTimeOffset(DateTime.SpecifyKind(file.LastWriteUtc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
         if (modifiedMs < todayStartMs - BacklogWindowMs)
         {
+            if (tracked.Parser is Droid.DroidParser droid)
+            {
+                return PlanDroidAtEnd(tracked, droid, file);
+            }
+
             StartAtEnd(tracked, file);
             return null;
         }
@@ -919,7 +925,7 @@ internal sealed partial class MonitorCore : IDisposable
                     continue;
                 }
 
-                if (!TryCommit(current.File, prepared, seeded))
+                if (!TryCommit(current.File, prepared, seeded) || !current.Counted)
                 {
                     continue;
                 }
@@ -1275,8 +1281,12 @@ internal sealed partial class MonitorCore : IDisposable
         try
         {
             var info = new FileInfo(tracked.Path);
-            return info.Exists ? (info.Length, tracked.Parser is GrokBuild.GrokParser
-                ? GrokBuild.GrokFiles.Modified(tracked.Path, info.LastWriteTimeUtc) : info.LastWriteTimeUtc) : null;
+            return info.Exists ? (info.Length, tracked.Parser switch
+            {
+                GrokBuild.GrokParser => GrokBuild.GrokFiles.Modified(tracked.Path, info.LastWriteTimeUtc),
+                Droid.DroidParser => Droid.DroidPaths.Modified(tracked.Path, info.LastWriteTimeUtc),
+                _ => info.LastWriteTimeUtc,
+            }) : null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -1359,8 +1369,9 @@ internal sealed partial class MonitorCore : IDisposable
         }
     }
 
+    /// <param name="Counted">False for a read that only takes a baseline (Factory Droid's sidecar), not counted as a file read.</param>
     private readonly record struct ReadPlan(
-        TrackedFile File, DateTime LastWriteUtc, long StartOffset, StartAlignment Align, long ExpectedLength);
+        TrackedFile File, DateTime LastWriteUtc, long StartOffset, StartAlignment Align, long ExpectedLength, bool Counted = true);
 
     private readonly record struct Prepared(ILineBatch Batch, TailReadResult Result);
 

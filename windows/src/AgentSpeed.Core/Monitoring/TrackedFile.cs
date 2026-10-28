@@ -38,6 +38,9 @@ internal enum RootFamily
 
     /// <summary>Log folders read by <see cref="Hermes.HermesSource"/>; watched only, never enumerated as transcripts (METRICS 4.15).</summary>
     Hermes,
+
+    /// <summary>Factory Droid's sessions folder: transcripts read with their settings files (METRICS 4.16).</summary>
+    Droid,
 }
 
 /// <summary>Per-family file rules: names, parser and the sources it can produce (METRICS 2 and 4).</summary>
@@ -47,7 +50,7 @@ internal static class Families
     public static readonly RootFamily[] FileFamilies =
         [
             RootFamily.Codex, RootFamily.Claude, RootFamily.DeepSeek, RootFamily.Gemini, RootFamily.Omp, RootFamily.Antigravity,
-            RootFamily.WorkBuddy, RootFamily.WorkBuddyAi, RootFamily.Kimi, RootFamily.GrokBuild, RootFamily.Pi,
+            RootFamily.WorkBuddy, RootFamily.WorkBuddyAi, RootFamily.Kimi, RootFamily.GrokBuild, RootFamily.Pi, RootFamily.Droid,
         ];
 
     public static TranscriptNaming Naming(RootFamily family) => family switch
@@ -65,6 +68,7 @@ internal static class Families
         RootFamily.Pi => TranscriptNaming.PiSession,
         RootFamily.OpenClaw => TranscriptNaming.OpenClawDatabase,
         RootFamily.Hermes => TranscriptNaming.HermesLog,
+        RootFamily.Droid => TranscriptNaming.DroidSession,
         _ => TranscriptNaming.Jsonl,
     };
 
@@ -82,13 +86,15 @@ internal static class Families
         RootFamily.Kimi => new Kimi.KimiParser(path, deduper),
         RootFamily.GrokBuild => new GrokBuild.GrokParser(path, deduper),
         RootFamily.Pi => Pi.PiParser.ForPath(path, deduper),
+        RootFamily.Droid => new Droid.DroidParser(path, deduper),
         _ => throw new ArgumentOutOfRangeException(nameof(family)),
     };
 
     /// <summary>Antigravity databases are queried; every other family is a file read by its extension.</summary>
     public static TranscriptTailer CreateTailer(RootFamily family, string path) =>
         family == RootFamily.Antigravity ? new AntigravityTailer(path)
-        : family == RootFamily.GrokBuild ? new GrokBuild.GrokTailer(path) : TranscriptTailer.For(path);
+        : family == RootFamily.GrokBuild ? new GrokBuild.GrokTailer(path)
+        : family == RootFamily.Droid ? new Droid.DroidTailer(path) : TranscriptTailer.For(path);
 
     /// <summary>True when any source of the family is enabled.</summary>
     public static bool IsEnabled(RootFamily family, IReadOnlySet<SourceKind> enabled) => family switch
@@ -108,6 +114,7 @@ internal static class Families
         RootFamily.Pi => enabled.Contains(SourceKind.Pi),
         RootFamily.OpenClaw => enabled.Contains(SourceKind.OpenClaw),
         RootFamily.Hermes => enabled.Contains(SourceKind.Hermes),
+        RootFamily.Droid => enabled.Contains(SourceKind.Droid),
         _ => false,
     };
 
@@ -127,6 +134,7 @@ internal static class Families
         SourceKind.Pi => RootFamily.Pi,
         SourceKind.OpenClaw => RootFamily.OpenClaw,
         SourceKind.Hermes => RootFamily.Hermes,
+        SourceKind.Droid => RootFamily.Droid,
         _ => RootFamily.Claude,
     };
 }

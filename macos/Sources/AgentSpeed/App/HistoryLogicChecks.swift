@@ -180,6 +180,9 @@ enum HistoryLogicChecks {
         check("csv source id of Hermes Agent", HistoryCSV.sourceID(.hermes) == "hermes")
         check("settings saved before Hermes Agent load with it on and its home", hermesSettingsUpgrade())
         check("a Hermes logs folder chosen in Sources replaces the home", hermesFolderSetting())
+        check("csv source id of Factory Droid", HistoryCSV.sourceID(.droid) == "droid")
+        check("settings saved before Factory Droid load with it on and its sessions folder", droidSettingsUpgrade())
+        check("a Factory Droid folder chosen in Sources replaces ~/.factory/sessions", droidFolderSetting())
         let risky = DaySummary(
             day: today, requests: 0, input: 0, cachedInput: 0, cacheWriteInput: 0, output: 0, reasoning: 0,
             measuredOutput: 0, measuredMs: 0, unfinalized: 0, agents: 0, peak: nil,
@@ -447,6 +450,42 @@ enum HistoryLogicChecks {
             && TranscriptFolder.hermes.shownURLs(in: reloaded) == [folder]
         TranscriptFolder.hermes.setURL(nil, in: reloaded)
         return chosen && AppSettings(defaults: defaults).hermesRoot == nil && !TranscriptFolder.hermes.acceptsDatabaseFile
+    }
+
+    /// Settings saved by a version before Factory Droid: it starts enabled and reads `~/.factory/sessions`.
+    private static func droidSettingsUpgrade() -> Bool {
+        let suite = "AgentSpeedDroidUpgradeCheck"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        guard let defaults = UserDefaults(suiteName: suite) else { return false }
+        let before = SourceKind.allCases.filter { $0 != .droid }.map(\.rawValue)
+        defaults.set(before.filter { $0 != "hermes" }, forKey: "enabledSources")
+        defaults.set(before, forKey: "knownSources")
+        let settings = AppSettings(defaults: defaults)
+        return settings.isEnabled(.droid) && !settings.isEnabled(.hermes) && settings.droidRoot == nil
+            && settings.monitorConfiguration.droidRoot == nil
+            && TranscriptFolder.droid.urls(in: settings) == [LiveMonitor.defaultDroidRoot]
+            && SourceKind.droid.transcriptFolder == .droid
+    }
+
+    /// A moved `.factory` folder picked in Sources is stored and passed to the monitor; picking the automatic sessions
+    /// folder, or Reset, returns to it.
+    private static func droidFolderSetting() -> Bool {
+        let suite = "AgentSpeedDroidFolderCheck"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        guard let defaults = UserDefaults(suiteName: suite) else { return false }
+        let folder = URL(fileURLWithPath: "/Volumes/work/dev/.factory", isDirectory: true)
+        TranscriptFolder.droid.setURL(folder, in: AppSettings(defaults: defaults))
+        let reloaded = AppSettings(defaults: defaults)
+        let chosen = reloaded.droidRoot?.path == folder.path && reloaded.monitorConfiguration.droidRoot?.path == folder.path
+            && TranscriptFolder.droid.shownURLs(in: reloaded) == [folder]
+        TranscriptFolder.droid.setURL(LiveMonitor.defaultDroidRoot, in: reloaded)
+        let automatic = AppSettings(defaults: defaults).droidRoot == nil
+        TranscriptFolder.droid.setURL(folder, in: reloaded)
+        TranscriptFolder.droid.setURL(nil, in: reloaded)
+        return chosen && automatic && AppSettings(defaults: defaults).droidRoot == nil
+            && !TranscriptFolder.droid.acceptsDatabaseFile
     }
 
     /// `openclaw-agent.sqlite` picked in Sources is stored and read back as that file, not as a folder.

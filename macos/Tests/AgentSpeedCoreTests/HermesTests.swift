@@ -376,7 +376,7 @@ struct HermesTests {
     // MARK: - Source
 
     @Test func sourceOrderAndProcessRow() {
-        #expect(SourceKind.allCases.last == .hermes)
+        #expect(SourceKind.allCases.firstIndex(of: .hermes) == SourceKind.allCases.firstIndex(of: .openclaw)! + 1)
         #expect(SourceSet(.hermes).rawValue == 1 << 15)
         #expect(TranscriptFamily(.hermes) == nil)
         let mac = AgentProcessRules(platform: TrafficPlatform(kind: .macos, home: "/Users/dev"))

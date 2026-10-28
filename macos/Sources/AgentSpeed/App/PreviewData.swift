@@ -50,6 +50,7 @@ enum PreviewData {
             source(.pi, speed * 0.04, TokenTotals(requests: 31, input: 1_200_000, output: 27_000), 1),
             source(.openclaw, speed * 0.05, TokenTotals(requests: 44, input: 1_900_000, output: 36_000), 1),
             source(.hermes, speed * 0.04, TokenTotals(requests: 38, input: 1_500_000, output: 31_000), 1),
+            source(.droid, speed * 0.05, TokenTotals(requests: 41, input: 1_700_000, output: 33_000), 1),
         ]
         // Each source's intelligence sums are its agents' (METRICS 6.9: additive over agents and sources).
         let sources = measured.map { status in
@@ -207,7 +208,7 @@ enum PreviewData {
             switch source.kind {
             case .deepseek: source.available = false
             case .claudeDesktop: source.enabled = false
-            case .codex, .claudeCode, .opencode, .gemini, .omp, .antigravity, .workbuddy, .workbuddyAi, .zcode, .kimi, .grokBuild, .pi, .openclaw, .hermes: return source
+            case .codex, .claudeCode, .opencode, .gemini, .omp, .antigravity, .workbuddy, .workbuddyAi, .zcode, .kimi, .grokBuild, .pi, .openclaw, .hermes, .droid: return source
             }
             source.sessionCount = 0
             source.live = .zero
@@ -272,6 +273,7 @@ enum PreviewData {
         case .pi: 4
         case .openclaw: 6
         case .hermes: 3
+        case .droid: 2
         }
     }
 }

@@ -242,6 +242,7 @@ final class TranscriptSession {
         refreshAvailability()
 
         var backlog: [(file: DiscoveredFile, tracked: TrackedFile)] = []
+        var droidBaselines: [TrackedFile] = []
         let threshold = todayStartMs - Self.startupLookbackMs
         for root in roots where root.enabled && root.available {
             let discovered = TranscriptDiscovery.files(at: scan(root), family: root.family)
@@ -273,9 +274,14 @@ final class TranscriptSession {
                     start = .beginning
                 }
                 let tracked = track(file, family: root.family, root: root.path, start: start)
-                if readsBacklog { backlog.append((file, tracked)) }
+                if readsBacklog {
+                    backlog.append((file, tracked))
+                } else if root.family == .droid {
+                    droidBaselines.append(tracked)
+                }
             }
         }
+        takeDroidBaselines(droidBaselines)
         backlog.sort { TranscriptDiscovery.startupOrder($0.file, $1.file) }
         let ordered = backlog.map(\.tracked)
 
@@ -291,6 +297,7 @@ final class TranscriptSession {
             if result.read.didReset { file.resetParser() }
             var upserts: [ResponseUpsert] = []
             file.parser.consume(result.lines, deduper: &deduper) { upserts.append($0) }
+            if !result.read.failed { _ = file.parser.finishReadCycle { upserts.append($0) } }
             let project = projectName(of: file)
             for upsert in upserts { deliver(upsert, project: project, live: false) }
             finishRead(of: file, result: result.read)
@@ -328,6 +335,24 @@ final class TranscriptSession {
         summary.partialHistory = partialHistory
         summary.durationMs = Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
         return summary
+    }
+
+    /// Factory Droid sessions older than the startup window start at their end and take their sidecar's counters as
+    /// the baseline, so only later growth counts (METRICS 4.16). Sidecars are read concurrently.
+    private func takeDroidBaselines(_ files: [TrackedFile]) {
+        guard !files.isEmpty else { return }
+        let paths = files.map { DroidPaths.sidecarPath(ofTranscript: $0.path) }
+        let snapshots = OSAllocatedUnfairLock(initialState: [DroidSidecar.Snapshot?](repeating: nil, count: paths.count))
+        let workers = min(paths.count, max(1, min(ProcessInfo.processInfo.activeProcessorCount, Self.maxDecodeWorkers)))
+        DispatchQueue.concurrentPerform(iterations: workers) { worker in
+            for index in stride(from: worker, to: paths.count, by: workers) {
+                let snapshot = DroidSidecar.snapshot(paths[index])
+                snapshots.withLock { $0[index] = snapshot }
+            }
+        }
+        for (file, snapshot) in zip(files, snapshots.withLock { $0 }) {
+            if let snapshot { file.parser.takeBaseline(snapshot) }
+        }
     }
 
     private struct DecodeJob: Sendable {
@@ -564,19 +589,36 @@ final class TranscriptSession {
         let metadataChanged = file.parser.refreshMetadata(deduper: &deduper) { upserts.append($0) }
         for upsert in upserts { deliver(upsert, project: projectName(of: file), live: live) }
         upserts.removeAll(keepingCapacity: true)
-        let result = file.reader.read(onReset: { file.resetParser() }, onMalformed: { file.parser.noteMalformedLine() }) { bytes in
-            file.parser.consume(rawLine: bytes, deduper: &deduper) { upserts.append($0) }
+        func consume(_ bytes: UnsafeRawBufferPointer, at offset: Int64) {
+            file.parser.consume(rawLine: bytes, offset: offset, deduper: &deduper) { upserts.append($0) }
             guard !upserts.isEmpty else { return }
             let project = projectName(of: file)
             for upsert in upserts { deliver(upsert, project: project, live: live) }
             upserts.removeAll(keepingCapacity: true)
         }
+        let result: FileTailer.ReadResult
+        if file.family == .droid {
+            // Byte offsets weigh each call's share of the sidecar's growth (METRICS 4.16).
+            result = file.reader.read(onReset: { file.resetParser() }, onLineAt: consume)
+        } else {
+            result = file.reader.read(onReset: { file.resetParser() }, onMalformed: { file.parser.noteMalformedLine() }) { bytes in
+                consume(bytes, at: 0)
+            }
+        }
         if result.failed, FileStat.lstat(file.path) == nil {
             untrack(file.path)
             return true
         }
+        var cycleChanged = false
+        if !result.failed {
+            // Factory Droid: the transcript's new lines, then the sidecar, then the allocation (METRICS 4.16).
+            file.parser.noteReadStart(result.startOffset)
+            cycleChanged = file.parser.finishReadCycle { upserts.append($0) }
+            let project = projectName(of: file)
+            for upsert in upserts { deliver(upsert, project: project, live: live) }
+        }
         finishRead(of: file, result: result)
-        return metadataChanged || result.bytesRead > 0 || result.didReset
+        return metadataChanged || result.bytesRead > 0 || result.didReset || cycleChanged
     }
 
     /// One read of an Antigravity database, throttled while live (METRICS 5.4).
@@ -636,6 +678,10 @@ final class TranscriptSession {
         }
         if file.family == .grokBuild, let stat = file.family.stat(file.path) {
             file.lastStat = stat
+        } else if file.family == .droid, let stat = result.stat {
+            // The transcript as it was read, with the sidecar's time folded in like `DroidPaths.stat`, so lines written
+            // after this read still count as a change.
+            file.lastStat = DroidPaths.folding(stat, ofTranscript: file.path)
         } else if let stat = result.stat {
             file.lastStat = stat
         }
@@ -692,14 +738,14 @@ final class TranscriptSession {
         return sources
     }
 
-    /// Agents of each source with at least one line today; WorkBuddy, Kimi Code CLI, Grok Build and Pi count main
-    /// sessions only (DESIGN 5).
+    /// Agents of each source with at least one line today; WorkBuddy, Kimi Code CLI, Grok Build, Pi and Factory Droid
+    /// count main sessions only (DESIGN 5).
     func sessionCounts(todayStartMs: Int64) -> [SourceKind: Int] {
         var counts: [SourceKind: Int] = [:]
         for file in files.values {
             let state = file.parser.state
             guard let last = state.lastLineMs, last >= todayStartMs, enabledSources.contains(state.source) else { continue }
-            if (file.family.isWorkBuddy || file.family == .kimi || file.family == .grokBuild || file.family == .pi), state.isSubagent {
+            if file.family.isWorkBuddy || [.kimi, .grokBuild, .pi, .droid].contains(file.family), state.isSubagent {
                 continue
             }
             counts[state.source, default: 0] += 1

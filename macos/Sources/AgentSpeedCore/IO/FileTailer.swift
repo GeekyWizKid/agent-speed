@@ -27,6 +27,8 @@ struct FileTailer: Sendable {
         var oversized = false
         /// The path names another file than the one expected; nothing was read.
         var otherFile = false
+        /// Where reading began, when this read positioned the tailer (its first read since creation or a restart).
+        var startOffset: Int64?
     }
 
     private(set) var path: String
@@ -50,6 +52,15 @@ struct FileTailer: Sendable {
         expecting expected: FileIdentity? = nil,
         onReset: () -> Void = {},
         onLine: (UnsafeRawBufferPointer) -> Void
+    ) -> ReadResult {
+        read(expecting: expected, onReset: onReset) { line, _ in onLine(line) }
+    }
+
+    /// Like `read(expecting:onReset:onLine:)`, with each line's byte offset in the file.
+    mutating func read(
+        expecting expected: FileIdentity? = nil,
+        onReset: () -> Void = {},
+        onLineAt: (UnsafeRawBufferPointer, Int64) -> Void
     ) -> ReadResult {
         var result = ReadResult()
         let descriptor = Darwin.open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
@@ -77,6 +88,7 @@ struct FileTailer: Sendable {
         if let pending = start {
             position(at: pending, size: stat.size, descriptor: descriptor)
             start = nil
+            result.startOffset = offset
         }
         guard offset < stat.size else { return result }
 
@@ -92,7 +104,7 @@ struct FileTailer: Sendable {
                 break
             }
             if count == 0 { break }
-            lines.consume(UnsafeRawBufferPointer(rebasing: buffer[0..<count]), onLine: onLine)
+            lines.consume(UnsafeRawBufferPointer(rebasing: buffer[0..<count]), at: offset, onLine: onLineAt)
             offset += Int64(count)
             result.bytesRead += count
         }

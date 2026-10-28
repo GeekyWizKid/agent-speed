@@ -79,6 +79,13 @@ public final class LiveMonitor {
     /// log folder replaces it).
     public nonisolated static var defaultHermesHome: URL { TranscriptLocations.defaultHermesHome }
 
+    /// Factory Droid's sessions folder, `~/.factory/sessions` (a configured folder replaces it).
+    public nonisolated static var defaultDroidRoot: URL { TranscriptLocations.defaultDroidRoot }
+
+    /// The sessions folder a configured Factory Droid folder names: its `sessions` folder when it has one (a `.factory`
+    /// folder), else the folder itself (METRICS 4.16).
+    public nonisolated static func droidSessionsFolder(_ url: URL) -> URL { DroidPaths.sessionsFolder(url) }
+
     /// The agent databases a configured OpenClaw folder or file names (empty when it names none).
     public nonisolated static func openclawDatabases(in url: URL) -> [String] {
         OpenClawHome.databases(in: TranscriptDiscovery.normalizedRoot(url.path))

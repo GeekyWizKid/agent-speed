@@ -11,6 +11,15 @@ internal interface ILineSink
     void OnMalformed();
 }
 
+/// <summary>
+/// A sink that also takes each line's byte offset in the file and its length before the newline, a trailing <c>\r</c>
+/// included (Factory Droid weighs calls by bytes, METRICS 4.16).
+/// </summary>
+internal interface IPositionedLineSink : ILineSink
+{
+    void OnLine(ReadOnlySpan<byte> line, long offset, int length);
+}
+
 /// <summary>Lines extracted off-thread, applied later to their parser in file order.</summary>
 internal interface ILineBatch : ILineSink
 {

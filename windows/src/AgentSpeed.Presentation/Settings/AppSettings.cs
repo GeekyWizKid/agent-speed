@@ -180,6 +180,8 @@ public sealed record AppSettings
 
     public bool HermesEnabled { get; init; } = true;
 
+    public bool DroidEnabled { get; init; } = true;
+
     /// <summary>Null uses the default Codex sessions folder.</summary>
     public string? CodexRoot { get; init; }
 
@@ -221,6 +223,9 @@ public sealed record AppSettings
 
     /// <summary>A Hermes home or one <c>logs</c> folder; null reads the automatic Hermes home and its profiles.</summary>
     public string? HermesRoot { get; init; }
+
+    /// <summary>The Factory Droid <c>.factory</c> folder or its <c>sessions</c> folder; null uses <c>~/.factory/sessions</c>.</summary>
+    public string? DroidRoot { get; init; }
 
     public int ChartSeconds { get; init; } = 120;
 
@@ -290,6 +295,7 @@ public sealed record AppSettings
         SourceKind.Pi => PiEnabled,
         SourceKind.OpenClaw => OpenClawEnabled,
         SourceKind.Hermes => HermesEnabled,
+        SourceKind.Droid => DroidEnabled,
         _ => false,
     };
 
@@ -326,6 +332,7 @@ public sealed record AppSettings
         SourceKind.Pi => this with { PiEnabled = enabled },
         SourceKind.OpenClaw => this with { OpenClawEnabled = enabled },
         SourceKind.Hermes => this with { HermesEnabled = enabled },
+        SourceKind.Droid => this with { DroidEnabled = enabled },
         _ => this,
     };
 
@@ -335,7 +342,7 @@ public sealed record AppSettings
         return new MonitorConfiguration(enabled, CodexRoot, ClaudeRoot, DshRoot, OpenCodeRoot, GeminiRoot, OmpRoot, AntigravityRoot,
             WorkBuddyRoot: WorkBuddyRoot, WorkBuddyAiRoot: WorkBuddyAiRoot,
             ZCodeRoot: ZCodeRoot, KimiRoot: KimiRoot, GrokBuildRoot: GrokBuildRoot, PiRoot: PiRoot,
-            OpenClawRoot: OpenClawRoot, HermesRoot: HermesRoot);
+            OpenClawRoot: OpenClawRoot, HermesRoot: HermesRoot, DroidRoot: DroidRoot);
     }
 
     /// <summary>The master switch; turning it on while every orb is individually hidden makes them all visible.</summary>
@@ -388,6 +395,7 @@ public sealed record AppSettings
         PiRoot = CleanPath(PiRoot),
         OpenClawRoot = CleanPath(OpenClawRoot),
         HermesRoot = CleanPath(HermesRoot),
+        DroidRoot = CleanPath(DroidRoot),
         HistoryWindow = WindowFrame.ValidHistory(HistoryWindow),
         HistoryModeKind = HistoryModeKind == ExecutionModeKind.Speed ? ExecutionModeKind.Speed : ExecutionModeKind.Effort,
         ChartSeconds = ChartMath.NormalizeRange(ChartSeconds),
