@@ -3,11 +3,10 @@ import AgentSpeedOrbModel
 import AppKit
 
 /// The orb's two-line readout (DESIGN 10, Floating orb readout and Intelligence readout). Network speed draws download
-/// over upload, each an arrow, a number right-aligned in a cell as wide as `8.88` and a unit left-aligned in a cell as
-/// wide as `MB/s`; the intelligence readout puts the index on the line nearest the value and thinking tok/s on the
-/// other, with text glyphs in the arrow's cell. The lines share their left edge and are centered on the orb.
-/// Characters are replaced in their cells (no animation); the block fades by the quiet rule and steps aside for the
-/// new-peak pill. Drawn from the shared glyph atlas, so drawing never allocates once the digits of a size exist.
+/// over upload in fixed cells sharing their left edge, the block centered on the orb; the intelligence readout draws
+/// a larger `智力 133` line over a `思考 412 tok/s` line, each centred on the orb on its own. Characters are replaced in
+/// place (no animation); the block fades by the quiet rule and steps aside for the new-peak pill. Drawn from the
+/// shared glyph atlas, so drawing never allocates once the glyphs of a size exist.
 @MainActor
 final class OrbLineReadout {
     /// The readout fades out (and back) around the new-peak pill (DESIGN 10).
@@ -44,22 +43,20 @@ final class OrbLineReadout {
         }
     }
 
-    /// What one line draws in its three cells.
-    private enum Lead {
-        case arrow(down: Bool)
-        case glyph(String)
+    /// The ink of one block: its opacity, palette and clip.
+    private struct Ink {
+        var alpha: Double
+        var palette: Palette
+        var clip: OrbTextClip
+
+        func add(_ texture: OrbTextTexture, x: CGFloat, baseline: CGFloat, color: RGBColor, into scene: inout OrbScene) {
+            scene.add(OrbTextDraw(texture, x: x, baseline: baseline, color: color.opacity(alpha),
+                                  glow: palette.shadow?.opacity(alpha), glowRadius: palette.shadowRadius, clip: clip))
+        }
     }
 
-    private struct Line {
-        var lead: Lead
-        var number: String
-        /// Right-aligned in the `888` cell instead of the `8.88` one (the index).
-        var isInteger = false
-        var unit: String?
-    }
-
-    private func numberStyle(_ t: CGFloat) -> OrbTextStyle {
-        OrbTextStyle(size: t, weight: .semibold, monospacedDigits: true, padding: max(1, 0.03 * t))
+    private func numberStyle(_ size: CGFloat) -> OrbTextStyle {
+        OrbTextStyle(size: size, weight: .semibold, monospacedDigits: true, padding: max(1, 0.03 * size))
     }
 
     private func unitStyle(_ t: CGFloat) -> OrbTextStyle {
@@ -67,9 +64,9 @@ final class OrbLineReadout {
                      weight: .medium, padding: max(1, 0.03 * t))
     }
 
-    /// The glyphs: weight 600 at the unit's size (DESIGN 10, Intelligence readout).
-    private func glyphStyle(_ t: CGFloat) -> OrbTextStyle {
-        var style = unitStyle(t)
+    /// The glyphs: weight 600 at 0.82 × their line's size (DESIGN 10, Intelligence readout).
+    private func glyphStyle(_ size: CGFloat) -> OrbTextStyle {
+        var style = unitStyle(size)
         style.weight = .semibold
         return style
     }
@@ -98,65 +95,102 @@ final class OrbLineReadout {
         guard let lines = frame.content.lines, let reading = lines.reading, !frame.unavailable,
               OrbLineMetrics.fits(placement, diameter: frame.s, format: lines.format, language: frame.content.language) else { return 0 }
         let shown = reading.alpha(at: frame.time, reduceMotion: frame.effects.reduceMotion)
-        return placement.stackShift(layout: layout, diameter: frame.s) * CGFloat(Easing.smoothstep(0, 1, shown))
+        return placement.stackShift(layout: layout, diameter: frame.s, format: lines.format) * CGFloat(Easing.smoothstep(0, 1, shown))
     }
 
     func add(into scene: inout OrbScene, _ frame: OrbFrame, placement: OrbLinePlacement, palette: Palette,
              clip: OrbTextClip = .none, yieldsToPill: Bool = true) {
         guard let lines = frame.content.lines, let reading = lines.reading, !frame.unavailable else { return }
         let alpha = alpha(reading, frame, yieldsToPill: yieldsToPill) * frame.alpha
-        guard alpha > 0.01 else { return }
-        let language = frame.content.language
-        let t = placement.textSize(diameter: frame.s)
-        let cells = OrbLineMetrics.cells(size: t, format: lines.format, language: language)
-        let width = cells.lineWidth(size: t)
-        guard width <= placement.fit * frame.s else { return }
-        let left = frame.center.x - width / 2
-        let baselines = placement.baselines(center: frame.center.y + frame.readoutShift, diameter: frame.s)
-        let gap = OrbLinePlacement.gap * t
-        let numberLeft = left + cells.lead + gap
-        let (nearest, other) = Self.lines(reading.content, placement: placement, language: language)
-        let scale = scene.backingScale
-        func draw(_ texture: OrbTextTexture, x: CGFloat, baseline: CGFloat, color: RGBColor) {
-            scene.add(OrbTextDraw(texture, x: x, baseline: baseline, color: color.opacity(alpha),
-                                  glow: palette.shadow?.opacity(alpha), glowRadius: palette.shadowRadius, clip: clip))
-        }
-        for (line, baseline) in [(nearest, baselines.nearest), (other, baselines.other)] {
-            switch line.lead {
-            case .arrow(let down):
-                if let arrow = textCache.arrowTexture(down: down, size: t, scale: scale) {
-                    draw(arrow, x: left, baseline: baseline, color: palette.secondary)
-                }
-            case .glyph(let text):
-                if let glyph = textCache.texture(text, style: glyphStyle(t), language: language, scale: scale) {
-                    draw(glyph, x: left + (cells.lead - glyph.advance) / 2, baseline: baseline, color: palette.secondary)
-                }
-            }
-            let digits = line.number.compactMap { textCache.texture($0, style: numberStyle(t), language: .en, scale: scale) }
-            var x = numberLeft + (line.isInteger ? cells.integer : cells.number) - digits.reduce(0) { $0 + $1.advance }
-            for digit in digits {
-                draw(digit, x: x, baseline: baseline, color: palette.number)
-                x += digit.advance
-            }
-            if let unit = line.unit, let texture = textCache.texture(unit, style: unitStyle(t), language: .en, scale: scale) {
-                draw(texture, x: numberLeft + cells.number + gap, baseline: baseline, color: palette.secondary)
-            }
+        guard alpha > 0.01,
+              OrbLineMetrics.fits(placement, diameter: frame.s, format: lines.format, language: frame.content.language) else { return }
+        let ink = Ink(alpha: alpha, palette: palette, clip: clip)
+        switch reading.content {
+        case .traffic(let rx, let tx):
+            addTraffic(rx: rx, tx: tx, bits: lines.format == .traffic(bits: true), into: &scene, frame, placement: placement, ink: ink)
+        case .intelligence(let index, let thinking):
+            addIntelligence(index: index, thinking: thinking, into: &scene, frame, placement: placement, ink: ink)
         }
     }
 
-    /// The line nearest the value and the other one: upload is nearest above the value and download below it (`needle`);
-    /// the index is always nearest.
-    private static func lines(_ content: OrbLineContent, placement: OrbLinePlacement,
-                              language: AppLanguage) -> (nearest: Line, other: Line) {
-        switch content {
-        case .traffic(let rx, let tx):
-            let down = Line(lead: .arrow(down: true), number: rx.number, unit: rx.unit)
-            let up = Line(lead: .arrow(down: false), number: tx.number, unit: tx.unit)
-            return placement.below ? (down, up) : (up, down)
-        case .intelligence(let index, let thinking):
-            let glyphs = OrbLineGlyphs(language)
-            return (Line(lead: .glyph(glyphs.intelligence), number: String(index), isInteger: true),
-                    Line(lead: .glyph(glyphs.thinking), number: thinking, unit: OrbLineMetrics.thinkingUnit))
+    /// Download over upload (upload nearest above the value, download nearest below it in `needle`), each an arrow, a
+    /// number right-aligned in the `8.88` cell and a unit left-aligned in its cell; the lines share their left edge.
+    private func addTraffic(rx: TrafficFormat.Parts, tx: TrafficFormat.Parts, bits: Bool, into scene: inout OrbScene,
+                            _ frame: OrbFrame, placement: OrbLinePlacement, ink: Ink) {
+        let t = placement.textSize(diameter: frame.s)
+        let cells = OrbLineMetrics.cells(size: t, bits: bits)
+        let left = frame.center.x - cells.lineWidth(size: t) / 2
+        let baselines = placement.baselines(center: frame.center.y + frame.readoutShift, diameter: frame.s)
+        let nearest = placement.below ? (parts: rx, down: true) : (parts: tx, down: false)
+        let other = placement.below ? (parts: tx, down: false) : (parts: rx, down: true)
+        addTrafficLine(nearest.parts, down: nearest.down, left: left, baseline: baselines.nearest, size: t, cells: cells, into: &scene, ink: ink)
+        addTrafficLine(other.parts, down: other.down, left: left, baseline: baselines.other, size: t, cells: cells, into: &scene, ink: ink)
+    }
+
+    private func addTrafficLine(_ parts: TrafficFormat.Parts, down: Bool, left: CGFloat, baseline: CGFloat, size t: CGFloat,
+                                cells: OrbLineMetrics.Cells, into scene: inout OrbScene, ink: Ink) {
+        let scale = scene.backingScale
+        let style = numberStyle(t)
+        if let arrow = textCache.arrowTexture(down: down, size: t, scale: scale) {
+            ink.add(arrow, x: left, baseline: baseline, color: ink.palette.secondary, into: &scene)
         }
+        let numberLeft = left + cells.lead + OrbLinePlacement.gap * t
+        var x = numberLeft + cells.number - advance(parts.number, style: style, scale: scale)
+        for character in parts.number {
+            guard let digit = textCache.texture(character, style: style, language: .en, scale: scale) else { continue }
+            ink.add(digit, x: x, baseline: baseline, color: ink.palette.number, into: &scene)
+            x += digit.advance
+        }
+        if let unit = textCache.texture(parts.unit, style: unitStyle(t), language: .en, scale: scale) {
+            ink.add(unit, x: numberLeft + cells.number + OrbLinePlacement.gap * t, baseline: baseline,
+                    color: ink.palette.secondary, into: &scene)
+        }
+    }
+
+    /// The intelligence line (`p = 1.25 t`) over the thinking line, each centred on the orb on its own.
+    private func addIntelligence(index: Int, thinking: String, into scene: inout OrbScene, _ frame: OrbFrame,
+                                 placement: OrbLinePlacement, ink: Ink) {
+        let language = frame.content.language
+        let glyphs = OrbLineGlyphs(language)
+        let t = placement.textSize(diameter: frame.s)
+        let p = OrbLinePlacement.intelligenceScale * t
+        let baselines = placement.intelligenceBaselines(center: frame.center.y + frame.readoutShift, diameter: frame.s)
+        addCentredLine(glyphs.intelligence, number: String(index), unit: nil, size: p, gap: OrbLinePlacement.intelligenceGap * p,
+                       baseline: baselines.intelligence, frame, into: &scene, ink: ink)
+        let unit = placement.thinkingUnit ? OrbLineMetrics.thinkingUnit : nil
+        addCentredLine(glyphs.thinking, number: thinking, unit: unit, size: t, gap: OrbLinePlacement.gap * t,
+                       baseline: baselines.thinking, frame, into: &scene, ink: ink)
+    }
+
+    /// `glyph · gap · number (· gap · unit)` at `size`, centred by its advances. Every piece starts on a device pixel,
+    /// so the line moves only when its width changes and the atlas glyphs are drawn unresampled across.
+    private func addCentredLine(_ glyph: String, number: String, unit: String?, size: CGFloat, gap: CGFloat,
+                                baseline: CGFloat, _ frame: OrbFrame, into scene: inout OrbScene, ink: Ink) {
+        let scale = scene.backingScale
+        let style = numberStyle(size)
+        guard let lead = textCache.texture(glyph, style: glyphStyle(size), language: frame.content.language, scale: scale) else { return }
+        let tail = unit.flatMap { textCache.texture($0, style: unitStyle(size), language: .en, scale: scale) }
+        let width = lead.advance + gap + advance(number, style: style, scale: scale) + (tail.map { gap + $0.advance } ?? 0)
+        func snapped(_ x: CGFloat) -> CGFloat { (x * scale).rounded() / scale }
+        var x = frame.center.x - width / 2
+        ink.add(lead, x: snapped(x), baseline: baseline, color: ink.palette.secondary, into: &scene)
+        x += lead.advance + gap
+        for character in number {
+            guard let digit = textCache.texture(character, style: style, language: .en, scale: scale) else { continue }
+            ink.add(digit, x: snapped(x), baseline: baseline, color: ink.palette.number, into: &scene)
+            x += digit.advance
+        }
+        if let tail {
+            ink.add(tail, x: snapped(x + gap), baseline: baseline, color: ink.palette.secondary, into: &scene)
+        }
+    }
+
+    /// The advance of `text` drawn character by character from the atlas.
+    private func advance(_ text: String, style: OrbTextStyle, scale: CGFloat) -> CGFloat {
+        var width: CGFloat = 0
+        for character in text {
+            width += textCache.texture(character, style: style, language: .en, scale: scale)?.advance ?? 0
+        }
+        return width
     }
 }

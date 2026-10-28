@@ -3,10 +3,10 @@ import AgentSpeedOrbModel
 import AppKit
 import SwiftUI
 
-/// `--render-previews` group `intel`: the intelligence readout of every style at 112, 148 and 196 pt in three
-/// situations, a state sheet per appearance, the network and intelligence readouts side by side (switching modes
-/// must move nothing), and the dashboard with a looping agent (DESIGN 4, Looping mark; DESIGN 10, Intelligence
-/// readout).
+/// `--render-previews` group `intel`: the intelligence readout of every style at 112, 148 and 196 pt in four
+/// situations, in Chinese and English, a state sheet and the smallest sizes per appearance, the network and
+/// intelligence readouts side by side, and the dashboard with a looping agent (DESIGN 4, Looping mark; DESIGN 10,
+/// Intelligence readout).
 @MainActor
 enum IntelligencePreviews {
     struct Scenario {
@@ -14,11 +14,13 @@ enum IntelligencePreviews {
         var thinking: Double
     }
 
-    /// A flagship thinking hard, a standard model at medium, a light model writing without reasoning.
+    /// A flagship thinking hard, a flagship and a standard model thinking lightly, a flagship writing without
+    /// reasoning: every width of both lines.
     static let scenarios = [
         Scenario(index: 133, thinking: 412),
-        Scenario(index: 98, thinking: 8.4),
-        Scenario(index: 66, thinking: 0),
+        Scenario(index: 125, thinking: 10),
+        Scenario(index: 88, thinking: 9.8),
+        Scenario(index: 125, thinking: 0),
     ]
 
     static func content(_ scenario: Scenario) -> OrbLineContent {
@@ -30,15 +32,22 @@ enum IntelligencePreviews {
         model.store.publishLive(PreviewData.snapshot(speed: redline * 0.3, redline: redline))
         for dark in [false, true] {
             let scheme = dark ? "dark" : "light"
-            let rows = OrbStyleKind.allCases.map { style in
-                scenarios.flatMap { scenario in
-                    SurfacePreviews.sizes.compactMap { size in
-                        still(model: model, style: style, size: size, dark: dark) { show($0, scenario) }
+            for language in [AppLanguage.zhHant, .en] {
+                let rows = OrbStyleKind.allCases.map { style in
+                    scenarios.flatMap { scenario in
+                        SurfacePreviews.sizes.compactMap { size in
+                            still(model: model, style: style, size: size, dark: dark) { stage in
+                                stage.language = language
+                                show(stage, scenario)
+                            }
+                        }
                     }
                 }
+                let name = language == .en ? "orb-intel-en-\(scheme).png" : "orb-intel-\(scheme).png"
+                SurfacePreviews.writeSheet(rows, dark: dark, to: directory.appendingPathComponent(name))
             }
-            SurfacePreviews.writeSheet(rows, dark: dark, to: directory.appendingPathComponent("orb-intel-\(scheme).png"))
             writeStates(model: model, dark: dark, into: directory)
+            writeSmallest(model: model, dark: dark, into: directory)
             writeModeSwitch(model: model, dark: dark, into: directory)
             writeDashboard(model: model, dark: dark, into: directory)
         }
@@ -75,7 +84,26 @@ enum IntelligencePreviews {
         SurfacePreviews.writeSheet(rows, dark: dark, to: directory.appendingPathComponent("orb-intel-states-\(dark ? "dark" : "light").png"))
     }
 
-    /// Network speed, then intelligence, for every style: the block, the value and the title stay where they are.
+    /// Every style at the smallest size that shows the readout, in Chinese, Japanese and English: the widest lines
+    /// against the LED arc, the core's rim and the needle's hub.
+    private static func writeSmallest(model: AppModel, dark: Bool, into directory: URL) {
+        let widest = Scenario(index: 888, thinking: 888)
+        let rows = OrbStyleKind.allCases.map { style -> [NSImage] in
+            [AppLanguage.zhHant, .ja, .en].compactMap { language in
+                let placement = OrbLinePlacement.of(style)
+                guard let size = (64...240).first(where: {
+                    OrbLineMetrics.fits(placement, diameter: CGFloat($0), format: .intelligence, language: language)
+                }) else { return nil }
+                return still(model: model, style: style, size: CGFloat(size), dark: dark) { stage in
+                    stage.language = language
+                    show(stage, widest)
+                }
+            }
+        }
+        SurfacePreviews.writeSheet(rows, dark: dark, to: directory.appendingPathComponent("orb-intel-smallest-\(dark ? "dark" : "light").png"))
+    }
+
+    /// Network speed, then intelligence, for every style at 196 pt: the value and the title keep their places.
     private static func writeModeSwitch(model: AppModel, dark: Bool, into directory: URL) {
         let rows = OrbStyleKind.allCases.map { style -> [NSImage] in
             [
