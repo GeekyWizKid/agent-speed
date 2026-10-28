@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import AgentSpeedOrbModel
 
-/// DESIGN 2c Data model `readouts` and Live metrics *Switches*: four independent switches, all on for a new board and
+/// DESIGN 2c Data model `readouts` and Live metrics *Switches*: three independent switches, all on for a new board and
 /// for a board saved by an earlier version, persisted with the board, in the context menu after the sources.
 @Suite("Board readouts")
 struct BoardReadoutsTests {
@@ -17,23 +17,31 @@ struct BoardReadoutsTests {
     }
 
     @Test func missingKeysAndNonBooleansReadAsOn() throws {
-        let partial = try Self.decode(#"{"id":"b","readouts":{"intelligence":false,"rowCost":"no"}}"#)
-        #expect(partial.readouts == BoardReadouts(intelligence: false, thinking: true, cost: true, rowCost: true))
+        let partial = try Self.decode(#"{"id":"b","readouts":{"intelligence":false,"thinking":"no"}}"#)
+        #expect(partial.readouts == BoardReadouts(intelligence: false, thinking: true, cost: true))
         let wrong = try Self.decode(#"{"id":"b","readouts":"off"}"#)
         #expect(wrong.readouts == .all)
         let numbers = try Self.decode(#"{"id":"b","readouts":{"thinking":0,"cost":false}}"#)
-        #expect(numbers.readouts == BoardReadouts(intelligence: true, thinking: true, cost: false, rowCost: true))
+        #expect(numbers.readouts == BoardReadouts(intelligence: true, thinking: true, cost: false))
+    }
+
+    @Test func aStoredRowCostKeyIsIgnoredAndNotWrittenAgain() throws {
+        let stored = #"{"version":1,"boards":[{"id":"b","readouts":{"intelligence":true,"thinking":false,"cost":true,"rowCost":false}}]}"#
+        let document = try #require(BoardsDocument(data: Data(stored.utf8)))
+        #expect(document.board("b")?.readouts == BoardReadouts(intelligence: true, thinking: false, cost: true))
+        let json = try #require(String(data: document.data(), encoding: .utf8))
+        #expect(json.contains(#""readouts":{"cost":true,"intelligence":true,"thinking":false}"#) && !json.contains("rowCost"))
     }
 
     @Test func theSwitchesPersistWithTheBoard() throws {
         var document = BoardsDocument()
         document.add(id: "b")
-        document.setReadouts(BoardReadouts(intelligence: true, thinking: false, cost: true, rowCost: false), of: "b")
+        document.setReadouts(BoardReadouts(intelligence: true, thinking: false, cost: true), of: "b")
         let data = document.data()
         let json = try #require(String(data: data, encoding: .utf8))
-        #expect(json.contains(#""readouts":{"cost":true,"intelligence":true,"rowCost":false,"thinking":false}"#))
+        #expect(json.contains(#""readouts":{"cost":true,"intelligence":true,"thinking":false}"#))
         let restored = try #require(BoardsDocument(data: data))
-        #expect(restored.board("b")?.readouts == BoardReadouts(intelligence: true, thinking: false, cost: true, rowCost: false))
+        #expect(restored.board("b")?.readouts == BoardReadouts(intelligence: true, thinking: false, cost: true))
     }
 
     @Test func addCopiesNothingAndTheSwitchesAreIndependent() throws {
@@ -43,11 +51,10 @@ struct BoardReadoutsTests {
         document.add(id: "b")
         #expect(document.board("b")?.readouts == .all)
         document.toggleReadout(.cost, of: "b")
-        #expect(document.board("b")?.readouts == BoardReadouts(intelligence: true, thinking: true, cost: false, rowCost: true))
-        // 每列費用 does not follow 費用.
-        document.toggleReadout(.rowCost, of: "b")
+        #expect(document.board("b")?.readouts == BoardReadouts(intelligence: true, thinking: true, cost: false))
+        document.toggleReadout(.thinking, of: "b")
         document.toggleReadout(.cost, of: "b")
-        #expect(document.board("b")?.readouts == BoardReadouts(intelligence: true, thinking: true, cost: true, rowCost: false))
+        #expect(document.board("b")?.readouts == BoardReadouts(intelligence: true, thinking: false, cost: true))
         #expect(document.board("a")?.readouts == BoardReadouts.none)
     }
 
@@ -58,17 +65,15 @@ struct BoardReadoutsTests {
         let board = try #require(document.board("b"))
         let items = BoardMenuModel.context(board, document: document)
         let sources = try #require(items.firstIndex { if case .sources = $0 { true } else { false } })
-        #expect(items[sources + 1] == .readouts(BoardReadouts(intelligence: true, thinking: false, cost: true, rowCost: true)))
+        #expect(items[sources + 1] == .readouts(BoardReadouts(intelligence: true, thinking: false, cost: true)))
         #expect(items[sources + 2] == .sizes(selected: .medium))
-        #expect(BoardReadout.allCases.map(\.titleKey) == ["boards.readouts.intel", "boards.readouts.thinking",
-                                                          "boards.readouts.cost", "boards.readouts.rowCost"])
+        #expect(BoardReadout.allCases.map(\.titleKey) == ["boards.readouts.intel", "boards.readouts.thinking", "boards.readouts.cost"])
     }
 
     @Test func thinkingMayHideOnlyBesideAnotherHeroReadout() {
         #expect(BoardReadouts.all.thinkingMayHide)
-        #expect(!BoardReadouts(intelligence: false, thinking: true, cost: false, rowCost: true).thinkingMayHide)
-        #expect(BoardReadouts(intelligence: false, thinking: true, cost: true, rowCost: false).thinkingMayHide)
-        #expect(!BoardReadouts.all.twoLineRows(.small) && BoardReadouts.all.twoLineRows(.medium))
+        #expect(!BoardReadouts(intelligence: false, thinking: true, cost: false).thinkingMayHide)
+        #expect(BoardReadouts(intelligence: false, thinking: true, cost: true).thinkingMayHide)
     }
 }
 

@@ -5,8 +5,8 @@ import AppKit
 /// Timing tower rows (`board-timing.html` `.row` grid: 24 pt position block, 3 pt team stripe in the source color,
 /// name, capsule column, 38 pt interval, 46 pt value, 7 pt gaps, 4 pt padding; S drops the interval). With the live
 /// metrics (DESIGN 2c *Ranking rows*): a 34 pt interval and the 智力 cell before a 42 pt value (S 40), the captions
-/// line, the capsule's word dropped below L, and at M and L each group row's second line, the position block and
-/// stripe spanning both.
+/// line and the capsule's word dropped below L. At M and L each group row has a second line (the detail, running to the
+/// value's edge), the position block and stripe spanning both.
 @MainActor
 struct BoardTimingRows {
     let size: BoardSize
@@ -65,7 +65,7 @@ struct BoardTimingRows {
 
     // MARK: Items
 
-    /// The row's body, position number, value, interval, 智力 and cost as items of their own (see `BoardListRows.items`).
+    /// The row's body, position number, value, interval and 智力 as items of their own (see `BoardListRows.items`).
     func items(_ model: BoardRowModel, key: String, frame: CGRect, column: CGFloat, accents: BoardRowAccents) -> [BoardContentItem] {
         let rows = self, look = AnyHashable([AnyHashable(palette.dark), AnyHashable(palette.highContrast)])
         var body = BoardContentItem(key: key, frame: frame, revision: AnyHashable([AnyHashable(model.body), AnyHashable(column),
@@ -121,18 +121,6 @@ struct BoardTimingRows {
         items.append(value)
         if let intel = model.intel {
             items.append(intelItem(intel, model: model, sub: sub, key: key, frame: frame, baseline: line1, accents: accents, look: look))
-        }
-        if let cost = model.cost {
-            let palette = self.palette
-            let right = frame.width - 4
-            let baseline = CGFloat(geometry.secondLineBaseline)
-            items.append(.part(key + "#cost", of: frame, rect: CGRect(x: frame.width / 2, y: 0, width: frame.width / 2, height: frame.height),
-                               motion: .row, revision: AnyHashable([AnyHashable(cost), look])) { context in
-                BoardRowCost.draw(cost, right: right, baseline: baseline,
-                                  number: BoardFont(family: .mono, size: 9.5, weight: .bold, tracking: -0.01),
-                                  unit: BoardFont(family: .mono, size: 8, weight: .bold), tag: BoardFont(size: 9.5, weight: .semibold),
-                                  ink: palette.ink2, quiet: palette.quiet, unitInk: palette.ink3, uppercase: true, in: context)
-            })
         }
         return items
     }
@@ -214,9 +202,10 @@ struct BoardTimingRows {
                               color: sub ? palette.ink2 : palette.ink)
         let detail = BoardLabel(model.detail, BoardFont(family: mono, size: 10, weight: .semibold, tracking: 0.02), color: palette.ink3)
         if let line1 {
+            // Line 2 is the detail's alone, up to the value's edge.
             name.truncated(to: nameWidth).draw(in: context, x: start, baseline: line1)
             if !detail.isEmpty {
-                detail.truncated(to: nameWidth).draw(in: context, x: start, baseline: CGFloat(geometry.secondLineBaseline))
+                detail.truncated(to: max(0, box.width - 4 - start)).draw(in: context, x: start, baseline: CGFloat(geometry.secondLineBaseline))
             }
         } else {
             let split = BoardContentRules.nameSplit(available: Double(nameWidth), name: Double(name.width))

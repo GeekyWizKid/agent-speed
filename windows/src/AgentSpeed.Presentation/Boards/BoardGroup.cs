@@ -28,9 +28,6 @@ public sealed record BoardGroup(
     /// <summary>The row's 智力 (METRICS 6.9, Group intelligence): live over every member, else the root's grade, else none.</summary>
     public AgentIntelligence Intelligence { get; init; }
 
-    /// <summary>The row's cost per second (METRICS 9.5, Per group) over its billable members.</summary>
-    public GroupCost Cost { get; init; }
-
     /// <summary>The root's phase badge shows generating while any member generates (the prototypes' group badge).</summary>
     public AgentPhase BadgePhase => Generating > 0 ? AgentPhase.Generating : Root.Phase;
 }

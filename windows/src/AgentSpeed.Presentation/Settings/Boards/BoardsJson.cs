@@ -111,7 +111,10 @@ public static class BoardsJson
         return (cleaned with { Layouts = layouts }).Validated();
     }
 
-    /// <summary>A missing <c>readouts</c>, a missing key or a value that is not a boolean reads as on.</summary>
+    /// <summary>
+    /// A missing <c>readouts</c>, a missing key or a value that is not a boolean reads as on; an earlier version's <c>rowCost</c> key is
+    /// ignored.
+    /// </summary>
     private static BoardReadouts ReadReadouts(JsonElement board)
     {
         if (!board.TryGetProperty("readouts", out var value) || value.ValueKind != JsonValueKind.Object)

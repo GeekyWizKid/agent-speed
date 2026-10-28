@@ -3,9 +3,6 @@ namespace AgentSpeed.Core.Engine;
 /// <param name="ParentId">The parent's id when the parent is listed too (METRICS 6.7).</param>
 internal sealed record AgentFrame(AgentInfo Info, AgentPhase Phase, Rate Live, double? RecentSpeed, string? ParentId = null)
 {
-    /// <summary>The agent's live cost rate (METRICS 9.5).</summary>
-    public LiveCost LiveCost { get; init; }
-
     /// <summary>The grade of the agent's current model and effort (METRICS 6.9); null without a model.</summary>
     public Intelligence.ModelGrade? Grade { get; init; }
 

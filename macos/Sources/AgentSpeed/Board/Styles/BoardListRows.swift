@@ -4,8 +4,8 @@ import AppKit
 
 /// Glass and neon ranking rows (the prototypes' `.row` grid: 16 pt rank, 10 pt badge, name, capsule column, 46 pt
 /// value, 8 pt gaps, 6 pt padding), with the share underline from the name to the value. With the live metrics
-/// (DESIGN 2c *Ranking rows*): the 智力 cell before a 44 pt value, the captions line over the ranking, and at M and L
-/// each group row's second line — the detail under the name and the group's cost per second on the value's edge.
+/// (DESIGN 2c *Ranking rows*): the 智力 cell before a 44 pt value and the captions line over the ranking. At M and L
+/// each group row has a second line: the detail under the name, running to the value's edge.
 @MainActor
 struct BoardListRows {
     let style: BoardStyle
@@ -63,8 +63,8 @@ struct BoardListRows {
 
     // MARK: Items
 
-    /// The row's items: its body, its rank (groups), its value, its 智力 and cost, each cached apart so a new value or
-    /// rank redraws only itself and can roll or flash; all spring together.
+    /// The row's items: its body, its rank (groups), its value and its 智力, each cached apart so a new value or rank
+    /// redraws only itself and can roll or flash; all spring together.
     func items(_ model: BoardRowModel, key: String, frame: CGRect, column: CGFloat, accents: BoardRowAccents) -> [BoardContentItem] {
         let rows = self, look = AnyHashable([AnyHashable(palette.dark), AnyHashable(palette.highContrast)])
         var body = BoardContentItem(key: key, frame: frame, revision: AnyHashable([AnyHashable(model.body), AnyHashable(column),
@@ -118,9 +118,6 @@ struct BoardListRows {
             items.append(intelItem(intel, model: model, sub: sub, key: key, frame: frame, baseline: line1, accents: accents,
                                    look: look))
         }
-        if let cost = model.cost {
-            items.append(costItem(cost, key: key, frame: frame, look: look))
-        }
         return items
     }
 
@@ -144,24 +141,6 @@ struct BoardListRows {
         }
         if accents.intelChanged { item.accents.append(.crossfade(0.2)) }
         return item
-    }
-
-    /// The group's cost per second on line 2, right-aligned on the value column's edge and free to extend left.
-    private func costItem(_ money: BoardMoney, key: String, frame: CGRect, look: AnyHashable) -> BoardContentItem {
-        let palette = self.palette, neon = self.neon
-        let right = valueRight(frame.width)
-        let baseline = CGFloat(geometry.secondLineBaseline)
-        let rect = CGRect(x: frame.width / 2, y: 0, width: frame.width / 2, height: frame.height)
-        return .part(key + "#cost", of: frame, rect: rect, motion: .row,
-                     revision: AnyHashable([AnyHashable(money), look])) { context in
-            let size: CGFloat = neon ? 10 : 10.5
-            let numberFont = neon ? BoardFont(family: .mono, size: size, weight: .semibold, tracking: -0.01)
-                : BoardFont(size: size, weight: .medium, tabular: true)
-            BoardRowCost.draw(money, right: right, baseline: baseline, number: numberFont,
-                              unit: neon ? BoardFont(family: .mono, size: 8.5, weight: .semibold) : BoardFont(size: 9, weight: .medium),
-                              tag: BoardFont(size: size, weight: .semibold), ink: palette.ink2, quiet: palette.quiet,
-                              unitInk: palette.ink3, in: context)
-        }
     }
 
     /// The captions line at the top of the ranking: 智力 over the cells, `tok/s` over the values, and a hairline from
@@ -245,10 +224,12 @@ struct BoardListRows {
         let name = BoardLabel(model.name, nameFont, color: sub ? palette.ink2 : palette.ink)
         let detail = BoardLabel(model.detail, detailFont, color: palette.ink3)
         if let line1 {
-            // The detail moves under the name, truncating at its tail; the capsule sits in line 1's 16 pt band.
+            // The detail moves under the name and has line 2 to itself up to the value's edge, truncating at its tail;
+            // the capsule sits in line 1's 16 pt band.
             name.truncated(to: nameWidth).draw(in: context, x: nameX, baseline: line1)
             if !detail.isEmpty {
-                detail.truncated(to: nameWidth).draw(in: context, x: nameX, baseline: CGFloat(geometry.secondLineBaseline))
+                detail.truncated(to: max(0, valueRight(box.width) - nameX))
+                    .draw(in: context, x: nameX, baseline: CGFloat(geometry.secondLineBaseline))
             }
         } else {
             let split = BoardContentRules.nameSplit(available: Double(nameWidth), name: Double(name.width))
@@ -366,33 +347,5 @@ struct BoardListRows {
     private func isGroup(_ row: BoardPlannedRow) -> Bool {
         if case .group = row.kind { return true }
         return false
-    }
-}
-
-/// A group row's cost line (DESIGN 2c Live metrics, *The second line*): `≥` before a partial number at 0.85 ×, the
-/// unit 3 after; `–` and the tag in the quiet ink without a unit.
-@MainActor
-enum BoardRowCost {
-    static func draw(_ money: BoardMoney, right: CGFloat, baseline: CGFloat, number: BoardFont, unit: BoardFont, tag: BoardFont,
-                     ink: RGBColor, quiet: RGBColor, unitInk: RGBColor, uppercase: Bool = false, in context: CGContext) {
-        switch money.state {
-        case .tag:
-            let label = BoardLabel(money.number, tag, color: quiet)
-            label.draw(in: context, x: right - label.width, baseline: baseline)
-        case .unknown:
-            let label = BoardLabel(money.number, number, color: quiet)
-            label.draw(in: context, x: right - label.width, baseline: baseline)
-        case .value:
-            let unitLabel = BoardLabel(uppercase ? money.unit.uppercased() : money.unit, unit, color: unitInk)
-            let numberLabel = BoardLabel(money.number, number, color: money.isQuiet ? quiet : ink)
-            var x = right - unitLabel.width
-            unitLabel.draw(in: context, x: x, baseline: baseline)
-            x -= 3 + numberLabel.width
-            numberLabel.draw(in: context, x: x, baseline: baseline)
-            if money.atLeast {
-                let atLeast = BoardLabel("≥", BoardFont(size: number.size * 0.85), color: unitInk)
-                atLeast.draw(in: context, x: x - 1 - atLeast.width, baseline: baseline)
-            }
-        }
     }
 }

@@ -182,15 +182,27 @@ public sealed class BoardSim
             var a = _agents[i];
             var activity = epoch.AddSeconds(a.LastActive);
             // A sub-agent's label stands in its project, which is what tells it apart on a sub row.
-            var (grade, intelligence, cost) = Measure(a);
+            var (grade, intelligence, _) = Measure(a);
             list[i] = new AgentStatus(a.Id, a.Source, a.ParentId is null ? a.Project : a.Label, a.Model, a.Phase, a.ParentId is not null,
                 new Rate(a.Live, a.Live * 4), null, activity, a.ParentId)
             {
                 Modes = Modes(a),
                 Grade = grade,
                 Intelligence = new AgentIntelligence(intelligence, grade),
-                LiveCost = cost,
             };
+        }
+
+        return list;
+    }
+
+    /// <summary>Each agent's source, live output (tok/s) and live cost, for the demo hero's 費用 (the engine keeps no cost per agent).</summary>
+    public IReadOnlyList<(SourceKind Source, double Live, LiveCost Cost)> Costs()
+    {
+        var list = new (SourceKind, double, LiveCost)[_agents.Count];
+        for (var i = 0; i < _agents.Count; i++)
+        {
+            var a = _agents[i];
+            list[i] = (a.Source, a.Live, Measure(a).Cost);
         }
 
         return list;

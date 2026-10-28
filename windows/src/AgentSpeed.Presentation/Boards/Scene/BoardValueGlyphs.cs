@@ -29,9 +29,6 @@ public enum BoardValueSet
 
     IntelSubRest,
 
-    /// <summary>A group row's cost on its second line.</summary>
-    RowCost,
-
     /// <summary>The sub-gauge's 智力 number (neon: baked LED digits with their glow).</summary>
     GaugeMain,
 
@@ -66,7 +63,7 @@ public static class BoardValueGlyphs
     {
         BoardValueSet.IntelGroup or BoardValueSet.IntelSub or BoardValueSet.IntelGroupRest or BoardValueSet.IntelSubRest or BoardValueSet.GaugeMain
             or BoardValueSet.GaugeMainPlain => "0123456789–",
-        BoardValueSet.GaugeTable or BoardValueSet.GaugeTablePlain or BoardValueSet.RowCost => "0123456789.,kMB–<",
+        BoardValueSet.GaugeTable or BoardValueSet.GaugeTablePlain => "0123456789.,kMB–<",
         _ => "0123456789.kMB–−+",
     };
 
@@ -111,11 +108,6 @@ public static class BoardValueGlyphs
         if (readouts.Intelligence)
         {
             sets.AddRange([BoardValueSet.IntelGroup, BoardValueSet.IntelSub, BoardValueSet.IntelGroupRest, BoardValueSet.IntelSubRest]);
-        }
-
-        if (metrics.TwoLineRows)
-        {
-            sets.Add(BoardValueSet.RowCost);
         }
 
         if (readouts.Hero && readouts.Intelligence)

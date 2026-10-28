@@ -36,10 +36,10 @@ public class BoardGaugeSceneTests
                 var pad = BoardValueGlyphs.PadOf(set);
                 slot = new BoardLayerSlot(u, 0, u, 0, 7 + 2 * pad, 20 + 2 * pad, Baseline: pad + 14);
             }
-            else if (key.StartsWith("#g.", StringComparison.Ordinal) || key.StartsWith("#rc.", StringComparison.Ordinal))
+            else if (key.StartsWith("#g.", StringComparison.Ordinal))
             {
                 // Labels about two CJK characters, ≥ narrow, units like tok/s.
-                var text = key is "#g.ge" or "#rc.ge" ? 5 : key.StartsWith("#g.l", StringComparison.Ordinal) ? 18 : 24;
+                var text = key is "#g.ge" ? 5 : key.StartsWith("#g.l", StringComparison.Ordinal) ? 18 : 24;
                 slot = new BoardLayerSlot(u, 0, u, 0, text + 2 * BoardGauge.TextPad, 16, Baseline: 12);
             }
             else
@@ -170,9 +170,9 @@ public class BoardGaugeSceneTests
     }
 
     [Fact]
-    public void RowsDrawThe智力CellOnTheValuesBaselineAndTheCostOnTheSecondLine()
+    public void RowsDrawThe智力CellOnTheValuesBaseline()
     {
-        var (scene, layers, list, tick, _) = Run(BoardStyle.Glass, BoardSize.M, BoardReadouts.All);
+        var (scene, layers, list, _, _) = Run(BoardStyle.Glass, BoardSize.M, BoardReadouts.All);
         var m = BoardCanvas.Margin;
         var right = m + scene.Metrics.ListLeft + scene.Metrics.ListWidth;
         var cells = Drawn(layers, list, k => InSet(k, BoardValueSet.IntelGroup) || InSet(k, BoardValueSet.IntelGroupRest));
@@ -180,22 +180,47 @@ public class BoardGaugeSceneTests
         var pad = BoardValueGlyphs.PadOf(BoardValueSet.IntelGroup);
         Assert.All(cells, c => Assert.True(c.Rect.X + c.Rect.Z - pad <= right - scene.Columns.IntelligenceRight + 1e-3 ||
             c.Rect.X + c.Rect.Z - 2 <= right - scene.Columns.IntelligenceRight + 1e-3));
-
-        var group = tick.Entries.First(e => e.Kind == BoardEntryKind.Group && e.Readout?.Cost is { State: BoardMoneyState.Value });
-        var row = scene.Rows.First(r => r.Key == group.Key);
-        var second = m + scene.Metrics.ListTop + row.Y + 32;
-        var costs = Drawn(layers, list, k => InSet(k, BoardValueSet.RowCost));
-        Assert.Contains(costs, c => Math.Abs(c.Rect.Y + 2 + 14 - second) < 1e-3);
         Assert.NotEmpty(Drawn(layers, list, k => k == BoardScene.CaptionsKey));
-        Assert.NotEmpty(Drawn(layers, list, k => k == BoardScene.RowUnitKey));
+    }
+
+    // The second line carries only the detail (in the row's body): no value glyph sits on it, whatever the switches.
+    [Theory]
+    [InlineData(BoardStyle.Glass, true)]
+    [InlineData(BoardStyle.Timing, true)]
+    [InlineData(BoardStyle.Neon, true)]
+    [InlineData(BoardStyle.Glass, false)]
+    public void TwoLineRowsDrawNoValueOnTheSecondLine(BoardStyle style, bool all)
+    {
+        var (scene, layers, list, tick, _) = Run(style, BoardSize.M, all ? BoardReadouts.All : BoardReadouts.None);
+        var m = BoardCanvas.Margin;
+        var groups = tick.Entries.Where(e => e.Kind == BoardEntryKind.Group).ToList();
+        Assert.NotEmpty(groups);
+        Assert.All(groups, e => Assert.True(e.TwoLine));
+        var baselines = new List<double>();
+        foreach (var layer in list.Layers)
+        {
+            var key = layers.KeyOf(layer);
+            if (key.StartsWith("#v", StringComparison.Ordinal) && key.Length > 3)
+            {
+                var set = (BoardValueSet)int.Parse(key[2..^1], System.Globalization.CultureInfo.InvariantCulture);
+                baselines.Add(layer.Rect.Y + BoardValueGlyphs.PadOf(set) + 14);
+            }
+        }
+
+        Assert.NotEmpty(baselines);
+        foreach (var row in scene.Rows.Where(r => r.Entry.Kind == BoardEntryKind.Group))
+        {
+            var top = m + scene.Metrics.ListTop + row.Y;
+            Assert.Contains(baselines, b => Math.Abs(b - (top + BoardScene.FirstBaseline)) < 1e-3);
+            Assert.DoesNotContain(baselines, b => Math.Abs(b - (top + BoardScene.SecondBaseline(style))) < 1.5);
+        }
     }
 
     [Fact]
     public void SmallBoardsNeverDrawTheSecondLine()
     {
-        var (_, layers, list, tick, _) = Run(BoardStyle.Neon, BoardSize.S, BoardReadouts.All);
+        var (_, _, _, tick, _) = Run(BoardStyle.Neon, BoardSize.S, BoardReadouts.All);
         Assert.DoesNotContain(tick.Entries, e => e.TwoLine);
-        Assert.Empty(Drawn(layers, list, k => InSet(k, BoardValueSet.RowCost)));
     }
 
     [Theory]
@@ -206,8 +231,7 @@ public class BoardGaugeSceneTests
     {
         var (scene, layers, list, _, _) = Run(style, BoardSize.M, BoardReadouts.None);
         Assert.Equal(BoardMetrics.For(style, BoardSize.M), scene.Metrics);
-        Assert.Empty(Drawn(layers, list, k => k.StartsWith("#g.", StringComparison.Ordinal) || k == BoardScene.CaptionsKey ||
-            k.StartsWith("#rc.", StringComparison.Ordinal)));
+        Assert.Empty(Drawn(layers, list, k => k.StartsWith("#g.", StringComparison.Ordinal) || k == BoardScene.CaptionsKey));
         Assert.Empty(Drawn(layers, list, k => InSet(k, BoardValueSet.GaugeMain) || InSet(k, BoardValueSet.IntelGroup) ||
             InSet(k, BoardValueSet.IntelGroupRest)));
     }

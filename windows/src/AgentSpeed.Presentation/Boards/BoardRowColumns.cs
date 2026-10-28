@@ -24,6 +24,12 @@ public readonly record struct BoardRowColumns(double Padding, double Gap, double
     /// <summary>The capsule column's right edge from the row's right end.</summary>
     public double CapsuleRight => IntervalRight + (Interval > 0 ? Interval + Gap : 0);
 
+    /// <summary>
+    /// Where a two-line group row's detail ends in a row <paramref name="width"/> wide: line 2 holds nothing else, so the detail
+    /// runs under the capsule, 智力 and value columns to the value's right edge (DESIGN 2c, Ranking rows: The second line).
+    /// </summary>
+    public double DetailRight(double width) => width - ValueRight;
+
     public static BoardRowColumns For(BoardStyle style, BoardSize size, BoardReadouts readouts)
     {
         var i = size switch

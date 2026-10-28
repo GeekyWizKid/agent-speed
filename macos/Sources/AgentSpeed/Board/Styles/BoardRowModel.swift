@@ -33,10 +33,8 @@ struct BoardRowModel: Hashable {
     var intel: String?
     /// Live (the index) rather than resting (the grade) or none: one step brighter.
     var intelLive = false
-    /// A group row's second line (M and L while 每列費用 is on): the detail moves under the name.
+    /// A group row's second line (M and L): the detail moves under the name.
     var twoLine = false
-    /// The second line's cost; nil while the group is idle (its value shows `–`).
-    var cost: BoardMoney?
 
     var rank: Int? {
         if case .group(let rank) = kind { return rank }
@@ -85,7 +83,6 @@ enum BoardRowModels {
                                           modes: root.modes, share: share(group.live), heat: heat(group.live), interval: interval)
                 intel(group.intelligence, into: &model)
                 model.twoLine = twoLine
-                if twoLine, !idle { model.cost = tick.metrics.rowCosts[group.id] }
                 return model
             case .sub(let index, let subIndex):
                 let root = groups[index].root
