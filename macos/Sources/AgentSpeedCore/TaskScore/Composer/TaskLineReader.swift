@@ -19,8 +19,8 @@ struct TaskLineReader: Sendable {
     }
 
     enum Entry: Sendable {
-        case call(Pending)
-        case script(calls: [Pending], prints: [Int])
+        case call(Pending, handle: Int)
+        case script(calls: [Pending], prints: [Int], handle: Int)
     }
 
     /// The source whose rules apply (both Claude sources read alike).
@@ -34,6 +34,7 @@ struct TaskLineReader: Sendable {
     /// OpenClaw: the window's turns are mirrors (METRICS 4.14).
     var mirrorWindow = false
     private var calls: [String: Entry] = [:]
+    private var nextHandle = 0
 
     static let copyToleranceMs: Int64 = 2000
     /// A long-lived file forgets its answered calls beyond this many (their ids only block repeats of the same message).
@@ -55,35 +56,42 @@ struct TaskLineReader: Sendable {
     /// Prepares a call (`id` and `tool` strings, an id the file did not have yet), or nil.
     mutating func call(id: String?, t: Int64, tool: String?, input: JSONValue?, digest: TaskDigest) -> TaskPreparedCall? {
         guard let id, let tool, calls[id] == nil else { return nil }
-        let (prepared, pending) = analyse(id: id, t: t, tool: tool, input: input, digest: digest)
+        let handle = takeHandle()
+        let (prepared, pending) = analyse(handle: handle, t: t, tool: tool, input: input, digest: digest)
         if calls.count >= Self.maxCalls { forgetAnsweredCalls() }
-        calls[id] = .call(pending)
+        calls[id] = .call(pending, handle: handle)
         return prepared
     }
 
     /// Prepares a Codex code-mode script (TASK-PARSERS 4.4): its calls in source order.
     mutating func script(id: String?, t: Int64, script: TaskCodeScript) -> TaskPreparedScript? {
         guard let id, calls[id] == nil else { return nil }
+        let handle = takeHandle()
         var prepared: [TaskPreparedCall] = []
         var pending: [Pending] = []
         for call in script.calls {
             let digest = TaskDigest(hex: call.digest) ?? .empty
-            let (one, waiting) = analyse(id: id, t: t, tool: call.tool, input: call.input, digest: digest)
+            let (one, waiting) = analyse(handle: handle, t: t, tool: call.tool, input: call.input, digest: digest)
             prepared.append(one)
             pending.append(waiting)
         }
-        calls[id] = .script(calls: pending, prints: script.prints.map(\.call))
-        return TaskPreparedScript(id: id, calls: prepared)
+        calls[id] = .script(calls: pending, prints: script.prints.map(\.call), handle: handle)
+        return TaskPreparedScript(handle: handle, calls: prepared)
+    }
+
+    private mutating func takeHandle() -> Int {
+        defer { nextHandle += 1 }
+        return nextHandle
     }
 
     private mutating func forgetAnsweredCalls() {
         calls = calls.filter { _, entry in
-            if case .call(let pending) = entry { return !pending.answered }
+            if case .call(let pending, _) = entry { return !pending.answered }
             return true
         }
     }
 
-    private func analyse(id: String, t: Int64, tool: String, input: JSONValue?,
+    private func analyse(handle: Int, t: Int64, tool: String, input: JSONValue?,
                          digest: TaskDigest) -> (TaskPreparedCall, Pending) {
         let kind = TaskParsers.actionKind(source, tool: tool, input: input, cwd: cwd)
         var action = TaskAction(kind: kind, tool: tool, digest: digest)
@@ -97,7 +105,7 @@ struct TaskLineReader: Sendable {
             action.hunks = TaskParsers.editHunks(source, tool: tool, input: input, cwd: cwd).map(TaskHunk.init)
         }
         let continues = TaskParsers.continuation(source, tool: tool, input: input)
-        let prepared = TaskPreparedCall(id: id, t: t, action: action, info: info, continues: continues, cwd: cwd)
+        let prepared = TaskPreparedCall(handle: handle, t: t, action: action, info: info, continues: continues, cwd: cwd)
         return (prepared, Pending(tool: tool, input: input, cwd: cwd, info: info, continues: continues))
     }
 
@@ -110,7 +118,7 @@ struct TaskLineReader: Sendable {
         switch calls[id] {
         case nil:
             return nil
-        case .script(let pending, let prints)?:
+        case .script(let pending, let prints, let handle)?:
             calls[id] = nil
             var mapped: [(index: Int, answer: TaskPreparedAnswer)] = []
             if let items = TaskParsers.codeItems(source, result: result), !prints.isEmpty, items.count == prints.count {
@@ -119,14 +127,14 @@ struct TaskLineReader: Sendable {
                     mapped.append((index, answer(pending[index], result: .string(item ?? ""), t: t)))
                 }
             }
-            return TaskPreparedResult(id: id, t: t, answer: .script(mapped))
-        case .call(var pending)?:
+            return TaskPreparedResult(handle: handle, t: t, answer: .script(mapped))
+        case .call(var pending, let handle)?:
             guard !pending.answered else { return nil }
             let prepared = answer(pending, result: result, t: t)
             pending.answered = true
             pending.input = nil
-            calls[id] = .call(pending)
-            return TaskPreparedResult(id: id, t: t, answer: .call(prepared))
+            calls[id] = .call(pending, handle: handle)
+            return TaskPreparedResult(handle: handle, t: t, answer: .call(prepared))
         }
     }
 

@@ -24,15 +24,16 @@ enum TaskLineOp: Sendable {
     case calls([TaskPreparedCall])
     /// A Codex code-mode script: its calls are the actions.
     case script(TaskPreparedScript)
-    /// A result, analysed against the file's call with that id.
-    case result(TaskPreparedResult)
+    /// A result, analysed against the file's call with that id (boxed: seeding holds every line's ops at once).
+    indirect case result(TaskPreparedResult)
     /// A Claude background-task notice (TASK-PARSERS 4.3) for session `session`.
-    case notice(session: String, exitCode: Int64, t: Int64)
+    indirect case notice(session: String, exitCode: Int64, t: Int64)
 }
 
 /// A call as its action will be added: everything derived from its input at its line, the input itself released.
+/// `handle` numbers the file's calls (the reader matched ids already), so no id text is kept.
 struct TaskPreparedCall: Sendable {
-    var id: String
+    var handle: Int
     var t: Int64
     var action: TaskAction
     /// `command_info` of a command with command text (its `masked` and `errorFilter` serve the outcome and failures).
@@ -44,7 +45,7 @@ struct TaskPreparedCall: Sendable {
 }
 
 struct TaskPreparedScript: Sendable {
-    var id: String
+    var handle: Int
     var calls: [TaskPreparedCall]
 }
 
@@ -58,7 +59,8 @@ struct TaskPreparedResult: Sendable {
         case script([(index: Int, answer: TaskPreparedAnswer)])
     }
 
-    var id: String
+    /// The handle of the call it answers.
+    var handle: Int
     var t: Int64
     var answer: Answer?
 }

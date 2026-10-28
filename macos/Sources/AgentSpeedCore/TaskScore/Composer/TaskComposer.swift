@@ -40,7 +40,8 @@ struct TaskComposer: Sendable {
     private var pending: (kind: TaskPromptLine.Kind, index: Int)?
     /// The latest task-starting prompt not trimmed yet (live only).
     private var startCandidate: Int?
-    private var calls: [String: Entry] = [:]
+    /// By the reader's call handle.
+    private var calls: [Int: Entry] = [:]
     private var sessions: [String: Running] = [:]
     private(set) var notes: [TaskModelNote] = []
     /// Sessions stitched back with an exit code.
@@ -72,14 +73,14 @@ struct TaskComposer: Sendable {
                 pending = nil
             case .calls(let prepared):
                 guard !duplicate else { continue }
-                for call in prepared where calls[call.id] == nil {
-                    calls[call.id] = .call(add(call))
+                for call in prepared where calls[call.handle] == nil {
+                    calls[call.handle] = .call(add(call))
                 }
             case .script(let script):
-                guard calls[script.id] == nil else { continue }
+                guard calls[script.handle] == nil else { continue }
                 var refs: [CallRef] = []
                 for call in script.calls { refs.append(add(call)) }
-                calls[script.id] = .script(refs)
+                calls[script.handle] = .script(refs)
             case .result(let result):
                 apply(result)
             case .notice(let session, let exitCode, let at):
@@ -157,10 +158,10 @@ struct TaskComposer: Sendable {
     }
 
     private mutating func apply(_ result: TaskPreparedResult) {
-        guard let entry = calls[result.id], let answer = result.answer else { return }
+        guard let entry = calls[result.handle], let answer = result.answer else { return }
         switch (entry, answer) {
         case (.script(let refs), .script(let mapped)):
-            calls[result.id] = nil
+            calls[result.handle] = nil
             for (index, prepared) in mapped where index < refs.count {
                 var ref = refs[index]
                 apply(prepared, to: &ref, t: result.t)
@@ -168,7 +169,7 @@ struct TaskComposer: Sendable {
         case (.call(var ref), .call(let prepared)):
             guard !ref.answered else { return }
             apply(prepared, to: &ref, t: result.t)
-            calls[result.id] = .call(ref)
+            calls[result.handle] = .call(ref)
         default:
             return
         }
