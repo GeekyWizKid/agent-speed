@@ -18,6 +18,7 @@ struct ParserFixtureTests {
         if relative.hasPrefix("pi/") { return .pi }
         if relative.hasPrefix("workbuddy/.workbuddy-ai/") { return .workbuddyAi }
         if relative.hasPrefix("workbuddy/.workbuddy/") { return .workbuddy }
+        if relative.hasPrefix("droid/") { return .droid }
         return relative.hasPrefix("dsh/") ? .dsh : .claude
     }
 
@@ -67,7 +68,19 @@ struct ParserFixtureTests {
                     latest[upsert.record.key] = upsert.record
                 }
             }
-            if TranscriptReader.isFrameStream(url.path) || TranscriptReader.isCompressedStream(url.path)
+            if Self.family(of: relative) == .droid {
+                // The history rule: the whole transcript, then one sidecar read (METRICS 4.16).
+                var reader = TranscriptReader(path: url.path)
+                let read = reader.read(onLineAt: { line, offset in
+                    parser.consume(rawLine: line, offset: offset, deduper: &deduper) { _ in }
+                })
+                #expect(!read.failed, "\(relative) readable")
+                parser.noteReadStart(read.startOffset)
+                _ = parser.finishReadCycle { upsert in
+                    if latest[upsert.record.key] == nil { keys.append(upsert.record.key) }
+                    latest[upsert.record.key] = upsert.record
+                }
+            } else if TranscriptReader.isFrameStream(url.path) || TranscriptReader.isCompressedStream(url.path)
                 || TranscriptReader.isDocument(url.path) {
                 var reader = TranscriptReader(path: url.path)
                 let read = reader.read(onMalformed: { parser.noteMalformedLine() }, onLine: consume)

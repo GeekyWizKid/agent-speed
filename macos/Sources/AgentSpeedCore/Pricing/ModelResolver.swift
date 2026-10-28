@@ -166,6 +166,10 @@ public struct ModelResolver: Sendable {
         }
         var k = Self.lowercasedKey(Self.strip(Self.collapseWhitespace(Self.removeBrackets(Array(model.unicodeScalars)))))
         yield("exact", k)
+        if k.starts(with: Self.customPrefix) {
+            k = Self.stripCustomName(Self.removeCustomIndex(Array(k[Self.customPrefix.count...])))
+            yield("custom", k)
+        }
         if let slash = k.lastIndex(of: "/") {
             k = Array(k[(slash + 1)...])
             yield("route", k)
@@ -350,6 +354,24 @@ public struct ModelResolver: Sendable {
     }
 
     /// Removes a trailing `-` + 8 digits.
+    /// Factory Droid's ids of the user's own models, `custom:<name>-<n>` (METRICS 4.16).
+    static let customPrefix: Key = Array("custom:".unicodeScalars)
+
+    /// `-[0-9]+$`: droid's index after the name.
+    static func removeCustomIndex(_ key: Key) -> Key {
+        var end = key.count
+        while end > 0, ("0"..."9").contains(key[end - 1]) { end -= 1 }
+        guard end < key.count, end > 0, key[end - 1] == "-" else { return key }
+        return Array(key[..<(end - 1)])
+    }
+
+    /// `str.strip(" -")`: spaces and hyphens at both ends (left by a removed `[…]` group).
+    static func stripCustomName(_ key: Key) -> Key {
+        let kept = { (scalar: Unicode.Scalar) in scalar != " " && scalar != "-" }
+        guard let first = key.firstIndex(where: kept), let last = key.lastIndex(where: kept) else { return [] }
+        return Array(key[first...last])
+    }
+
     static func removeDateSuffix(_ key: Key) -> Key {
         guard key.count >= 9, key[key.count - 9] == "-", key[(key.count - 8)...].allSatisfy(isDigit) else { return key }
         return Array(key[..<(key.count - 9)])

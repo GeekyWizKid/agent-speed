@@ -172,6 +172,7 @@ enum TranscriptLocations {
         case .kimi: [defaultKimiRoot]
         case .grokBuild: [defaultGrokBuildRoot]
         case .pi: defaultPiRoots
+        case .droid: [defaultDroidRoot]
         }
     }
 
@@ -208,6 +209,7 @@ extension MonitorConfiguration {
         case .kimi: kimiRoot.map(TranscriptLocations.sessionsFolder)
         case .grokBuild: grokBuildRoot.map(TranscriptLocations.sessionsFolder)
         case .pi: piRoot
+        case .droid: droidRoot.map(DroidPaths.sessionsFolder)
         }
     }
 
