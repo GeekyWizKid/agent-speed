@@ -20,6 +20,11 @@
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
             </StackPanel>
         </Border>
+        <!-- DESIGN 3, Position on the taskbar: the widget moves by dragging it; this puts it back (also the keyboard route). -->
+        <controls:SettingsCard Header="{loc:Loc settings.taskbar.position}" Icon="&#xE8AB;" Description="{loc:Loc settings.taskbar.position.hint}">
+            <Button Content="{loc:Loc settings.taskbar.position.reset}" Command="{Binding ResetTaskbarPositionCommand}" MinWidth="96"
+                    AutomationProperties.HelpText="{loc:Loc settings.taskbar.position.hint}" />
+        </controls:SettingsCard>
         <controls:SettingsCard Header="{loc:Loc settings.bar.mode}" Icon="&#xE8A9;">
             <ComboBox MinWidth="200" SelectedIndex="{Binding BarModeIndex, Mode=TwoWay}" AutomationProperties.Name="{loc:Loc settings.bar.mode}">
                 <ComboBoxItem Content="{loc:Loc settings.bar.mode.glyphValue}" />

@@ -3,6 +3,7 @@ using AgentSpeed.Core;
 using AgentSpeed.Presentation.Chart;
 using AgentSpeed.Presentation.Heat;
 using AgentSpeed.Presentation.Hero;
+using AgentSpeed.Presentation.Layout;
 using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Settings.Boards;
 using AgentSpeed.Presentation.Settings.Orbs;
@@ -100,6 +101,12 @@ public sealed record AppSettings
     public bool BarColoredGlyph { get; init; } = true;
 
     public bool BarShowUnit { get; init; } = true;
+
+    /// <summary>
+    /// Where the Windows taskbar widget sits (DESIGN 3, Position on the taskbar): DIPs from its default spot next to the
+    /// notification area toward the taskbar's start; 0 is the default spot. Set by dragging the widget.
+    /// </summary>
+    public double TaskbarOffset { get; init; }
 
     /// <summary>
     /// The taskbar's second value (DESIGN 3): with <see cref="CostSettings.LiveUnit"/> tokens, the live money rate after
@@ -362,6 +369,7 @@ public sealed record AppSettings
         RedlineOutput = HeatMath.ClampRedline(RedlineOutput),
         RedlineTotal = HeatMath.ClampRedlineTotal(RedlineTotal),
         BarMode = Enum.IsDefined(BarMode) ? BarMode : BarDisplayMode.GlyphAndValue,
+        TaskbarOffset = TaskbarPosition.Normalize(TaskbarOffset),
         OrbSize = double.IsFinite(OrbSize) ? Math.Clamp(Math.Round(OrbSize), MinOrbSize, MaxOrbSize) : DefaultOrbSize,
         OrbOpacity = double.IsFinite(OrbOpacity) ? Math.Clamp(OrbOpacity, MinOrbOpacity, MaxOrbOpacity) : MaxOrbOpacity,
         Effects = Enum.IsDefined(Effects) ? Effects : EffectsIntensity.Standard,

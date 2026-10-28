@@ -1470,6 +1470,30 @@
     "en": "Show on taskbar",
     "ja": "タスクバーに表示"
   },
+  "settings.taskbar.position": {
+    "zh-Hant": "顯示位置",
+    "zh-Hans": "显示位置",
+    "en": "Position",
+    "ja": "表示位置"
+  },
+  "settings.taskbar.position.hint": {
+    "zh-Hant": "按住工作列上的速度顯示並沿工作列拖曳即可移動，避開其他工作列程式（例如工作列歌詞）。",
+    "zh-Hans": "按住任务栏上的速度显示并沿任务栏拖动即可移动，避开其他任务栏程序（例如任务栏歌词）。",
+    "en": "Press and drag the speed readout along the taskbar to move it clear of other taskbar programs, such as taskbar lyrics.",
+    "ja": "タスクバー上の速度表示を押したままタスクバーに沿ってドラッグすると移動でき、タスクバー歌詞など他のアプリの表示を避けられます。"
+  },
+  "settings.taskbar.position.reset": {
+    "zh-Hant": "重設位置",
+    "zh-Hans": "重置位置",
+    "en": "Reset position",
+    "ja": "位置をリセット"
+  },
+  "taskbar.dragHint": {
+    "zh-Hant": "拖曳即可沿工作列移動",
+    "zh-Hans": "拖动即可沿任务栏移动",
+    "en": "Drag to move it along the taskbar",
+    "ja": "ドラッグでタスクバー上を移動できます"
+  },
   "settings.orb": {
     "zh-Hant": "懸浮窗",
     "zh-Hans": "悬浮窗",

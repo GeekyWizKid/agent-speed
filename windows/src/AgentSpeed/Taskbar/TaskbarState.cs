@@ -5,7 +5,10 @@ using AgentSpeed.Presentation.Settings;
 
 namespace AgentSpeed.Taskbar;
 
-/// <summary>Everything the taskbar thread needs to draw, passed as an immutable snapshot from the UI thread.</summary>
+/// <summary>
+/// Everything the taskbar thread needs to draw, passed as an immutable snapshot from the UI thread. <see cref="Offset"/>
+/// is the stored position (DIPs from the default spot next to the notification area; DESIGN 3, Position on the taskbar).
+/// </summary>
 internal sealed record TaskbarState(
     bool Enabled,
     double Value,
@@ -23,7 +26,8 @@ internal sealed record TaskbarState(
     bool ValueMuted = false,
     BarSecondary? Secondary = null,
     BarTrafficBlock? Traffic = null,
-    BarIntelligenceBlock? Intelligence = null)
+    BarIntelligenceBlock? Intelligence = null,
+    double Offset = 0)
 {
     public static TaskbarState Initial { get; } = new(
         false, 0, SpeedTier.Idle, HeatMath.DefaultRedline, BarDisplayMode.GlyphAndValue, true, true, true, false, false,
