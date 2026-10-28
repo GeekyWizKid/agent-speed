@@ -59,7 +59,7 @@ final class FailureCollector {
 
 /// One framework family's reader. At line `i` it claims and consumes lines (returning how many) or returns 0.
 protocol LineRecognizer: AnyObject {
-    func step(_ lines: [Bytes], _ i: Int) -> Int
+    func step(_ lines: [TextLine], _ i: Int) -> Int
     func finish()
 }
 

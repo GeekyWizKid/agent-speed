@@ -19,7 +19,7 @@ enum FailureAnalysis {
     private static let tscPrefix = Bytes(utf8: "tsc|")
 
     private struct Segment {
-        var lines: [Bytes]
+        var lines: [TextLine]
         var claimed: [Bool]
     }
 
@@ -37,7 +37,7 @@ enum FailureAnalysis {
         let found = FailureCollector(cwd: cwd)
         var segments: [Segment] = []
         for part in OutputText.budget(output) {
-            let lines = OutputText.cleanLines(part)
+            let lines = OutputText.cleanLines(part).map(TextLine.init)
             var claimed = [Bool](repeating: false, count: lines.count)
             let readers = recognizers(found)
             var i = 0
@@ -90,7 +90,7 @@ enum FailureAnalysis {
     private static func completion(_ segments: [Segment]) -> String? {
         for segment in segments {
             for line in segment.lines {
-                let trimmed = line.trimmed()
+                let trimmed = line.bytes.trimmed()
                 for (name, pattern) in completions where pattern.fullMatches(trimmed) { return name }
             }
         }

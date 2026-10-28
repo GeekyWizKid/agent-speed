@@ -22,7 +22,7 @@ final class GoRecognizer: LineRecognizer {
         self.found = found
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         if let match = Self.fail.fullMatch(line) {
             failed.insert(match.text(1))

@@ -38,7 +38,7 @@ final class CheckerRecognizer: LineRecognizer {
         self.found = found
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         if tscTableOpen {
             if Self.tscRow.fullMatches(line) { return 1 }
@@ -71,7 +71,7 @@ final class CheckerRecognizer: LineRecognizer {
             return 1
         }
         if Self.eslintFile.fullMatches(line), i + 1 < lines.count, Self.eslintMessage.fullMatches(lines[i + 1]) {
-            eslintFileName = line
+            eslintFileName = line.bytes
             return 1
         }
         if let file = eslintFileName, let match = Self.eslintMessage.fullMatch(line) {
@@ -123,10 +123,10 @@ final class CheckerRecognizer: LineRecognizer {
             return 1
         }
         if let match = Self.pyrightError.fullMatch(line) {
-            let indent = line.leadingCount(of: [Byte.space, Byte.tab])
+            let indent = line.bytes.leadingCount(of: [Byte.space, Byte.tab])
             var k = i
             var code = match.text(5)
-            while k + 1 < lines.count, lines[k + 1].leadingCount(of: [Byte.space, Byte.tab]) > indent,
+            while k + 1 < lines.count, lines[k + 1].bytes.leadingCount(of: [Byte.space, Byte.tab]) > indent,
                   !Self.pyrightError.fullMatches(lines[k + 1]), !Self.pyrightOther.fullMatches(lines[k + 1]) {
                 k += 1
             }

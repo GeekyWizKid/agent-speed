@@ -20,7 +20,7 @@ final class DotnetRecognizer: LineRecognizer {
         self.found = found
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         if let match = Self.error.fullMatch(line) {
             found.error("msbuild", file: match.text(1), code: match.text(4), message: match.text(5))

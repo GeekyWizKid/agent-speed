@@ -34,18 +34,18 @@ final class JvmRecognizer: LineRecognizer {
         return simple + [Byte.dot] + name
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         if listing {
-            if Self.surefireRun.fullMatches(line) || line.hasPrefix(Bytes(utf8: "[INFO]")) || line == Bytes(utf8: "[ERROR] ")
-                || line == Bytes(utf8: "[ERROR]") {
+            if Self.surefireRun.fullMatches(line) || line.bytes.hasPrefix(Bytes(utf8: "[INFO]"))
+                || line.bytes == Bytes(utf8: "[ERROR] ") || line.bytes == Bytes(utf8: "[ERROR]") {
                 listing = false
             } else {
-                if let match = Self.surefireListed.fullMatch(line), !line.hasPrefix(Bytes(utf8: "[ERROR]   Run ")) {
+                if let match = Self.surefireListed.fullMatch(line), !line.bytes.hasPrefix(Bytes(utf8: "[ERROR]   Run ")) {
                     found.test("junit", Self.junitID(match.text(1), match.text(2)))
                     return 1
                 }
-                if line.hasPrefix(Bytes(utf8: "[ERROR]")) || line.hasPrefix(Bytes(utf8: "[WARNING]")) { return 1 }
+                if line.bytes.hasPrefix(Bytes(utf8: "[ERROR]")) || line.bytes.hasPrefix(Bytes(utf8: "[WARNING]")) { return 1 }
                 listing = false
             }
         }

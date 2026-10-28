@@ -12,6 +12,9 @@ struct Pattern: Sendable {
     private let sets: [CharSet]
     /// The bytes a match can start with; nil when the pattern can match the empty text.
     private let firstBytes: ByteMask?
+    /// Literal runs a match contains: the runs of one of these alternatives (a top-level alternation has one per
+    /// branch), checked before the machine runs; empty when nothing is known.
+    private let requirements: [Requirement]
 
     init(_ source: String) {
         self.source = source
@@ -24,33 +27,65 @@ struct Pattern: Sendable {
         sets = compiler.sets
         groupCount = parser.groupCount
         firstBytes = PatternCompiler.firstBytes(program, sets: sets)
+        requirements = PatternCompiler.requirements(node).map(Requirement.init)
+    }
+
+    private struct Requirement: Sendable {
+        let literals: [Bytes]
+        let bytes: ByteMask
+
+        init(_ literals: [Bytes]) {
+            self.literals = literals
+            var bytes = ByteMask()
+            for literal in literals { literal.forEach { bytes.insert($0) } }
+            self.bytes = bytes
+        }
+    }
+
+    /// Some alternative's bytes are all in the line.
+    @inline(__always) private func mayMatch(_ line: TextLine) -> Bool {
+        requirements.isEmpty || requirements.contains { line.present.covers($0.bytes) }
+    }
+
+    func fullMatch(_ line: TextLine) -> PatternMatch? {
+        mayMatch(line) ? fullMatch(line.bytes) : nil
+    }
+
+    func fullMatches(_ line: TextLine) -> Bool {
+        mayMatch(line) && fullMatches(line.bytes)
+    }
+
+    func search(_ line: TextLine) -> PatternMatch? {
+        mayMatch(line) ? search(line.bytes) : nil
     }
 
     /// The whole text matches (`\A(?:P)\z`).
     func fullMatch(_ text: Bytes) -> PatternMatch? {
         text.withUnsafeBufferPointer { buffer in
-            guard admits(buffer, at: 0) else { return nil }
+            guard admits(buffer, at: 0), holdsRequired(buffer, from: 0) else { return nil }
             return run(buffer, at: 0, full: true, captures: true).map { PatternMatch(subject: text, slots: $0) }
         }
     }
 
     func fullMatches(_ text: Bytes) -> Bool {
         text.withUnsafeBufferPointer { buffer in
-            admits(buffer, at: 0) && run(buffer, at: 0, full: true, captures: false) != nil
+            admits(buffer, at: 0) && holdsRequired(buffer, from: 0)
+                && run(buffer, at: 0, full: true, captures: false) != nil
         }
     }
 
     /// A match anchored at `offset` (Python `pattern.match(text, offset)`).
     func match(_ text: Bytes, at offset: Int = 0) -> PatternMatch? {
         text.withUnsafeBufferPointer { buffer in
-            guard admits(buffer, at: offset) else { return nil }
+            guard admits(buffer, at: offset), holdsRequired(buffer, from: offset) else { return nil }
             return run(buffer, at: offset, full: false, captures: true).map { PatternMatch(subject: text, slots: $0) }
         }
     }
 
     func matches(_ text: Bytes, at offset: Int = 0) -> Bool {
         text.withUnsafeBufferPointer { buffer in
-            admits(buffer, at: offset) && run(buffer, at: offset, full: false, captures: false) != nil
+            admits(buffer, at: offset) && holdsRequired(buffer, from: offset)
+                && run(buffer, at: offset, full: false, captures: false) != nil
         }
     }
 
@@ -60,8 +95,6 @@ struct Pattern: Sendable {
             search(buffer, from: offset).map { PatternMatch(subject: text, slots: $0) }
         }
     }
-
-    func occurs(in text: Bytes) -> Bool { search(text) != nil }
 
     /// Every non-overlapping match replaced by `template`, left to right (Python `pattern.sub`); the template's `\N`
     /// refers to group N (empty when it did not take part).
@@ -99,7 +132,21 @@ struct Pattern: Sendable {
         return offset < buffer.count && mask.contains(buffer[offset])
     }
 
+    /// The literals of some alternative all occur in the text from `offset` on.
+    @inline(__always) private func holdsRequired(_ buffer: UnsafeBufferPointer<UInt8>, from offset: Int) -> Bool {
+        guard !requirements.isEmpty else { return true }
+        guard offset <= buffer.count, let base = buffer.baseAddress else { return false }
+        return requirements.contains { requirement in
+            requirement.literals.allSatisfy { literal in
+                literal.withUnsafeBytes { needle in
+                    memmem(base + offset, buffer.count - offset, needle.baseAddress!, needle.count) != nil
+                }
+            }
+        }
+    }
+
     private func search(_ buffer: UnsafeBufferPointer<UInt8>, from offset: Int) -> [Int]? {
+        guard holdsRequired(buffer, from: offset) else { return nil }
         var start = offset
         while start <= buffer.count {
             if admits(buffer, at: start), let slots = run(buffer, at: start, full: false, captures: true) {
@@ -113,11 +160,28 @@ struct Pattern: Sendable {
     }
 
     /// The backtracking machine. The stack holds pairs: a branch (program counter ≥ 0, text position) or a capture
-    /// to restore (−2 − slot, old value).
+    /// to restore (−2 − slot, old value). Both live in temporary memory; the stack moves to the heap only when deep.
     private func run(_ text: UnsafeBufferPointer<UInt8>, at start: Int, full: Bool, captures: Bool) -> [Int]? {
+        let slotCount = captures ? 2 * (groupCount + 1) : 1
+        return withUnsafeTemporaryAllocation(of: Int.self, capacity: slotCount) { slots in
+            slots.initialize(repeating: -1)
+            return withUnsafeTemporaryAllocation(of: Int.self, capacity: 512) { initial in
+                var stack = BacktrackStack(initial)
+                defer { stack.release() }
+                guard let end = execute(text, start: start, full: full, captures: captures, slots: slots,
+                                        stack: &stack) else { return nil }
+                guard captures else { return [] }
+                slots[0] = start
+                slots[1] = end
+                return Array(slots)
+            }
+        }
+    }
+
+    /// The end of the match, or nil.
+    private func execute(_ text: UnsafeBufferPointer<UInt8>, start: Int, full: Bool, captures: Bool,
+                         slots: UnsafeMutableBufferPointer<Int>, stack: inout BacktrackStack) -> Int? {
         let end = text.count
-        var slots = captures ? [Int](repeating: -1, count: 2 * (groupCount + 1)) : []
-        var stack: [Int] = []
         var pc = 0
         var sp = start
         return program.withUnsafeBufferPointer { program in
@@ -147,15 +211,13 @@ struct Pattern: Sendable {
                             advanced = false
                         }
                     case .split(let first, let second):
-                        stack.append(second)
-                        stack.append(sp)
+                        stack.push(second, sp)
                         pc = first
                     case .jump(let target):
                         pc = target
                     case .save(let slot):
                         if captures {
-                            stack.append(-2 - slot)
-                            stack.append(slots[slot])
+                            stack.push(-2 - slot, slots[slot])
                             slots[slot] = sp
                         }
                         pc += 1
@@ -173,19 +235,12 @@ struct Pattern: Sendable {
                     case .dollar:
                         if sp == end || (sp == end - 1 && text[sp] == Byte.lf) { pc += 1 } else { advanced = false }
                     case .match:
-                        if !full || sp == end {
-                            if captures {
-                                slots[0] = start
-                                slots[1] = sp
-                            }
-                            return slots
-                        }
+                        if !full || sp == end { return sp }
                         advanced = false
                     }
                     if !advanced {
                         while true {
-                            guard let value = stack.popLast() else { return nil }
-                            let tag = stack.removeLast()
+                            guard let (tag, value) = stack.pop() else { return nil }
                             if tag >= 0 {
                                 pc = tag
                                 sp = value
@@ -198,6 +253,62 @@ struct Pattern: Sendable {
             }
         }
     }
+}
+
+/// The backtracking stack: pairs of integers in a temporary buffer, moved to the heap when it overflows.
+private struct BacktrackStack {
+    private var base: UnsafeMutablePointer<Int>
+    private var capacity: Int
+    private var count = 0
+    private var owned = false
+
+    init(_ initial: UnsafeMutableBufferPointer<Int>) {
+        base = initial.baseAddress!
+        capacity = initial.count
+    }
+
+    @inline(__always) mutating func push(_ tag: Int, _ value: Int) {
+        if count + 2 > capacity { grow() }
+        base[count] = tag
+        base[count + 1] = value
+        count += 2
+    }
+
+    @inline(__always) mutating func pop() -> (Int, Int)? {
+        guard count > 0 else { return nil }
+        count -= 2
+        return (base[count], base[count + 1])
+    }
+
+    private mutating func grow() {
+        let larger = UnsafeMutablePointer<Int>.allocate(capacity: capacity * 2)
+        larger.update(from: base, count: count)
+        if owned { base.deallocate() }
+        base = larger
+        capacity *= 2
+        owned = true
+    }
+
+    mutating func release() {
+        if owned { base.deallocate() }
+        owned = false
+    }
+}
+
+/// A line of output with the set of bytes it holds, so patterns whose required literals it lacks are skipped without
+/// a scan.
+struct TextLine {
+    let bytes: Bytes
+    let present: ByteMask
+
+    init(_ bytes: Bytes) {
+        self.bytes = bytes
+        var present = ByteMask()
+        for byte in bytes { present.insert(byte) }
+        self.present = present
+    }
+
+    var isIndented: Bool { bytes.isIndented }
 }
 
 /// The groups of one match; group 0 is the whole match.
@@ -334,6 +445,12 @@ struct ByteMask: Sendable {
         }
     }
 
+    /// Holds every byte of `other`.
+    @inline(__always) func covers(_ other: ByteMask) -> Bool {
+        other.words.0 & ~words.0 == 0 && other.words.1 & ~words.1 == 0 && other.words.2 & ~words.2 == 0
+            && other.words.3 & ~words.3 == 0
+    }
+
     @inline(__always) func contains(_ byte: UInt8) -> Bool {
         let bit = UInt64(1) << UInt64(byte & 63)
         switch byte >> 6 {
@@ -345,7 +462,7 @@ struct ByteMask: Sendable {
     }
 }
 
-private indirect enum Node {
+fileprivate indirect enum Node {
     case empty
     case literal(Unicode.Scalar)
     case any
@@ -659,6 +776,49 @@ private struct PatternCompiler {
         case .dollar:
             program.append(.dollar)
         }
+    }
+
+    /// One list of required literal runs per branch of a top-level alternation (one list otherwise); empty when some
+    /// branch requires nothing.
+    static func requirements(_ node: Node) -> [[Bytes]] {
+        var top = node
+        while case .group(let inner, _) = top { top = inner }
+        let branches: [Node]
+        if case .alternation(let items) = top { branches = items } else { branches = [node] }
+        let lists = branches.map(requiredLiterals)
+        return lists.contains(where: \.isEmpty) ? [] : lists
+    }
+
+    /// Literal runs that every match contains: maximal sequences of mandatory literal characters in the top-level
+    /// sequence (groups flattened; alternations, classes and optional parts break a run). The two longest are kept.
+    static func requiredLiterals(_ node: Node) -> [Bytes] {
+        var runs: [Bytes] = []
+        var current = Bytes()
+        func flush() {
+            if !current.isEmpty { runs.append(current) }
+            current = []
+        }
+        func walk(_ node: Node) {
+            switch node {
+            case .literal(let scalar):
+                current.append(contentsOf: String(Character(scalar)).utf8)
+            case .concat(let nodes):
+                nodes.forEach(walk)
+            case .group(let inner, _):
+                walk(inner)
+            case .repetition(let inner, let minimum, _, _) where minimum >= 1:
+                flush()
+                walk(inner)
+                flush()
+            case .empty, .behind, .ahead, .dollar:
+                break
+            default:
+                flush()
+            }
+        }
+        walk(node)
+        flush()
+        return Array(runs.sorted { $0.count > $1.count }.prefix(2))
     }
 
     @inline(__always) static func scalarLength(_ lead: UInt8) -> Int {

@@ -47,7 +47,7 @@ final class SwiftRecognizer: LineRecognizer {
         found.test("xctest", test)
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         if listing {
             if let match = Self.xbListed.fullMatch(line) {

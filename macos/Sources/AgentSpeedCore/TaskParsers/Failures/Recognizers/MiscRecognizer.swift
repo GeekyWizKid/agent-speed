@@ -27,7 +27,7 @@ final class MiscRecognizer: LineRecognizer {
         self.found = found
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         if let failedList = ctestFailedList {
             if let match = Self.ctestListed.fullMatch(line) {
@@ -87,7 +87,7 @@ final class MiscRecognizer: LineRecognizer {
             return 1
         }
         if Self.ctestListHeader.fullMatches(line) {
-            ctestFailedList = line.contains(Bytes(utf8: "FAILED"))
+            ctestFailedList = line.bytes.contains(Bytes(utf8: "FAILED"))
             return 1
         }
         if let match = Self.ctestSummary.fullMatch(line) {

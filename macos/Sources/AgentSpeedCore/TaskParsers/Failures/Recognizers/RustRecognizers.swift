@@ -26,7 +26,7 @@ final class CargoRecognizer: LineRecognizer {
         Self.doctestLine.replacingAll(in: name, with: Self.lineTemplate)
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         if listing {
             if let match = Self.listed.fullMatch(line),
@@ -84,7 +84,7 @@ final class RustcRecognizer: LineRecognizer {
     }
 
     /// The index of the `-->` line within the 3 lines after a header, when no other header comes first.
-    private func locationLine(_ lines: [Bytes], _ i: Int) -> Int? {
+    private func locationLine(_ lines: [TextLine], _ i: Int) -> Int? {
         for k in (i + 1)..<min(i + 4, lines.count) {
             if Self.location.fullMatches(lines[k]) { return k }
             if Self.header.fullMatches(lines[k]) || Self.warning.fullMatches(lines[k]) { return nil }
@@ -92,7 +92,7 @@ final class RustcRecognizer: LineRecognizer {
         return nil
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         if let match = Self.couldNot.fullMatch(line) ?? Self.aborting.fullMatch(line) {
             found.summary("rustc", .error, failed: TaskText.number(match[1] ?? [0x31]), passed: nil, mode: .sum)

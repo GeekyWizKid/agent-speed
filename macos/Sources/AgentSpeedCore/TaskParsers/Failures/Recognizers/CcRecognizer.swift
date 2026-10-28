@@ -29,7 +29,7 @@ final class CcRecognizer: LineRecognizer {
         return flag
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         if symbols {
             if let match = Self.symbol.fullMatch(line) {

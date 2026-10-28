@@ -14,7 +14,7 @@ final class PytestRecognizer: LineRecognizer {
         self.found = found
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         var nodeId: Bytes?
         if let match = Self.fail.fullMatch(line) {
@@ -59,7 +59,7 @@ final class UnittestRecognizer: LineRecognizer {
         self.found = found
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         if let match = Self.fail.fullMatch(line) {
             let name = match.text(2)

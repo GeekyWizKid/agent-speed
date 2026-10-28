@@ -40,16 +40,16 @@ final class JavaScriptRecognizer: LineRecognizer {
         self.found = found
     }
 
-    func step(_ lines: [Bytes], _ i: Int) -> Int {
+    func step(_ lines: [TextLine], _ i: Int) -> Int {
         let line = lines[i]
         if mochaDetails, let match = Self.mochaItem.fullMatch(line) {
             var parts = [match.text(3)]
             var k = i
             let indent = match.text(1).count
-            while parts[parts.count - 1].last != Byte.colon, k + 1 < lines.count, !lines[k + 1].trimmed().isEmpty,
-                  lines[k + 1].leadingCount(of: [Byte.space]) > indent {
+            while parts[parts.count - 1].last != Byte.colon, k + 1 < lines.count, !lines[k + 1].bytes.trimmed().isEmpty,
+                  lines[k + 1].bytes.leadingCount(of: [Byte.space]) > indent {
                 k += 1
-                parts.append(lines[k].trimmed())
+                parts.append(lines[k].bytes.trimmed())
             }
             let title = Bytes.joined(parts.map { $0.trimmed() }, separator: [Byte.space])
             if title.last == Byte.colon {
