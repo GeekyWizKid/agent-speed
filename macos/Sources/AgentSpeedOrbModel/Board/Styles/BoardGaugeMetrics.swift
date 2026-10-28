@@ -159,21 +159,21 @@ public struct BoardGaugeStack: Equatable, Sendable {
     public func row(_ key: Row) -> Line? { rows.first { $0.key == key } }
 }
 
-/// The sub-gauge's arc and meter scales (DESIGN 2c Live metrics): 60 is a light model at level 0 without reasoning,
-/// 156 a flagship's top rung writing nothing but reasoning.
+/// The sub-gauge's arc and meter over the task score's 0–100 (DESIGN 2c Live metrics: glass `f = shown / 100`, neon
+/// `lit = round(shown × 12 / 100)`).
 public enum BoardIntelligenceScale {
-    public static let minimum = 60.0
-    public static let span = 96.0
+    public static let maximum = 100.0
 
     /// Glass: the share of the arc's sweep lit by the shown value.
     public static func arc(_ shown: Int?) -> Double {
         guard let shown else { return 0 }
-        return min(1, max(0, (Double(shown) - minimum) / span))
+        return min(1, max(0, Double(shown) / maximum))
     }
 
-    /// Neon: the lit segments of the 12 (8 index points each).
+    /// Neon: the lit segments of the 12 (one per 8⅓ points), half a segment rounding away from zero.
     public static func segments(_ shown: Int?) -> Int {
         guard let shown else { return 0 }
-        return min(BoardGaugeMetrics.meterSegments, max(0, Int(((Double(shown) - minimum) / 8).rounded(.toNearestOrAwayFromZero))))
+        let lit = (Double(shown) * Double(BoardGaugeMetrics.meterSegments) / maximum).rounded(.toNearestOrAwayFromZero)
+        return min(BoardGaugeMetrics.meterSegments, max(0, Int(lit)))
     }
 }

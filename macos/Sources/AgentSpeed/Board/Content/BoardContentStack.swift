@@ -309,6 +309,9 @@ final class BoardContentStack {
             move.duration = Self.sweepSeconds
             move.timingFunction = Self.rollTiming
             mask.add(move, forKey: "sweep")
+        } else {
+            // A count-up's frames follow the shown value: nothing may lag behind them.
+            mask.removeAnimation(forKey: "sweep")
         }
         mask.strokeEnd = end
     }
@@ -324,6 +327,8 @@ final class BoardContentStack {
             turn.duration = Self.sweepSeconds
             turn.timingFunction = Self.rollTiming
             layer.add(turn, forKey: "turn")
+        } else {
+            layer.removeAnimation(forKey: "turn")
         }
         layer.setValue(to, forKeyPath: "transform.rotation.z")
     }

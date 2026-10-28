@@ -202,9 +202,9 @@ enum BoardSimTick {
             tick.costText = format.tag
             tick.costIsTag = true
         }
-        fold.update(eligible: readouts.thinkingMayHide, quiet: sums.intelligence.shownIndex == nil,
+        fold.update(eligible: readouts.thinkingMayHide, quiet: !(sums.intelligence.output > 0),
                     shown: SpeedFormat.speed(sums.intelligence.thinking), at: snapshot.time)
-        tick.metrics = .make(readouts: readouts, intelligence: sums.intelligence,
+        tick.metrics = .make(readouts: readouts, intelligence: sums.intelligence, agents: agents,
                              cost: format.money(cost.microUsdPerSecond, state: state), costUnit: format.unit,
                              thinkingHidden: fold.hidden)
         return tick
@@ -224,19 +224,18 @@ enum BoardSimTick {
         // sim.js `aggregate`: the agent's own METRICS 6.9 sums, as the engine's per-agent values.
         var intelligence = IntelligenceSums()
         intelligence.output = agent.live
-        if let score = agent.score {
-            let value = TaskAgentValue(form: phase == .idle ? .resting : .live, score: score, shown: Int(score.rounded()),
-                                       state: .passing)
-            intelligence.score = TaskSetValue(id: agent.id, lastLineMs: Int64(agent.lastActive * 1000), value: value)
-        }
         if agent.recordsReasoning {
             intelligence.thinking = agent.thinking
             intelligence.thinkingBase = agent.live
         }
-        return AgentStatus(id: agent.id, source: SourceKind(rawValue: agent.source) ?? .claudeCode,
-                           project: agent.parentID == nil ? agent.project : agent.label, model: agent.model, phase: phase,
-                           isSubagent: agent.parentID != nil, live: Rate(output: agent.live, total: agent.live * 1.6),
-                           recentSpeed: nil, lastActivity: Date(timeIntervalSince1970: 1_800_000_000 + agent.lastActive),
-                           parentId: agent.parentID, modes: ExecutionModes(facts), intelligence: intelligence)
+        let status = AgentStatus(id: agent.id, source: SourceKind(rawValue: agent.source) ?? .claudeCode,
+                                 project: agent.parentID == nil ? agent.project : agent.label, model: agent.model, phase: phase,
+                                 isSubagent: agent.parentID != nil, live: Rate(output: agent.live, total: agent.live * 1.6),
+                                 recentSpeed: nil, lastActivity: Date(timeIntervalSince1970: 1_800_000_000 + agent.lastActive),
+                                 parentId: agent.parentID, modes: ExecutionModes(facts), intelligence: intelligence)
+        // A source without a task score keeps none; the others a passing task of the simulated score, so the board's
+        // score cards read as the engine's would.
+        guard let score = agent.score else { return status }
+        return BoardScorePreviewData.scored(status, score: score, state: .passing)
     }
 }

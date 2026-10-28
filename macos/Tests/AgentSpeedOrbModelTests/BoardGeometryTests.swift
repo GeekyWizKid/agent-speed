@@ -118,12 +118,15 @@ struct BoardGeometryTests {
         #expect(BoardGaugeMetrics(.timing, .medium).stack(intelligence: false, thinking: true, cost: true).rows.map(\.baseline) == [12, 29.5])
     }
 
-    @Test func theArcAndTheMeterSpanTheIndexRange() {
-        #expect(BoardIntelligenceScale.arc(123) == 63.0 / 96)
-        #expect(BoardIntelligenceScale.arc(nil) == 0 && BoardIntelligenceScale.arc(50) == 0 && BoardIntelligenceScale.arc(170) == 1)
-        #expect(BoardIntelligenceScale.segments(123) == 8)
-        #expect(BoardIntelligenceScale.segments(156) == 12 && BoardIntelligenceScale.segments(nil) == 0)
-        #expect(BoardIntelligenceScale.segments(64) == 1, "half a segment rounds away from zero")
+    /// DESIGN 2c Live metrics: the arc lights `shown / 100` of its sweep, the meter `round(shown × 12 / 100)` segments.
+    @Test func theArcAndTheMeterSpanTheTaskScore() {
+        #expect(BoardIntelligenceScale.arc(86) == 0.86 && BoardIntelligenceScale.arc(100) == 1)
+        #expect(BoardIntelligenceScale.arc(nil) == 0 && BoardIntelligenceScale.arc(0) == 0)
+        #expect(BoardIntelligenceScale.segments(86) == 10 && BoardIntelligenceScale.segments(100) == 12)
+        #expect(BoardIntelligenceScale.segments(nil) == 0 && BoardIntelligenceScale.segments(0) == 0)
+        // One segment per 8⅓ points: 4 → 0.48 stays dark, 5 → 0.6 lights the first, 21 → 2.52 lights three.
+        #expect(BoardIntelligenceScale.segments(4) == 0 && BoardIntelligenceScale.segments(5) == 1)
+        #expect(BoardIntelligenceScale.segments(21) == 3 && BoardIntelligenceScale.segments(95) == 11)
     }
 
     @Test func theStripSparklineKeepsItsMargins() {
@@ -156,6 +159,35 @@ struct BoardGroupSumsTests {
         sums.score = TaskSetValue(id: id, lastLineMs: 0, value: TaskAgentValue(
             form: live ? .live : .resting, score: score, shown: taskRoundHalfAway(score), state: .passing))
         return sums
+    }
+
+    /// `agent` with a current task in `state` (the proof mark follows the supplying agent's state).
+    static func withTask(_ agent: AgentStatus, _ state: TaskState) -> AgentStatus {
+        var agent = agent
+        var result = TaskResult(TaskEvaluation([TaskEvent](), now: nil))
+        result.state = state
+        result.score = agent.intelligence.score.score
+        agent.task = AgentTaskStatus(taskStartMs: 0, result: result, predictions: nil, models: .prior)
+        return agent
+    }
+
+    /// DESIGN 12: a group row shows its highest member score, its proof mark follows the member that supplies it, N
+    /// counts the members scored in that form, and its card is the supplier's (a group without a score: its root's).
+    @Test func theGroupsReadingFollowsItsSupplier() throws {
+        let agents = [Self.withTask(Self.agent("r", output: 10, score: 41.2), .failing),
+                      Self.withTask(Self.agent("s", parent: "r", output: 4, score: 57.6), .pending),
+                      Self.withTask(Self.agent("t", parent: "r", output: 0, score: 90), .passing)]
+        let group = try #require(BoardGrouping.groups(agents, metric: .output).first)
+        let reading = group.intelligenceReading
+        #expect(reading.form == .live && reading.shown == 58 && reading.state == .pending && reading.isUnproven)
+        #expect(reading.count == 2, "two members are live; the resting 90 does not count")
+        #expect(group.cardAgent.id == "s")
+        let none = try #require(BoardGrouping.groups([Self.agent("r", output: 3), Self.agent("s", parent: "r", output: 1)],
+                                                     metric: .output).first)
+        #expect(none.intelligenceReading == .none && none.cardAgent.id == "r")
+        // A sub row's own value: resting, passing, no mark.
+        let own = TaskSetReading(agent: agents[2])
+        #expect(own.form == .resting && own.shown == 90 && !own.isUnproven && own.count == 1)
     }
 
     @Test func membersAddTheirSumsNeverAnAverageOfTheirShares() throws {

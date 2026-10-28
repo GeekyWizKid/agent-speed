@@ -21,6 +21,19 @@ public struct BoardGroup: Equatable, Sendable, Identifiable {
 
     /// The highest task score of its members (METRICS 6.9 Sets and groups).
     public var intelligence: AgentIntelligence { sums.intelligenceForm }
+
+    /// The root first, then its descendants.
+    public var members: [AgentStatus] { [root] + subs }
+
+    /// The group's 智力 as its row draws it: the highest member score with the supplier's state and N.
+    public var intelligenceReading: TaskSetReading { TaskSetReading(score: sums.intelligence.score, agents: members) }
+
+    /// The member whose score the row shows, else the root (DESIGN 12: a group row's card is the supplier's, a group
+    /// without a score shows its root's).
+    public var cardAgent: AgentStatus {
+        guard let id = sums.intelligence.score.agentId, let member = members.first(where: { $0.id == id }) else { return root }
+        return member
+    }
 }
 
 /// Groups a board's agents by their root (DESIGN 2c, Content 2; METRICS 6.7 parent links).
