@@ -58,9 +58,10 @@ struct TaskSideHeader: View {
         .frame(height: 16)
     }
 
+    /// The median with its caption beside it on one baseline (DESIGN 12, *Side headers*).
     private func median(_ stats: TaskPerformanceStats) -> some View {
         let value = TaskPerformanceText.median(stats)
-        return VStack(alignment: mirrored ? .trailing : .leading, spacing: 1) {
+        return HStack(alignment: .firstTextBaseline, spacing: 5) {
             Text(value)
                 .font(TaskPerformanceFont.median)
                 .tracking(-0.4)
@@ -69,8 +70,6 @@ struct TaskSideHeader: View {
                 .fixedSize()
                 .contentTransition(.opacity)
                 .animation(TaskPerformanceMotion.fade, value: value)
-                // The digits have no descenders: tuck the caption up under their baseline.
-                .padding(.bottom, -3)
             Text(l10n("history.tasks.metric.median.short"))
                 .font(TaskPerformanceFont.caption)
                 .foregroundStyle(.historySecondary)
