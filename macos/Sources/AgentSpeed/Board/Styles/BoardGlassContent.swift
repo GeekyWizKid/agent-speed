@@ -93,11 +93,10 @@ final class BoardGlassContent: BoardContentBuilding {
                                        intel: l10n("intel.glyph"), unit: l10n("unit.tokS")))
         } else {
             let rule = CGRect(x: pad, y: rowsTop, width: side - 2 * pad, height: 1)
-            var item = BoardContentItem(key: "rule", frame: rule, motion: geometry.isLegacy ? .none : .row,
-                                        revision: AnyHashable([palette.dark, palette.highContrast])) { context, box in
+            items.append(BoardContentItem(key: "rule", frame: rule, motion: geometry.isLegacy ? .none : .row,
+                                          revision: AnyHashable([palette.dark, palette.highContrast])) { context, box in
                 BoardDrawing.fill(CGRect(origin: .zero, size: box), color: palette.line, in: context)
-            }
-            items.append(item)
+            })
         }
         return items
     }

@@ -163,10 +163,8 @@ final class BoardTimingBox {
             context.clip()
             context.addPath(path)
             context.clip()
-            if !palette.highContrast {
-                BoardDrawing.fill(shape, color: palette.slab2, in: context)
-                BoardDrawing.fill(CGRect(x: 0, y: shape.minY, width: tab, height: shape.height), color: palette.block, in: context)
-            }
+            BoardDrawing.fill(shape, color: palette.slab2, in: context)
+            BoardDrawing.fill(CGRect(x: 0, y: shape.minY, width: tab, height: shape.height), color: palette.block, in: context)
             if !first { BoardDrawing.fill(CGRect(x: 0, y: 0, width: size.width, height: 1), color: palette.line2, in: context) }
             context.restoreGState()
             context.saveGState()
