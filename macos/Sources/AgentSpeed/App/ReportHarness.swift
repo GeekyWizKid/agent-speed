@@ -192,8 +192,11 @@ enum ReportHarness {
         }
         busy = false
         await check("accepted: the indicator appears after the done line", within: 5) { report.indicatorShown }
+        // Discovery and registration over HTTP; the reports too, or over WebSocket to the same server when it offers it.
         let requests = counting.count
-        check("accepted: requests went to the local server only", requests >= 3)
+        let streamed = report.stream?.scheduler.counters.accepted ?? 0
+        check("accepted: requests went to the local server only",
+              report.effectiveTransport == .websocket ? requests >= 2 && streamed >= 1 : requests >= 3)
 
         report.forget()
         await check("invitation device forgotten on the service", within: 10) { report.forgetState == .done }
