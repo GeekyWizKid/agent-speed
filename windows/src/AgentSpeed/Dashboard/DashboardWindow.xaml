@@ -347,8 +347,11 @@
                                                                       Appearance="{Binding DataContext.CapsuleAppearance, RelativeSource={RelativeSource AncestorType=Window}}" />
                                                     <TextBlock Text="{Binding Project}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                                 </DockPanel>
-                                                <TextBlock Text="{Binding Detail}" FontSize="12" TextTrimming="CharacterEllipsis"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <!-- The detail truncates; the traffic suffix after it stays whole (DESIGN 4, Room). -->
+                                                <controls:ShrinkFirstPanel TextElement.FontSize="12" TextElement.Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                    <TextBlock Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding DetailSuffix}" Typography.NumeralAlignment="Tabular" />
+                                                </controls:ShrinkFirstPanel>
                                             </StackPanel>
                                             <dash:PhaseBadge Grid.Column="1" Phase="{Binding Phase}" Color="{Binding Color}"
                                                              ReduceMotion="{Binding DataContext.ReduceMotion, RelativeSource={RelativeSource AncestorType=Window}}" />

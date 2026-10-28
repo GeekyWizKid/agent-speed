@@ -83,6 +83,7 @@ internal sealed class AgentRow : ObservableObject
 {
     private string _project = string.Empty;
     private string _detail = string.Empty;
+    private string _detailSuffix = string.Empty;
     private AgentPhase _phase = AgentPhase.Idle;
     private Color _color = Colors.Gray;
     private string _liveText = string.Empty;
@@ -95,6 +96,9 @@ internal sealed class AgentRow : ObservableObject
     public string Project { get => _project; set => Set(ref _project, value); }
 
     public string Detail { get => _detail; set => Set(ref _detail, value); }
+
+    /// <summary>The agent's traffic today (<c> · ↓ 2.10 MB</c>, DESIGN 10): it stays whole while the detail truncates.</summary>
+    public string DetailSuffix { get => _detailSuffix; set => Set(ref _detailSuffix, value); }
 
     public AgentPhase Phase { get => _phase; set => Set(ref _phase, value); }
 
@@ -595,12 +599,14 @@ internal sealed partial class DashboardViewModel : ObservableObject
             {
                 // DESIGN 10: the agent's attributed download today ends its secondary line; the tooltip has both directions.
                 var text = new TrafficText(loc, _trafficBits);
-                row.Detail = $"{detail} · ↓ {Core.Traffic.TrafficFormat.Total(traffic.Rx)}";
+                row.Detail = detail;
+                row.DetailSuffix = $" · ↓ {Core.Traffic.TrafficFormat.Total(traffic.Rx)}";
                 tooltip.Add(loc.Format("traffic.agent.tooltip", text.Pair(traffic)));
             }
             else
             {
                 row.Detail = detail;
+                row.DetailSuffix = string.Empty;
             }
 
             var capsule = EffortCapsule.Of(agent.Modes);
@@ -637,8 +643,8 @@ internal sealed partial class DashboardViewModel : ObservableObject
             row.Indent = new Thickness(rows[i].Indent * TreeConnectors.LevelWidth, 0, 0, 0);
             row.Guides = rows[i].Guides;
             var accessible = row.LiveKind == LiveValueKind.Number
-                ? string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}, {phase}, {row.LiveAccessibleName}")
-                : string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}, {phase}");
+                ? string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}{row.DetailSuffix}, {phase}, {row.LiveAccessibleName}")
+                : string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}{row.DetailSuffix}, {phase}");
             accessible = intelligence.Spoken.Length > 0 ? $"{accessible}, {intelligence.Spoken}" : accessible;
             accessible = capsule.IsKnown ? $"{accessible}, {capsule.AccessibilityText(loc)}" : accessible;
             row.AccessibleName = looping is null ? accessible : $"{accessible}, {looping}";
