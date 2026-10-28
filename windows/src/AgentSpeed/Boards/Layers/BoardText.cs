@@ -89,6 +89,26 @@ internal sealed class BoardText : IDisposable
         return width;
     }
 
+    /// <summary>
+    /// Draws one line with its baseline at <paramref name="baseline"/>, starting at <paramref name="x"/> or, when
+    /// <paramref name="right"/>, ending there; returns the drawn width.
+    /// </summary>
+    public float DrawOnBaseline(ID2D1DeviceContext context, string text, in BoardTextStyle style, float x, float baseline, ID2D1Brush brush,
+        float maxWidth = 4096, bool right = false)
+    {
+        if (string.IsNullOrEmpty(text) || maxWidth <= 1)
+        {
+            return 0;
+        }
+
+        using var layout = Layout(text, style, maxWidth);
+        var width = Math.Min(layout.Metrics.WidthIncludingTrailingWhitespace, maxWidth);
+        var lines = layout.LineMetrics;
+        var top = baseline - (lines.Length > 0 ? lines[0].Baseline : style.Size * 0.8f);
+        context.DrawTextLayout(new Vector2(right ? x - width : x, top), layout, brush, DrawTextOptions.EnableColorFont | DrawTextOptions.Clip);
+        return width;
+    }
+
     /// <summary>The y at which a layout's top lands so its first line's glyph box is centered on <paramref name="centerY"/>.</summary>
     public static float Top(IDWriteTextLayout layout, float centerY)
     {

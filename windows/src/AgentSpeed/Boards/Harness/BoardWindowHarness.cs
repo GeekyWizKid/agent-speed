@@ -74,7 +74,8 @@ internal static class BoardWindowHarness
         window.Configure(style, size, new BoardEffectsPolicy(EffectsIntensity.Standard), new BoardWindowOptions(AlwaysOnTop: true, ClickThrough: true));
         window.MoveTo(new PointD(work.Right - inset - half, work.Bottom - inset - half));
 
-        var feed = new BoardDemoFeed(BoardSimScenario.Team) { Localizer = loc };
+        // Every live metric on, as a new board has them (DESIGN 2c, Live metrics: Frame policy).
+        var feed = new BoardDemoFeed(BoardSimScenario.Team) { Localizer = loc, Readouts = BoardReadouts.All };
         var report = new System.Text.StringBuilder();
         report.AppendLine(CultureInfo.InvariantCulture,
             $"adapter: {device.AdapterName}, {BoardStyles.Key(style)} {BoardSizes.Key(size)}, scale {scale}, clock {clock.Source} at {clock.RefreshHz:0} Hz");

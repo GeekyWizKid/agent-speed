@@ -39,6 +39,10 @@ public static class BoardEditing
 
     public static BoardsDocument SetClickThrough(BoardsDocument document, string id, bool value) => Update(document, id, b => b with { ClickThrough = value });
 
+    /// <summary>Turns one live metrics switch on or off (DESIGN 2c, Live metrics: Switches); the others stay as they are.</summary>
+    public static BoardsDocument SetReadout(BoardsDocument document, string id, BoardReadout readout, bool on) =>
+        Update(document, id, b => b with { Readouts = b.Readouts.With(readout, on) });
+
     public static BoardsDocument SetVisible(BoardsDocument document, string id, bool value) => Update(document, id, b => b with { Visible = value });
 
     /// <summary><c>boards.show</c> / <c>boards.hide</c> of the quick menu: every board at once.</summary>

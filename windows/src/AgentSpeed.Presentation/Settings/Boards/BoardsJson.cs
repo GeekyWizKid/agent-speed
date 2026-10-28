@@ -44,6 +44,13 @@ public static class BoardsJson
             writer.WriteBoolean("clickThrough", board.ClickThrough);
             writer.WriteBoolean("allSpaces", board.AllSpaces);
             writer.WriteBoolean("visible", board.Visible);
+            writer.WriteStartObject("readouts");
+            foreach (var readout in BoardReadouts.Order)
+            {
+                writer.WriteBoolean(BoardReadouts.Key(readout), board.Readouts[readout]);
+            }
+
+            writer.WriteEndObject();
             writer.WriteEndObject();
         }
 
@@ -95,12 +102,30 @@ public static class BoardsJson
                 ClickThrough = OrbsJson.ReadBool(element, "clickThrough", false),
                 AllSpaces = OrbsJson.ReadBool(element, "allSpaces", true),
                 Visible = OrbsJson.ReadBool(element, "visible", true),
+                Readouts = ReadReadouts(element),
             }.Validated());
         }
 
         var cleaned = new BoardsDocument(boards).Validated();
         var layouts = value.TryGetProperty("layouts", out var raw) ? ReadLayouts(raw, cleaned) : [];
         return (cleaned with { Layouts = layouts }).Validated();
+    }
+
+    /// <summary>A missing <c>readouts</c>, a missing key or a value that is not a boolean reads as on.</summary>
+    private static BoardReadouts ReadReadouts(JsonElement board)
+    {
+        if (!board.TryGetProperty("readouts", out var value) || value.ValueKind != JsonValueKind.Object)
+        {
+            return BoardReadouts.All;
+        }
+
+        var readouts = BoardReadouts.All;
+        foreach (var readout in BoardReadouts.Order)
+        {
+            readouts = readouts.With(readout, OrbsJson.ReadBool(value, BoardReadouts.Key(readout), true));
+        }
+
+        return readouts;
     }
 
     private static ImmutableArray<OrbLayout> ReadLayouts(JsonElement layouts, BoardsDocument document)

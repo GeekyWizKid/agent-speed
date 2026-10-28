@@ -13,6 +13,7 @@ namespace AgentSpeed.Presentation.Boards.Live;
 public sealed class BoardLiveFeed
 {
     private readonly BoardFeed _feed;
+    private readonly BoardThinkingHold _thinking = new();
     private BoardDefinition _board;
     private SpeedSnapshot _snapshot = SpeedSnapshot.Empty;
     private bool _hasData;
@@ -50,15 +51,16 @@ public sealed class BoardLiveFeed
     public BoardTick Update(SpeedSnapshot snapshot, double nowSeconds, BoardTexts texts, string? expanded = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(texts);
         _snapshot = snapshot;
         _hasData = true;
-        var data = _feed.Update(snapshot, nowSeconds);
-        return Remember(Build(data, texts, expanded));
+        var data = _feed.Update(snapshot, nowSeconds, texts.Billable);
+        return Remember(Build(data, texts, expanded, nowSeconds));
     }
 
     /// <summary>The last data laid out again (null before the first snapshot); no passes, no new peak.</summary>
     public BoardTick? Relayout(BoardTexts texts, string? expanded = null) =>
-        _hasData ? Remember(Build(_feed.Data with { Events = [], NewPeak = false }, texts, expanded)) : null;
+        _hasData ? Remember(Build(_feed.Data with { Events = [], NewPeak = false }, texts, expanded, null)) : null;
 
     /// <summary>Advances the tier and title holds without new data; the new tick when either changed.</summary>
     public BoardTick? Tick(double nowSeconds, BoardTexts texts, string? expanded = null) =>
@@ -76,13 +78,26 @@ public sealed class BoardLiveFeed
         return tick;
     }
 
-    private BoardTick Build(BoardData data, BoardTexts texts, string? expanded)
+    /// <param name="time">The tick's time for the thinking hold; null re-lays out the last data (the hold only notes a switch change).</param>
+    private BoardTick Build(BoardData data, BoardTexts texts, string? expanded, double? time)
     {
         ArgumentNullException.ThrowIfNull(texts);
         var board = _board;
         var metric = _feed.Metric;
+        var readouts = board.Readouts;
         var open = expanded is not null && data.Groups.Any(g => string.Equals(g.Id, expanded, StringComparison.Ordinal)) ? expanded : null;
-        var entries = BoardLayoutPlan.Arrange(data.Groups, BoardSizes.Limits(board.Size), BoardMetrics.For(board.Style, board.Size), metric, open);
+        var entries = BoardReadoutRows.Word(BoardLayoutPlan.Arrange(data.Groups, BoardSizes.Limits(board.Size),
+            BoardMetrics.For(board.Style, board.Size, readouts), metric, open), readouts, metric, texts);
+        var gauge = texts.Hero(data.Intelligence, data.Cost);
+        if (time is { } now)
+        {
+            _thinking.Update(readouts, gauge, now);
+        }
+        else if (!readouts.Thinking || !(readouts.Intelligence || readouts.Cost))
+        {
+            _thinking.Reset();
+        }
+
         var history = new double[BoardTick.HistorySeconds];
         _feed.CopyHistory(history);
         return new BoardTick(data.Value, SpeedFormat.Speed(data.Value), data.Tier, data.Redline, metric, data.Generating > 0, entries, data.Events,
@@ -98,6 +113,9 @@ public sealed class BoardLiveFeed
             CostText = texts.TodayCost(_snapshot, board.TrackedSources),
             PeakText = texts.Peak(data.PeakToday),
             Expanded = open,
+            Readouts = readouts,
+            Gauge = gauge,
+            ThinkingHidden = _thinking.Hidden,
         };
     }
 }

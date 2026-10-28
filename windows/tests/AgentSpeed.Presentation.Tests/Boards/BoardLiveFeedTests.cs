@@ -117,7 +117,8 @@ public class BoardLiveFeedTests
     [Fact]
     public void TheExpandedGroupShowsItsSubAgentsAndUnknownGroupsAreIgnored()
     {
-        var board = new BoardDefinition("b") { Size = BoardSize.S };
+        // The boards without metrics: S has room for both sub rows.
+        var board = new BoardDefinition("b") { Size = BoardSize.S, Readouts = BoardReadouts.None };
         var feed = Feed(board);
         var snapshot = Snapshot(0, Agent("a", 300), Agent("a1", 20, "a"), Agent("a2", 10, "a"), Agent("b", 100));
 

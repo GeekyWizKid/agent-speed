@@ -106,7 +106,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <boards:BoardThumbnail Side="38" StyleKind="{Binding Style}" Margin="0,0,12,0" VerticalAlignment="Center"
+                                <boards:BoardThumbnail Side="38" StyleKind="{Binding Style}" Readouts="{Binding Readouts}" Margin="0,0,12,0" VerticalAlignment="Center"
                                                        Dark="{Binding DataContext.DarkTheme, RelativeSource={RelativeSource AncestorType=ListBox}}" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,6,12,6">
                                     <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis"
@@ -199,6 +199,7 @@
                                          CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name}">
                                 <StackPanel>
                                     <boards:BoardThumbnail Side="64" StyleKind="{Binding Style}" HorizontalAlignment="Center" Margin="0,4,0,8"
+                                                           Readouts="{Binding DataContext.Readouts, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                            Dark="{Binding DataContext.DarkTheme, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
                                     <TextBlock Text="{Binding Name}" FontSize="12" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -207,6 +208,28 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+            </Border>
+
+            <!-- Live metrics switches (DESIGN 2c, Live metrics: Switches) -->
+            <TextBlock Text="{loc:Loc boards.readouts}" Style="{StaticResource SectionHeaderText}" Margin="2,22,0,8" AutomationProperties.HeadingLevel="Level3" />
+            <Border Style="{StaticResource GroupBorder}" Padding="14,8,14,12">
+                <StackPanel>
+                    <UniformGrid Columns="2">
+                        <CheckBox IsChecked="{Binding ReadoutIntelligence, Mode=TwoWay}" Margin="0,4,12,4" AutomationProperties.Name="{loc:Loc boards.readouts.intel}">
+                            <TextBlock Text="{loc:Loc boards.readouts.intel}" FontSize="13" Margin="4,0,0,0" TextTrimming="CharacterEllipsis" />
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding ReadoutThinking, Mode=TwoWay}" Margin="0,4,0,4" AutomationProperties.Name="{loc:Loc boards.readouts.thinking}">
+                            <TextBlock Text="{loc:Loc boards.readouts.thinking}" FontSize="13" Margin="4,0,0,0" TextTrimming="CharacterEllipsis" />
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding ReadoutCost, Mode=TwoWay}" Margin="0,4,12,4" AutomationProperties.Name="{loc:Loc boards.readouts.cost}">
+                            <TextBlock Text="{loc:Loc boards.readouts.cost}" FontSize="13" Margin="4,0,0,0" TextTrimming="CharacterEllipsis" />
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding ReadoutRowCost, Mode=TwoWay}" Margin="0,4,0,4" AutomationProperties.Name="{loc:Loc boards.readouts.rowCost}">
+                            <TextBlock Text="{loc:Loc boards.readouts.rowCost}" FontSize="13" Margin="4,0,0,0" TextTrimming="CharacterEllipsis" />
+                        </CheckBox>
+                    </UniformGrid>
+                    <TextBlock Text="{loc:Loc boards.readouts.hint}" Style="{StaticResource CaptionText}" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0" />
+                </StackPanel>
             </Border>
 
             <!-- Size and opacity -->

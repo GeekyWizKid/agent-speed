@@ -46,7 +46,12 @@ public static class BoardBackdrop
                 list.Add(OrbGpuInstance.Capsule(m + canvas.Radius * 0.55, m + 0.5, m + canvas.Side - canvas.Radius * 0.55, m + 0.5, 1, palette.Pattern));
                 list.Clip = BoardClip.None;
 
-                // .board::before: the list's top rule, 6 pt in from its sides.
+                // .board::before: the list's top rule, 6 pt in from its sides; the captions line's hairline replaces it.
+                if (metrics.IntelligenceColumn)
+                {
+                    break;
+                }
+
                 list.Add(OrbGpuInstance.RoundedRect(m + metrics.ListLeft + metrics.ListWidth / 2, m + metrics.ListTop + 0.5, metrics.ListWidth / 2 - 6,
                     0.5, 0, 0, palette.Line));
                 break;

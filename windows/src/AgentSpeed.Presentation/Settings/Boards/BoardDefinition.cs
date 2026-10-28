@@ -33,6 +33,9 @@ public sealed record BoardDefinition
 
     public bool Visible { get; init; } = true;
 
+    /// <summary>The live metrics switches (DESIGN 2c, Live metrics): all on for a new board and for one saved without them.</summary>
+    public BoardReadouts Readouts { get; init; } = BoardReadouts.All;
+
     /// <summary>The engine's source set: null tracks every enabled source.</summary>
     public SourceSet? TrackedSources => Sources.Set;
 

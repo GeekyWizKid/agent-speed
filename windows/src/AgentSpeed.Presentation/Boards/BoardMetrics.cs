@@ -47,7 +47,103 @@ public sealed record BoardMetrics(
     /// <summary>Top of the hero block.</summary>
     public double HeroTop { get; init; }
 
-    public static BoardMetrics For(BoardStyle style, BoardSize size)
+    /// <summary>The live metrics switches these numbers are for (DESIGN 2c, Live metrics).</summary>
+    public BoardReadouts Readouts { get; init; } = BoardReadouts.None;
+
+    /// <summary>The hero is layout B: its right side is the sub-gauge (glass and timing draw their history as a strip).</summary>
+    public bool Gauge => Readouts.Hero;
+
+    /// <summary>The rows show the 智力 column and the captions line above the ranking.</summary>
+    public bool IntelligenceColumn => Readouts.Intelligence;
+
+    /// <summary>Group rows have a second line with the model and the cost per second (never at S).</summary>
+    public bool TwoLineRows => Readouts.RowCost && Size != BoardSize.S;
+
+    /// <summary>The board's size.</summary>
+    public BoardSize Size { get; init; } = BoardSize.M;
+
+    /// <summary>The captions line at the top of the ranking (12 tall, timing 14); 0 without the 智力 column.</summary>
+    public double CaptionsHeight { get; init; }
+
+    /// <summary>The history strip under a layout B hero (glass, timing), in board coordinates; empty otherwise.</summary>
+    public double StripTop { get; init; }
+
+    public double StripHeight { get; init; }
+
+    /// <summary>The geometry without the live metrics (every switch off): the boards as before them.</summary>
+    public static BoardMetrics For(BoardStyle style, BoardSize size) => For(style, size, BoardReadouts.None);
+
+    /// <summary>
+    /// The geometry with the live metrics switched as <paramref name="readouts"/> (DESIGN 2c, Live metrics: Hero, Ranking rows):
+    /// a layout B hero moves glass's and timing's history to a strip under it and makes neon's hero taller; the 智力 column adds
+    /// the captions line above the first row; at M and L the second line makes group rows 8 taller (glass and neon then leave
+    /// out their 2 pt between group rows).
+    /// </summary>
+    public static BoardMetrics For(BoardStyle style, BoardSize size, BoardReadouts readouts)
+    {
+        var plain = Plain(style, size) with { Size = size, Readouts = readouts };
+        var i = size switch
+        {
+            BoardSize.S => 0,
+            BoardSize.L => 2,
+            _ => 1,
+        };
+
+        var row = new[] { 30.0, 30, 32 }[i];
+        var group = readouts.RowCost && size != BoardSize.S ? row + 8 : plain.GroupHeight;
+        if (!readouts.Hero)
+        {
+            // The original hero; only the rows' second line can change the list (RowCost alone).
+            return plain with { GroupHeight = group };
+        }
+
+        var side = plain.Side;
+        double heroTop, hero, listTop, listBottom, stripTop = 0, strip = 0;
+        switch (style)
+        {
+            case BoardStyle.Timing:
+                heroTop = new[] { 14.0, 16, 18 }[i];
+                hero = new[] { 72.0, 80, 88 }[i];
+                stripTop = heroTop + hero + 8;
+                strip = new[] { 10.0, 12, 12 }[i];
+                listTop = stripTop + strip + 5;
+                listBottom = 32;
+                break;
+            case BoardStyle.Neon:
+                heroTop = new[] { 12.0, 14, 16 }[i];
+                hero = new[] { 92.0, 100, 108 }[i];
+                listTop = heroTop + hero + 4;
+                listBottom = 36;
+                break;
+            default:
+                heroTop = new[] { 12.0, 14, 16 }[i];
+                hero = new[] { 78.0, 86, 94 }[i];
+                stripTop = heroTop + hero;
+                strip = new[] { 14.0, 16, 18 }[i];
+                listTop = stripTop + strip;
+                listBottom = 38;
+                break;
+        }
+
+        var captions = readouts.Intelligence ? style == BoardStyle.Timing ? 14 : 12 : 0;
+        var startY = readouts.Intelligence ? captions + 2 : plain.StartY;
+        var height = side - listTop - listBottom;
+        return plain with
+        {
+            HeroTop = heroTop,
+            HeroHeight = hero,
+            ListTop = listTop,
+            ListBottom = listBottom,
+            StartY = startY,
+            Room = height - startY,
+            GroupHeight = group,
+            CaptionsHeight = captions,
+            StripTop = stripTop,
+            StripHeight = strip,
+        };
+    }
+
+    private static BoardMetrics Plain(BoardStyle style, BoardSize size)
     {
         var side = BoardSizes.Side(size);
         var i = size switch

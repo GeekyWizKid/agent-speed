@@ -22,6 +22,7 @@ internal sealed class BoardRowViewModel(string id) : ObservableObject
     private string _accessibleName = string.Empty;
     private bool _shown = true;
     private BoardStyle _style;
+    private BoardReadouts _readouts = BoardReadouts.All;
 
     public string Id { get; } = id;
 
@@ -34,6 +35,9 @@ internal sealed class BoardRowViewModel(string id) : ObservableObject
     public bool IsShown { get => _shown; set => Set(ref _shown, value); }
 
     public BoardStyle Style { get => _style; set => Set(ref _style, value); }
+
+    /// <summary>The live metrics switches the thumbnail shows.</summary>
+    public BoardReadouts Readouts { get => _readouts; set => Set(ref _readouts, value); }
 }
 
 /// <summary>A style card of the board editor (<c>boards.style</c>).</summary>
@@ -51,7 +55,8 @@ internal sealed class BoardStyleCardViewModel(BoardStyle style) : ObservableObje
 
 /// <summary>
 /// Settings → 懸浮窗, Boards (DESIGN 2c Interaction and window): the list of boards under the orbs with add, remove and a
-/// visible switch per board, and the editor of the selected board (sources, style, size, opacity, window toggles). Every
+/// visible switch per board, and the editor of the selected board (sources, style, live metrics switches, size, opacity,
+/// window toggles). Every
 /// change applies live and persists.
 /// </summary>
 internal sealed class BoardsPaneViewModel : ObservableObject
@@ -226,6 +231,17 @@ internal sealed class BoardsPaneViewModel : ObservableObject
 
     public string ClickThroughHint => _loc["win.settings.clickThrough.description"];
 
+    /// <summary>The selected board's live metrics switches (the style cards' thumbnails show them).</summary>
+    public BoardReadouts Readouts => Board?.Readouts ?? BoardReadouts.All;
+
+    public bool ReadoutIntelligence { get => Readouts.Intelligence; set => SetReadout(BoardReadout.Intelligence, value); }
+
+    public bool ReadoutThinking { get => Readouts.Thinking; set => SetReadout(BoardReadout.Thinking, value); }
+
+    public bool ReadoutCost { get => Readouts.Cost; set => SetReadout(BoardReadout.Cost, value); }
+
+    public bool ReadoutRowCost { get => Readouts.RowCost; set => SetReadout(BoardReadout.RowCost, value); }
+
     private AppSettings S => _settings.Current;
 
     private string? SelectedId => _selected?.Id;
@@ -252,6 +268,14 @@ internal sealed class BoardsPaneViewModel : ObservableObject
         if (SelectedId is { } id && !_syncing)
         {
             Update(d => BoardEditing.ToggleSource(d, id, row.Kind));
+        }
+    }
+
+    private void SetReadout(BoardReadout readout, bool on)
+    {
+        if (SelectedId is { } id && !_syncing)
+        {
+            Update(d => BoardEditing.SetReadout(d, id, readout, on));
         }
     }
 
@@ -302,6 +326,7 @@ internal sealed class BoardsPaneViewModel : ObservableObject
                 row.AccessibleName = BoardRowText.Accessible(board, _loc);
                 row.IsShown = board.Visible;
                 row.Style = board.Style;
+                row.Readouts = board.Readouts;
             }
 
             if (added is not null && _selectNext is not null)
@@ -372,5 +397,10 @@ internal sealed class BoardsPaneViewModel : ObservableObject
         OnPropertyChanged(nameof(OpacityText));
         OnPropertyChanged(nameof(AlwaysOnTop));
         OnPropertyChanged(nameof(ClickThrough));
+        OnPropertyChanged(nameof(Readouts));
+        OnPropertyChanged(nameof(ReadoutIntelligence));
+        OnPropertyChanged(nameof(ReadoutThinking));
+        OnPropertyChanged(nameof(ReadoutCost));
+        OnPropertyChanged(nameof(ReadoutRowCost));
     }
 }

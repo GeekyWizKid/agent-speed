@@ -81,6 +81,9 @@ public abstract record MenuAction
 
     public sealed record SetBoardSize(string BoardId, BoardSize Size) : MenuAction;
 
+    /// <summary>One of the board's live metrics switches (<c>boards.readouts</c> ▸), on or off.</summary>
+    public sealed record SetBoardReadout(string BoardId, BoardReadout Readout, bool On) : MenuAction;
+
     public sealed record SetBoardAlwaysOnTop(string BoardId, bool On) : MenuAction;
 
     public sealed record SetBoardClickThrough(string BoardId, bool On) : MenuAction;

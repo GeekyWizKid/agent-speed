@@ -1,4 +1,5 @@
 using AgentSpeed.Core;
+using AgentSpeed.Core.Intelligence;
 using AgentSpeed.Presentation.Hero;
 
 namespace AgentSpeed.Presentation.Boards.Demo;
@@ -74,6 +75,22 @@ public sealed class BoardSim
         ["gemini-3.5-pro"] = (100, 190),
     };
 
+    // sim.js: output list prices (USD per million tokens) for the live cost and the model class (METRICS 6.9, 9.5).
+    private static readonly Dictionary<string, double> Prices = new(StringComparer.Ordinal)
+    {
+        ["claude-opus-5-5"] = 20,
+        ["claude-sonnet-5-5"] = 10,
+        ["claude-haiku-5-5"] = 0.5,
+        ["gpt-6.1-sol"] = 20,
+        ["deepseek-flash"] = 1.2,
+        ["gemini-3.5-pro"] = 12,
+    };
+
+    private static readonly Dictionary<string, int> EffortLevels = new(StringComparer.Ordinal)
+    {
+        ["off"] = 0, ["minimal"] = 1, ["low"] = 1, ["medium"] = 2, ["high"] = 3, ["xhigh"] = 4, ["max"] = 5, ["ultra"] = 5, ["ultracode"] = 5,
+    };
+
     private static readonly string[] Ladder = ["medium", "high", "xhigh", "max"];
     private static readonly string?[] CodexSpeeds = ["fast", "ultrafast", null];
 
@@ -113,6 +130,9 @@ public sealed class BoardSim
 
     /// <summary>Every agent idles (the idle part of a script).</summary>
     public bool Quiet { get; set; }
+
+    /// <summary>No source reports reasoning apart from output (board-metrics.html <c>noreasoning=1</c>): 思考 reads 0.</summary>
+    public bool NoReasoning { get; set; }
 
     public void Reset(BoardSimScenario scenario)
     {
@@ -162,14 +182,63 @@ public sealed class BoardSim
             var a = _agents[i];
             var activity = epoch.AddSeconds(a.LastActive);
             // A sub-agent's label stands in its project, which is what tells it apart on a sub row.
+            var (grade, intelligence, cost) = Measure(a);
             list[i] = new AgentStatus(a.Id, a.Source, a.ParentId is null ? a.Project : a.Label, a.Model, a.Phase, a.ParentId is not null,
                 new Rate(a.Live, a.Live * 4), null, activity, a.ParentId)
             {
                 Modes = Modes(a),
+                Grade = grade,
+                Intelligence = new AgentIntelligence(intelligence, grade),
+                LiveCost = cost,
             };
         }
 
         return list;
+    }
+
+    /// <summary>
+    /// sim.js <c>measure</c>: the agent's grade (class + 6 × effort level), its reasoning (by effort, breathing ±20 % over ~7 s;
+    /// none for DeepSeek, which reports reasoning inside its output) as window sums, and its live cost (Ultrafast has no list
+    /// price; Fast bills 2×). Derived from the state only, never from the random sequence.
+    /// </summary>
+    private (ModelGrade Grade, IntelligenceSums Sums, LiveCost Cost) Measure(BoardSimAgent a)
+    {
+        var level = a.Effort is { } effort && EffortLevels.TryGetValue(effort, out var l) ? l + (effort is "ultra" or "ultracode" ? 1 : 0) : 2;
+        var price = Prices.GetValueOrDefault(a.Model);
+        var klass = !Prices.ContainsKey(a.Model) ? ModelClass.Standard : price >= 15 ? ModelClass.Flagship : price >= 3 ? ModelClass.Standard : ModelClass.Light;
+        var grade = new ModelGrade(klass, level);
+        var seed = HashUnit(a.Id);
+        var records = IntelligenceSums.RecordsReasoning(a.Source) && !NoReasoning;
+        var breath = 0.8 + 0.4 * (0.5 + 0.5 * Math.Sin(Time * 0.9 + seed * 6.283));
+        var thinking = records ? a.Live * (0.07 + 0.05 * level) * (0.7 + 0.6 * seed) * breath : 0;
+        var window = WindowSeconds * a.Live;
+        var sums = window > 0 ? new IntelligenceSums(window, window * grade.Value, thinking * WindowSeconds, IntelligenceSums.RecordsReasoning(a.Source) ? window : 0)
+            : IntelligenceSums.Zero;
+        var priced = a.SpeedMode != "ultrafast";
+        var bolts = a.SpeedMode is "fast" or "highspeed" ? 1 : a.SpeedMode == "ultrafast" ? 2 : 0;
+        var rate = priced ? a.Live * price * (1.3 + 0.6 * seed) * (bolts > 0 ? 2 : 1) : 0;
+        return (grade, sums, new LiveCost(rate, priced ? a.Live : 0));
+    }
+
+    /// <summary>The engine's live window in seconds (the sums are tokens over it).</summary>
+    private const double WindowSeconds = 3;
+
+    // sim.js hashUnit: FNV-1a over the id's UTF-16 units, then a murmur finalizer, as a fraction of 2^32.
+    internal static double HashUnit(string text)
+    {
+        var h = 2166136261u;
+        foreach (var c in text)
+        {
+            h ^= c;
+            h *= 16777619u;
+        }
+
+        h ^= h >> 16;
+        h *= 0x85ebca6bu;
+        h ^= h >> 13;
+        h *= 0xc2b2ae35u;
+        h ^= h >> 16;
+        return h / 4294967296.0;
     }
 
     private static ExecutionModes Modes(BoardSimAgent a)

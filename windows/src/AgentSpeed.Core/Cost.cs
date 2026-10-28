@@ -32,6 +32,63 @@ public readonly record struct LiveCost(double MicroUsdPerSecond = 0, double Know
     public double KnownShare(double liveOutput) => liveOutput > 0 ? Math.Min(1, KnownOutput / liveOutput) : 1;
 }
 
+/// <summary>
+/// The live cost of a board group (METRICS 9.5, Per group): the members' own per-agent values added, never an average of
+/// their shares. A member whose source is excluded as a subscription adds nothing, neither cost nor tokens.
+/// </summary>
+/// <param name="MicroUsdPerSecond"><c>liveCost_G</c>: Σ the billable members' <c>liveCost_a</c>.</param>
+/// <param name="KnownOutput">Σ their live output (tok/s) that carries a known cost.</param>
+/// <param name="LiveOutput">Σ their live output (tok/s).</param>
+/// <param name="Members">Members added.</param>
+/// <param name="Billable">Members whose source counts (METRICS 9.4).</param>
+public readonly record struct GroupCost(double MicroUsdPerSecond = 0, double KnownOutput = 0, double LiveOutput = 0, int Members = 0, int Billable = 0)
+{
+    public static GroupCost None => default;
+
+    /// <summary><c>liveCostKnownShare_G</c>: Σ known tokens ÷ Σ tokens, 1 when they add up to 0.</summary>
+    public double KnownShare => LiveOutput > 0 ? Math.Min(1, KnownOutput / LiveOutput) : 1;
+
+    /// <summary>Every member is excluded as a subscription: the group has no displayed cost.</summary>
+    public bool Excluded => Members > 0 && Billable == 0;
+
+    public CostState State => Excluded ? CostState.SubscriptionOnly
+        : LiveOutput > 0 && KnownOutput <= 0 ? CostState.NothingPriced
+        : KnownShare < CostReading.PartialThreshold && MicroUsdPerSecond > 0 ? CostState.Partial
+        : CostState.Priced;
+
+    /// <summary>Adds one member: its own live cost and live output when <paramref name="billable"/> counts its source.</summary>
+    public GroupCost Add(AgentStatus member, SourceSet billable)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        return Add(member.Source, member.LiveCost, member.Live.Output, billable);
+    }
+
+    public GroupCost Add(SourceKind source, LiveCost cost, double liveOutput, SourceSet billable)
+    {
+        if (!billable.Contains(source))
+        {
+            return this with { Members = Members + 1 };
+        }
+
+        var output = double.IsFinite(liveOutput) && liveOutput > 0 ? liveOutput : 0;
+        return new GroupCost(MicroUsdPerSecond + cost.MicroUsdPerSecond, KnownOutput + cost.KnownOutput, LiveOutput + output, Members + 1,
+            Billable + 1);
+    }
+
+    /// <summary>The cost of a root and its sub-agents over the <paramref name="billable"/> sources.</summary>
+    public static GroupCost Of(AgentStatus root, IReadOnlyList<AgentStatus> subs, SourceSet billable)
+    {
+        ArgumentNullException.ThrowIfNull(subs);
+        var cost = None.Add(root, billable);
+        for (var i = 0; i < subs.Count; i++)
+        {
+            cost = cost.Add(subs[i], billable);
+        }
+
+        return cost;
+    }
+}
+
 public enum CostState
 {
     /// <summary>Every live token has a known price (an idle 0 included).</summary>

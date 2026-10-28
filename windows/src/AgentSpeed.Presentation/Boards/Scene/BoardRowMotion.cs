@@ -39,6 +39,8 @@ public sealed class BoardRowMotion
     private double _shareFrom;
     private double _shareTo;
     private double _shareStart = double.NegativeInfinity;
+    private bool? _intelLive;
+    private double _intelChange = double.NegativeInfinity;
 
     public BoardRowMotion(string key, BoardStyle style, BoardEntry entry, double now, bool appear)
     {
@@ -92,6 +94,17 @@ public sealed class BoardRowMotion
     /// <summary>The underline is still easing.</summary>
     public bool Sharing(double now) => now - _shareStart < ShareSeconds;
 
+    /// <summary>The 智力 cell's color crossfades in 0.2 s between live and resting (an opacity change, kept with Reduce Motion).</summary>
+    public const double IntelFadeSeconds = 0.2;
+
+    /// <summary>How live the 智力 cell's color is: 1 live, 0 resting or none, between them while it crossfades.</summary>
+    public double IntelLive(double now)
+    {
+        var live = _intelLive == true ? 1.0 : 0;
+        var t = (now - _intelChange) / IntelFadeSeconds;
+        return t is >= 0 and < 1 ? (1 - live) + (2 * live - 1) * Easing.OutQuad(t) : live;
+    }
+
     /// <summary>The flash: +1 warm, −1 dim, 0 none.</summary>
     public int FlashDirection { get; private set; }
 
@@ -126,6 +139,16 @@ public sealed class BoardRowMotion
                 FlashDirection = change > 0 ? 1 : -1;
                 _flashStart = now;
             }
+        }
+
+        if (entry.Readout is { } readout)
+        {
+            if (_intelLive is { } was && was != readout.Live)
+            {
+                _intelChange = now;
+            }
+
+            _intelLive = readout.Live;
         }
 
         _last = live;
@@ -172,7 +195,7 @@ public sealed class BoardRowMotion
     public bool Moving(double now) => !_y.IsSettled(_target, 0.05) || now - _enterStart < FadeSeconds || Leaving;
 
     /// <summary>Its value flashes warm or dims, or its underline eases (no travel: 30 fps is enough).</summary>
-    public bool Flashing(double now) => FlashProgress(now) < 1 || Sharing(now);
+    public bool Flashing(double now) => FlashProgress(now) < 1 || Sharing(now) || now - _intelChange < IntelFadeSeconds;
 
     public void Settle()
     {
@@ -180,5 +203,6 @@ public sealed class BoardRowMotion
         _enterStart = double.NegativeInfinity;
         _flashStart = double.NegativeInfinity;
         _shareStart = double.NegativeInfinity;
+        _intelChange = double.NegativeInfinity;
     }
 }

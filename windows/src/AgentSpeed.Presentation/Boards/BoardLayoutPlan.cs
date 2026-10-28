@@ -34,7 +34,14 @@ public sealed record BoardEntry(
     double Y,
     double Height,
     int Rest = 0,
-    double RestLive = 0);
+    double RestLive = 0)
+{
+    /// <summary>A group row with its second line (model and cost per second; DESIGN 2c, Live metrics, at M and L).</summary>
+    public bool TwoLine { get; init; }
+
+    /// <summary>The row's live metrics as worded for this tick (its 智力 and cost); null for the more lines or without them.</summary>
+    public BoardRowReadout? Readout { get; init; }
+}
 
 /// <summary>
 /// Which rows a board shows (DESIGN 2c, Layout per size): groups first, at most the size's count and only as many whole
@@ -104,7 +111,7 @@ public static class BoardLayoutPlan
                 free += moreH;
             }
 
-            entries.Add(new BoardEntry(BoardEntryKind.Group, group.Id, group, group.Root, i + 1, y, rowH));
+            entries.Add(new BoardEntry(BoardEntryKind.Group, group.Id, group, group.Root, i + 1, y, rowH) { TwoLine = metrics.TwoLineRows });
             y += rowH;
             var shownLive = 0.0;
             foreach (var sub in keep)

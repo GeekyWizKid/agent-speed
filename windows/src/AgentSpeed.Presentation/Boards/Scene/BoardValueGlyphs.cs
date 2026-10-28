@@ -17,6 +17,32 @@ public enum BoardValueSet
 
     /// <summary>Timing's interval to the group above (<c>.gap</c>).</summary>
     Interval,
+
+    /// <summary>A group row's live 智力 (neon: baked <c>led</c> with its glow).</summary>
+    IntelGroup,
+
+    /// <summary>A sub row's live 智力.</summary>
+    IntelSub,
+
+    /// <summary>A group row's resting 智力 or <c>–</c> (the quieter weight; tinted <c>ink-3</c>).</summary>
+    IntelGroupRest,
+
+    IntelSubRest,
+
+    /// <summary>A group row's cost on its second line.</summary>
+    RowCost,
+
+    /// <summary>The sub-gauge's 智力 number (neon: baked LED digits with their glow).</summary>
+    GaugeMain,
+
+    /// <summary>The sub-gauge's 思考 and 費用 numbers (neon: baked with their glow).</summary>
+    GaugeTable,
+
+    /// <summary>Neon's plain 智力 digits: quiet values in <c>ink-3</c> and the ghost <c>8</c>s.</summary>
+    GaugeMainPlain,
+
+    /// <summary>Neon's plain table digits for quiet values.</summary>
+    GaugeTablePlain,
 }
 
 /// <summary>
@@ -27,7 +53,7 @@ public enum BoardValueSet
 /// </summary>
 public static class BoardValueGlyphs
 {
-    public const string Glyphs = "0123456789.kMB–−+";
+    public const string Glyphs = "0123456789.kMB–−+,<";
 
     /// <summary>The en dash of a value below 0.05 (METRICS 7: never shown as a number).</summary>
     public const char Dash = '–';
@@ -35,15 +61,29 @@ public static class BoardValueGlyphs
     /// <summary>Room around a glyph's advance box in its layer.</summary>
     public const double Pad = 2;
 
+    /// <summary>The characters a set draws (an index is digits or <c>–</c>; a rate also has its separators and suffixes).</summary>
+    public static string Alphabet(BoardValueSet set) => set switch
+    {
+        BoardValueSet.IntelGroup or BoardValueSet.IntelSub or BoardValueSet.IntelGroupRest or BoardValueSet.IntelSubRest or BoardValueSet.GaugeMain
+            or BoardValueSet.GaugeMainPlain => "0123456789–",
+        BoardValueSet.GaugeTable or BoardValueSet.GaugeTablePlain or BoardValueSet.RowCost => "0123456789.,kMB–<",
+        _ => "0123456789.kMB–−+",
+    };
+
+    /// <summary>Room around a set's glyphs: neon bakes the glow of its lit sets into their layers.</summary>
+    public static double PadOf(BoardValueSet set) => set switch
+    {
+        BoardValueSet.GaugeMain => 10,
+        BoardValueSet.GaugeTable or BoardValueSet.IntelGroup or BoardValueSet.IntelSub => 8,
+        _ => Pad,
+    };
+
     /// <summary>The right edge of timing's interval column, from the row's right end (M and L; S has no interval).</summary>
     public const double IntervalRight = 57;
 
-    private static readonly string[][] SetKeys =
-    [
-        Glyphs.Select(c => "#vg" + c).ToArray(),
-        Glyphs.Select(c => "#vs" + c).ToArray(),
-        Glyphs.Select(c => "#vi" + c).ToArray(),
-    ];
+    private static readonly string[][] SetKeys = Enum.GetValues<BoardValueSet>()
+        .Select(set => Glyphs.Select(c => "#v" + (int)set + c).ToArray())
+        .ToArray();
 
     /// <summary>The glyph keys of a set, in <see cref="Glyphs"/> order.</summary>
     public static IReadOnlyList<string> Keys(BoardValueSet set) => SetKeys[(int)set];
@@ -56,6 +96,107 @@ public static class BoardValueGlyphs
 
     /// <summary>The sets a style draws (only timing has intervals).</summary>
     public static int Sets(BoardStyle style) => style == BoardStyle.Timing ? 3 : 2;
+
+    /// <summary>The sets a board draws with its live metrics switched as <paramref name="metrics"/> says (DESIGN 2c, Live metrics).</summary>
+    public static IReadOnlyList<BoardValueSet> SetsFor(BoardStyle style, BoardMetrics metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        var sets = new List<BoardValueSet>(12) { BoardValueSet.Group, BoardValueSet.Sub };
+        if (style == BoardStyle.Timing)
+        {
+            sets.Add(BoardValueSet.Interval);
+        }
+
+        var readouts = metrics.Readouts;
+        if (readouts.Intelligence)
+        {
+            sets.AddRange([BoardValueSet.IntelGroup, BoardValueSet.IntelSub, BoardValueSet.IntelGroupRest, BoardValueSet.IntelSubRest]);
+        }
+
+        if (metrics.TwoLineRows)
+        {
+            sets.Add(BoardValueSet.RowCost);
+        }
+
+        if (readouts.Hero && readouts.Intelligence)
+        {
+            sets.Add(BoardValueSet.GaugeMain);
+            if (style == BoardStyle.Neon)
+            {
+                sets.Add(BoardValueSet.GaugeMainPlain);
+            }
+        }
+
+        if (readouts.Thinking || readouts.Cost)
+        {
+            sets.Add(BoardValueSet.GaugeTable);
+            if (style == BoardStyle.Neon)
+            {
+                sets.Add(BoardValueSet.GaugeTablePlain);
+            }
+        }
+
+        return sets;
+    }
+
+    /// <summary>The width of <paramref name="text"/> in a set, <paramref name="tracking"/> between glyphs (0 while glyphs are missing).</summary>
+    public static double Measure(IBoardLayers layers, string text, BoardValueSet set, double tracking)
+    {
+        ArgumentNullException.ThrowIfNull(layers);
+        ArgumentNullException.ThrowIfNull(text);
+        var width = 0.0;
+        var count = 0;
+        var pad = PadOf(set);
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (TryGlyph(text[i], set, layers, out var slot))
+            {
+                width += slot.Width - 2 * pad + (count++ > 0 ? tracking : 0);
+            }
+        }
+
+        return width;
+    }
+
+    /// <summary>
+    /// Draws <paramref name="text"/> with its baseline at <paramref name="baseline"/>, starting at, centred on or ending at
+    /// <paramref name="x"/> (<paramref name="align"/> −1, 0, 1), tinted <paramref name="tint"/> by <paramref name="amount"/> (0
+    /// keeps a baked color); <paramref name="dy"/> per glyph is not used here (rolls use <see cref="BoardReadoutNumber"/>).
+    /// Returns the drawn width.
+    /// </summary>
+    public static double EmitOnBaseline(BoardDrawList list, IBoardLayers layers, string text, BoardValueSet set, double x, int align, double baseline,
+        double tracking, Rgba tint, double amount, double alpha, RectBounds clip = default)
+    {
+        ArgumentNullException.ThrowIfNull(list);
+        var width = Measure(layers, text, set, tracking);
+        if (alpha <= 0.002)
+        {
+            return width;
+        }
+
+        var at = align < 0 ? x : align == 0 ? x - width / 2 : x - width;
+        var color = tint.WithAlpha(1);
+        var opacity = alpha * (amount > 0 ? tint.A : 1);
+        var pad = PadOf(set);
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (!TryGlyph(text[i], set, layers, out var slot))
+            {
+                continue;
+            }
+
+            list.AddLayer(BoardLayerInstance.Create(slot, at - pad, baseline - Baseline(slot), opacity, color, amount, clip));
+            at += slot.Width - 2 * pad + tracking;
+        }
+
+        return width;
+    }
+
+    /// <summary>The glyph's baseline in its layer (the middle of the layer when the painter gave none).</summary>
+    public static double Baseline(in BoardLayerSlot slot) => double.IsFinite(slot.Baseline) ? slot.Baseline : slot.Height / 2;
+
+    /// <summary>A glyph's slot, false while it has not been rasterized.</summary>
+    public static bool TryGet(char c, BoardValueSet set, IBoardLayers layers, out BoardLayerSlot slot) => TryGlyph(c, set, layers, out slot);
 
     /// <summary>What a row with <paramref name="live"/> shows.</summary>
     public static string Text(double live) => live > 0.05 ? SpeedFormat.Speed(live) : Dash.ToString();

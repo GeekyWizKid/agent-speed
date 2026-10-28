@@ -18,7 +18,7 @@ public class BoardsSettingsTests
                 new BoardDefinition(IdA)
                 {
                     Style = BoardStyle.Timing, Size = BoardSize.L, Sources = OrbSources.Of(SourceSet.Of(SourceKind.Codex)), Opacity = 0.7, AlwaysOnTop = false,
-                    ClickThrough = true, AllSpaces = false,
+                    ClickThrough = true, AllSpaces = false, Readouts = new BoardReadouts(intelligence: true, thinking: false, cost: true, rowCost: false),
                 },
                 new BoardDefinition(IdB) { Visible = false },
             ])
@@ -48,6 +48,8 @@ public class BoardsSettingsTests
         Assert.True(a.ClickThrough);
         Assert.False(a.AlwaysOnTop);
         Assert.False(back.Boards.Find(IdB)!.Visible);
+        Assert.Equal(new BoardReadouts(true, false, true, false), a.Readouts);
+        Assert.Equal(BoardReadouts.All, back.Boards.Find(IdB)!.Readouts);
         Assert.Equal(OrbAxis.High(12), back.Boards.RecordFor(Arrangement, IdA)!.Value.X);
     }
 
@@ -67,6 +69,12 @@ public class BoardsSettingsTests
         {
             Assert.NotNull(first[key]);
         }
+
+        var readouts = first["readouts"]!;
+        Assert.True(readouts["intelligence"]!.GetValue<bool>());
+        Assert.False(readouts["thinking"]!.GetValue<bool>());
+        Assert.True(readouts["cost"]!.GetValue<bool>());
+        Assert.False(readouts["rowCost"]!.GetValue<bool>());
 
         var record = boards["layouts"]![Arrangement]![IdA]!;
         Assert.Equal("high", record["xAnchor"]!.GetValue<string>());
@@ -91,6 +99,21 @@ public class BoardsSettingsTests
     {
         var settings = Read("{ \"version\": 1, \"boards\": [ { \"id\": \"" + IdA + "\", \"size\": " + size + " } ] }");
         Assert.Equal(expected, settings.Boards.Boards[0].Size);
+    }
+
+    // DESIGN 2c data model: a missing field or key, or a value that is not a boolean, reads as true; no migration step.
+    [Theory]
+    [InlineData("", true, true, true, true)]
+    [InlineData(", \"readouts\": 7", true, true, true, true)]
+    [InlineData(", \"readouts\": null", true, true, true, true)]
+    [InlineData(", \"readouts\": { }", true, true, true, true)]
+    [InlineData(", \"readouts\": { \"thinking\": false }", true, false, true, true)]
+    [InlineData(", \"readouts\": { \"intelligence\": \"no\", \"cost\": 0, \"rowCost\": false }", true, true, true, false)]
+    [InlineData(", \"readouts\": { \"intelligence\": false, \"thinking\": false, \"cost\": false, \"rowCost\": false }", false, false, false, false)]
+    public void ReadoutsReadTolerantly(string field, bool intelligence, bool thinking, bool cost, bool rowCost)
+    {
+        var settings = Read("{ \"version\": 1, \"boards\": [ { \"id\": \"" + IdA + "\"" + field + " } ] }");
+        Assert.Equal(new BoardReadouts(intelligence, thinking, cost, rowCost), settings.Boards.Boards[0].Readouts);
     }
 
     [Fact]
@@ -123,7 +146,9 @@ public class BoardsSettingsTests
             var added = document.Add()!.Value;
             Assert.Equal(BoardSize.M, added.Board.Size);
             Assert.True(added.Board.Sources.IsAll);
-            document = added.Document.Replace(added.Board with { Style = BoardStyle.Glass });
+            Assert.Equal(BoardReadouts.All, added.Board.Readouts);
+            // Add copies nothing: the next board has every switch on again.
+            document = added.Document.Replace(added.Board with { Style = BoardStyle.Glass, Readouts = BoardReadouts.None });
         }
 
         Assert.False(document.CanAdd);

@@ -57,9 +57,23 @@ public sealed record BoardHeroLayout(
     /// <summary>Room around the history's layer for the sparkline's end dot, the bars' rounding and the LED bloom.</summary>
     public const double HistoryPad = 12;
 
-    public static BoardHeroLayout For(BoardStyle style, BoardSize size)
+    /// <summary>The hero without the live metrics.</summary>
+    public static BoardHeroLayout For(BoardStyle style, BoardSize size) => For(style, size, BoardReadouts.None);
+
+    /// <summary>
+    /// The hero with the live metrics switched as <paramref name="readouts"/>: with a sub-gauge (layout B, DESIGN 2c Live metrics)
+    /// the left column keeps the number, the unit, the title and the counts; glass's and timing's history becomes the full-width
+    /// strip under the band (its box is then below the hero), neon keeps its LED bar and centres the left column in the band
+    /// less the bar's 17 pt.
+    /// </summary>
+    public static BoardHeroLayout For(BoardStyle style, BoardSize size, BoardReadouts readouts)
     {
-        var metrics = BoardMetrics.For(style, size);
+        var metrics = BoardMetrics.For(style, size, readouts);
+        if (readouts.Hero)
+        {
+            return Gauge(style, size, metrics);
+        }
+
         var width = metrics.Side - 2 * metrics.Pad;
         var hero = metrics.HeroHeight;
         var big = metrics.ValueSize;
@@ -85,6 +99,36 @@ public sealed record BoardHeroLayout(
                 var spark = size == BoardSize.S ? 76 : 104;
                 return new BoardHeroLayout(width, hero, top, big, -0.02 * big, 6, top + 1.08 * big + 7,
                     new BoardBox(width - spark, (hero - 40) / 2, spark, 40), default);
+            }
+        }
+    }
+
+    private static BoardHeroLayout Gauge(BoardStyle style, BoardSize size, BoardMetrics metrics)
+    {
+        var width = metrics.Side - 2 * metrics.Pad;
+        var hero = metrics.HeroHeight;
+        var big = metrics.ValueSize;
+        switch (style)
+        {
+            case BoardStyle.Timing:
+            {
+                var top = (hero - (10 + 6 + 1.08 * big + 7 + 17)) / 2;
+                return new BoardHeroLayout(width, hero, top + 16, big, -0.04 * big, 6, top + 16 + 1.08 * big + 7,
+                    new BoardBox(0, metrics.StripTop - metrics.HeroTop, width, metrics.StripHeight), new BoardBox(0, top + 1.5, 7, 7));
+            }
+
+            case BoardStyle.Neon:
+            {
+                // .hero { padding-bottom: 17px } with .hl centred: the number (1.08 em), 8, the meta line (12).
+                var top = (hero - 17 - (1.08 * big + 8 + 12)) / 2;
+                return new BoardHeroLayout(width, hero, top, big, -0.03 * big, 7, top + 1.08 * big + 8, new BoardBox(0, hero - 13, width, 7), default);
+            }
+
+            default:
+            {
+                var top = (hero - (1.08 * big + 7 + 16)) / 2;
+                return new BoardHeroLayout(width, hero, top, big, -0.02 * big, 6, top + 1.08 * big + 7,
+                    new BoardBox(0, metrics.StripTop - metrics.HeroTop, width, metrics.StripHeight), default);
             }
         }
     }

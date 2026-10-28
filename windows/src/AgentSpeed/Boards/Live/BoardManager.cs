@@ -366,7 +366,7 @@ internal sealed class BoardManager : IDisposable
     {
         entry.Window.Apply(tick);
         var automation = entry.Window.Automation;
-        automation.Name = BoardAccessibility.Board(entry.Definition, tick.ValueText, texts.SpokenTitle(entry.Feed.Data.Title), _loc);
+        automation.Name = BoardAccessibility.Board(entry.Definition, tick, texts.SpokenTitle(entry.Feed.Data.Title), _loc);
         automation.SetRows([.. BoardAccessibility.Items(tick).Select(e => (e.Key, BoardAccessibility.Row(e, _loc)))]);
         if (entry.Announcer.NewLeader(tick, now, _loc) is { } text)
         {
@@ -483,7 +483,7 @@ internal sealed class BoardManager : IDisposable
             return;
         }
 
-        var lines = BoardTooltip.Lines(row.Group, _loc);
+        var lines = BoardTooltip.Lines(row, _loc);
         _tooltip ??= new HoverTooltip();
         _tooltip.ShowFor(anchor, lines[0], string.Join(Environment.NewLine, lines.Skip(1)), _theme.ReduceMotion);
     }

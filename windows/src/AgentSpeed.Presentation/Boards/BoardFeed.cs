@@ -28,6 +28,12 @@ public sealed record BoardData(
 {
     public static BoardData Empty { get; } = new(0, SpeedTier.Idle, SpeedTitle.Idle, HeatMath.DefaultRedline, [], [], 0, 0, 0, 0, false);
 
+    /// <summary>The live intelligence sums of the board's sources (METRICS 6.9 over <c>A</c>).</summary>
+    public Core.Intelligence.IntelligenceSums Intelligence { get; init; }
+
+    /// <summary>The live cost of the board's billable sources (METRICS 9.5, 9.4).</summary>
+    public CostReading Cost { get; init; } = CostReading.Zero;
+
     public double Heat => HeatMath.Heat(Value, Redline);
 
     public double Overdrive => HeatMath.Overdrive(Value, Redline);
@@ -85,13 +91,15 @@ public sealed class BoardFeed
     /// <summary>
     /// Applies a snapshot: the hero values every time, the ranking at most once per engine tick. A subset board's own new
     /// peak fires here; an all-sources board's comes from the engine's <see cref="SpeedEvent.NewPeak"/> (<see cref="Accepts"/>).
+    /// Costs count only the <paramref name="billable"/> sources (every source when null; METRICS 9.4).
     /// </summary>
-    public BoardData Update(SpeedSnapshot snapshot, double nowSeconds)
+    public BoardData Update(SpeedSnapshot snapshot, double nowSeconds, SourceSet? billable = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         var newPeak = _feed.Update(snapshot, nowSeconds);
         var reading = _feed.Reading;
-        var groups = BoardGrouping.Group(reading.Agents, _feed.Metric);
+        var counted = billable ?? SourceSet.Everything;
+        var groups = BoardGrouping.Group(reading.Agents, _feed.Metric, counted);
         IReadOnlyList<BoardRankEvent> events = [];
         if (nowSeconds - _lastTick >= MinTickSeconds || _order.Count == 0 && groups.Count > 0)
         {
@@ -111,7 +119,11 @@ public sealed class BoardFeed
         }
 
         Data = new BoardData(_feed.Value, _feed.Tier, _feed.Title, _feed.Redline, Arrange(groups, _order), events, generating, tools,
-            reading.Today.Output, _feed.PeakToday, newPeak);
+            reading.Today.Output, _feed.PeakToday, newPeak)
+        {
+            Intelligence = reading.Intelligence,
+            Cost = OrbSubset.Cost(snapshot, _feed.Sources, counted),
+        };
         return Data;
     }
 

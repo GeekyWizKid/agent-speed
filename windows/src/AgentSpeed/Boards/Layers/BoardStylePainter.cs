@@ -12,6 +12,52 @@ using Vortice.Direct2D1;
 
 namespace AgentSpeed.Boards.Layers;
 
+/// <summary>The fonts of the live metrics (DESIGN 2c, Live metrics), resolved per style and size by its painter.</summary>
+internal enum BoardReadoutFont
+{
+    /// <summary>智力's label over its number (glass, neon).</summary>
+    MainLabel,
+
+    /// <summary>The table's labels (glass, neon).</summary>
+    TableLabel,
+
+    /// <summary>Timing's tab labels.</summary>
+    TabLabel,
+
+    /// <summary>The table's units.</summary>
+    Unit,
+
+    /// <summary><c>≥</c> at 0.85 × the table number's size.</summary>
+    AtLeast,
+
+    /// <summary>The subscription tag at 0.8 × the table number's size.</summary>
+    Tag,
+
+    GaugeMain,
+
+    GaugeTable,
+
+    IntelGroup,
+
+    IntelSub,
+
+    IntelGroupRest,
+
+    IntelSubRest,
+
+    /// <summary>The captions line.</summary>
+    Captions,
+
+    /// <summary>A two-line row's cost, its unit, its <c>≥</c> and its tag.</summary>
+    RowCost,
+
+    RowUnit,
+
+    RowAtLeast,
+
+    RowTag,
+}
+
 /// <summary>What a row layer shows, resolved once per row from the tick.</summary>
 /// <param name="Column">The shared capsule column's width (the prototypes' <c>--capw</c>: the widest visible capsule).</param>
 /// <param name="Fastest">Timing: this row's agent is the fastest of all (the purple dot).</param>
@@ -49,7 +95,9 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     private BoardTick? _columnTick;
     private float _column;
     private string? _fastest;
-    private ((BoardStyle, BoardSize, bool, bool, string) Key, string Text)? _theme;
+    private ((BoardStyle, BoardSize, bool, bool, string, int) Key, string Text)? _theme;
+    private readonly Dictionary<(BoardTextStyle Style, float Height), float> _baselines = [];
+    private (string Key, double Width)? _gaugeWidth;
 
     protected BoardStylePainter(BoardStyle style, Localizer localizer, BoardText text)
     {
@@ -84,6 +132,28 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     /// </summary>
     protected abstract BoardTextStyle ValueStyle(BoardValueSet set, bool dim);
 
+    /// <summary>A live metrics font of the style at the scene's size, without tracking unless it is a label's.</summary>
+    protected abstract BoardTextStyle ReadoutStyle(BoardScene scene, BoardReadoutFont font);
+
+    /// <summary>
+    /// A glyph set drawn in its final color with its glow baked in (neon's lit digits on dark), or null for a white set the scene
+    /// tints.
+    /// </summary>
+    protected virtual (Rgba Color, (Rgba Color, float Radius)[] Glows)? Baked(BoardScene scene, BoardValueSet set) => null;
+
+    /// <summary>The text style of a glyph set.</summary>
+    private BoardTextStyle GlyphStyle(BoardScene scene, BoardValueSet set, bool dim) => set switch
+    {
+        BoardValueSet.IntelGroup => ReadoutStyle(scene, BoardReadoutFont.IntelGroup),
+        BoardValueSet.IntelSub => ReadoutStyle(scene, BoardReadoutFont.IntelSub),
+        BoardValueSet.IntelGroupRest => ReadoutStyle(scene, BoardReadoutFont.IntelGroupRest),
+        BoardValueSet.IntelSubRest => ReadoutStyle(scene, BoardReadoutFont.IntelSubRest),
+        BoardValueSet.RowCost => ReadoutStyle(scene, BoardReadoutFont.RowCost),
+        BoardValueSet.GaugeMain or BoardValueSet.GaugeMainPlain => ReadoutStyle(scene, BoardReadoutFont.GaugeMain),
+        BoardValueSet.GaugeTable or BoardValueSet.GaugeTablePlain => ReadoutStyle(scene, BoardReadoutFont.GaugeTable),
+        _ => ValueStyle(set, dim),
+    };
+
     public BoardLayerSpec? Describe(in BoardLayerRequest request)
     {
         var scene = request.Scene;
@@ -107,7 +177,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
                 var content = Content(scene, tick, row.Entry, row.Live);
                 var width = metrics.ListWidth - (row.Entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub ? ValueWidth(scene.Size) : 0);
                 var more = row.Entry.Kind is BoardEntryKind.MoreSubs or BoardEntryKind.MoreGroups ? MoreText(row.Entry, row.Live) : string.Empty;
-                return new BoardLayerSpec(width, scene.RowHeight(row.Entry), string.Join('|', theme, "b", row.Entry.Kind, row.Entry.Rank,
+                return new BoardLayerSpec(width, scene.RowHeight(row.Entry), string.Join('|', theme, "b", row.Entry.Kind, row.Entry.Rank, row.Entry.TwoLine,
                     content.Name, content.Detail, content.Source, content.Capsule.Effort, content.Capsule.Speed,
                     content.Column.ToString("0.#", CultureInfo.InvariantCulture), content.Interval, more, BodyKey(content)), MeterX(content, (float)width));
             }
@@ -115,30 +185,48 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             case BoardLayerKind.Badge when request.Row is { } row && BoardPulses.Badge(row.Entry) is { } badge:
             {
                 var sub = row.Entry.Kind == BoardEntryKind.Sub;
-                var (width, height) = BoardPulses.BadgeSize(Style, sub, badge.Phase);
-                return new BoardLayerSpec(width, height, string.Join('|', theme, "bg", badge.Source, badge.Phase, sub));
+                var (width, height) = BoardPulses.BadgeSize(Style, sub, badge.Phase, row.Entry.TwoLine);
+                return new BoardLayerSpec(width, height, string.Join('|', theme, "bg", badge.Source, badge.Phase, sub, row.Entry.TwoLine));
             }
 
             case BoardLayerKind.RowValue when request.Row is { Entry.Kind: BoardEntryKind.Group or BoardEntryKind.Sub } row:
             {
                 var content = Content(scene, tick, row.Entry, row.Live);
                 return HasValueLayer(content) ? new BoardLayerSpec(ValueWidth(scene.Size) + ValueBleed, scene.RowHeight(row.Entry),
-                    string.Join('|', theme, "v", row.Entry.Kind, ValueKey(content))) : null;
+                    string.Join('|', theme, "v", row.Entry.Kind, row.Entry.TwoLine, ValueKey(content))) : null;
             }
 
             case BoardLayerKind.ValueGlyph:
             {
-                var style = ValueStyle(request.Set, request.Glyph == BoardValueGlyphs.Dash);
-                var pad = BoardValueGlyphs.Pad;
-                return new BoardLayerSpec(Advance(request.Glyph, style) + 2 * pad, Math.Ceiling(style.Size * 1.3) + 2 * pad,
-                    string.Join('|', theme, "vg", request.Set, request.Glyph));
+                var style = GlyphStyle(scene, request.Set, request.Glyph == BoardValueGlyphs.Dash);
+                var pad = BoardValueGlyphs.PadOf(request.Set);
+                var height = Math.Ceiling(style.Size * 1.3) + 2 * pad;
+                return new BoardLayerSpec(Advance(request.Glyph, style) + 2 * pad, height,
+                    string.Join('|', theme, "vg", request.Set, request.Glyph, Baked(scene, request.Set) is null ? "w" : "b"), Baseline: GlyphBaseline(style, height));
             }
+
+            case BoardLayerKind.GaugeText:
+                return DescribeGaugeText(scene, tick, request.Part, theme);
+
+            case BoardLayerKind.Captions:
+                return scene.Metrics.IntelligenceColumn
+                    ? new BoardLayerSpec(metrics.ListWidth, scene.Metrics.CaptionsHeight, string.Join('|', theme, "cap", Capsules(scene, tick)))
+                    : null;
+
+            case BoardLayerKind.RowUnit:
+                return TextLayer(tick.Gauge.Cost.Unit, ReadoutStyle(scene, BoardReadoutFont.RowUnit), theme, "ru");
+
+            case BoardLayerKind.RowAtLeast:
+                return TextLayer(CostDisplayAtLeast, ReadoutStyle(scene, BoardReadoutFont.RowAtLeast), theme, "rg");
+
+            case BoardLayerKind.RowTag:
+                return TextLayer(Loc["cost.subscription.tag"], ReadoutStyle(scene, BoardReadoutFont.RowTag), theme, "rt");
 
             case BoardLayerKind.Hero:
             {
                 var hero = scene.Hero;
                 return new BoardLayerSpec(hero.Width, hero.Height, string.Join('|', theme, "h", tick.Title, tick.GeneratingCount, tick.ToolsCount,
-                    tick.Generating, HeroHeatKey(tick)));
+                    tick.Generating, HeroHeatKey(tick), HeroLimit(scene, tick).ToString("0.#", CultureInfo.InvariantCulture)));
             }
 
             case BoardLayerKind.Unit:
@@ -246,12 +334,244 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
                 break;
             case BoardLayerKind.ValueGlyph:
             {
-                // White: the scene tints each row's glyphs to the row's color.
-                using var white = BoardPaint.Brush(context, Rgba.White);
-                Text.Draw(context, request.Glyph.ToString(), ValueStyle(request.Set, request.Glyph == BoardValueGlyphs.Dash),
-                    (float)BoardValueGlyphs.Pad, height / 2, white);
+                // White: the scene tints each row's glyphs to the row's color; neon's lit sets bake their color and glow.
+                var style = GlyphStyle(scene, request.Set, request.Glyph == BoardValueGlyphs.Dash);
+                var pad = (float)BoardValueGlyphs.PadOf(request.Set);
+                var text = request.Glyph.ToString();
+                if (Baked(scene, request.Set) is { } baked)
+                {
+                    foreach (var (color, radius) in baked.Glows)
+                    {
+                        BoardPaint.Glow(context, color, radius, c =>
+                        {
+                            using var white = BoardPaint.Brush(c, Rgba.White);
+                            Text.Draw(c, text, style, pad, height / 2, white);
+                        });
+                    }
+
+                    using var lit = BoardPaint.Brush(context, baked.Color);
+                    Text.Draw(context, text, style, pad, height / 2, lit);
+                    break;
+                }
+
+                using (var white = BoardPaint.Brush(context, Rgba.White))
+                {
+                    Text.Draw(context, text, style, pad, height / 2, white);
+                }
+
                 break;
             }
+
+            case BoardLayerKind.GaugeText:
+                PaintText(context, GaugeText(scene, tick, request.Part), GaugeStyle(scene, request.Part), height);
+                break;
+            case BoardLayerKind.Captions:
+                PaintCaptions(context, scene, tick, width, height);
+                break;
+            case BoardLayerKind.RowUnit:
+                PaintText(context, tick.Gauge.Cost.Unit, ReadoutStyle(scene, BoardReadoutFont.RowUnit), height);
+                break;
+            case BoardLayerKind.RowAtLeast:
+                PaintText(context, CostDisplayAtLeast, ReadoutStyle(scene, BoardReadoutFont.RowAtLeast), height);
+                break;
+            case BoardLayerKind.RowTag:
+                PaintText(context, Loc["cost.subscription.tag"], ReadoutStyle(scene, BoardReadoutFont.RowTag), height);
+                break;
+        }
+    }
+
+    private const string CostDisplayAtLeast = "≥";
+
+    // ---- Live metrics (DESIGN 2c, Live metrics) ----
+
+    /// <summary>The y of a glyph layer's baseline (its line centred in the layer), measured once per style and height.</summary>
+    private float GlyphBaseline(in BoardTextStyle style, double height)
+    {
+        var key = (style, (float)height);
+        if (!_baselines.TryGetValue(key, out var baseline))
+        {
+            using var layout = Text.Layout("0", style);
+            baseline = BoardText.Baseline(layout, (float)height / 2);
+            _baselines[key] = baseline;
+        }
+
+        return baseline;
+    }
+
+    /// <summary>The centre on which <see cref="BoardText.Draw"/> puts a line of <paramref name="style"/> so its baseline lands on <paramref name="baseline"/>.</summary>
+    protected float CenterOnBaseline(in BoardTextStyle style, float baseline) => baseline - GlyphBaseline(style, 0);
+
+    // A white text layer, TextPad around its text, its baseline recorded.
+    private BoardLayerSpec? TextLayer(string text, in BoardTextStyle style, string theme, string kind)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        var pad = BoardGauge.TextPad;
+        var height = Math.Ceiling(style.Size * 1.6) + 2 * pad;
+        return new BoardLayerSpec(Text.Measure(text, style) + 2 * pad, height, string.Join('|', theme, kind, text), Baseline: GlyphBaseline(style, height));
+    }
+
+    private void PaintText(ID2D1DeviceContext context, string text, in BoardTextStyle style, float height)
+    {
+        using var white = BoardPaint.Brush(context, Rgba.White);
+        Text.Draw(context, text, style, (float)BoardGauge.TextPad, height / 2, white);
+    }
+
+    private BoardLayerSpec? DescribeGaugeText(BoardScene scene, BoardTick tick, BoardGaugePart part, string theme)
+    {
+        var readouts = scene.Readouts;
+        var on = part switch
+        {
+            BoardGaugePart.LabelIntelligence => readouts.Intelligence,
+            BoardGaugePart.LabelThinking or BoardGaugePart.UnitThinking => readouts.Thinking,
+            _ => readouts.Cost,
+        };
+
+        return on && readouts.Hero ? TextLayer(GaugeText(scene, tick, part), GaugeStyle(scene, part), theme, "gt" + (int)part) : null;
+    }
+
+    private string GaugeText(BoardScene scene, BoardTick tick, BoardGaugePart part) => part switch
+    {
+        BoardGaugePart.LabelIntelligence => Loc["intel.glyph"],
+        BoardGaugePart.LabelThinking => Loc["intel.thinking.glyph"],
+        BoardGaugePart.LabelCost => Loc["cost.glyph"],
+        BoardGaugePart.UnitThinking => Loc["unit.tokS"],
+        BoardGaugePart.UnitCost => tick.Gauge.Cost.Unit,
+        BoardGaugePart.AtLeast => CostDisplayAtLeast,
+        _ => Loc["cost.subscription.tag"],
+    };
+
+    private BoardTextStyle GaugeStyle(BoardScene scene, BoardGaugePart part) => part switch
+    {
+        BoardGaugePart.LabelIntelligence => ReadoutStyle(scene, Style == BoardStyle.Timing ? BoardReadoutFont.TabLabel : BoardReadoutFont.MainLabel),
+        BoardGaugePart.LabelThinking or BoardGaugePart.LabelCost =>
+            ReadoutStyle(scene, Style == BoardStyle.Timing ? BoardReadoutFont.TabLabel : BoardReadoutFont.TableLabel),
+        BoardGaugePart.UnitThinking or BoardGaugePart.UnitCost => ReadoutStyle(scene, BoardReadoutFont.Unit),
+        BoardGaugePart.AtLeast => ReadoutStyle(scene, BoardReadoutFont.AtLeast),
+        _ => ReadoutStyle(scene, BoardReadoutFont.Tag),
+    };
+
+    /// <summary>
+    /// The hero's left column ends 8 before the sub-gauge (layout B), else before the history; the sub-gauge is as wide as its
+    /// nominal width or its table, whichever is more, plus what a wider value holds.
+    /// </summary>
+    protected float HeroLimit(BoardScene scene, BoardTick tick)
+    {
+        if (!scene.Metrics.Gauge)
+        {
+            return (float)scene.Hero.History.Left - 8;
+        }
+
+        return (float)(scene.Hero.Width - GaugeWidth(scene, tick) - scene.Gauge.Extra - 8);
+    }
+
+    // The sub-gauge's width from the measured cells (DESIGN 2c, Table cells), cached per theme and cost unit.
+    private double GaugeWidth(BoardScene scene, BoardTick tick)
+    {
+        var readouts = scene.Readouts;
+        var key = Theme(scene) + "|" + tick.Gauge.Cost.Unit;
+        if (_gaugeWidth is { } cached && cached.Key == key)
+        {
+            return cached.Width;
+        }
+
+        var spec = BoardGaugeSpec.For(Style, scene.Size);
+        var label = 0f;
+        foreach (var part in new[] { BoardGaugePart.LabelIntelligence, BoardGaugePart.LabelThinking, BoardGaugePart.LabelCost })
+        {
+            var on = part switch
+            {
+                BoardGaugePart.LabelIntelligence => readouts.Intelligence && Style == BoardStyle.Timing,
+                BoardGaugePart.LabelThinking => readouts.Thinking,
+                _ => readouts.Cost,
+            };
+
+            if (on)
+            {
+                label = Math.Max(label, Text.Measure(GaugeText(scene, tick, part), GaugeStyle(scene, part)));
+            }
+        }
+
+        var unitStyle = ReadoutStyle(scene, BoardReadoutFont.Unit);
+        var unit = Math.Max(readouts.Thinking ? Text.Measure(Loc["unit.tokS"], unitStyle) : 0, readouts.Cost ? Text.Measure(tick.Gauge.Cost.Unit, unitStyle) : 0);
+        var number = ReadoutStyle(scene, BoardReadoutFont.GaugeTable);
+        var tracking = BoardGauge.TableTracking(Style, spec);
+        var sample = 0.0;
+        foreach (var c in BoardGauge.NumberSample)
+        {
+            sample += Advance(c, number);
+        }
+
+        sample += (BoardGauge.NumberSample.Length - 1) * tracking;
+        var cells = new BoardGaugeCells(label, Text.Measure(CostDisplayAtLeast, ReadoutStyle(scene, BoardReadoutFont.AtLeast)), sample, unit);
+        var width = BoardGaugeLayout.Width(Style, spec, cells, readouts);
+        _gaugeWidth = (key, width);
+        return width;
+    }
+
+    // The captions line: a hairline from the rank column to the end of the capsule column, 智力 over the 智力 cells, tok/s over the
+    // values and timing's 間隔 over the interval column (not at S), all in ink-3.
+    private void PaintCaptions(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float width, float height)
+    {
+        var palette = scene.Palette;
+        var columns = scene.Columns;
+        var style = ReadoutStyle(scene, BoardReadoutFont.Captions);
+        var mid = height / 2;
+        var start = Style == BoardStyle.Timing ? 4f : 6f;
+        var end = width - (float)columns.CapsuleRight - 2;
+        if (end > start)
+        {
+            BoardPaint.FillRound(context, start, mid - 0.5f, end - start, 1, 0, palette.Line);
+        }
+
+        using var ink3 = BoardPaint.Brush(context, palette.Ink3);
+        Text.Draw(context, Loc["intel.glyph"], style, width - (float)columns.IntelligenceRight, mid, ink3, right: true);
+        Text.Draw(context, Loc["unit.tokS"], style, width - (float)columns.ValueRight, mid, ink3, right: true);
+        if (Style == BoardStyle.Timing && scene.Size != BoardSize.S)
+        {
+            Text.Draw(context, Loc["boards.gap"], style, width - (float)columns.IntervalRight, mid, ink3, right: true);
+        }
+    }
+
+    // The capsule column's identity for the captions layer (its hairline ends with the column).
+    private string Capsules(BoardScene scene, BoardTick tick)
+    {
+        if (!ReferenceEquals(tick, _columnTick))
+        {
+            _columnTick = tick;
+            _column = Column(scene, tick);
+            _fastest = Fastest(tick);
+        }
+
+        return _column.ToString("0.#", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>The capsule column's right end in a row body <paramref name="width"/> wide, moved left by the 智力 column.</summary>
+    protected float RowCapsuleRight(in BoardRowContent row, float width) =>
+        row.Scene.Metrics.IntelligenceColumn ? width - (float)(row.Scene.Columns.CapsuleRight - ValueWidth(row.Scene.Size)) : CapsuleRight(row, width);
+
+    /// <summary>
+    /// A two-line group row's name on the first baseline (16) and its detail on the second, both trimmed at their tail to the
+    /// name column (DESIGN 2c, Ranking rows: The second line).
+    /// </summary>
+    protected void DrawTwoLines(ID2D1DeviceContext context, in BoardRowContent row, in BoardTextStyle nameStyle, Rgba nameColor, in BoardTextStyle detailStyle,
+        Rgba detailColor, float x, float right)
+    {
+        var room = right - x;
+        if (room <= 4)
+        {
+            return;
+        }
+
+        using var nameBrush = BoardPaint.Brush(context, nameColor);
+        Text.DrawOnBaseline(context, row.Name, nameStyle, x, (float)BoardScene.FirstBaseline, nameBrush, room);
+        if (!string.IsNullOrEmpty(row.Detail))
+        {
+            using var detailBrush = BoardPaint.Brush(context, detailColor);
+            Text.DrawOnBaseline(context, row.Detail, detailStyle, x, Style == BoardStyle.Glass ? 32 : 31, detailBrush, room);
         }
     }
 
@@ -360,7 +680,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
             return double.NaN;
         }
 
-        return CapsuleRight(row, width) - row.Column + CapsuleLook(row.Scene, row.Entry.Kind == BoardEntryKind.Sub).Padding;
+        return RowCapsuleRight(row, width) - row.Column + CapsuleLook(row.Scene, row.Entry.Kind == BoardEntryKind.Sub).Padding;
     }
 
     /// <summary>Draws the capsule right-aligned in the shared column ending at <paramref name="right"/>; returns the column's left.</summary>
@@ -609,11 +929,11 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     // The part of every signature that a restyle, resize, appearance or language changes (made once per change, not per layer).
     private string Theme(BoardScene scene)
     {
-        var key = (scene.Style, scene.Size, scene.Dark, scene.Palette.HighContrast, Loc.LanguageCode);
+        var key = (scene.Style, scene.Size, scene.Dark, scene.Palette.HighContrast, Loc.LanguageCode, scene.Readouts.Bits);
         if (_theme is not { } theme || theme.Key != key)
         {
             _theme = theme = (key, string.Join('|', scene.Style, scene.Size, scene.Dark ? "d" : "l", scene.Palette.HighContrast ? "hc" : string.Empty,
-                Loc.LanguageCode));
+                Loc.LanguageCode, scene.Readouts.Bits));
         }
 
         return theme.Text;

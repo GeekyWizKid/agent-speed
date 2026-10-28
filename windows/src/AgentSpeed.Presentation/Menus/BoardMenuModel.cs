@@ -9,7 +9,7 @@ namespace AgentSpeed.Presentation.Menus;
 
 /// <summary>
 /// The context menu of one board (DESIGN 2c, Interaction and window): header (style name and sources);
-/// <c>boards.style</c> ▸, <c>orbs.sources</c> ▸, <c>menu.size</c> ▸ S / M / L, <c>menu.effects</c> ▸ (global);
+/// <c>boards.style</c> ▸, <c>orbs.sources</c> ▸, <c>boards.readouts</c> ▸ (the live metrics), <c>menu.size</c> ▸ S / M / L, <c>menu.effects</c> ▸ (global);
 /// <c>menu.alwaysOnTop</c>, <c>menu.clickThrough</c>; <c>boards.add</c>, <c>boards.remove</c>; <c>menu.dashboard</c>,
 /// <c>boards.settings</c>.
 /// </summary>
@@ -41,6 +41,7 @@ public static class BoardMenuModel
             Submenu(localizer["boards.style"], BoardStyles.All.Select(style =>
                 (MenuEntry)Toggle(StyleName(style, localizer), board.Style == style, new MenuAction.SetBoardStyle(id, style)))),
             SourcesMenu(board.Sources, new MenuAction.SetBoardAllSources(id), kind => new MenuAction.ToggleBoardSource(id, kind), sources, localizer),
+            ReadoutsMenu(board, localizer),
             Submenu(localizer["menu.size"], Sizes.Select(s =>
                 (MenuEntry)Toggle(localizer[s.Key], board.Size == s.Size, new MenuAction.SetBoardSize(id, s.Size)))),
             EffectsMenu(settings.Effects, localizer),
@@ -54,6 +55,16 @@ public static class BoardMenuModel
             Command(localizer["menu.dashboard"], new MenuAction.OpenDashboard(), MenuGlyph.Dashboard),
             Command(localizer["boards.settings"], new MenuAction.OpenBoardSettings(id), MenuGlyph.Settings),
         ]);
+    }
+
+    /// <summary><c>boards.readouts</c> ▸ the four live metrics switches in order, each with a check; choosing one toggles it.</summary>
+    public static MenuRow ReadoutsMenu(BoardDefinition board, Localizer localizer)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(localizer);
+        return Submenu(localizer["boards.readouts"], BoardReadouts.Order.Select(readout =>
+            (MenuEntry)Toggle(localizer[BoardReadouts.ItemKey(readout)], board.Readouts[readout],
+                new MenuAction.SetBoardReadout(board.Id, readout, !board.Readouts[readout]))));
     }
 
     /// <summary><c>boards.add</c> (from a board, an orb or nowhere); disabled at four boards with <c>boards.limit</c>.</summary>
