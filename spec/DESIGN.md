@@ -2558,7 +2558,7 @@ instead of network speed. It needs neither the traffic switch nor the Windows he
   | Line | Size | Content (left to right) |
   | --- | --- | --- |
   | intelligence | `p = 1.25 t` | `intel.glyph` (智力 / 智力 / IQ / 知) · gap 0.20 p · integer |
-  | thinking | `t` | `intel.thinking.glyph` (思 / 思 / TH / 思) · gap 0.16 t · `liveThinking` formatted as METRICS 7 · gap 0.16 t · `tok/s` |
+  | thinking | `t` | `intel.thinking.glyph` (思考 / 思考 / TH / 思考) · gap 0.16 t · `liveThinking` formatted as METRICS 7 · gap 0.16 t · `tok/s` |
 
   - Glyphs: text, weight 600, 0.82 × the line's size, the unit token's color. Numbers: weight 600, tabular digits,
     the line's size, the number color. `tok/s`: weight 500, 0.82 t, the unit token's color.
