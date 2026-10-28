@@ -100,6 +100,7 @@ public static class SettingsSerializer
             w.WriteBoolean("grokBuild", s.GrokBuildEnabled);
             w.WriteBoolean("pi", s.PiEnabled);
             w.WriteBoolean("openclaw", s.OpenClawEnabled);
+            w.WriteBoolean("hermes", s.HermesEnabled);
             WriteNullableString(w, "codexRoot", s.CodexRoot);
             WriteNullableString(w, "claudeRoot", s.ClaudeRoot);
             WriteNullableString(w, "dshRoot", s.DshRoot);
@@ -114,6 +115,7 @@ public static class SettingsSerializer
             WriteNullableString(w, "grokBuildRoot", s.GrokBuildRoot);
             WriteNullableString(w, "piRoot", s.PiRoot);
             WriteNullableString(w, "openclawRoot", s.OpenClawRoot);
+            WriteNullableString(w, "hermesRoot", s.HermesRoot);
             w.WriteEndObject();
 
             w.WriteStartObject("dashboard");
@@ -260,6 +262,7 @@ public static class SettingsSerializer
             GrokBuildEnabled = ReadBool(sources, "grokBuild", d.GrokBuildEnabled),
             PiEnabled = ReadBool(sources, "pi", d.PiEnabled),
             OpenClawEnabled = ReadBool(sources, "openclaw", d.OpenClawEnabled),
+            HermesEnabled = ReadBool(sources, "hermes", d.HermesEnabled),
             CodexRoot = ReadString(sources, "codexRoot"),
             ClaudeRoot = ReadString(sources, "claudeRoot"),
             DshRoot = ReadString(sources, "dshRoot"),
@@ -274,6 +277,7 @@ public static class SettingsSerializer
             GrokBuildRoot = ReadString(sources, "grokBuildRoot"),
             PiRoot = ReadString(sources, "piRoot"),
             OpenClawRoot = ReadString(sources, "openclawRoot"),
+            HermesRoot = ReadString(sources, "hermesRoot"),
             HistoryWindow = ReadWindowFrame(history is { } h ? Child(h, "window") : null),
             HistoryModeKind = ReadString(history, "modeKind") == "speed" ? ExecutionModeKind.Speed : ExecutionModeKind.Effort,
             ChartSeconds = (int)Math.Round(ReadDouble(dashboard, "chartSeconds", d.ChartSeconds)),

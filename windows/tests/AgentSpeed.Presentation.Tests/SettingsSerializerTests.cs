@@ -287,7 +287,7 @@ public class SettingsSerializerTests
         [
             SourceKind.Codex, SourceKind.ClaudeDesktop, SourceKind.DeepSeek, SourceKind.OpenCode, SourceKind.Gemini,
             SourceKind.Omp, SourceKind.Antigravity, SourceKind.WorkBuddy, SourceKind.WorkBuddyAi, SourceKind.ZCode, SourceKind.Kimi, SourceKind.GrokBuild,
-            SourceKind.Pi, SourceKind.OpenClaw,
+            SourceKind.Pi, SourceKind.OpenClaw, SourceKind.Hermes,
         ]));
         Assert.Equal(Path.Combine(Path.GetTempPath(), "c"), config.CodexRoot);
         Assert.Null(config.ClaudeRoot);
@@ -308,7 +308,7 @@ public class SettingsSerializerTests
         [
             SourceKind.Codex, SourceKind.ClaudeCode, SourceKind.ClaudeDesktop, SourceKind.OpenCode, SourceKind.Gemini,
             SourceKind.Omp, SourceKind.Antigravity, SourceKind.WorkBuddy, SourceKind.WorkBuddyAi, SourceKind.ZCode, SourceKind.Kimi, SourceKind.GrokBuild,
-            SourceKind.Pi, SourceKind.OpenClaw,
+            SourceKind.Pi, SourceKind.OpenClaw, SourceKind.Hermes,
         ]));
         Assert.Equal(dsh, config.DshRoot);
         Assert.NotEqual(AppSettings.Default.ToMonitorConfiguration(), (AppSettings.Default with { DshRoot = dsh }).ToMonitorConfiguration());

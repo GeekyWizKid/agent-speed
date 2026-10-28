@@ -177,6 +177,9 @@ internal sealed class SettingsViewModel : ObservableObject
         ChangeOpenClawCommand = new RelayCommand(() => ChangeFolder(OpenClawFolder, (s, path) => s with { OpenClawRoot = path }));
         ResetOpenClawCommand = new RelayCommand(() => _settings.Update(s => s with { OpenClawRoot = null }),
             () => _settings.Current.OpenClawRoot is not null);
+        ChangeHermesCommand = new RelayCommand(() => ChangeFolder(HermesPath, (s, path) => s with { HermesRoot = path }));
+        ResetHermesCommand = new RelayCommand(() => _settings.Update(s => s with { HermesRoot = null }),
+            () => _settings.Current.HermesRoot is not null);
         OpenHistoryCommand = new RelayCommand(openHistory);
         ClearHistoryCommand = new RelayCommand(() =>
         {
@@ -342,6 +345,10 @@ internal sealed class SettingsViewModel : ObservableObject
     public RelayCommand ChangeOpenClawCommand { get; }
 
     public RelayCommand ResetOpenClawCommand { get; }
+
+    public RelayCommand ChangeHermesCommand { get; }
+
+    public RelayCommand ResetHermesCommand { get; }
 
     public RelayCommand OpenHistoryCommand { get; }
 
@@ -582,6 +589,12 @@ internal sealed class SettingsViewModel : ObservableObject
         ? Path.GetDirectoryName(chosen) ?? chosen
         : S.OpenClawRoot ?? LiveMonitor.DefaultOpenClawRoot;
 
+    /// <summary>The Hermes home (<c>%LOCALAPPDATA%\hermes</c> unless <c>%HERMES_HOME%</c> says otherwise), or the chosen home or <c>logs</c> folder.</summary>
+    public string HermesPath => S.HermesRoot ?? LiveMonitor.DefaultHermesRoot;
+
+    /// <summary>Today's main sessions of every profile; a home without logs shows 0 (DESIGN 5).</summary>
+    public string HermesStatus => StatusFor(SourceKind.Hermes);
+
     public string CodexStatus => StatusFor(SourceKind.Codex);
 
     public string DshStatus => StatusFor(SourceKind.DeepSeek);
@@ -743,6 +756,7 @@ internal sealed class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(PiStatus));
         OnPropertyChanged(nameof(OpenClawStatus));
         OnPropertyChanged(nameof(OpenClawPath));
+        OnPropertyChanged(nameof(HermesStatus));
         OnPropertyChanged(nameof(UpdateLastCheckedText));
     }
 

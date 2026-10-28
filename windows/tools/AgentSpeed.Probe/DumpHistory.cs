@@ -29,7 +29,8 @@ internal static class DumpHistory
         {
             using (var store = HistoryStore.Open(storePath))
             {
-                var tuning = new HistoryOptions();
+                // Hermes's wall times are read in this computer's zone even when days are grouped in UTC (METRICS 4.15).
+                var tuning = new HistoryOptions { HermesZone = TimeZoneInfo.Local };
                 if (Environment.GetEnvironmentVariable("AGENTSPEED_HISTORY_WORKERS") is { } workers && int.TryParse(workers, out var w))
                 {
                     tuning = tuning with { Workers = w };

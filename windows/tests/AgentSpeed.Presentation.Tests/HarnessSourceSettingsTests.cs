@@ -79,6 +79,35 @@ public sealed class HarnessSourceSettingsTests
     }
 
     [Fact]
+    public void TheHermesFolderAndToggleRoundTripAndReachTheMonitor()
+    {
+        var home = Path.Combine(Path.GetTempPath(), "hermes-home");
+        var settings = AppSettings.Default.WithSourceEnabled(SourceKind.Hermes, false) with { HermesRoot = $"  {home}  " };
+        var back = SettingsSerializer.Deserialize(SettingsSerializer.Serialize(settings.Validated()));
+
+        Assert.Equal((false, home), (back.HermesEnabled, back.HermesRoot));
+        var config = back.ToMonitorConfiguration();
+        Assert.Equal(home, config.HermesRoot);
+        Assert.DoesNotContain(SourceKind.Hermes, config.EnabledSources);
+        Assert.NotEqual(AppSettings.Default.ToMonitorConfiguration(), (AppSettings.Default with { HermesRoot = home }).ToMonitorConfiguration());
+        Assert.Null((AppSettings.Default with { HermesRoot = Path.Combine("relative", "logs") }).Validated().HermesRoot);
+    }
+
+    [Fact]
+    public void OlderSettingsFilesKeepHermesOnWithItsAutomaticHome()
+    {
+        var s = SettingsSerializer.Deserialize("""
+            { "version": 1, "sources": { "codex": true, "openclaw": false, "openclawRoot": null } }
+            """);
+
+        Assert.True(s.HermesEnabled);
+        Assert.Null(s.HermesRoot);
+        var config = s.ToMonitorConfiguration();
+        Assert.Contains(SourceKind.Hermes, config.EnabledSources);
+        Assert.Null(config.HermesRoot);
+    }
+
+    [Fact]
     public void OlderSettingsFilesKeepOpenClawOnWithItsAutomaticRoots()
     {
         var s = SettingsSerializer.Deserialize("""
@@ -98,6 +127,7 @@ public sealed class HarnessSourceSettingsTests
     [InlineData(SourceKind.GrokBuild, "grokBuild")]
     [InlineData(SourceKind.Pi, "pi")]
     [InlineData(SourceKind.OpenClaw, "openclaw")]
+    [InlineData(SourceKind.Hermes, "hermes")]
     public void EverySurfaceUsesTheSameStableSourceIdentifier(SourceKind kind, string id)
     {
         Assert.Equal(id, ReportBody.SourceId(kind));

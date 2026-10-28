@@ -171,6 +171,8 @@ public sealed record AppSettings
 
     public bool OpenClawEnabled { get; init; } = true;
 
+    public bool HermesEnabled { get; init; } = true;
+
     /// <summary>Null uses the default Codex sessions folder.</summary>
     public string? CodexRoot { get; init; }
 
@@ -209,6 +211,9 @@ public sealed record AppSettings
 
     /// <summary>One OpenClaw state folder, agent folder or database; null reads every automatic state folder.</summary>
     public string? OpenClawRoot { get; init; }
+
+    /// <summary>A Hermes home or one <c>logs</c> folder; null reads the automatic Hermes home and its profiles.</summary>
+    public string? HermesRoot { get; init; }
 
     public int ChartSeconds { get; init; } = 120;
 
@@ -277,6 +282,7 @@ public sealed record AppSettings
         SourceKind.GrokBuild => GrokBuildEnabled,
         SourceKind.Pi => PiEnabled,
         SourceKind.OpenClaw => OpenClawEnabled,
+        SourceKind.Hermes => HermesEnabled,
         _ => false,
     };
 
@@ -312,6 +318,7 @@ public sealed record AppSettings
         SourceKind.GrokBuild => this with { GrokBuildEnabled = enabled },
         SourceKind.Pi => this with { PiEnabled = enabled },
         SourceKind.OpenClaw => this with { OpenClawEnabled = enabled },
+        SourceKind.Hermes => this with { HermesEnabled = enabled },
         _ => this,
     };
 
@@ -321,7 +328,7 @@ public sealed record AppSettings
         return new MonitorConfiguration(enabled, CodexRoot, ClaudeRoot, DshRoot, OpenCodeRoot, GeminiRoot, OmpRoot, AntigravityRoot,
             WorkBuddyRoot: WorkBuddyRoot, WorkBuddyAiRoot: WorkBuddyAiRoot,
             ZCodeRoot: ZCodeRoot, KimiRoot: KimiRoot, GrokBuildRoot: GrokBuildRoot, PiRoot: PiRoot,
-            OpenClawRoot: OpenClawRoot);
+            OpenClawRoot: OpenClawRoot, HermesRoot: HermesRoot);
     }
 
     /// <summary>The master switch; turning it on while every orb is individually hidden makes them all visible.</summary>
@@ -372,6 +379,7 @@ public sealed record AppSettings
         GrokBuildRoot = CleanPath(GrokBuildRoot),
         PiRoot = CleanPath(PiRoot),
         OpenClawRoot = CleanPath(OpenClawRoot),
+        HermesRoot = CleanPath(HermesRoot),
         HistoryWindow = WindowFrame.ValidHistory(HistoryWindow),
         HistoryModeKind = HistoryModeKind == ExecutionModeKind.Speed ? ExecutionModeKind.Speed : ExecutionModeKind.Effort,
         ChartSeconds = ChartMath.NormalizeRange(ChartSeconds),
