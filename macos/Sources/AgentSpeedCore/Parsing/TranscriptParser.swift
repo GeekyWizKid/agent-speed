@@ -20,7 +20,8 @@ enum TranscriptFamily: String, CaseIterable, Sendable {
     case grokBuild
     case pi
 
-    /// Nil for sources that are not read from transcript files: OpenCode is a database (`OpencodeSource`).
+    /// Nil for sources that are not read from transcript files: OpenCode, ZCode and OpenClaw keep databases
+    /// (`OpencodeSource`, `ZcodeSource`, `OpenClawSource`).
     init?(_ source: SourceKind) {
         switch source {
         case .codex: self = .codex
@@ -34,7 +35,7 @@ enum TranscriptFamily: String, CaseIterable, Sendable {
         case .kimi: self = .kimi
         case .grokBuild: self = .grokBuild
         case .pi: self = .pi
-        case .opencode, .zcode: return nil
+        case .opencode, .zcode, .openclaw: return nil
         }
     }
 

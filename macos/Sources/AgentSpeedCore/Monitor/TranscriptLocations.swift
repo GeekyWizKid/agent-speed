@@ -145,6 +145,9 @@ enum TranscriptLocations {
     /// Pi's automatic roots (METRICS 2, 4.13) for this process's environment and home folder.
     static var defaultPiRoots: [URL] { PiHome.current.roots }
 
+    /// OpenClaw's state folders (METRICS 2, 4.14) for this process's environment and home folder.
+    static var defaultOpenclawRoots: [URL] { OpenClawHome.current.stateFolders }
+
     static func sessionsFolder(_ folder: URL) -> URL {
         folder.lastPathComponent == "sessions" ? folder : folder.appendingPathComponent("sessions", isDirectory: true)
     }
@@ -213,7 +216,11 @@ extension MonitorConfiguration {
             }
         }
         let fallback = family == .pi ? piHome?.roots : nil
-        let urls = configuredRoot(for: family).map { [$0] } ?? automatic ?? fallback ?? TranscriptLocations.defaultRoots(for: family)
+        var urls = configuredRoot(for: family).map { [$0] } ?? automatic ?? fallback ?? TranscriptLocations.defaultRoots(for: family)
+        if family == .codex, configuredRoot(for: .codex) == nil {
+            // OpenClaw's agent-scoped Codex homes are automatic Codex roots; a Codex setting replaces them too.
+            urls += openclawCodexRoots.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        }
         var roots: [String] = []
         for url in urls {
             let root = TranscriptDiscovery.normalizedRoot(url.path)
@@ -247,6 +254,28 @@ extension MonitorConfiguration {
         isReadable(root: root, family: family) && (family != .omp || !PiHome.contains(piRoots, root))
     }
 
+    /// OpenClaw's roots: the configured folder or database, else every state folder (METRICS 2, 4.14).
+    var resolvedOpenclawRoots: [String] {
+        let urls = openclawRoot.map { [$0] } ?? (openclawHome ?? .current).stateFolders
+        var roots: [String] = []
+        for url in urls {
+            let root = TranscriptDiscovery.normalizedRoot(url.path)
+            if !roots.contains(root) { roots.append(root) }
+        }
+        return roots
+    }
+
+    /// The agent-scoped Codex homes next to every OpenClaw agent database: automatic Codex roots (METRICS 2, 4.14),
+    /// also while OpenClaw itself is off.
+    var openclawCodexRoots: [String] {
+        var seen: Set<String> = []
+        return resolvedOpenclawRoots.flatMap(OpenClawHome.databases(in:))
+            .map(OpenClawHome.codexRoot(ofDatabase:))
+            .filter { seen.insert($0).inserted }
+    }
+
+    var readsOpenclaw: Bool { enabledSources.contains(.openclaw) }
+
     func reads(_ family: TranscriptFamily) -> Bool {
         family.sources.contains { enabledSources.contains($0) }
     }
@@ -260,8 +289,11 @@ extension MonitorConfiguration {
     }
 
     /// Codex archives finished sessions next to the sessions folder (METRICS 8).
-    var resolvedCodexArchiveRoot: String {
-        ((resolvedCodexRoot as NSString).deletingLastPathComponent as NSString).appendingPathComponent("archived_sessions")
+    var resolvedCodexArchiveRoot: String { Self.codexArchiveRoot(of: resolvedCodexRoot) }
+
+    /// The `archived_sessions` folder next to a Codex sessions root.
+    static func codexArchiveRoot(of root: String) -> String {
+        ((root as NSString).deletingLastPathComponent as NSString).appendingPathComponent("archived_sessions")
     }
 
     var readsCodex: Bool { reads(.codex) }
@@ -277,5 +309,6 @@ extension MonitorConfiguration {
             || TranscriptFamily.allCases.contains { resolvedRoots(for: $0) != other.resolvedRoots(for: $0) }
             || resolvedOpencodeRoot != other.resolvedOpencodeRoot
             || resolvedZcodeRoot != other.resolvedZcodeRoot
+            || resolvedOpenclawRoots != other.resolvedOpenclawRoots
     }
 }

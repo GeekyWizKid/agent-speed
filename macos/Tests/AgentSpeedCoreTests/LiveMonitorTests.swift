@@ -26,7 +26,8 @@ struct LiveMonitorTests {
             geminiRoot: directory.file("missing-gemini"),
             ompRoot: directory.file("missing-omp"),
             antigravityRoot: directory.file("missing-antigravity"),
-            piRoot: directory.file("missing-pi")
+            piRoot: directory.file("missing-pi"),
+            openclawRoot: directory.file("missing-openclaw")
         ))
         monitor.start()
         defer { monitor.stop() }

@@ -1,0 +1,116 @@
+import Foundation
+
+/// The state machine of one OpenClaw transcript window: Pi's rules (METRICS 4.7, 4.13) with OpenClaw's differences
+/// (4.14): no duration field, no side usage, mirrors of delegated turns count nothing, untimed CLI and delegated turns,
+/// and a delegated window stays idle.
+struct OpenClawParser: Sendable {
+    static let keyPrefix = "openclaw:"
+
+    let agentId: String
+    let fileID: FileID
+    let window: OpenClawWindow
+    private(set) var state: AgentState
+
+    private var headerSeen = false
+    private var headerMs: Int64?
+    private var pendingToolCalls: Set<String> = []
+
+    init(agentId: String, fileID: FileID, window: OpenClawWindow) {
+        self.agentId = agentId
+        self.fileID = fileID
+        self.window = window
+        state = AgentState(source: .openclaw, isSubagent: window.isSubagent)
+    }
+
+    mutating func consume(
+        _ extraction: LineExtraction<OpenClawLine>,
+        tools: [ToolEvent] = [],
+        deduper: inout Deduper,
+        emit: (ResponseUpsert) -> Void
+    ) {
+        switch extraction {
+        case .blank:
+            return
+        case .malformed:
+            state.malformedLines += 1
+        case .line(let line):
+            consume(line, tools: tools, deduper: &deduper, emit: emit)
+        }
+    }
+
+    private mutating func consume(_ line: OpenClawLine, tools: [ToolEvent], deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
+        switch line {
+        case .ignored:
+            return
+        case .header(let header):
+            guard !headerSeen else { return }
+            headerSeen = true
+            headerMs = header.timestampMs
+            state.project = header.cwd.flatMap(OmpParser.basename)
+            state.cwdPath = header.cwd.flatMap { $0.isEmpty ? nil : $0 }
+            if let timestamp = header.timestampMs { state.noteLine(at: timestamp) }
+        case .entry(let id, let timestamp, let record):
+            guard headerSeen else { return }
+            if let headerMs, timestamp < headerMs - OmpParser.copiedHistoryMs { return }
+            state.noteLine(at: timestamp)
+            state.actions.record(tools, at: timestamp)
+            consume(record, id: id, at: timestamp, deduper: &deduper, emit: emit)
+        }
+    }
+
+    private mutating func consume(
+        _ record: OpenClawRecord,
+        id: String,
+        at timestamp: Int64,
+        deduper: inout Deduper,
+        emit: (ResponseUpsert) -> Void
+    ) {
+        switch record {
+        case .assistant(let assistant):
+            consume(assistant, id: id, at: timestamp, deduper: &deduper, emit: emit)
+        case .input where !window.isDelegated:
+            state.setPhase(.generating, at: timestamp, inFlightStartMs: timestamp)
+            pendingToolCalls.removeAll()
+        case .toolResult(let callId) where !window.isDelegated:
+            if let callId { pendingToolCalls.remove(callId) }
+            if state.phase == .tools, pendingToolCalls.isEmpty {
+                state.setPhase(.generating, at: timestamp, inFlightStartMs: timestamp)
+            }
+        case .input, .toolResult, .other:
+            break
+        }
+    }
+
+    private mutating func consume(
+        _ assistant: OpenClawAssistant,
+        id: String,
+        at timestamp: Int64,
+        deduper: inout Deduper,
+        emit: (ResponseUpsert) -> Void
+    ) {
+        let key = Self.keyPrefix + id + ":" + String(assistant.startedMs ?? timestamp)
+        guard !deduper.isOwnedByOtherFile(key, for: fileID) else { return }
+        let isMirror = assistant.isMirror || window.mirrorsTurns
+        if !isMirror, !assistant.usageUnavailable, assistant.hasUsage {
+            // A delegated or CLI turn's usage covers the whole turn; failed requests count in totals only.
+            let timed = !window.isDelegated && !assistant.isCLI && !assistant.stopIsFailure
+            let claim = deduper.claim(key, for: fileID)
+            let record = ResponseRecord(key: key, source: .openclaw, agentId: agentId, model: assistant.model,
+                                        startMs: timed ? assistant.startedMs : nil, endMs: timestamp,
+                                        usage: assistant.tokens, isFinal: true, provider: assistant.provider)
+            // A repeat in the same window (a rewrite read again) is an update (METRICS 4.4).
+            emit(ResponseUpsert(record: record, isCompletion: claim == .new))
+            state.model = assistant.model
+        }
+        guard !window.isDelegated else { return }
+        if assistant.stopIsFailure {
+            state.setPhase(.idle, at: timestamp)
+            pendingToolCalls.removeAll()
+        } else if !assistant.toolCallIds.isEmpty, assistant.stopRunsTools {
+            state.setPhase(.tools, at: timestamp)
+            pendingToolCalls = assistant.toolCallIds
+        } else {
+            state.setPhase(.idle, at: timestamp)
+        }
+    }
+}
