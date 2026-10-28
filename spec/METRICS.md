@@ -2666,6 +2666,9 @@ stored):
      step 1 and within a task in row order, `x` with a leading 1;
    - solve `H·δ = g` by Cholesky (`H = L·Lᵀ`, column by column; forward then back substitution) and set `β ← β − δ`.
      `H` is positive definite because `λ > 0`.
+   Every sum in 6.9 – 6.11 (dimensions, information gain, the fit, the comparison) is plain left-to-right IEEE 754
+   double addition in the stated order, never compensated or pairwise summation. The reference uses
+   `live_thinking.seq_sum` for this, because Python 3.12's `sum` compensates float rounding.
 5. Python, Swift and C# agree within 10⁻⁶ on every coefficient and probability; the fixture checks 10⁻⁹ in the
    reference and, independently of the fitting path, that the gradient vanishes (below 10⁻⁹) at the stored
    coefficients.
@@ -2688,10 +2691,12 @@ an unknown model (`byModel`, ordered by `tasks` descending, then the id's UTF-8 
 | `medianScore` | `q(0.5)` of their scores; shown rounded half away from zero |
 | `lowerQuartile`, `upperQuartile` | `q(0.25)` and `q(0.75)` of their scores |
 | `histogram` | ten counts of their scores, bins `[0, 10)`, `[10, 20)`, … `[80, 90)` and `[90, 100]` (all zeros without a scored record) |
-| `successRate` | `success` records ÷ `scoredTasks` |
-| `stallRate` | `stalled` records ÷ `tasks` |
-| `fixFailureRate` | Σ `fixFailures` ÷ Σ `fixAttempts` |
-| `recoverAttempts` | Σ `recoverAttempts` ÷ Σ `recovered`: the mean attempts of a recovered episode |
+| `successes`, `stalls` | `success` records (among the scored ones), `stalled` records: the numerators of the two rates, for the tooltips of DESIGN 12 (`96 / 128`) |
+| `fixFailures`, `fixAttempts`, `recovered` | Σ `fixFailures`, Σ `fixAttempts`, Σ `recovered` |
+| `successRate` | `successes` ÷ `scoredTasks` |
+| `stallRate` | `stalls` ÷ `tasks` |
+| `fixFailureRate` | `fixFailures` ÷ `fixAttempts` |
+| `recoverAttempts` | Σ `recoverAttempts` ÷ `recovered`: the mean attempts of a recovered episode |
 | `timeToFirstPassMs` | `q(0.5)` of `firstPassMs − startMs` over records with a pass |
 
 - *Scores* are the unrounded `score`s of the records with a score; tasks without one count only in `tasks` and

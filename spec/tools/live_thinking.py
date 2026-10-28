@@ -45,10 +45,18 @@ class Window:
         return {"liveThinking": self.reasoning / (engine.WINDOW_MS / 1000), "thinkingShare": self.thinking_share,
                 "weight": self.weight}
 
+def seq_sum(values, start=0):
+    """Left-to-right addition (METRICS 6.11): Python 3.12+ `sum` compensates float rounding, the ports do not."""
+    total = start
+    for value in values:
+        total = total + value
+    return total
+
+
 
 def reasoning_share(responses):
-    output = sum(r["output"] for r in responses)
-    return sum(min(r.get("reasoning", 0), r["output"]) for r in responses) / output if output > 0 else 0.0
+    output = seq_sum(r["output"] for r in responses)
+    return seq_sum(min(r.get("reasoning", 0), r["output"]) for r in responses) / output if output > 0 else 0.0
 
 
 def contributions(responses, agents, now):

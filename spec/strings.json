@@ -5610,6 +5610,12 @@
     "en": "Intelligence is a task score (0–100) that Agent Speed estimates from tool records: each new request starts at 0 and climbs as changes pass tests and errors shrink, and tasks without reliable checks stay low. This compares the tasks that ended in the selected period; comparisons mean most for similar projects and tasks.",
     "ja": "知能は Agent Speed がツールの記録から推定するタスクのスコア（0〜100）です。新しい依頼ごとに 0 から始まり、変更がテストを通りエラーが減るにつれて上がります。信頼できる検証のないタスクは低いままです。ここでは選択した期間に終わったタスクを比べます。プロジェクトや難しさが近いほど、比較の意味があります。"
   },
+  "history.tasks.info.a11y": {
+    "zh-Hant": "這些數字怎麼算",
+    "zh-Hans": "这些数字怎么算",
+    "en": "How these numbers are computed",
+    "ja": "これらの数値の算出方法"
+  },
   "history.tasks.vs": {
     "zh-Hant": "vs",
     "zh-Hans": "vs",
