@@ -579,7 +579,7 @@ body { background: var(--c-bg); color: var(--c-ink); }
 .mb.glass[data-size="S"] .gauge .subs .ml { letter-spacing: .02em; }
 
 /* Timing: a broadcast data box — label tabs and one right edge for every value. */
-.mb.timing .dbox { position: relative; width: 134px; border-radius: 5px; overflow: hidden; background: var(--slab-2); box-shadow: inset 0 0 0 1px var(--line-2);
+.mb.timing .dbox { position: relative; min-width: 134px; border-radius: 5px; overflow: hidden; background: var(--slab-2); box-shadow: inset 0 0 0 1px var(--line-2);
   display: grid; grid-template-columns: minmax(var(--tabw, 0px), auto) 1fr; }
 .mb.timing .dbox .m { display: contents; }
 .mb.timing .dbox .ml { display: grid; place-items: center; padding: 0 6px; background: var(--block); color: var(--ink-2);
@@ -596,10 +596,10 @@ body { background: var(--c-bg); color: var(--c-ink); }
 .mb.timing .dbox .m.main .mn { letter-spacing: -.04em; }
 .mb.timing .dbox .m.main .ml { color: var(--block-ink); }
 .mb.timing .dbox .mu { font: 700 8px/1 var(--mono); color: var(--ink-3); }
-.mb.timing[data-size="L"] .dbox { width: 152px; }
+.mb.timing[data-size="L"] .dbox { min-width: 152px; }
 .mb.timing[data-size="L"] .dbox { --dh: 19px; --dn: 12.5px; }
 .mb.timing[data-size="L"] .dbox .m.main { --dh: 27px; --dn: 19px; }
-.mb.timing[data-size="S"] .dbox { width: 110px; }
+.mb.timing[data-size="S"] .dbox { min-width: 110px; }
 .mb.timing[data-size="S"] .dbox .ml { padding: 0 4px; font-size: 8px; letter-spacing: 0; }
 .mb.timing[data-size="S"] .dbox { --dh: 15px; --dn: 10.5px; }
 .mb.timing[data-size="S"] .dbox .m.main { --dh: 21px; --dn: 15px; }

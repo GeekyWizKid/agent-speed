@@ -324,7 +324,7 @@
       let costWords = "";
       if (p.rank && rows2 && o.size !== "S" && live) {
         const r = F.rate(p.costRate, p.costKnownShare, o.currency, o.lang);
-        costWords = o.subscriptionOnly ? "，訂閱" : r.unknown ? "，價格未知" : `，每秒費用 ${r.partial ? "至少 " : ""}${r.number} ${F.currencyName(o.currency)}`;
+        costWords = o.subscriptionOnly ? "，訂閱" : r.unknown ? "，價格未知" : `，費用每秒 ${r.partial ? "至少 " : ""}${r.number} ${F.currencyName(o.currency)}`;
       }
       row.setAttribute("aria-label", p.rank ? `第 ${p.rank} 名，${p.name}，每秒 ${live ? S.formatSpeed(p.live) : 0} 個 token${iqWords}${costWords}` : p.name);
     }
@@ -417,7 +417,7 @@
       if (!show) setTimeout(finish, FADE_MS);
     }
     function thinkVisibility(total, t, instant) {
-      if (!cells.think) return;
+      if (!cells.think || !optB()) return;                                  // the chosen layout B only
       const others = KEYS.some(k => k !== "think" && on(k));
       if (total.intelligence === null) { zeroSince = null; return; }       // quiet: keep the current visibility
       if (parseFloat(S.formatSpeed(total.thinking)) === 0) {             // reads zero: `0`, or `0.0` below 0.05
@@ -464,7 +464,7 @@
           : on("intel") ? (iq === null ? "，智力：目前沒有輸出" : `，智力 ${shown}`)
           : thinkOn ? `，思考每秒 ${iq === null ? 0 : S.formatSpeed(total.thinking)} 個 token` : "") +
         (on("cost") ? (o.subscriptionOnly ? "，這些來源標記為訂閱，不計入費用"
-          : r.unknown ? "，價格未知" : `，每秒費用 ${r.partial ? "至少 " : ""}${r.number} ${F.currencyName(o.currency)}（API 等值）`) : ""));
+          : r.unknown ? "，費用：價格未知" : `，費用每秒 ${r.partial ? "至少 " : ""}${r.number} ${F.currencyName(o.currency)}（API 等值）`) : ""));
     }
 
     function drawHistory(hist, color, heat) {
@@ -594,12 +594,14 @@
       const r = g.root, e = r.effort, cls = S.classOf(r.model);
       const klass = cls === 100 ? "旗艦" : cls === 80 ? "標準" : "輕量";
       const rate = F.rate(g.costRate, g.costKnownShare, o.currency, o.lang);
-      const iq = g.intelligence === null ? "" : `<br>智力 ${Math.round(plain(g.intelligence, g.thinkingShare))} · 思考 ${o.noReasoning ? "–" : Math.round(g.thinkingShare * 100) + "%"}`;
-      const cost = o.subscriptionOnly ? `<br>${r.sourceName} 標記為訂閱，不計入費用` : g.live > 0.05
-        ? `<br>每秒費用 ${rate.unknown ? "–" : (rate.partial ? "≥" : "") + rate.number + " " + rate.unit}（API 等值）` + (rate.partial ? "<br>部分模型價格未知，未計入" : "") : "";
+      // DESIGN 2c Live metrics, Tooltip: the intelligence lines follow 智力, the cost lines 費用 or 每列費用.
+      const iq = !on("intel") ? "" : (g.intelligence === null ? ""
+        : `<br>智力 ${Math.round(plain(g.intelligence, g.thinkingShare))} · 思考 ${o.noReasoning ? "–" : Math.round(g.thinkingShare * 100) + "%"}`) +
+        (r.grade !== null && r.grade !== undefined ? `<br>等級 ${r.grade} · ${klass}` : "");
+      const cost = !(on("cost") || rows2) || !(g.live > 0.05) ? "" : o.subscriptionOnly ? `<br>${r.sourceName} 標記為訂閱，不計入費用`
+        : `<br>費用 ${rate.unknown ? "價格未知" : (rate.partial ? "≥" : "") + rate.number + " " + rate.unit}（API 等值）` + (rate.partial ? "<br>部分模型價格未知，未計入" : "");
       return `<b>${r.project}</b> · ${r.sourceName}<br>${r.model}<br>推理強度：${e ? e.value : "未記錄"}` +
-        `<br>速度 <b>${S.formatSpeed(g.live)}</b> tok/s${iq}<br>等級 ${r.grade} · ${klass}${cost}` +
-        `<span class="cap-note">估算指數，不是測驗分數</span>`;
+        `<br>速度 <b>${S.formatSpeed(g.live)}</b> tok/s${iq}${cost}` + (on("intel") ? `<span class="cap-note">估算指數，不是測驗分數</span>` : "");
     }
 
     return {

@@ -1278,7 +1278,8 @@ Persisted next to the orbs as one JSON value (key `boards`), written atomically 
 ```json
 { "version": 1,
   "boards": [ { "id": "…", "style": "neon", "size": "M", "sources": "all", "opacity": 1.0, "alwaysOnTop": true,
-                "clickThrough": false, "allSpaces": true, "visible": true } ],
+                "clickThrough": false, "allSpaces": true, "visible": true,
+                "readouts": { "intelligence": true, "thinking": true, "cost": true, "rowCost": true } } ],
   "layouts": { "<arrangement key>": { "<board id>": { "display": "…", "xAnchor": "high", "x": 12, "yAnchor": "fraction", "y": 0.2 } } } }
 ```
 
@@ -1289,12 +1290,13 @@ Persisted next to the orbs as one JSON value (key `boards`), written atomically 
 | `size` | `S` 280 × 280, `M` 340 × 340 (default), `L` 420 × 420 pt/DIP; unknown → `M`. |
 | `sources` | As an orb's (2b): `"all"` or METRICS 1 keys; the board counts only those sources (METRICS 6.8). |
 | `opacity`, `alwaysOnTop`, `clickThrough`, `allSpaces`, `visible` | As an orb's. |
+| `readouts` | The live metrics switches (*Live metrics*, below): `intelligence`, `thinking`, `cost`, `rowCost`; a missing field or key, or a value that is not a boolean, reads as `true`. |
 | `layouts` | As the orbs' (2b, arrangement keys, position records, at most 16 arrangements). |
 
 Global settings shared with the orbs: Appearance, Language, metric, General redline, title theme, Effects intensity,
 Celebrate new peaks. Limits: 0–4 boards; a fresh install and an upgrade have none. `boards.add` (quick menu,
 dashboard footer menu, Settings → 懸浮窗, an orb's context menu) creates one with the last used style (else `neon`),
-`M`, `"all"`, placed like a new orb (2b Placement) next to the window it came from; at 4 it is disabled with
+`M`, `"all"`, every readout on, placed like a new orb (2b Placement) next to the window it came from; at 4 it is disabled with
 `boards.limit`. Boards and orbs never overlap: placement and snapping treat both as obstacles, using the rounded
 square (+12 pt) for a board.
 
@@ -1305,7 +1307,9 @@ All three styles show the same content; the style decides its look (Styles, belo
 
 1. **Hero**: the board's live value (METRICS 6.8, `live_A`, formatted per METRICS 7, tabular digits), the unit, the
    speed title in heat color, `agents.context` (generating and tools agents), and a history of `live_A`: glass a 60 s
-   sparkline, timing 30 one-second bars, neon a 24-segment LED bar lit to the heat with today's peak marked.
+   sparkline, timing 30 one-second bars, neon a 24-segment LED bar lit to the heat with today's peak marked. With the
+   live metrics on (the default), the hero's right side is the sub-gauge — 智力, 思考 and 費用 — and glass and timing
+   draw their history as a full-width strip under the hero (*Live metrics*, below).
 2. **Ranking**: the agents of the board's sources (METRICS 6.7 list rules, filtered by 6.8), grouped by their root: a
    group is a root agent and all its descendants (a sub-agent whose parent is not listed is its own root). Group speed
    = the sum of its members' live values. Groups are ranked (Ranking stability, below); each group row shows the rank,
@@ -1314,16 +1318,12 @@ All three styles show the same content; the style decides its look (Styles, belo
    a glowing underline from the name to the value; timing: the interval to the group above, `boards.leader` on the first).
    Under a group, its fastest generating sub-agents (smaller rows with their own capsule and value), then
    `boards.moreSubs` (`+97 個子 agent · 8.6k`) for the rest. When groups do not fit, the last line is
-   `boards.moreGroups` with their summed speed.
+   `boards.moreGroups` with their summed speed. With the live metrics on, every group and sub row also shows its
+   intelligence in a column before the value, and at M and L each group row a second line with its model and cost per
+   second (*Live metrics*).
 3. **Footer**: `boards.today` (today's output of the board's sources), today's cost (section 9) and `boards.peak` (`peakToday_A`).
 
-**Intelligence** (planned, 2026-10-28): any intelligence a board shows for an agent — a group's root or a sub row — is
-METRICS 6.9 *Agent intelligence* with the dashboard column's meaning (section 4, *Intelligence column*): live in the
-number color, the resting grade quieter, `–` for none. A value for a whole group, should a style show one, is the
-same formula over its members' added agent sums (METRICS 6.9), never an average of shown values. Where and how each
-style shows it is decided separately (prototype in progress); until then boards show no intelligence.
-
-**Layout per size.** S: up to 4 groups, no sub rows, capsule without its word. M: up to 6 groups; sub rows two for #1,
+**Layout per size.** S: up to 4 groups (3 fit with the live metrics on), no sub rows, capsule without its word. M: up to 6 groups; sub rows two for #1,
 one for #2 and #3. L: up to 8 groups; three sub rows for #1–#3, two for #4–#5. Groups are placed first and sub rows
 only fill the room that remains, so a sub row never pushes a group out; no row is ever cut in half. Clicking a group
 toggles showing up to 8 of its sub-agents in that space (others collapse); the expansion ends after 60 s without
@@ -1337,6 +1337,280 @@ leave are dropped. Only passing emits an event: `overtake` (climber, from, to; r
 that tick, ignoring places gained because others left or entered) and `newLeader` when the climber reaches first.
 Sub rows sort by live value, latest activity, id; they emit nothing. Shared cases:
 `spec/fixtures/board-ranking-cases.json`, generated and checked by `spec/tools/board_ranking.py`.
+
+### Live metrics (智力 · 思考 · 費用)
+
+User's choice (2026-10-28): layout **B, 副錶**, in every style. The right side of the hero becomes a small
+sub-gauge — the board's live intelligence large, its thinking rate and its cost per second smaller beneath it — every
+ranking row gets an intelligence column, and at M and L each group row gets a second line with its model and its cost
+per second. Reference: `spec/prototypes/board/board-metrics.html`, which opens on B with every switch on (its options
+A and C are the alternatives that were not chosen); where it and this section differ, this section wins. Numbers are
+pt (DIP on Windows) on boards of side S 280, M 340, L 420, from the board's top-left corner unless a row says
+otherwise; baselines are rounded to 0.5 pt from the macOS fonts of the prototype.
+
+**Values.**
+
+| Readout | Value | Shown as | Label |
+| --- | --- | --- | --- |
+| 智力 | METRICS 6.9 `intelligence` over the board's sources `A` (6.8) | integer, rounded half away from zero; none → `–` | `intel.glyph` (智力 / 智力 / IQ / 知) |
+| 思考 | METRICS 6.9 `liveThinking` over `A` | METRICS 7 · `unit.tokS` | `intel.thinking.glyph` (思考 / 思考 / TH / 思考) |
+| 費用 | METRICS 9.5 `liveCost` and `liveCostKnownShare` over the billable sources of `A` | section 9 rate form in the display currency (METRICS 9.8) · `cost.unitPerSecond` | `cost.glyph` (費用 / 费用 / Cost / 費用) |
+| row 智力 | group row: METRICS 6.9 *Group intelligence*; sub row: the sub-agent's *Agent intelligence* | live, resting or none, as section 4's column | caption `intel.glyph` |
+| row cost | group row: METRICS 9.5 *Per group* | as 費用 | — |
+
+- Every cost on a board follows `settings.cost.includeSubscriptions`, like every other displayed cost (METRICS 9.4):
+  with it off (the default) a source marked as a subscription adds nothing to 費用, to a row's cost or to the
+  footer's today cost.
+- `≥` precedes a cost whose known share is below 0.995 and which is not 0 (section 9), at 0.85 × the number's size in
+  `ink-3` — the orb's 60 % is meant for its large value and would fall under 7 pt here. Nothing priced (output > 0,
+  known share 0) → `–`. A free or local model is a real `0`.
+- When every source of `A` is excluded as a subscription, 費用 and the footer's today cost show
+  `cost.subscription.tag` in place of a number (UI font, weight 600, 0.8 × the number's size, `ink-3`, no unit), and a
+  group row whose source is excluded shows the tag on its second line. The orb shows `0` and explains it in its hover
+  line; a board's hero has no hover line, and `0 US$/s` beside busy agents would read as free.
+- None of these values drives heat, tiers, titles, peaks or celebrations.
+
+**Switches.** `readouts` (data model) holds four independent switches, all on for a new board and for a board saved
+by an earlier version:
+
+| Key | Item (menu and editor) | Shows |
+| --- | --- | --- |
+| `intelligence` | `boards.readouts.intel` | 智力 in the sub-gauge, and the rows' 智力 column with its captions line |
+| `thinking` | `boards.readouts.thinking` | 思考 in the sub-gauge |
+| `cost` | `boards.readouts.cost` | 費用 in the sub-gauge |
+| `rowCost` | `boards.readouts.rowCost` | the group rows' second line (M and L) |
+
+- Context menu: `boards.readouts` ▸ the four items in this order, each with a check, after `orbs.sources` ▸; choosing
+  one toggles it and saves at once. Settings → 懸浮窗, board editor: a `boards.readouts` group with the same four
+  checkboxes and the caption `boards.readouts.hint`; the style thumbnail shows the readouts as switched. Add copies
+  nothing: a new board has every switch on.
+- A readout switched off takes no room; what remains closes up and re-centres (*Folding*, below). With `intelligence`,
+  `thinking` and `cost` off the hero is exactly the board without metrics (history on the right, neon's hero
+  82 / 92 / 100); with `intelligence` off the rows lose the 智力 column and the captions line and take the columns of
+  the boards without metrics again (value 46; timing's interval 38); with all four off the board is exactly as before
+  this section.
+- A change applies at once: the hero crossfades in 0.2 s and rows move to their new places with the style's spring
+  (rows that enter fade in, as always). Reduce Motion: the crossfade only.
+
+**Hero.** While at least one of `intelligence`, `thinking` and `cost` is on, the hero has two columns 8 apart: the
+left keeps the value, the unit, the title and `agents.context` (the context truncates first, then the title); the right
+is the sub-gauge, right-aligned at the side inset and centred vertically as below. Glass and timing move their history
+to a full-width strip under the hero; neon keeps its LED bar.
+
+| | Glass S / M / L | Timing S / M / L | Neon S / M / L |
+| --- | --- | --- | --- |
+| side inset | 14 / 16 / 18 | 12 / 14 / 16 | 14 / 16 / 18 |
+| hero band: top, height | 12, 78 / 14, 86 / 16, 94 (as before) | 14, 72 / 16, 80 / 18, 88 (as before) | 12, 92 / 14, 100 / 16, 108 (8 more at M and L, 10 at S) |
+| sub-gauge: nominal width | 92 / 112 / 128 | 110 / 134 / 152 (the data box) | 92 / 112 / 128 |
+| sub-gauge: centred in | the band | the band | the band less its bottom 17 (the LED bar: 7 tall, its bottom 6 above the band's) |
+| history | strip from inset to inset, right under the band, 14 / 16 / 18 tall | strip 8 under the band, 10 / 12 / 12 tall | the LED bar, as before |
+| ranking starts | at the strip's bottom | 5 under the strip | 4 under the band |
+| ranking height | 138 / 186 / 254 | 139 / 187 / 257 | 136 / 186 / 256 |
+
+- Glass strip: the 60 s sparkline of `live_A` stretched over the strip (scale `max(10, window maximum) × 1.12`, 1.5 pt
+  free above and below), a 1.25 pt line in the heat color, the area under it the heat color from 28 % at the top to
+  0 at the bottom, no end dot.
+- Timing strip: the 30 one-second bars, 3 wide, radius 1, spaced so the first starts at the left inset and the last
+  ends at the right inset; height `max(1.5, value / max(10, maximum of the 30) × strip height)`, the heat color at
+  85 %.
+
+**Sub-gauge, glass (光環副錶)** — a pearl arc around 智力, the table centred under it. Vertical numbers from the
+sub-gauge's top:
+
+| | S | M | L |
+| --- | --- | --- | --- |
+| dial `D` (a `D` × 0.742 `D` box, centred) | 54 | 66 | 74 |
+| arc radius, stroke, tip radius | 23.7, 2.45, 1.9 | 29, 3, 2.3 | 32.5, 3.4, 2.6 |
+| 智力 label: size, baseline | 7.5, 19 | 8.5, 22 | 8.5, 24 |
+| 智力 number: size, baseline | 16, 35.5 | 19, 42.5 | 21, 46.5 |
+| table: number size; label and unit size | 9.5; 7.5 | 11; 8.5 | 12; 9 |
+| table baselines: 思考, 費用 | 51, 68 | 62, 79 | 69, 86 |
+| height (思考 hidden) | 75 (58) | 84 (67) | 90 (73) |
+
+- Arc: centre at (`D`/2, `D`/2) of the dial box, radius 0.439 `D`, stroke 0.0455 `D`, round caps, from 150° (lower
+  left) clockwise over the top to 30° (lower right), 240° in all (angles with y down). Track: the whole sweep in
+  `line-2` (dark white 14 %, light black 11 %). Value: the first `f` of the sweep, `f = clamp((shown − 60) / 96, 0,
+  1)` with `shown` the displayed integer — 60 is a light model at level 0 without reasoning, 156 a flagship's top
+  rung writing nothing but reasoning (METRICS 6.9) — stroked with a linear gradient across the dial box from its
+  lower-left to its upper-right corner, `pearl-c` → `pearl-a` → `pearl-b` (dark `#A5F3FC` → `#C7D2FE` → `#F5D0FE`,
+  light `#1AA3C4` → `#6D7CF0` → `#C05BD9`), with a 3 pt glow of `pearl-b` at 60 %. Tip: a dot of radius 0.035 `D` on
+  the value's end, white with a 3 pt `pearl-b` glow (light: `pearl-b`, no glow). `f = 0` draws no value arc; none
+  draws neither the value arc nor the tip.
+- 智力 label weight 600, tracking 0.1 em, `ink-3`; number SF Pro Display / Segoe UI Variable Display, weight 650
+  (Windows Semibold), tracking −0.02 em, tabular, `ink`. Each is centred on its own, so the number moves only when its
+  digit count changes.
+- Table: rows 15 tall, 2 apart, the first 3 under the dial box. Labels weight 600, tracking 0.04 em (S 0.02 em),
+  `ink-3`; numbers weight 600, tabular, `ink`; units weight 500, `ink-3`. Tokens: `ink` dark `rgba(244,246,252,.96)`,
+  light `rgba(17,20,30,.94)`; `ink-3` dark `rgba(226,230,242,.38)`, light `rgba(30,36,52,.40)`.
+
+**Sub-gauge, timing (資料盒)** — a broadcast data box: label tabs on the left, every value on one right edge.
+
+| | S | M | L |
+| --- | --- | --- | --- |
+| box width | 110 | 134 | 152 |
+| row height: 智力; others (with a 1 pt separator at their top) | 21; 15 | 24; 17 | 27; 19 |
+| tab label size, horizontal padding, tracking | 8, 4, 0 | 9, 6, 0.06 em | 9, 6, 0.06 em |
+| number size: 智力; others | 15; 10.5 | 17; 11.5 | 19; 12.5 |
+| unit size, gap before it; right padding | 7, 2; 5 | 8, 3; 7 | 8, 3; 7 |
+| baselines from the box's top: 智力, 思考, 費用 | 15.5, 32, 47 | 17.5, 36.5, 53.5 | 20, 41, 60 |
+| height (思考 hidden) | 51 (36) | 58 (41) | 65 (46) |
+
+- Box: radius 5, fill `slab-2` (dark `#12151D`, light `#F1F3F7`), a 1 pt inner stroke and the separators in `line-2`
+  (dark white 10 %, light black 10 %). Tab column: as wide as the widest switched-on label plus its padding, fill
+  `block` (dark `#1B1F2A`, light `#E6E9F0`); labels UI font, weight 700, centred in their tab, `ink-2` (dark
+  `rgba(232,236,245,.66)`, light `rgba(14,17,24,.62)`), 智力's `block-ink` (dark `#E8ECF5`, light `#1A1E28`). Latin
+  labels are upper-case (`IQ`, `TH`, `COST`), like the style's other labels.
+- Values: mono, weight 800, tabular, tracking −0.03 em (智力 −0.04 em), `ink` (dark `#F5F7FB`, light `#0E1118`); the
+  number's box (1.1 × its size) is centred in the row below its separator, and the unit (mono, weight 700, upper-case:
+  `TOK/S`, `US$/S`; `ink-3`) and `≥` sit on the number's baseline. A value too wide for its row widens the box to the
+  left at once and narrows it 6 s after the last value that needed it.
+
+**Sub-gauge, neon (LED 副錶)** — lit LED digits over ghost segments, a 12-segment meter, the table under it.
+
+| | S | M | L |
+| --- | --- | --- | --- |
+| 智力 label: size, tracking, baseline | 7.5, 0.18 em, 6 | 8.5, 0.24 em, 7 | 8.5, 0.24 em, 7 |
+| 智力 number: size, baseline | 21, 28.5 | 24, 32.5 | 28, 35.5 |
+| meter: width, top | 62, 36.5 | 74, 41 | 84, 45.5 |
+| table: number; label; unit size | 9.5; 7.5; 7.5 | 10.5; 8.5; 8 | 11.5; 8.5; 8 |
+| table: gap under the meter; between rows (rows 15 tall) | 3; 2 | 6; 3 | 6; 3 |
+| table baselines: 思考, 費用 | 50.5, 67.5 | 59, 77 | 64.5, 82.5 |
+| height (思考 hidden) | 74.5 (57.5) | 83 (65) | 87.5 (69.5) |
+
+- 智力 label: UI font, weight 600, `ink-3` (dark `rgba(214,224,255,.36)`, light `rgba(10,13,24,.40)`). Number: mono,
+  weight 700, tracking −0.03 em, `led` (dark `#EAF2FF` with the LED glow — 4 pt `rgba(150,190,255,.75)` and 12 pt
+  `rgba(120,160,255,.40)`; light `#141A33`, no glow), over ghost segments: as many `8` as it has digits, in `ghost`
+  (dark `rgba(160,190,255,.075)`, light `rgba(20,30,80,.06)`).
+- Meter: 12 segments, 3 tall, 2 apart, radius 1, centred, 3 under the number's box (1.1 × its size). `lit =
+  clamp(round((shown − 60) / 8), 0, 12)` segments from the left (8 index points each, the arc's range); lit `mind`
+  (dark `#CFE0FF` with a 5 pt glow of itself, light `#3D4F9A`, no glow), unlit `unlit` (dark `rgba(140,170,255,.16)`,
+  light `rgba(20,30,80,.14)`).
+- Table: labels UI font, weight 600, tracking 0.06 em, `ink-3`; numbers mono, weight 700, tracking −0.02 em, `led`
+  (dark: a 6 pt glow `rgba(140,180,255,.45)`); units mono, weight 600, `ink-3`.
+
+**Table cells** (glass and neon). The table is one block, centred as a whole on the sub-gauge's centre line, with
+fixed cells so that values never move it: the label cell (the widest label of the switched-on table rows in the
+current language, then 4 pt; S 3), the `≥` cell (always reserved: `≥` at 0.85 × the number's size, then 1 pt), the
+number cell (as wide as `0.00088` in the number font; numbers right-aligned in it) and the unit cell (3 pt, S 2, then
+the widest unit of those rows: `tok/s`, or `cost.unitPerSecond` with the current symbol). A text wider than its cell
+widens the cell at once and narrows it 6 s after the last value that needed it (section 3's rule for the value). The
+sub-gauge is as wide as its nominal width or its widest line, whichever is more, and grows to the left. Widths are
+measured when the language, currency, font or switches change, never per value (macOS, zh-Hant, USD: the table is
+105.5 wide in glass and 100 in neon at M, 92 and 89 at S).
+
+**Folding.** Switched-off readouts take no room; the rest closes up and the sub-gauge re-centres in its band. Cells
+are sized for the switched-on rows. With `intelligence` off, glass and neon show the table alone (no dial, no meter)
+and timing's box starts with 思考 at the small row height; with only `intelligence`, the dial (glass), the digits and
+meter (neon) or the 智力 row (timing) remain.
+
+**Thinking hidden at zero** (section 10, *Intelligence readout*; user's choice, 2026-10-28). While `thinking` and at
+least one other hero readout are on, 思考 shows only while its displayed value is above zero. When the board has a
+value (`Σ w > 0`) and the shown 思考 reads zero (`0`, or `0.0` below 0.05 tok/s) for 3 s, it fades out in place
+(0.25 s) while what is below it glides up and the sub-gauge glides to its new centred place (smoothstep, 0.3 s); a
+shown value above zero brings it back at once (fade in 0.25 s, the same glide back). Reduce Motion: at once. The quiet
+state (no value) changes nothing: a hidden 思考 stays hidden, a shown one reads `–`. Switching `thinking` on shows it.
+With 思考 the only hero readout it never hides — the sub-gauge would be empty and the hero would change its layout at
+every pause. The cells and widths stay, so nothing moves sideways:
+
+- Glass: 費用 takes 思考's baseline and the sub-gauge is 17 shorter (S / M / L 58 / 67 / 73): the dial moves down 8.5
+  and 費用 moves up 8.5.
+- Neon: the same, 17 / 18 / 18 shorter (57.5 / 65 / 69.5).
+- Timing: the 思考 row leaves the box, 費用 sits right under 智力, and the box, 15 / 17 / 19 shorter (36 / 41 / 46),
+  re-centres.
+- Accessibility then reads `a11y.orb.intel.only`.
+
+**Updates, motion and quiet.**
+
+- The readouts are evaluated on every engine tick (500 ms) together with the hero value, so they change at most twice
+  per second and in the hero value's frame. Changed characters roll like the hero's: 0.24 s, cubic-bezier(0.2, 0.8,
+  0.2, 1), each entering character starting with a 1.4 pt blur that is gone by 0.24 s, upward when the value rises and
+  downward when it falls; no white-hot flash, punch or embers (they stay the hero value's). A change in the number of
+  characters, or between `–` or the tag and a number, crossfades in 0.15 s instead. The arc's end and tip move to a
+  new value in 0.24 s on the same curve and the meter's segments crossfade in 0.24 s, so everything shares the frames
+  of the hero's roll. Reduce Motion: 0.15 s crossfades; the arc and the meter jump.
+- Row values (the 智力 cell and the cost line) change in place on the tick with the row, without roll or flash; a
+  change between live and resting crossfades the color in 0.2 s (an opacity change, kept with Reduce Motion).
+- Quiet (`Σ w = 0` over `A`): 智力 and 思考 read `–`, the arc and the meter are empty (track and unlit segments only),
+  費用 shows its real `0`. `–`, `0` and the tag are drawn in `ink-3` without glow. The sub-gauge stays, like a system
+  meter (section 10, *Menu bar and taskbar*), so the hero never changes its layout when work stops.
+- No continuous animation is added: an idle board with every readout on is static.
+
+**Ranking rows.** The intelligence column — every group and sub row, between the effort capsule column and the value,
+while `intelligence` is on:
+
+| | Glass | Timing | Neon |
+| --- | --- | --- | --- |
+| cell width S / M / L | 20 / 22 / 24 | 22 / 24 / 26 | 20 / 22 / 24 |
+| row columns (gap between them) | rank 16, badge 10, name, capsule, 智力, value 44 (8) | position 24, stripe 3, name, capsule, interval 34 (none at S), 智力, value 42, S 40 (7) | as glass |
+| number: group row; sub row | 11; 10.5, SF Pro, weight 600 | 11; 10, mono, weight 700 | 11; 10, mono, weight 600 |
+| live | `ink-2` | `ink-2` | `led` at 78 %, dark glow 6 pt `rgba(140,180,255,.45)` |
+| resting, `–` | `ink-3`, weight 500 | `ink-3`, weight 600 | `ink-3` |
+
+- Right-aligned, tabular, on the value's baseline. Group row: live — the group's index (METRICS 6.9 *Group
+  intelligence*); resting — the root's grade; none — `–`. Sub row: the sub-agent's own forms. The `boards.moreSubs` and
+  `boards.moreGroups` lines leave the cell empty. Live is one step quieter than section 4's column (here the speed is
+  the headline).
+- The cell is at least as wide as `888` in its font and as the caption; it never truncates, and the name block gives
+  way (the detail first). Timing drops the capsule's word below L while the column shows (meter and bolts stay; the
+  word stays in the tooltip); S drops it in every style, as before.
+- Captions line: at the top of the ranking, 12 tall (timing 14), the first row 2 under it; `intel.glyph` right-aligned
+  over the 智力 cells and `unit.tokS` over the values (timing also `boards.gap` over the interval column, except at
+  S), all `ink-3`; a 1 pt `line` hairline from the rank column to the end of the capsule column, centred on the line
+  (it replaces glass's top hairline). Glass: UI font 9, weight 600, tracking 0.06 em; timing: mono 8.5, weight 700,
+  tracking 0.1 em, upper-case; neon: mono 8.5, weight 600, tracking 0.12 em.
+
+The second line — group rows at M and L while `rowCost` is on:
+
+- Row height `row` + 8 (38 at M, 40 at L; glass and neon then leave out their 2 pt between group rows). Line 1, its
+  baseline 16 under the row's top: rank, badge, project name, capsule, 智力, value; the capsule sits in the first 16 pt
+  band starting 4 under the top, outside the baseline group, so every first line shares one baseline. Line 2, its
+  baseline 31 under the top (glass 32): the detail (model · `boards.subCount`) under the name, truncating at its tail,
+  and the cost, right-aligned on the value column's right edge and free to extend left over the capsule and 智力
+  columns. Timing's position block (26 tall) and stripe (24) span both lines.
+- Cost: glass SF Pro 10.5, weight 500, `ink-2`, unit 9 `ink-3`; timing mono 9.5, weight 700, `ink-2`, unit 8
+  upper-case `ink-3`; neon mono 10, weight 600, `ink-2`, unit 8.5 `ink-3`; the unit 3 after the number, `≥` before
+  it. Nothing priced → `–` in `ink-3`, no unit; excluded → the tag (UI font, weight 600, `ink-3`). While the row's
+  value shows `–` (an idle group) no cost is drawn; the detail stays.
+- S never draws the second line, whatever the switch: rows stay one line.
+
+**Rows kept** with the readouts on, by the existing rule (groups first while they fit, sub rows only in the room
+left; the `team` scenario of `sim.js`, as the prototype shows it):
+
+| | S | M | L |
+| --- | --- | --- | --- |
+| `rowCost` on (default) | 3 groups + `boards.moreGroups` | 4 + `boards.moreGroups` | 5 (timing: and 1 sub row) |
+| `rowCost` off | 3 + `boards.moreGroups` | 5 | 5 + 2 sub rows |
+
+**Tooltip** (a group row, after its existing lines): while `intelligence` is on, `intel.tooltip` with the group's live
+index and thinking share (whole percent, rounded half away from zero; `–` instead when no member's source records
+reasoning apart from output, METRICS 4.3) while the group is live, and `intel.grade` with the root's grade and class
+when the root has one; while `cost` or `rowCost` is on and the group is live, `boards.tooltip.cost` with the rate as
+shown and its unit (`費用 0.012 US$/s（API 等值）`), then `cost.partial` when part is unpriced, or `cost.unknown` in place of the rate when nothing is priced, or only `boards.tooltip.subscription` with the
+source's name when the group is excluded; last, while `intelligence` is on, the caption `intel.disclaimer`.
+
+**Accessibility.**
+
+- The board's label (`a11y.board`) goes on, joined with `，` / `, `, with what is switched on, in this order:
+  `a11y.orb.intel` (智力 and a shown 思考), `a11y.orb.intel.only` (思考 off or hidden) or `a11y.board.thinking` (智力
+  off), with `intel.none` in place of either intelligence form while there is no value; then `a11y.board.cost` (the
+  number as shown, wrapped in `a11y.orb.costAtLeast` when partial, and the currency's name `currency.<code>`),
+  `a11y.board.costUnknown` or `cost.subscriptionOnly`. Example: `排行看板，全部來源：每秒 707 個 token，噴射客機，智力
+  123，思考每秒 174 個 token，費用每秒 0.024 美元（API 等值）`. The 1-second update limit stays.
+- A row's label (`a11y.board.row`) adds `a11y.agent.intel` or `a11y.agent.grade` right after its speed (nothing for
+  none) while `intelligence` is on, and, while its second line shows a cost, `a11y.board.rowCost`, `cost.unknown` or
+  `cost.subscription.tag` at its end. Sub rows add the same intelligence words.
+- Nothing relies on color: resting values are also announced as grades, `≥` as `a11y.orb.costAtLeast`.
+- Increase Contrast: no glows (arc, tip, LED digits, meter, row digits) and no ghost segments; quiet values (`–`,
+  resting grades, `0`, the tag) in `ink-2` instead of `ink-3`; glass's track `ink-3`, its value arc and tip `ink`
+  without the gradient; neon's lit segments `ink`, unlit `ink-3`; timing's box stroke 1 pt `ink-3`. Windows high
+  contrast: numbers in the text color, the value arc and lit segments in the highlight color, labels, units, tracks and
+  quiet values in the gray-text color, no fills.
+
+**Frame policy.** The readouts are content (cached text and shapes, redrawn on a data change, at most twice per
+second). Their rolls, the arc's move and the meter's crossfade start on the tick with the hero value and end within the
+hero roll's 0.24 s, so they add no frames of their own; the thinking fold and a switch change run at 60 fps for their
+0.3 s, like a row move; a quiet or idle board renders nothing. The budgets of *Frame policy and performance* (below) are
+unchanged, and each platform's benchmark measures boards with every readout on.
 
 ### Motion and effects (all styles)
 
@@ -1404,16 +1678,19 @@ memory the board owns (layer textures, swap chain or drawable surfaces, instance
 
 - Drag anywhere to move; release within 24 pt of a screen edge snaps to a 12 pt margin, as orbs do; boards never take
   focus. Hover a group row: a tooltip after 0.35 s — project, source, model, effort and speed (section 4 tooltip
-  lines), group speed and its sub-agents' share, today's output of the group. Hover lifts the row tint only.
+  lines), group speed and its sub-agents' share, today's output of the group, then the live metrics lines (*Live
+  metrics*, Tooltip). Hover lifts the row tint only.
 - Context menu: header (style name and the board's sources); `boards.style` ▸ the three styles; `orbs.sources` ▸ as
-  an orb's; `menu.size` ▸ S / M / L; `menu.effects` ▸ (global); `menu.alwaysOnTop`, `menu.clickThrough`;
+  an orb's; `boards.readouts` ▸ the four live metrics switches (*Live metrics*); `menu.size` ▸ S / M / L; `menu.effects` ▸ (global); `menu.alwaysOnTop`, `menu.clickThrough`;
   `boards.add`, `boards.remove` (asks `boards.remove.confirm`); `menu.dashboard`; `boards.settings` (Settings →
   懸浮窗, Boards).
 - Settings → 懸浮窗 gains a Boards list under the orbs: one row per board (style preview thumbnail, style name,
-  sources, visible switch) with add / remove, and an editor for style, size, sources, opacity and the window toggles.
+  sources, visible switch) with add / remove, and an editor for style, size, sources, the live metrics switches
+  (*Live metrics*), opacity and the window toggles.
   The quick menu gets `boards.show` / `boards.hide` (all boards) and `boards.add`.
 - Accessibility: a board is a list element labelled `a11y.board` (sources, value, title); each group row is an item
-  labelled `a11y.board.row` (`第 1 名，tihu，每秒 7.88k 個 token，推理強度 xhigh，加速 Fast，100 個子 agent`).
+  labelled `a11y.board.row` (`第 1 名，tihu，每秒 7.88k 個 token，推理強度 xhigh，加速 Fast，100 個子 agent`); the live
+  metrics add their words to both (*Live metrics*, Accessibility).
   A new leader is announced politely at most once per 10 s (`a11y.board.newLeader`). Increase Contrast / high
   contrast: solid fills, 1 pt outlines, no glows, comets as a 2 pt solid ring segment.
 - Light and dark follow Appearance: each prototype's light theme is the reference.

@@ -2652,6 +2652,12 @@
     "en": "%@/s",
     "ja": "%@/s"
   },
+  "cost.glyph": {
+    "zh-Hant": "費用",
+    "zh-Hans": "费用",
+    "en": "Cost",
+    "ja": "費用"
+  },
   "cost.apiEquivalent": {
     "zh-Hant": "API 等值",
     "zh-Hans": "API 等值",
@@ -5399,6 +5405,84 @@
     "zh-Hans": "%@ 升到第一名",
     "en": "%@ takes first place",
     "ja": "%@ が首位になりました"
+  },
+  "boards.readouts": {
+    "zh-Hant": "看板顯示",
+    "zh-Hans": "看板显示",
+    "en": "Show on Board",
+    "ja": "ボードに表示"
+  },
+  "boards.readouts.intel": {
+    "zh-Hant": "智力",
+    "zh-Hans": "智力",
+    "en": "Intelligence",
+    "ja": "知能"
+  },
+  "boards.readouts.thinking": {
+    "zh-Hant": "思考",
+    "zh-Hans": "思考",
+    "en": "Thinking",
+    "ja": "思考"
+  },
+  "boards.readouts.cost": {
+    "zh-Hant": "費用",
+    "zh-Hans": "费用",
+    "en": "Cost",
+    "ja": "費用"
+  },
+  "boards.readouts.rowCost": {
+    "zh-Hant": "每列費用",
+    "zh-Hans": "每行费用",
+    "en": "Cost per Row",
+    "ja": "行ごとの費用"
+  },
+  "boards.readouts.hint": {
+    "zh-Hant": "智力是估算指數，不是測驗分數；費用按 API 公開價格估算（API 等值）。每列費用在 S 尺寸不顯示。",
+    "zh-Hans": "智力是估算指数，不是测验分数；费用按 API 公开价格估算（API 等值）。每行费用在 S 尺寸不显示。",
+    "en": "Intelligence is an estimated index, not a benchmark score. Costs are estimated at API list prices (API-equivalent). Cost per row is not shown at size S.",
+    "ja": "知能は推定の指数で、ベンチマークのスコアではありません。費用は API の公開価格で推定しています（API 換算）。行ごとの費用は S サイズでは表示されません。"
+  },
+  "boards.gap": {
+    "zh-Hant": "間隔",
+    "zh-Hans": "间隔",
+    "en": "GAP",
+    "ja": "差"
+  },
+  "boards.tooltip.cost": {
+    "zh-Hant": "費用 %@（API 等值）",
+    "zh-Hans": "费用 %@（API 等值）",
+    "en": "Cost %@ (API-equivalent)",
+    "ja": "費用 %@（API 換算）"
+  },
+  "boards.tooltip.subscription": {
+    "zh-Hant": "%@ 標記為訂閱，不計入費用",
+    "zh-Hans": "%@ 已标记为订阅，不计入费用",
+    "en": "%@ is marked as a subscription and not counted",
+    "ja": "%@ はサブスクリプションとして除外されています"
+  },
+  "a11y.board.thinking": {
+    "zh-Hant": "思考每秒 %@ 個 token",
+    "zh-Hans": "思考每秒 %@ 个 token",
+    "en": "thinking %@ tokens per second",
+    "ja": "思考 毎秒 %@ トークン"
+  },
+  "a11y.board.cost": {
+    "zh-Hant": "費用每秒 %@ %@（API 等值）",
+    "zh-Hans": "费用每秒 %@ %@（API 等值）",
+    "en": "cost %@ %@ per second (API-equivalent)",
+    "ja": "費用 毎秒 %@ %@（API 換算）"
+  },
+  "a11y.board.costUnknown": {
+    "zh-Hant": "費用：價格未知",
+    "zh-Hans": "费用：价格未知",
+    "en": "cost: price unknown",
+    "ja": "費用：価格不明"
+  },
+  "a11y.board.rowCost": {
+    "zh-Hant": "費用每秒 %@ %@",
+    "zh-Hans": "费用每秒 %@ %@",
+    "en": "cost %@ %@ per second",
+    "ja": "費用 毎秒 %@ %@"
   },
   "profile.title": {
     "zh-Hant": "個人資料",
