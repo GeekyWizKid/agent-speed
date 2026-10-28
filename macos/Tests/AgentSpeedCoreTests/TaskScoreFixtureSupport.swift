@@ -167,6 +167,8 @@ enum TaskScoreFixture {
             "tasks": number(row.tasks), "scoredTasks": number(row.scoredTasks), "medianScore": number(row.medianScore),
             "medianShown": number(row.medianShown), "lowerQuartile": number(row.lowerQuartile),
             "upperQuartile": number(row.upperQuartile), "histogram": .array(row.histogram.map { number($0) }),
+            "successes": number(row.successes), "stalls": number(row.stalls), "fixFailures": number(row.fixFailures),
+            "fixAttempts": number(row.fixAttempts), "recovered": number(row.recovered),
             "successRate": number(row.successRate), "stallRate": number(row.stallRate),
             "fixFailureRate": number(row.fixFailureRate), "recoverAttempts": number(row.recoverAttempts),
             "timeToFirstPassMs": number(row.timeToFirstPassMs),

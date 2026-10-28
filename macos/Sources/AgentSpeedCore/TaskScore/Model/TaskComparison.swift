@@ -16,6 +16,15 @@ public struct TaskComparisonRow: Equatable, Sendable {
     public var upperQuartile: Double?
     /// Ten counts: `[0, 10)` … `[80, 90)` and `[90, 100]`.
     public var histogram: [Int]
+    /// Successful records among the scored ones: the numerator of `successRate`.
+    public var successes: Int
+    /// Stalled records: the numerator of `stallRate`.
+    public var stalls: Int
+    /// Σ `fixFailures` and Σ `fixAttempts`: the two sides of `fixFailureRate`.
+    public var fixFailures: Int
+    public var fixAttempts: Int
+    /// Σ `recovered`: the denominator of `recoverAttempts`.
+    public var recovered: Int
     public var successRate: Double?
     public var stallRate: Double?
     public var fixFailureRate: Double?
@@ -39,10 +48,14 @@ public struct TaskComparisonRow: Equatable, Sendable {
         lowerQuartile = TaskComparison.quantile(scores, 0.25)
         upperQuartile = TaskComparison.quantile(scores, 0.75)
         histogram = TaskComparison.histogram(scores)
-        successRate = scored.isEmpty ? nil : taskDivide(scored.filter(\.success).count, scored.count)
-        stallRate = records.isEmpty ? nil : taskDivide(records.filter(\.stalled).count, records.count)
-        fixFailureRate = fixAttempts == 0 ? nil
-            : taskDivide(records.reduce(0) { $0 + $1.counts.fixFailures }, fixAttempts)
+        successes = scored.filter(\.success).count
+        stalls = records.filter(\.stalled).count
+        fixFailures = records.reduce(0) { $0 + $1.counts.fixFailures }
+        self.fixAttempts = fixAttempts
+        self.recovered = recovered
+        successRate = scored.isEmpty ? nil : taskDivide(successes, scored.count)
+        stallRate = records.isEmpty ? nil : taskDivide(stalls, records.count)
+        fixFailureRate = fixAttempts == 0 ? nil : taskDivide(fixFailures, fixAttempts)
         recoverAttempts = recovered == 0 ? nil
             : taskDivide(records.reduce(0) { $0 + $1.counts.recoverAttempts }, recovered)
         timeToFirstPassMs = TaskComparison.quantile(firstPass, 0.5)
