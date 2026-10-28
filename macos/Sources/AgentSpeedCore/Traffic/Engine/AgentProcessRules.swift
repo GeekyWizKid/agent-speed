@@ -127,6 +127,7 @@ struct AgentProcessRules: Sendable {
         if name == "pi" || script.contains("/@earendil-works/pi-coding-agent/") || script.contains("/@mariozechner/pi-coding-agent/") {
             return .pi
         }
+        if name == "openclaw" || script.contains("/openclaw.mjs") || script.contains("/openclaw/dist/") { return .openclaw }
         // Only the embedded CodeBuddy Code CLI is the agent; the app, its helpers and its daemon are not.
         if let edition = workbuddyEdition(executable: executable, bundleIdentifier: bundleIdentifier),
            (arguments() ?? []).dropFirst().contains(where: { platform.normalize($0).contains(Self.workbuddyCLI) }) {

@@ -82,6 +82,8 @@ final class AppSettings {
     var grokBuildRoot: URL? { didSet { store(grokBuildRoot?.path, .grokBuildRoot) } }
     /// One Pi folder, replacing `<agent dir>/sessions` and Pi's own custom session folder.
     var piRoot: URL? { didSet { store(piRoot?.path, .piRoot) } }
+    /// One OpenClaw state folder, agent folder or `openclaw-agent.sqlite`, replacing every automatic state folder.
+    var openclawRoot: URL? { didSet { store(openclawRoot?.path, .openclawRoot) } }
 
     /// UPDATES section 3: check GitHub at launch and every 6 h.
     var autoCheckUpdates: Bool { didSet { store(autoCheckUpdates, .autoCheckUpdates) } }
@@ -163,6 +165,7 @@ final class AppSettings {
         kimiRoot = Self.url(defaults.string(forKey: Key.kimiRoot.rawValue))
         grokBuildRoot = Self.url(defaults.string(forKey: Key.grokBuildRoot.rawValue))
         piRoot = Self.url(defaults.string(forKey: Key.piRoot.rawValue))
+        openclawRoot = Self.location(defaults.string(forKey: Key.openclawRoot.rawValue))
         autoCheckUpdates = defaults.object(forKey: Key.autoCheckUpdates.rawValue) as? Bool ?? true
         networkEnabled = defaults.object(forKey: Key.networkEnabled.rawValue) as? Bool ?? true
         syncPrices = defaults.object(forKey: Key.syncPrices.rawValue) as? Bool ?? true
@@ -195,7 +198,8 @@ final class AppSettings {
             zcodeRoot: zcodeRoot,
             kimiRoot: kimiRoot,
             grokBuildRoot: grokBuildRoot,
-            piRoot: piRoot
+            piRoot: piRoot,
+            openclawRoot: openclawRoot
         )
     }
 
@@ -247,6 +251,12 @@ final class AppSettings {
         return URL(fileURLWithPath: path, isDirectory: true)
     }
 
+    /// A folder or a file, as the file system says.
+    private static func location(_ path: String?) -> URL? {
+        guard let path, !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+
     private func store(_ value: Any?, _ key: Key) {
         if let value { defaults.set(value, forKey: key.rawValue) } else { defaults.removeObject(forKey: key.rawValue) }
     }
@@ -260,7 +270,7 @@ final class AppSettings {
         case effects, celebratePeaks, responsePulses
         case enabledSources, knownSources
         case codexRoot, claudeRoot, dshRoot, opencodeRoot, geminiRoot, ompRoot, antigravityRoot, workbuddyRoot, workbuddyAiRoot
-        case zcodeRoot, kimiRoot, grokBuildRoot, piRoot
+        case zcodeRoot, kimiRoot, grokBuildRoot, piRoot, openclawRoot
         case autoCheckUpdates
         case networkEnabled, syncPrices, currency, liveUnit, subscriptionSources, includeSubscriptions
         case heroLastTitle

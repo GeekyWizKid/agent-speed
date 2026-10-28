@@ -37,6 +37,7 @@ enum HistoryCSV {
         case .kimi: "kimi"
         case .grokBuild: "grokBuild"
         case .pi: "pi"
+        case .openclaw: "openclaw"
         }
     }
 

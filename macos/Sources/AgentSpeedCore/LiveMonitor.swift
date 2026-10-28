@@ -71,6 +71,15 @@ public final class LiveMonitor {
     /// root replaces all of them).
     public nonisolated static var defaultPiRoots: [URL] { TranscriptLocations.defaultPiRoots }
 
+    /// OpenClaw's automatic roots: `$OPENCLAW_STATE_DIR`, else `~/.openclaw` and every `~/.openclaw-<profile>` folder
+    /// (a configured folder or database replaces all of them).
+    public nonisolated static var defaultOpenclawRoots: [URL] { TranscriptLocations.defaultOpenclawRoots }
+
+    /// The agent databases a configured OpenClaw folder or file names (empty when it names none).
+    public nonisolated static func openclawDatabases(in url: URL) -> [String] {
+        OpenClawHome.databases(in: TranscriptDiscovery.normalizedRoot(url.path))
+    }
+
     public nonisolated static var defaultDshRoot: URL {
         TranscriptLocations.defaultDshRoot
     }

@@ -8,8 +8,8 @@ shared fixtures in `spec/fixtures/`.
 
 | Term | Meaning |
 | --- | --- |
-| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build), `pi` (Pi Coding Agent). This is the append-only *source order*. |
-| Agent | One transcript file. Agent id = absolute file path. Sub-agents have their own files and are separate agents. (OpenCode: one per session row, 4.5; Antigravity: one per conversation database, 4.8.) |
+| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build), `pi` (Pi Coding Agent), `openclaw` (OpenClaw). This is the append-only *source order*. |
+| Agent | One transcript file. Agent id = absolute file path. Sub-agents have their own files and are separate agents. (OpenCode: one per session row, 4.5; Antigravity: one per conversation database, 4.8; OpenClaw: one per transcript window, 4.14.) |
 | Response | One model API call that produced a usage record. |
 | Phase | `generating` (a request is in flight), `tools` (model finished, waiting for tool results), `idle` |
 
@@ -20,7 +20,7 @@ responses (4.12); the speed engine still processes its normalized tokens and dur
 
 | Source | Root | Override |
 | --- | --- | --- |
-| Codex | `$CODEX_HOME/sessions`, else `~/.codex/sessions` | user setting |
+| Codex | `$CODEX_HOME/sessions`, else `~/.codex/sessions`; plus `<agent folder>/codex-home/sessions` for the folder of every OpenClaw agent database (4.14: the Codex runs OpenClaw starts in its agent-scoped Codex homes) | user setting (replaces every automatic root) |
 | Claude Code + Claude Desktop | `$CLAUDE_CONFIG_DIR/projects`, else `~/.claude/projects` | user setting |
 | DeepSeek Harness (`dsh`, desktop app and CLI) | `$DSH_HOME/sessions`, else `~/.dsh/sessions` | user setting |
 | OpenCode (CLI and desktop app) | `$XDG_DATA_HOME/opencode/opencode.db`, else `~/.local/share/opencode/opencode.db` (same form on Windows under `%USERPROFILE%`) | user setting (folder that contains `opencode.db`) |
@@ -33,6 +33,7 @@ responses (4.12); the speed engine still processes its normalized tokens and dur
 | Kimi Code CLI (TypeScript v2) | `$KIMI_CODE_HOME/sessions`, else `~/.kimi-code/sessions` | user setting (data directory or its `sessions` folder) |
 | Grok Build | `$GROK_HOME/sessions`, else `~/.grok/sessions` | user setting (data directory or its `sessions` folder) |
 | Pi (Pi Coding Agent: TUI, `-p`, RPC) | `<agent dir>/sessions` with `<agent dir>` = `$PI_CODING_AGENT_DIR`, else `~/.pi/agent`; plus Pi's own custom session folder when one is set: `sessionDir` of `<agent dir>/settings.json` and `$PI_CODING_AGENT_SESSION_DIR` (4.13) | user setting (one folder; replaces every automatic root) |
+| OpenClaw (a Gateway on this computer, 2026.8.1+) | the agent databases `<state>/agents/<agentId>/agent/openclaw-agent.sqlite` of every state folder: `$OPENCLAW_STATE_DIR`, else `<base>/.openclaw` and every named-profile folder `<base>/.openclaw-<profile>`, with `<base>` = `$OPENCLAW_HOME`, else `~` (4.14) | user setting (a state folder, an agent folder or a database; replaces every automatic root) |
 
 `~` is `HOME` on macOS and `%USERPROFILE%` on Windows. Claude Code and Claude Desktop share one root; each file is
 assigned to a source by its `entrypoint` field (section 4.1). Ordinary Claude Desktop chat conversations are not stored
@@ -40,13 +41,15 @@ locally and are out of scope.
 
 Discovery: recursive enumeration of `*.jsonl` (Codex also `*.jsonl.zst`, 5.3; DeepSeek: `session.v<N>.jsonl.zstd` or `session.v<N>.jsonl`; Gemini CLI:
 fixed depths, see 4.6; omp and Pi: see 4.7 and 4.13; Antigravity: conversation databases, see 4.8; WorkBuddy: fixed
-depths, see 4.9),
+depths, see 4.9; OpenClaw: agent databases, see 4.14),
 maximum depth 6, never follow symlinks, at most 20 000 files per root.
 A source is *detected* when its root (Antigravity: any store; WorkBuddy: the data folder) exists or it has data today;
 what an undetected source shows is DESIGN 2b (unavailable sources), 4 and 5.
 The app never writes inside these folders.
 For ZCode, Kimi Code CLI and Grok Build, the source's session count includes today's main sessions only;
 subagents remain visible in the agent tree and ordinary forks remain separate sessions, as with WorkBuddy.
+For OpenClaw, a source is detected when a state folder (or the folder of the setting) exists; its session count is the
+number of transcript windows that are not sub-agents (4.14).
 
 ## 3. Common rules
 
@@ -96,6 +99,7 @@ Every response also carries `provider` (string or null): the API provider the ag
 `custom`). DeepSeek Harness: `data.message.source.provider`, else the latest `request/header` `config.provider`.
 OpenCode: `data.model.providerID`. omp: `message.provider` (assistant) or the entry's `provider` (`model_usage`).
 Pi: `message.provider` (assistant) or the entry's `provider` (`usage` entries).
+OpenClaw: `message.provider` (assistant).
 WorkBuddy: `custom` for a model of the user's own provider (`custom:` / `custom-local:` ids, 4.9). Every other
 source: null. Empty strings count as null.
 
@@ -1195,6 +1199,135 @@ history, known approximations — with the differences below. Evidence: `spec/re
 Approximations beyond omp's: side usage has no timing and, apart from `usage` entries, no model (it is unpriced);
 `responseModel` (the concrete model the provider reports) is not used, like omp's.
 
+### 4.14 OpenClaw
+
+OpenClaw (`openclaw/openclaw`, MIT; npm `openclaw`) is an agent gateway for chat channels, its web app and its
+desktop companions; its agent runtime grew out of Pi. From 2026.8.1 (agent database schema 8 and later, also the
+extended-stable lines 2026.8.3x and 2026.9.3x) the Gateway keeps every session transcript in one SQLite database per
+OpenClaw agent (a configured persona, not a sub-agent), one transcript entry per row, in the JSONL entry format of Pi
+(session version 3 or 4). Evidence: `spec/research/openclaw.md`; fixtures: `spec/tools/openclaw_fixtures.py`
+(`spec/fixtures/openclaw`). Out of scope: 2026.7.x and older (JSONL files under `<state>/agents/<agentId>/sessions`),
+PostgreSQL agent stores, incognito threads (memory only), remote Gateways and Gateways inside WSL (the Windows Hub's
+default setup).
+
+OpenClaw counts here only the requests its own runtime sends. A turn that OpenClaw hands to another agent runtime —
+Claude Code (`claude-cli`), the Codex app server, an ACP agent — is mirrored into the transcript as one message with
+the whole turn's usage and no request timing, while that agent writes every request to its own log: those mirrors
+count nothing here (*delegated* below). Claude Code's requests count under `claudeCode` (it shares the user's
+`~/.claude`), Codex's under `codex` (its rollouts are in OpenClaw's agent-scoped Codex homes, a Codex root of
+section 2, or in the user's own Codex home), and an ACP agent's under its own source when Agent Speed reads it.
+
+#### Roots and discovery
+
+- **State folders** (section 2): `$OPENCLAW_STATE_DIR` when it is set (a leading `~` is the home folder), and then
+  nothing else. Otherwise `<base>/.openclaw` and every folder `<base>/.openclaw-<name>` whose `<name>` matches
+  `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$` and is not `default` in any letter case (named profiles; `--dev` is the profile
+  `dev`), where `<base>` is `$OPENCLAW_HOME` when it is set (a leading `~` is the home folder), else the home folder.
+  Profile folders are listed in ordinal order after `.openclaw`. Folders that do not exist are skipped; a path listed
+  twice is read once.
+- **Databases**: for every folder `<agentId>` of `<state>/agents` (not a symlink, name not starting with `.`), the
+  regular file (not a symlink) `<state>/agents/<agentId>/agent/openclaw-agent.sqlite`. Nothing else matches (the
+  sentinel `incognito-openclaw-agent.sqlite`, archives, `-wal`, `-shm`, `.seal`).
+- **User setting**: one folder or file; it replaces every automatic root. A folder that contains
+  `openclaw-agent.sqlite` is an agent folder (OpenClaw's `agents.entries.*.agentDir`) and contributes that database;
+  any other folder is a state folder; a file named `openclaw-agent.sqlite` is used directly.
+- **Opening**: read-only, exactly like OpenCode (4.5): `mode=ro`, busy timeout 2 s, `immutable=1` when the header says
+  WAL and no `-wal` file exists, short read transactions; reading never creates a file. Only the tables
+  `session_windows`, `session_nodes`, `transcript_events` and `transcript_rewrite_watermarks` are read: the same
+  database holds OpenClaw's credentials (`auth_profile_*`) and memory, which are never selected. A database without
+  `session_windows` or `transcript_events` (agent schema 1 of 2026.5–2026.7, which held no sessions) contributes
+  nothing and is reported as unsupported (warning `unsupportedFormat`).
+
+#### Windows and agents
+
+- One agent per **transcript window**, a row of `session_windows` (a reset, rollover, fork or recovery starts a new
+  window of the same logical session). Agent id `<database path>#<session_id>`.
+- `isSubagent` = the window's `spawned_by` is a non-empty string (children of `sessions_spawn`, whose session key is
+  `agent:<agentId>:subagent:<uuid>`). Parent: the window `session_nodes.current_session_id` of the session key
+  `spawned_by` in the same database, when it is tracked; a parent in another agent's database is not linked.
+- **Delegated window**: `acp_owned = 1`, or `agent_harness_id` (trimmed, lower-cased; the runtime of the window's
+  latest run) is non-empty and not `openclaw`, `pi`, `auto` or `default`. Every other window is *embedded*. A missing
+  column counts as empty or 0.
+- **Rows**: the window's `transcript_events` in `seq` order. The entry is `event_json` when it is not null, else the
+  zstd frame in `event_zstd` (agent schema 23+; that column is selected only when it exists), decoded with at most
+  `event_utf8_bytes` (≤ 4 MiB) of output. A row that fails to decode, is not valid UTF-8 or is not a JSON object counts
+  as one malformed line (section 4); an entry longer than 32 MiB is skipped like a long line. The entries are fed in
+  order to the state machine below, like the lines of a Pi file.
+
+#### Records
+
+Every rule of 4.7 and 4.13 applies to the entries — the header, record classification, state and phase table,
+assistant steps 1–5, tokens, metadata (`project` = basename of the header `cwd`; `model` = the latest response's
+`message.model`), deduplication and copied history (`headerMs − 2000`) — with these differences:
+
+- **Keys**: `"openclaw:" + id + ":" + stamp` (the stamp of 4.7 step 2).
+- **Timing**: there is no duration field. `startMs = message.timestamp` (taken when OpenClaw's provider transport
+  creates the response, before the request is built and sent) and `endMs` = the entry `timestamp`, the time the
+  finished message was appended (a few milliseconds after the stream ended).
+- **Stop reasons**: `stop`, `length`, `toolUse`, `error`, `aborted`; a missing or other value counts as `aborted`
+  (4.7 step 3).
+- **Tokens**: as Pi, with `reasoning = usage.reasoningTokens` (absent → 0; OpenClaw's own transports do not report
+  reasoning) and `cacheWrite1hInput = usage.cacheWrite1h` (at most `cacheWrite`). A message whose
+  `usage.usageReport.state` is `unavailable` (provisional stream counters, which OpenClaw's own accounting drops) emits
+  no response.
+- **No side usage**: only assistant messages emit responses (OpenClaw writes no `usage` entries and no usage on tool
+  results, compactions or branch summaries).
+- **Mirrors** (delegated turns): an assistant message is a mirror when `message.__openclaw.mirrorOrigin` is a
+  non-empty string (the Codex app server; imported history), when `message.api == "cli"` and
+  `message.provider == "claude-cli"`, when `message.provider` starts with `acp-`, or when its window has
+  `acp_owned = 1` or the runtime (`agent_harness_id`, as above) `codex`, `claude-cli` or one starting with `acp`. A
+  mirror emits no response and sets no model; it still counts for `lastLineMs` and, in an embedded window, for the
+  phase.
+- **Untimed responses**: an assistant message that is not a mirror, when its window is delegated or
+  `message.api == "cli"` (the Gemini CLI backend, whose own logs live in a temporary folder that OpenClaw removes; the
+  GitHub Copilot and Muse harnesses; other CLI backends), emits its response with `startMs = null`: the usage of a
+  whole turn, written when the turn ended.
+- **Phase**: an embedded window follows the 4.7 phase table. A delegated window stays `idle` (its turns run in another
+  program, whose own log shows their live state when Agent Speed reads it).
+- **Effort and speed**: none (EXECUTION-MODES). `thinking_level_change` entries are written when a session starts and
+  when a level is selected explicitly, not for a level a single message asks for, so they are not used.
+- **Work signals** (6.10): tool calls and results as Pi.
+
+Startup and reading (section 5): an agent database takes part in the startup order with the modification time of
+the newer of `openclaw-agent.sqlite` and its `-wal`; within a database the windows are read in `created_at` order, ties
+by `session_id`. Windows whose `transcript_updated_at` (else `created_at`) is within `todayStartMs − 15 min` or later
+are read completely at startup; older windows start after their last row, reading only their header (the first row
+whose entry has type `session`) first, as omp does for a file read from an offset (4.7). While running, change
+detection watches the database and its `-wal` (file watcher plus the 1-second fallback, like 5.2). On a change, one
+short transaction reads
+`session_windows` (a few thousand rows at most) and `transcript_rewrite_watermarks`, then the rows with a `seq` above
+the last one read of every window whose `transcript_updated_at` advanced, and all rows of a new window. A window whose
+watermark `generation` changed, or whose highest `seq` dropped, was rewritten: it is reset (parser state, never the
+dedupe set) and read again from its first row; the same keys merge as same-file updates (4.4). The source counts as
+one "file" per database for discovery statistics.
+
+#### Known approximations
+
+- `endMs` is the append time: it includes OpenClaw's work between the end of the stream and the write
+  (`message_end` hooks, the database transaction), normally milliseconds. `startMs` includes building the request and
+  preparing credentials; retries inside a transport keep the original `timestamp`, so their back-off lowers the
+  measured speed. Older OpenClaw versions behave the same (checked at 2026.8.1).
+- Streams with asynchronous tool calls first write the finished part as an assistant message with empty usage
+  (`toolUse`): it emits nothing and moves the phase to `tools`, and its tool results to `generating`; the final part
+  carries the usage and the full interval.
+- Delegated turns count under the agent that ran them only when Agent Speed reads that agent's log: ACP agents it
+  does not read (GitHub Copilot CLI, Kilo Code, Qwen Code), Codex homes OpenClaw was told to put elsewhere
+  (`appServer.codexHome`, a remote app server) and Claude Code on a paired remote node are not counted anywhere.
+- Untimed responses are whole turns: a turn of several model calls counts as one request, without speed, and its
+  price tier is chosen from the summed tokens.
+- `agent_harness_id` names the runtime of a window's latest run only. A window whose runtime changed between runs
+  (for example a model switch from an API model to a Codex-run one) treats all its messages by the latest runtime:
+  earlier embedded requests lose their speed (or, after a switch to `codex`, `claude-cli` or ACP, their tokens).
+- A CLI backend turn in an embedded window shows `generating` from its user message until the mirror arrives, while
+  the CLI's own log shows the same turn; the live estimate (6.3) can count that time twice.
+- Side calls (compaction summaries, session titles, memory, recaps, `/btw` side questions) are not stored as
+  transcript entries and are not counted; totals follow OpenClaw's own session report (`/usage cost`), not the
+  provider bill.
+- Windows that OpenClaw's maintenance prunes (`session.maintenance.pruneAfter`, default 30 days) or moves to cold
+  archive files are not read again; a history rebuild (section 8) cannot recover them.
+- Derived from the OpenClaw source (2026.10.7, evidence in `spec/research/openclaw.md`); not yet verified against real
+  databases.
+
 ## 5. Reading files
 
 - Startup reading order (it decides which file owns a duplicated key): files sorted by modification time ascending,
@@ -1454,12 +1587,12 @@ outcome `(time, failed)`, matched by call id:
 | --- | --- | --- | --- | --- |
 | Claude (both) | assistant `message.content[]` block `tool_use` (each `id` once per file: a message's lines repeat it) | `name`; `input` | user block `tool_result` with that `tool_use_id` | `is_error == true` |
 | Codex | `response_item` `function_call` / `custom_tool_call` | `name`; `arguments` / `input` | `…_output` with that `call_id` | the output's leading JSON object (in the first `input_text` item when `output` is an array) has an integer `exit_code` ≠ 0 |
-| omp, Pi | assistant `toolCall` block | `name`; `arguments` | `toolResult` with that `toolCallId` | `isError == true` |
+| omp, Pi, OpenClaw | assistant `toolCall` block | `name`; `arguments` | `toolResult` with that `toolCallId` | `isError == true` |
 | others | — (no actions; no signals) | | | |
 
 `digest` = the first 16 lowercase hex digits of SHA-256 over the call's input as the file stores it: the UTF-8 text of
 a string input (Codex `arguments` and `input` are strings), the raw JSON text of an object or array exactly as it
-appears in the line (Claude `input`, omp and Pi `arguments`). It is computed while the line is parsed; the input
+appears in the line (Claude `input`, omp and Pi `arguments`; OpenClaw: in the decoded entry). It is computed while the line is parsed; the input
 itself is never kept. Only
 `tool`, `digest`, times and `failed` are stored, at most the last **64 actions** per agent. An outcome never read
 (no result yet, or a format that does not say) is `unknown`, which is not a failure. Copied history (3.5, 4.7) and
@@ -1893,6 +2026,7 @@ desktop app that runs its agent on its own executable, so its row needs the argu
 | `antigravity` | `name == agy`, or `name` starts with `language_server_` (the Antigravity language server, started by the CLI, the desktop app and the IDE with `--app_data_dir`). |
 | `workbuddy`, `workbuddyAi` | The embedded CodeBuddy Code CLI, which makes the model calls itself: an executable of the edition — macOS: in the app with bundle id `com.tencent.workbuddy.mac` (WorkBuddy) or `com.workbuddy.workbuddy-ai` (WorkBuddy AI), whose main executable is named `Electron`; Windows: `name` `WorkBuddy` or `WorkBuddyAI` — whose arguments after the first contain a path with `/app.asar.unpacked/cli/` (the CLI entry `…/app.asar.unpacked/cli/bin/codebuddy`, run with `ELECTRON_RUN_AS_NODE`). Observed in the 5.8 code: pooled `--prewarm` processes that later serve one conversation each (`--serve --session-id <id>`; the command line does not change when one is taken from the pool), cold `--serve` starts, and the fallback `--acp` with first argument `wb-acp:<id>`. Not verified with a running app; the Windows install folder is unknown, so only the name is used. |
 | `pi` | `name == pi` (release binaries), or a script host whose arguments contain `/@earendil-works/pi-coding-agent/` or `/@mariozechner/pi-coding-agent/` (npm, and the installers' `<agent dir>/install/releases/<version>/node_modules/…`, started by the `<agent dir>/bin/pi` launcher). |
+| `openclaw` | `name == openclaw` (standalone builds), or a script host whose arguments after the first contain `/openclaw.mjs` (the npm package's `bin`, which may respawn itself with the same script; git checkouts) or `/openclaw/dist/` (services started on `dist/entry.js` or `dist/entry.mjs` of the npm or pnpm package). The Gateway process sends OpenClaw's own model requests. The agents it starts for delegated turns match their own rows and count for their sources: Claude Code and Codex app servers, like their turns (4.14); Gemini CLI too, although its turns count under `openclaw`. The Windows Hub's Gateway runs inside WSL, outside the process table. Not verified with a running OpenClaw; the macOS app's bundled runtime is assumed to run the same `openclaw.mjs`. |
 
 The desktop apps' own processes are **not** agent processes, nor are their Electron or Tauri helpers: macOS
 `/Applications/{Claude,ChatGPT,Codex,OpenCode,Antigravity}.app/Contents/MacOS/<name>`; Windows executables directly in
@@ -1953,7 +2087,7 @@ parent's process). Each tick, for every root agent process `P` of source `s` wit
 `cwdPath` is new parser metadata (section 4): the full working directory the transcript names — Claude: the latest
 `cwd`; Codex: `session_meta`/`turn_context` `cwd`; dsh: header `cwd`; OpenCode: `session_v2.directory`; Gemini CLI: the
 `.project_root` content; omp: header `cwd`; Antigravity: the decoded path of the first workspace URI; WorkBuddy: the
-latest `cwd`. Null when absent.
+latest `cwd`; Pi and OpenClaw: header `cwd`. Null when absent.
 It is metadata only (no effect on tokens or history).
 
 Typical outcomes: one Claude Code session per terminal → exact; several Claude Desktop Code sessions (one CLI process

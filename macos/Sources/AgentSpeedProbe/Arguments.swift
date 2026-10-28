@@ -33,6 +33,7 @@ struct ProbeArguments {
                                [--prices PATH] [--codex PATH] [--claude PATH] [--dsh PATH] [--opencode PATH]
                                [--gemini PATH] [--omp PATH] [--antigravity PATH] [--workbuddy PATH] [--workbuddy-ai PATH]
                                [--zcode PATH] [--kimi PATH] [--grok-build PATH] [--pi PATH]
+                               [--openclaw PATH]
                AgentSpeedProbe --sync-prices DIR | --sync-rates DIR CURRENCY
         """
 
@@ -118,6 +119,11 @@ struct ProbeArguments {
                 // One Pi sessions folder; it replaces every automatic root, as `reference.py --pi`.
                 guard let path = iterator.next() else { return nil }
                 configuration.piRoot = URL(fileURLWithPath: path, isDirectory: true)
+            case "--openclaw":
+                // One state folder, agent folder or openclaw-agent.sqlite; it replaces every automatic root, as
+                // `reference.py --openclaw`.
+                guard let path = iterator.next() else { return nil }
+                configuration.openclawRoot = URL(fileURLWithPath: path)
             case "--opencode":
                 // The database file (as in reference.py) or the folder that contains it.
                 guard let path = iterator.next() else { return nil }

@@ -95,6 +95,11 @@ final class TranscriptSession {
     /// The OpenCode database, when that source is enabled (METRICS 4.5, 5.2).
     let opencode: OpencodeSource?
     let zcode: ZcodeSource?
+    /// OpenClaw's agent databases, when that source is enabled (METRICS 4.14).
+    let openclaw: OpenClawSource?
+    private var openclawLinks: [String: String] = [:]
+    /// Today's start of the last seed or rediscovery, for databases found while running.
+    private var todayStartMs: Int64 = 0
     private let zcodeRoot: String
     private var zcodeNeedsSeed = false
     private var zcodeLinks: [String: String] = [:]
@@ -128,12 +133,17 @@ final class TranscriptSession {
         opencode = configuration.readsOpencode ? OpencodeSource(root: opencodeRoot, fileID: Self.opencodeFileID) : nil
         zcodeRoot = configuration.resolvedZcodeRoot
         zcode = configuration.readsZcode ? ZcodeSource(root: zcodeRoot, fileID: Self.zcodeFileID) : nil
+        openclaw = configuration.readsOpenclaw
+            ? OpenClawSource(roots: configuration.resolvedOpenclawRoots, maxLineBytes: limits.maxLineBytes) : nil
         refreshAvailability()
     }
 
     // MARK: - Roots
 
-    var hasAvailableRoot: Bool { roots.contains { $0.enabled && $0.detected } || opencode?.isReady == true || zcode?.isReady == true }
+    var hasAvailableRoot: Bool {
+        roots.contains { $0.enabled && $0.detected } || opencode?.isReady == true || zcode?.isReady == true
+            || openclaw?.detected == true
+    }
 
     var watchedPaths: [String] {
         var paths = roots.filter { $0.enabled && $0.available }.map(\.canonicalPath)
@@ -141,7 +151,13 @@ final class TranscriptSession {
             paths.append(directory)
         }
         if let directory = zcode?.watchedDirectory, !paths.contains(directory) { paths.append(directory) }
+        for directory in openclaw?.watchedDirectories ?? [] where !paths.contains(directory) { paths.append(directory) }
         return paths
+    }
+
+    /// The OpenClaw row's path (the first state folder found) and whether the source is detected (METRICS 2).
+    var openclawLocation: (path: String, available: Bool) {
+        (openclaw?.displayRoot ?? configuration.resolvedOpenclawRoots.first ?? "", openclaw?.detected ?? false)
     }
 
     var zcodeLocation: (path: String, available: Bool) { (zcodeRoot, zcode?.exists ?? false) }
@@ -183,6 +199,13 @@ final class TranscriptSession {
         configuration.resolvedRoots(for: .pi) != roots.filter { $0.family == .pi }.map(\.path)
     }
 
+    /// OpenClaw's state folders and the Codex homes next to its agent databases change while the app runs (a new
+    /// profile, a new agent, METRICS 2): true when they no longer match what this session reads.
+    var openclawRootsChanged: Bool {
+        if let openclaw, openclaw.roots != configuration.resolvedOpenclawRoots { return true }
+        return configuration.resolvedRoots(for: .codex) != roots.filter { $0.family == .codex }.map(\.path)
+    }
+
     /// The family's first detected root, else its first root (Gemini CLI, omp, Antigravity and Pi can have several).
     func root(for family: TranscriptFamily) -> Root {
         roots.first { $0.family == family && $0.detected } ?? roots.first { $0.family == family }!
@@ -198,6 +221,7 @@ final class TranscriptSession {
     ) -> SeedSummary {
         let started = DispatchTime.now().uptimeNanoseconds
         var summary = SeedSummary()
+        self.todayStartMs = todayStartMs
         refreshAvailability()
 
         var backlog: [(file: DiscoveredFile, tracked: TrackedFile)] = []
@@ -271,6 +295,12 @@ final class TranscriptSession {
             }
             zcodeNeedsSeed = false
             apply(zcode.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false)
+        }
+        if let openclaw {
+            apply(openclaw.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false)
+            summary.filesDiscovered += openclaw.databaseCount
+            summary.filesRead += openclaw.readyDatabaseCount
+            summary.bytesRead += openclaw.databaseBytes
         }
         summary.partialHistory = partialHistory
         summary.durationMs = Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
@@ -346,6 +376,10 @@ final class TranscriptSession {
         if let zcode, paths.contains(where: zcode.matches(canonicalPath:)) {
             changed = apply(zcode.refresh(deduper: &deduper), live: true) || changed
         }
+        if let openclaw {
+            changed = apply(openclaw.handleChanges(atCanonicalPaths: paths, todayStartMs: todayStartMs, deduper: &deduper), live: true)
+                || changed
+        }
         var handled: Set<String> = []
         for path in paths.sorted() {
             guard let (localPath, root) = localPath(forCanonical: path), handled.insert(localPath).inserted else { continue }
@@ -390,6 +424,7 @@ final class TranscriptSession {
             changed = apply(update, live: true)
         }
         if let update = zcode?.refreshIfChanged(deduper: &deduper) { changed = apply(update, live: true) || changed }
+        if let openclaw { changed = apply(openclaw.refreshIfChanged(deduper: &deduper), live: true) || changed }
         let hot = files.values.filter { nowMs - $0.lastStat.modifiedMs <= Self.hotWindowMs }
         for file in hot.sorted(by: { $0.path < $1.path }) {
             guard let stat = file.family.stat(file.path) else {
@@ -408,6 +443,7 @@ final class TranscriptSession {
     /// re-checked in case the watcher missed a change.
     @discardableResult
     func rediscover(todayStartMs: Int64) -> Bool {
+        self.todayStartMs = todayStartMs
         var changed = refreshAvailability()
         var seen: Set<String> = []
         var fresh: [(DiscoveredFile, Root)] = []
@@ -454,6 +490,9 @@ final class TranscriptSession {
             } else if let update = zcode.refreshIfChanged(deduper: &deduper) {
                 changed = apply(update, live: true) || changed
             }
+        }
+        if let openclaw {
+            changed = apply(openclaw.rediscover(todayStartMs: todayStartMs, deduper: &deduper), live: true) || changed
         }
         return changed
     }
@@ -582,7 +621,8 @@ final class TranscriptSession {
         subsets: Set<SourceSet> = []
     ) -> (output: EngineOutput, events: [SpeedEvent]) {
         if parentLinksAreStale {
-            parentLinks = AgentParents.resolve(Array(parentMembers.values), direct: opencodeLinks.merging(zcodeLinks) { first, _ in first })
+            let direct = opencodeLinks.merging(zcodeLinks) { first, _ in first }.merging(openclawLinks) { first, _ in first }
+            parentLinks = AgentParents.resolve(Array(parentMembers.values), direct: direct)
             engine.setParents(parentLinks)
             parentLinksAreStale = false
         }
@@ -597,9 +637,13 @@ final class TranscriptSession {
 
     var malformedLines: Int {
         files.values.reduce(removedMalformedLines) { $0 + $1.parser.state.malformedLines } + (opencode?.malformedRows ?? 0)
+            + (openclaw?.malformedRows ?? 0)
     }
 
-    var unreadableFileCount: Int { unreadablePaths.count + (opencode?.status == .unreadable ? 1 : 0) + (zcode?.status == .unreadable ? 1 : 0) }
+    var unreadableFileCount: Int {
+        unreadablePaths.count + (opencode?.status == .unreadable ? 1 : 0) + (zcode?.status == .unreadable ? 1 : 0)
+            + (openclaw?.unreadableDatabaseCount ?? 0)
+    }
 
     /// Antigravity databases whose connection is open.
     var openDatabaseCount: Int {
@@ -614,6 +658,7 @@ final class TranscriptSession {
         if enabledSources.contains(.antigravity), files.values.contains(where: { $0.family.isDatabase && $0.parser.isUnsupported }) {
             sources.append(.antigravity)
         }
+        if openclaw?.hasUnsupportedDatabase == true { sources.append(.openclaw) }
         return sources
     }
 
@@ -633,6 +678,7 @@ final class TranscriptSession {
             counts[.opencode] = opencode.activeSessionCount(todayStartMs: todayStartMs)
         }
         if let zcode { counts[.zcode] = zcode.activeSessionCount(todayStartMs: todayStartMs) }
+        if let openclaw { counts[.openclaw] = openclaw.activeSessionCount(todayStartMs: todayStartMs) }
         return counts
     }
 
@@ -705,6 +751,26 @@ final class TranscriptSession {
             parentLinksAreStale = true
         }
         return !update.isEmpty
+    }
+
+    @discardableResult
+    private func apply(_ update: OpenClawSource.Update, live: Bool) -> Bool {
+        guard !update.isEmpty else { return false }
+        for (upsert, project) in update.upserts { deliver(upsert, project: project, live: live) }
+        for id in update.removedAgents { engine.removeAgent(id: id) }
+        let links = openclaw?.parentLinks ?? [:]
+        if links != openclawLinks {
+            openclawLinks = links
+            parentLinksAreStale = true
+        }
+        for (id, state) in update.agents {
+            if state.lastLineMs != nil, enabledSources.contains(.openclaw) {
+                engine.setAgent(EngineAgent(id: id, state: state, parentId: parentLinks[id]))
+            } else {
+                engine.removeAgent(id: id)
+            }
+        }
+        return true
     }
 
     // MARK: - Tracking

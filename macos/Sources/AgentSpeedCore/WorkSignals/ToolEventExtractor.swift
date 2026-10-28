@@ -12,6 +12,11 @@ enum ToolEventExtractor {
         }
     }
 
+    /// An OpenClaw transcript entry (Pi's format, METRICS 6.10).
+    static func openclawEvents(_ bytes: UnsafeRawBufferPointer) -> [ToolEvent] {
+        scan(bytes, piFamilyLine)
+    }
+
     // MARK: - Claude
 
     /// An assistant's `tool_use` blocks, or a user's `tool_result` blocks (`is_error`).

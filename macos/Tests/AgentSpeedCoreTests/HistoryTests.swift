@@ -6,13 +6,13 @@ import Testing
 struct HistoryTests {
     static let utc = TimeZone(identifier: "UTC")!
 
-    /// The fixtures folder as every source's data; `omp` plays `~/.omp`, `antigravity` plays `~/.gemini` and `pi`
-    /// plays `~/.pi`, so their automatic roots (every profile, the three stores, Pi's custom session folder) are used;
-    /// `workbuddy` plays `~` of both WorkBuddy editions.
+    /// The fixtures folder as every source's data; `omp` plays `~/.omp`, `antigravity` plays `~/.gemini`, `pi`
+    /// plays `~/.pi` and `openclaw` plays `~` of OpenClaw, so their automatic roots (every profile, the three stores,
+    /// Pi's custom session folder, OpenClaw's state folders) are used; `workbuddy` plays `~` of both WorkBuddy
+    /// editions. `codex/sessions` is the automatic Codex root, so OpenClaw's agent-scoped Codex homes join it.
     static func configuration(fixtures root: URL) -> MonitorConfiguration {
         var configuration = MonitorConfiguration(
-            enabledSources: Set(SourceKind.allCases.prefix(10)).union([.pi]),
-            codexRoot: root.appendingPathComponent("codex/sessions", isDirectory: true),
+            enabledSources: Set(SourceKind.allCases.prefix(10)).union([.pi, .openclaw]),
             claudeRoot: root.appendingPathComponent("claude/projects", isDirectory: true),
             dshRoot: root.appendingPathComponent("dsh/sessions", isDirectory: true),
             opencodeRoot: root.appendingPathComponent("opencode/opencode.db"),
@@ -21,12 +21,14 @@ struct HistoryTests {
             workbuddyAiRoot: root.appendingPathComponent("workbuddy/.workbuddy-ai", isDirectory: true)
         )
         configuration.automaticRoots = [
+            .codex: [root.appendingPathComponent("codex/sessions", isDirectory: true)],
             .omp: TranscriptLocations.ompRoots(environment: ["PI_CONFIG_DIR": "omp"], home: root),
             .antigravity: ["antigravity-cli", "antigravity", "antigravity-ide"].map {
                 root.appendingPathComponent("antigravity", isDirectory: true).appendingPathComponent($0, isDirectory: true)
             },
         ]
         configuration.piHome = ParserFixtureTests.piHome(fixtures: root)
+        configuration.openclawHome = OpenClawTests.home(fixtures: root)
         return configuration
     }
 
@@ -90,7 +92,10 @@ struct HistoryTests {
         let files = try #require(parserExpected["order"] as? [String]).count
         let databases = try #require((parserExpected["antigravity"] as? [String: Any])?["order"] as? [String]).count
         #expect(report.filesAnalyzed == files + databases)
-        #expect(report.sessionsAnalyzed == 2)
+        let openclaw = try #require(parserExpected["openclaw"] as? [String: Any])
+        let windows = try #require(openclaw["databases"] as? [String: [String: Any]]).values.filter { $0["unsupported"] == nil }
+            .reduce(0) { $0 + $1.count }
+        #expect(report.sessionsAnalyzed == 2 + windows, "OpenCode sessions and OpenClaw windows")
         #expect(report.days.allSatisfy { $0.peak == nil })
         _ = directory
     }

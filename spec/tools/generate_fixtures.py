@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import antigravity_fixtures  # noqa: E402
 import gemini_fixtures  # noqa: E402
 import omp_fixtures  # noqa: E402
+import openclaw_fixtures  # noqa: E402
 import pi_fixtures  # noqa: E402
 import workbuddy_fixtures  # noqa: E402
 
@@ -665,6 +666,13 @@ order += pi["order"]
 files.update(pi["files"])
 mtimes.update(pi["mtimes"])
 
+# --- OpenClaw: agent databases, and a Codex rollout in an agent-scoped Codex home -----
+openclaw = openclaw_fixtures.write_fixtures(ROOT)
+assert min(openclaw["mtimes"].values()) > max(mtimes.values())
+order += openclaw["order"]
+files.update(openclaw["files"])
+mtimes.update(openclaw["mtimes"])
+
 with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the "
                            "Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this "
@@ -681,7 +689,15 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                            "discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the "
                            "folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom "
                            "session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both "
-                           "roots; its `traces` work like the omp ones.",
+                           "roots; its `traces` work like the omp ones. OpenClaw: the folder `openclaw` plays the home "
+                           "folder (state folders .openclaw and the profile .openclaw-work); after the OpenCode and "
+                           "Antigravity databases, the agent databases of `openclaw.dbOrder` are read with the same "
+                           "dedupe set, each one agent per transcript window (agent id `<database>#<session id>`, "
+                           "relative to this folder); `{\"unsupported\": true}` marks a database without session "
+                           "tables; `openclaw.discover` lists the databases discovery finds, `openclaw.codexDiscover` "
+                           "the rollouts of the Codex roots next to them (METRICS 2); a trace gives the phase of a "
+                           "window after its row `afterSeq`, after the databases before it; reading must not create "
+                           "any file.",
                "order": order, "files": files, "mtimes": mtimes,
                "opencode": {"database": opencode_rel, "agents": opencode_expected},
                "gemini": {"discover": gemini["discover"], "traces": gemini["traces"]},
@@ -689,7 +705,10 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                "antigravity": {"order": antigravity["order"], "discover": antigravity["discover"],
                                "databases": antigravity["databases"]},
                "workbuddy": {"discover": workbuddy["discover"], "traces": workbuddy["traces"]},
-               "pi": {"discover": pi["discover"], "traces": pi["traces"]}},
+               "pi": {"discover": pi["discover"], "traces": pi["traces"]},
+               "openclaw": {"dbOrder": openclaw["dbOrder"], "discover": openclaw["discover"],
+                            "codexDiscover": openclaw["codexDiscover"], "databases": openclaw["databases"],
+                            "traces": openclaw["traces"]}},
               f, indent=2, ensure_ascii=False)
     f.write("\n")
 

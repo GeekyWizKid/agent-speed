@@ -11,6 +11,8 @@ struct ParserFixtureTests {
 
     static func family(of relative: String) -> TranscriptFamily {
         if relative.hasPrefix("codex/") { return .codex }
+        // A Codex rollout in an OpenClaw agent's Codex home (METRICS 2).
+        if relative.hasPrefix("openclaw/"), relative.contains("/codex-home/sessions/") { return .codex }
         if relative.hasPrefix("gemini/") { return .gemini }
         if relative.hasPrefix("omp/") { return .omp }
         if relative.hasPrefix("pi/") { return .pi }
