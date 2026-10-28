@@ -106,6 +106,11 @@ enum ReportHarness {
 
         busy = true
         await check("reports delivered while busy", within: 20) { report.lastDeliveryAt != nil && report.mode == .active }
+        if report.discovery?.websocket == nil {
+            check("WebSocket chosen by default, the service lacks it: reports go over HTTP",
+                  report.transport == .websocket && report.effectiveTransport == .http && report.run != nil
+                      && report.stream == nil)
+        }
         let firstDelivery = report.lastDeliveryAt
         await check("a second active report", within: 8) { report.lastDeliveryAt != firstDelivery }
 
@@ -187,8 +192,11 @@ enum ReportHarness {
         }
         busy = false
         await check("accepted: the indicator appears after the done line", within: 5) { report.indicatorShown }
+        // Discovery and registration over HTTP; the reports too, or over WebSocket to the same server when it offers it.
         let requests = counting.count
-        check("accepted: requests went to the local server only", requests >= 3)
+        let streamed = report.stream?.scheduler.counters.accepted ?? 0
+        check("accepted: requests went to the local server only",
+              report.effectiveTransport == .websocket ? requests >= 2 && streamed >= 1 : requests >= 3)
 
         report.forget()
         await check("invitation device forgotten on the service", within: 10) { report.forgetState == .done }
@@ -294,10 +302,10 @@ private final class CountingReportTransport: ReportTransport, @unchecked Sendabl
 
     private func bump() { lock.withLock { calls += 1 } }
 
-    func get(_ url: URL, etag: String?, userAgent: String, maxBytes: Int, timeout: TimeInterval)
+    func get(_ url: URL, userAgent: String, maxBytes: Int, timeout: TimeInterval)
         async throws(ReportTransportError) -> ReportHTTPResponse {
         bump()
-        return try await base.get(url, etag: etag, userAgent: userAgent, maxBytes: maxBytes, timeout: timeout)
+        return try await base.get(url, userAgent: userAgent, maxBytes: maxBytes, timeout: timeout)
     }
 
     func send(_ request: ReportRequest, maxBytes: Int, timeout: TimeInterval)

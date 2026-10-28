@@ -2,7 +2,7 @@ import AgentSpeedCore
 import Foundation
 
 /// The live preview (DESIGN 11, Consent sheet and Preview window): the real body of the next report — the open
-/// window of the run, or, before a run exists, the window since the preview was opened. With WebSocket chosen it is
+/// window of the run, or, before a run exists, the window since the preview was opened. With WebSocket effective it is
 /// the connection's upgrade and the `report` message's body, `realtime` included.
 extension ReportController {
     struct Preview: Equatable {
@@ -68,7 +68,7 @@ extension ReportController {
         } else {
             return nil
         }
-        let websocket = draft == nil && transport == .websocket
+        let websocket = draft == nil && effectiveTransport == .websocket
         let streamOpen = draft == nil && stream != nil
         let runOpen = draft == nil && run != nil
         let window = streamOpen ? stream!.window : runOpen ? run!.window : (previewWindow ?? ReportWindow(sample))

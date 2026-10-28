@@ -124,10 +124,9 @@ extension ReportController {
         guard settings.networkEnabled, let service = selectedService else { return }
         serviceState = .checking
         let api = self.api
-        let etag = identity?.discovery == nil ? nil : identity?.etag
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
-            let outcome = await api.discover(service, etag: etag)
+            let outcome = await api.discover(service)
             guard let self, !Task.isCancelled, self.selectedService == service else { return }
             self.applyDiscovery(outcome, service: service)
             if case .ready(let document) = self.serviceState { then?(document) }
@@ -159,25 +158,25 @@ extension ReportController {
 
     func applyDiscovery(_ outcome: ReportAPI.DiscoveryOutcome, service: ReportServiceURL) {
         switch outcome {
-        case .document(let document, let etag):
+        case .document(let document):
+            let effective = effectiveTransport
             serviceState = .ready(document)
             if identity != nil {
                 updateIdentity(service.origin) { identity in
                     identity.discovery = document
                     identity.discoveryFetchedAt = Date()
-                    identity.etag = etag
                 }
             }
-            run?.scheduler.update(limits: document.limits)
-            streamDiscovery(document)
             if !document.supportsThisClient, identity?.isRegistered == true { problem = .upgrade }
+            if effectiveTransport != effective {
+                // The document added or dropped the WebSocket capability: a change of transport (METRICS 11.9).
+                transportChanged()
+            } else {
+                run?.scheduler.update(limits: document.limits)
+                streamDiscovery(document)
+            }
             scheduleRefresh(after: Self.refreshInterval)
             confirmInvitedIfCovered(document, service: service)
-        case .notModified:
-            if let document = identity?.discovery { serviceState = .ready(document) }
-            updateIdentity(service.origin) { $0.discoveryFetchedAt = Date() }
-            streamDiscovery(identity?.discovery)
-            scheduleRefresh(after: Self.refreshInterval)
         case .notSupported, .invalid:
             serviceState = outcome == .invalid ? .invalid : .notSupported
             streamRefreshFailed()

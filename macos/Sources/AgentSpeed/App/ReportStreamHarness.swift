@@ -3,8 +3,8 @@ import AgentSpeedCore
 import Foundation
 
 /// The WebSocket part of `--report-e2e` (`AGENT_SPEED_REPORT_E2E_WEBSOCKET=1`, server with `--websocket`): the real
-/// controller switched to WebSocket, streaming while busy, the stats, pause, the network switch, back to HTTP and
-/// again, turning off with `leaving`, and the quit rule.
+/// controller streaming by default, HTTP chosen and WebSocket again, streaming while busy, the stats, pause, the
+/// network switch, back to HTTP and again, turning off with `leaving`, and the quit rule.
 @MainActor
 enum ReportStreamHarness {
     typealias Check = @MainActor (String, Bool) -> Void
@@ -12,9 +12,19 @@ enum ReportStreamHarness {
 
     static func run(_ model: AppModel, busy: (Bool) -> Void, check: Check, wait: Wait) async {
         let report = model.report
-        check("HTTP is the default transport", report.transport == .http)
+        check("WebSocket is the default transport", report.transport == .websocket
+              && report.effectiveTransport == .websocket)
         busy(true)
-        await wait("HTTP reports first", 20) { report.lastDeliveryAt != nil && report.status.tone == .green }
+        await wait("streaming by default", 10) {
+            if case .streaming = report.status { true } else { false }
+        }
+
+        report.setTransport(.http)
+        check("HTTP chosen: the session ends at once", report.transport == .http && report.stream == nil
+              && report.lastDeliveryAt == nil)
+        await wait("HTTP reports", 20) {
+            if case .reporting = report.status { true } else { false }
+        }
 
         report.setTransport(.websocket)
         check("switching applies at once", report.transport == .websocket && report.run == nil

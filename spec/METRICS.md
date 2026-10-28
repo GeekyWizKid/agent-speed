@@ -2934,8 +2934,8 @@ them.
 
 ### 11.9 WebSocket transport
 
-The user picks the transport of a service (DESIGN 11): **HTTP** (default, 11.5) or **WebSocket**. With WebSocket the
-client follows the WebSocket extension of the protocol (`spec/REPORTING-WEBSOCKET.md`, kept with the partner
+The user picks the transport of a service (DESIGN 11): **WebSocket** (default) or **HTTP** (11.5). The **effective**
+transport is WebSocket when it is chosen and available (below), otherwise HTTP. With WebSocket the client follows the WebSocket extension of the protocol (`spec/REPORTING-WEBSOCKET.md`, kept with the partner
 documents): reports are built when data changes, sent over one long-lived connection and acknowledged one by one. The
 report body is the v1 body of 11.2–11.7 with one added object, `realtime` (below). Nothing of 11.5 (interval, retry,
 outbox, backoff) applies to this transport; this section replaces it. `spec/tools/report_websocket.py` implements
@@ -2949,8 +2949,11 @@ the JSON integer `1` and a valid `websocket` object: `path` exactly `/v1/reports
 `ackTimeoutMs` 500–10 000 (2000), `maxMessageBytes` 32 768–65 536 (65 536), `pingIntervalSeconds` 10–60 (20),
 `pongTimeoutSeconds` 5–30 (10) and below `pingIntervalSeconds`. A field that is present with another type or out of
 its range makes the whole object invalid (never clamped, unlike `limits`); unknown fields are ignored; an invalid
-object or another extension value leaves the HTTP document valid. Unavailable while WebSocket is chosen: nothing
-connects and nothing is sent over HTTP; the choice is kept. The connection URL is `api` with `https` → `wss` (`http`
+object or another extension value leaves the HTTP document valid. Unavailable while WebSocket is chosen: reports go
+over HTTP (11.5) until a confirmed document offers the transport again; the choice is kept. A change of the effective
+transport — the user's choice, or a stored or refreshed document that adds or drops the capability — is a change of
+transport: the old run stops and a new one starts on the new transport (below). A `stop` of this transport never
+falls back to HTTP; it waits for the user. The connection URL is `api` with `https` → `wss` (`http`
 → `ws` only for the loopback test service of REPORTING 2.2), authority and base path kept, plus `path`. A change of
 these settings in a refreshed document applies at the next connection.
 

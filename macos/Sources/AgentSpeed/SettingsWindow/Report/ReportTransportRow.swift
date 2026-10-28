@@ -1,9 +1,10 @@
 import AgentSpeedCore
 import SwiftUI
 
-/// `report.transport` (DESIGN 11, item 2b): HTTP or WebSocket for the selected service, HTTP by default and never
-/// switched automatically. The caption says what each means; with WebSocket chosen it says where the data comes from,
-/// and amber notes say when the service lacks the capability or throttles it below the live level.
+/// `report.transport` (DESIGN 11, item 2b): WebSocket or HTTP for the selected service, WebSocket by default. The
+/// caption says what each means; with WebSocket chosen it says where the data comes from. While the service lacks the
+/// capability a secondary note takes the caption's place (reports go over HTTP meanwhile, the choice stays), and an
+/// amber note says when the service throttles WebSocket below the live level.
 struct ReportTransportRow: View {
     static let liveIntervalMs = 50
 
@@ -13,11 +14,11 @@ struct ReportTransportRow: View {
         let l10n = model.l10n
         let report = model.report
         let websocket = report.transport == .websocket
-        let document = report.discovery
-        let unsupported = websocket && document.map { $0.websocket == nil } == true
-        let interval = websocket ? document?.websocket?.minIntervalMs : nil
+        let unsupported = report.webSocketUnavailable
+        let interval = websocket ? report.discovery?.websocket?.minIntervalMs : nil
         let throttled = interval.flatMap { $0 > Self.liveIntervalMs ? $0 : nil }
-        let caption = websocket ? l10n("report.transport.source") : l10n("report.transport.hint")
+        let caption = unsupported ? l10n("report.status.wsUnsupported")
+            : websocket ? l10n("report.transport.source") : l10n("report.transport.hint")
         VStack(alignment: .leading, spacing: 6) {
             LabeledContent {
                 Picker(l10n("report.transport"), selection: Binding(
@@ -28,12 +29,12 @@ struct ReportTransportRow: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .fixedSize()
-                .accessibilityHint(unsupported ? l10n("report.status.wsUnsupported") : caption)
+                .accessibilityHint(caption)
             } label: {
                 RowTitle(l10n("report.transport"))
             }
             if unsupported {
-                Notice(text: l10n("report.status.wsUnsupported"), symbol: "exclamationmark.triangle.fill", tint: .orange)
+                FallbackNote(text: caption)
                     .transition(.opacity)
             } else {
                 Footnote(caption)
@@ -47,5 +48,25 @@ struct ReportTransportRow: View {
         }
         .animation(model.accessibility.reduceMotion ? nil : Motion.fade, value: websocket)
         .animation(model.accessibility.reduceMotion ? nil : Motion.fade, value: unsupported)
+    }
+}
+
+/// `report.status.wsUnsupported` in the caption's place, in the caption's font and color and led by an information
+/// glyph of the same color: a note, not a warning, since reports still go out over HTTP. The glyph sits on the first
+/// line's baseline and wrapped lines align with the text.
+private struct FallbackNote: View {
+    let text: String
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.xxs) {
+            Image(systemName: "info.circle")
+                .accessibilityHidden(true)
+            Text(text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.subheadline)
+        .foregroundStyle(isEnabled ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary))
+        .accessibilityElement(children: .combine)
     }
 }

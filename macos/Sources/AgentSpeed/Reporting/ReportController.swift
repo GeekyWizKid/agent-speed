@@ -82,7 +82,7 @@ final class ReportController {
     @ObservationIgnored let userAgent: String
     @ObservationIgnored let defaults: UserDefaults
     @ObservationIgnored var run: ReportRun?
-    /// The WebSocket transport session; only while WebSocket is chosen (HTTP's `run` is nil then).
+    /// The WebSocket transport session; only while WebSocket is effective (HTTP's `run` is nil then).
     @ObservationIgnored var stream: ReportStreamRun?
     @ObservationIgnored let streamTransport: any ReportStreamTransport
     /// The earliest observation of the snapshots since the last stream tick (METRICS 11.9, Observations).
@@ -162,14 +162,25 @@ final class ReportController {
 
     var identity: ReportIdentity? { preferences.identity(for: selectedService) }
 
-    /// The selected service's transport (DESIGN 11, Transport): the user's choice, HTTP by default.
+    /// The selected service's transport (DESIGN 11, Transport): the user's choice, WebSocket by default.
     var transport: ReportTransportKind { preferences.transport(for: selectedService) }
+
+    /// The transport reports actually use (METRICS 11.9): WebSocket when it is chosen and the document has a valid
+    /// WebSocket capability, otherwise HTTP. Runs, the status line and the preview follow it.
+    var effectiveTransport: ReportTransportKind {
+        transport == .websocket && discovery?.websocket != nil ? .websocket : .http
+    }
+
+    /// WebSocket is chosen but the document lacks the capability, so reports go over HTTP meanwhile (DESIGN 11,
+    /// item 2b); false while the document is unknown.
+    var webSocketUnavailable: Bool {
+        transport == .websocket && discovery.map { $0.websocket == nil } == true
+    }
 
     /// The WebSocket transport's own status line, when one applies (DESIGN 11, Status).
     var streamIssue: ReportStreamIssue? {
-        guard transport == .websocket, isOn else { return nil }
-        if let streamState { return ReportStreamIssue(streamState, lastDelivery: lastDeliveryAt) }
-        return discovery.map { $0.websocket == nil } == true ? .unsupported : nil
+        guard effectiveTransport == .websocket, isOn, let streamState else { return nil }
+        return ReportStreamIssue(streamState, lastDelivery: lastDeliveryAt)
     }
 
     /// Identities of the services that are not selected (DESIGN 11, Other services).
@@ -286,12 +297,12 @@ final class ReportController {
         if let streamIssue, streamIssue.isStop { return .stream(streamIssue) }
         if let until = rateLimitedUntil, until > Date() { return .rateLimited(until: until) }
         if let streamIssue { return .stream(streamIssue) }
-        if let retryReason, transport == .http { return .retrying(reason: retryReason) }
+        if let retryReason, effectiveTransport == .http { return .retrying(reason: retryReason) }
         if isDiscoveryStale { return .connecting }
         switch mode {
         case .active:
             guard let last = lastDeliveryAt else { return .never }
-            return transport == .websocket ? .streaming(last: last) : .reporting(last: last)
+            return effectiveTransport == .websocket ? .streaming(last: last) : .reporting(last: last)
         case .idle: return lastDeliveryAt == nil ? .never : .idle
         case .quiet: return lastDeliveryAt == nil ? .never : .quiet
         }
