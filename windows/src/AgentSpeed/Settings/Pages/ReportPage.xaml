@@ -193,7 +193,7 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- 2b. Transport: HTTP by default; WebSocket only by the user's choice, never switched automatically -->
+                <!-- 2b. Transport: WebSocket by default (HTTP while the service lacks it); HTTP by the user's choice -->
                 <StackPanel Visibility="{Binding ShowsTransport, Converter={StaticResource Visible}}">
                     <Rectangle Style="{StaticResource Hairline}" Margin="-16,14,-16,12" />
                     <Grid>
@@ -209,12 +209,12 @@
                                              Content="{loc:Loc report.transport.http}" IsChecked="{Binding TransportHttp, Mode=TwoWay}"
                                              AutomationProperties.Name="{loc:Loc report.transport.http}"
                                              AutomationProperties.LabeledBy="{Binding ElementName=TransportLabel}"
-                                             AutomationProperties.HelpText="{Binding TransportCaption}" />
+                                             AutomationProperties.HelpText="{Binding TransportHelpText}" />
                                 <RadioButton Style="{StaticResource SegmentedItem}" GroupName="ReportTransport" MinWidth="76"
                                              IsChecked="{Binding TransportWebSocket, Mode=TwoWay}"
                                              AutomationProperties.Name="{loc:Loc report.transport.websocket}"
                                              AutomationProperties.LabeledBy="{Binding ElementName=TransportLabel}"
-                                             AutomationProperties.HelpText="{Binding TransportCaption}">
+                                             AutomationProperties.HelpText="{Binding TransportHelpText}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Style="{StaticResource SymbolIcon}" Text="&#xE945;" FontSize="11" Margin="0,1,5,0" VerticalAlignment="Center"
                                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
@@ -226,15 +226,16 @@
                     </Grid>
                     <TextBlock Text="{Binding TransportCaption}" Style="{StaticResource Footnote}" TextWrapping="Wrap" Margin="0,8,0,0"
                                Visibility="{Binding TransportCaption, Converter={StaticResource HasText}}" />
-                    <Grid Style="{StaticResource CautionNote}" Visibility="{Binding TransportUnsupportedText, Converter={StaticResource HasText}}">
+                    <!-- WebSocket chosen, the service lacks it: a quiet note in the caption's place, since reports go over HTTP meanwhile -->
+                    <Grid Margin="0,8,0,0" Visibility="{Binding TransportUnsupportedText, Converter={StaticResource HasText}}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Style="{StaticResource SymbolIcon}" Text="&#xE7BA;" FontSize="13" Margin="0,2,8,0" VerticalAlignment="Top"
-                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                        <TextBlock Style="{StaticResource SymbolIcon}" Text="&#xE946;" FontSize="13" Margin="0,2,8,0" VerticalAlignment="Top"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <TextBlock Grid.Column="1" Text="{Binding TransportUnsupportedText}" Style="{StaticResource Footnote}" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" AutomationProperties.LiveSetting="Polite" />
+                                   AutomationProperties.LiveSetting="Polite" />
                     </Grid>
                     <Grid Style="{StaticResource CautionNote}" Visibility="{Binding TransportThrottledText, Converter={StaticResource HasText}}">
                         <Grid.ColumnDefinitions>

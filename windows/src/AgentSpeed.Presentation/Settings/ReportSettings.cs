@@ -12,11 +12,21 @@ public enum ReportPreset
     Custom,
 }
 
-/// <summary>How a service's reports travel (DESIGN 11, Transport): HTTP by default, WebSocket only by the user's choice.</summary>
+/// <summary>How a service's reports travel (DESIGN 11, Transport): WebSocket by default, HTTP by the user's choice.</summary>
 public enum ReportTransportKind
 {
     Http,
     WebSocket,
+}
+
+public static class ReportTransports
+{
+    /// <summary>
+    /// The transport reports actually take (METRICS 11.9, Availability): WebSocket when it is chosen and the confirmed document
+    /// offers a valid capability, otherwise HTTP. The choice itself is kept either way.
+    /// </summary>
+    public static ReportTransportKind Effective(ReportTransportKind chosen, ReportDiscovery? confirmed) =>
+        chosen == ReportTransportKind.WebSocket && confirmed?.WebSocket is not null ? ReportTransportKind.WebSocket : ReportTransportKind.Http;
 }
 
 /// <summary>
@@ -42,8 +52,6 @@ public sealed record ReportIdentity
 
     public DateTimeOffset? DiscoveryFetchedAt { get; init; }
 
-    public string? ETag { get; init; }
-
     public DateTimeOffset KeyCreatedAt { get; init; }
 
     /// <summary>A rotated key waits for the service's answer (REPORTING 4.5).</summary>
@@ -63,8 +71,8 @@ public sealed record ReportPreferences
 {
     public const int MaxIdentities = 8;
 
-    /// <summary>At most this many services remember the WebSocket choice; the oldest choice goes first.</summary>
-    public const int MaxWebSocketServices = 16;
+    /// <summary>At most this many services remember the HTTP choice; the oldest choice goes first.</summary>
+    public const int MaxHttpServices = 16;
     public const string CodexRadarName = "Codex Radar";
     public const string CodexRadarUrl = "https://deng.codexradar.com";
 
@@ -96,19 +104,24 @@ public sealed record ReportPreferences
     public string? Username { get; init; }
 
     /// <summary>
-    /// The origins of the services whose reports go over WebSocket, the latest choice last. Every other service uses HTTP — the
-    /// default, also for identities stored by earlier builds; nothing but the user's choice ever adds an origin.
+    /// The origins of the services whose transport the user set to HTTP, the latest choice last. Every other service uses
+    /// WebSocket — the default, also for services set up by earlier builds, whose list of WebSocket origins is ignored.
     /// </summary>
-    public ImmutableArray<string> WebSocketServices { get; init; } = [];
+    public ImmutableArray<string> HttpServices { get; init; } = [];
 
+    /// <summary>The chosen transport (the Transport row shows it); see <see cref="EffectiveTransportOf"/> for the one in use.</summary>
     public ReportTransportKind TransportOf(ReportServiceUrl? service) =>
-        service is not null && WebSocketServices.Contains(service.Origin, StringComparer.Ordinal) ? ReportTransportKind.WebSocket : ReportTransportKind.Http;
+        service is not null && HttpServices.Contains(service.Origin, StringComparer.Ordinal) ? ReportTransportKind.Http : ReportTransportKind.WebSocket;
+
+    /// <summary>The transport reports take: the choice, or HTTP while the service's stored document lacks the capability.</summary>
+    public ReportTransportKind EffectiveTransportOf(ReportServiceUrl? service) =>
+        ReportTransports.Effective(TransportOf(service), Identity(service)?.Discovery);
 
     public ReportPreferences WithTransport(string origin, ReportTransportKind transport)
     {
-        var others = WebSocketServices.Where(o => !string.Equals(o, origin, StringComparison.Ordinal));
-        var list = transport == ReportTransportKind.WebSocket ? others.Append(origin) : others;
-        return this with { WebSocketServices = [.. list.TakeLast(MaxWebSocketServices)] };
+        var others = HttpServices.Where(o => !string.Equals(o, origin, StringComparison.Ordinal));
+        var list = transport == ReportTransportKind.Http ? others.Append(origin) : others;
+        return this with { HttpServices = [.. list.TakeLast(MaxHttpServices)] };
     }
 
     public bool HasRegisteredIdentity => Identities.Any(i => i.IsRegistered);
@@ -167,10 +180,10 @@ public sealed record ReportPreferences
             .GroupBy(i => i.Id, StringComparer.Ordinal).Select(g => g.First()).Take(MaxIdentities).ToArray();
         var name = Username is { Length: > 0 and <= 128 } ? Username : null;
         var url = CustomUrl.Length <= ReportServiceUrl.MaxLength ? CustomUrl : string.Empty;
-        var webSocket = WebSocketServices.Where(o => o is { Length: > 0 } && o.Length <= ReportServiceUrl.MaxLength).Reverse()
-            .Distinct(StringComparer.Ordinal).Take(MaxWebSocketServices).Reverse().ToArray();
+        var http = HttpServices.Where(o => o is { Length: > 0 } && o.Length <= ReportServiceUrl.MaxLength).Reverse()
+            .Distinct(StringComparer.Ordinal).Take(MaxHttpServices).Reverse().ToArray();
         if (valid.Length == Identities.Length && name == Username && url == CustomUrl && Enum.IsDefined(Preset)
-            && webSocket.SequenceEqual(WebSocketServices, StringComparer.Ordinal))
+            && http.SequenceEqual(HttpServices, StringComparer.Ordinal))
         {
             return this;
         }
@@ -181,16 +194,16 @@ public sealed record ReportPreferences
             Username = name,
             CustomUrl = url,
             Preset = Enum.IsDefined(Preset) ? Preset : ReportPreset.CodexRadar,
-            WebSocketServices = [.. webSocket],
+            HttpServices = [.. http],
         };
     }
 
     public bool Equals(ReportPreferences? other) =>
         other is not null && Enabled == other.Enabled && Preset == other.Preset && CustomUrl == other.CustomUrl
         && Sections.SequenceEqual(other.Sections) && PausedUntil == other.PausedUntil && Identities.SequenceEqual(other.Identities)
-        && Invite == other.Invite && Username == other.Username && WebSocketServices.SequenceEqual(other.WebSocketServices, StringComparer.Ordinal);
+        && Invite == other.Invite && Username == other.Username && HttpServices.SequenceEqual(other.HttpServices, StringComparer.Ordinal);
 
-    public override int GetHashCode() => HashCode.Combine(Enabled, Preset, CustomUrl, Identities.Length, Invite, Username, WebSocketServices.Length);
+    public override int GetHashCode() => HashCode.Combine(Enabled, Preset, CustomUrl, Identities.Length, Invite, Username, HttpServices.Length);
 }
 
 /// <summary>The <c>report</c> object of the settings file. Tolerant: an invalid member falls back to its default.</summary>
@@ -238,8 +251,8 @@ public static class ReportSettingsJson
             w.WriteNull("username");
         }
 
-        w.WriteStartArray("webSocketServices");
-        foreach (var origin in p.WebSocketServices)
+        w.WriteStartArray("httpServices");
+        foreach (var origin in p.HttpServices)
         {
             w.WriteStringValue(origin);
         }
@@ -283,7 +296,6 @@ public static class ReportSettingsJson
             }
 
             WriteNullable(w, "discoveryFetchedAt", identity.DiscoveryFetchedAt is { } fetched ? Stamp(fetched) : null);
-            WriteNullable(w, "etag", identity.ETag);
             w.WriteString("keyCreatedAt", Stamp(identity.KeyCreatedAt));
             w.WriteBoolean("pendingKey", identity.PendingKey);
             w.WriteBoolean("hasApiKey", identity.HasApiKey);
@@ -339,7 +351,8 @@ public static class ReportSettingsJson
                 _ => null,
             },
             Username = Text(r, "username"),
-            WebSocketServices = r.TryGetProperty("webSocketServices", out var origins) && origins.ValueKind == JsonValueKind.Array
+            // `webSocketServices` of earlier builds is not read: those services use the WebSocket default now.
+            HttpServices = r.TryGetProperty("httpServices", out var origins) && origins.ValueKind == JsonValueKind.Array
                 ? [.. origins.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!)]
                 : [],
         }.Validated();
@@ -381,7 +394,6 @@ public static class ReportSettingsJson
             Pin = pin,
             Discovery = discovery,
             DiscoveryFetchedAt = Text(item, "discoveryFetchedAt") is { } fetched ? ParseStamp(fetched) : null,
-            ETag = Text(item, "etag") is { Length: <= 512 } etag ? etag : null,
             KeyCreatedAt = ParseStamp(Text(item, "keyCreatedAt")) ?? DateTimeOffset.UtcNow,
             PendingKey = item.TryGetProperty("pendingKey", out var pending) && pending.ValueKind == JsonValueKind.True,
             HasApiKey = item.TryGetProperty("hasApiKey", out var hasKey) && hasKey.ValueKind == JsonValueKind.True,

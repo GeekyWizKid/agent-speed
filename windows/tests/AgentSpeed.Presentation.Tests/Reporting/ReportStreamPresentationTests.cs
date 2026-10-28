@@ -23,13 +23,17 @@ public class ReportStreamPresentationTests
     [Fact]
     public void AnOpenHealthySessionUsesTheSharedStatuses()
     {
-        Assert.Null(ReportStreamStatus.Of(true, null, ReportStreamConnection.Open, 0, ReportMode.Active));
-        Assert.Null(ReportStreamStatus.Of(true, null, ReportStreamConnection.Closed, 0, ReportMode.Quiet));
+        Assert.Null(ReportStreamStatus.Of(null, ReportStreamConnection.Open, 0, ReportMode.Active));
+        Assert.Null(ReportStreamStatus.Of(null, ReportStreamConnection.Closed, 0, ReportMode.Quiet));
     }
 
     [Fact]
-    public void ATransportTheDocumentLacksIsUnsupported() =>
-        Assert.Equal(ReportStreamStatusKind.Unsupported, ReportStreamStatus.Of(false, null, ReportStreamConnection.Closed, 0, ReportMode.Active));
+    public void AServiceWithoutWebSocketIsNotAStatusLine()
+    {
+        // Reports go over HTTP meanwhile, so the line is HTTP's; the note lives under the Transport control.
+        var keys = Enum.GetValues<ReportStreamStatusKind>().Select(k => ReportStreamStatus.Key(k, everDelivered: true));
+        Assert.DoesNotContain("report.status.wsUnsupported", keys);
+    }
 
     [Theory]
     [InlineData(ReportStreamConnection.Closed, 1, ReportMode.Active, true)]
@@ -39,7 +43,7 @@ public class ReportStreamPresentationTests
     [InlineData(ReportStreamConnection.Closed, 0, ReportMode.Active, false)]
     [InlineData(ReportStreamConnection.Closed, 4, ReportMode.Quiet, false)]
     public void ReconnectingNeedsAFailureAndAModeThatConnects(ReportStreamConnection connection, int failures, ReportMode mode, bool reconnecting) =>
-        Assert.Equal(reconnecting ? ReportStreamStatusKind.Reconnecting : null, ReportStreamStatus.Of(true, null, connection, failures, mode));
+        Assert.Equal(reconnecting ? ReportStreamStatusKind.Reconnecting : null, ReportStreamStatus.Of(null, connection, failures, mode));
 
     [Theory]
     [InlineData(ReportStreamStop.Mismatch, ReportStreamStatusKind.Mismatch)]
@@ -49,7 +53,7 @@ public class ReportStreamPresentationTests
     [InlineData(ReportStreamStop.ClientState, ReportStreamStatusKind.ClientState)]
     public void TheStreamsOwnStopsHaveTheirOwnLines(ReportStreamStop stop, ReportStreamStatusKind kind)
     {
-        Assert.Equal(kind, ReportStreamStatus.Of(false, stop, ReportStreamConnection.Closed, 5, ReportMode.Active));
+        Assert.Equal(kind, ReportStreamStatus.Of(stop, ReportStreamConnection.Closed, 5, ReportMode.Active));
         Assert.Null(ReportStreamStatus.ProblemOf(stop));
         Assert.True(ReportStreamStatus.NeedsUser(kind));
         Assert.Equal(kind is ReportStreamStatusKind.Mismatch or ReportStreamStatusKind.Replaced, ReportStreamStatus.OffersRetry(kind));
@@ -65,13 +69,12 @@ public class ReportStreamPresentationTests
     public void StopsTheSharedLineAlreadySaysBecomeItsProblems(ReportStreamStop stop, ReportProblem problem)
     {
         Assert.Equal(problem, ReportStreamStatus.ProblemOf(stop));
-        Assert.Null(ReportStreamStatus.Of(true, stop, ReportStreamConnection.Closed, 1, ReportMode.Active));
+        Assert.Null(ReportStreamStatus.Of(stop, ReportStreamConnection.Closed, 1, ReportMode.Active));
     }
 
     [Fact]
     public void AmberLinesDoNotAskTheUser()
     {
-        Assert.False(ReportStreamStatus.NeedsUser(ReportStreamStatusKind.Unsupported));
         Assert.False(ReportStreamStatus.NeedsUser(ReportStreamStatusKind.Reconnecting));
         Assert.False(ReportStreamStatus.OffersRetry(null));
         Assert.Equal("report.status.wsReconnecting", ReportStreamStatus.Key(ReportStreamStatusKind.Reconnecting, everDelivered: true));

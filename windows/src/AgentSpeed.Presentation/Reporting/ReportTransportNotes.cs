@@ -5,11 +5,12 @@ namespace AgentSpeed.Presentation.Reporting;
 
 /// <summary>
 /// What the transport row says under its control (DESIGN 11, item 2b): <c>report.transport.hint</c> for HTTP; with WebSocket
-/// <c>report.transport.source</c>, replaced by the amber <c>report.status.wsUnsupported</c> when the known document lacks a
-/// valid capability, and the amber <c>report.transport.throttled</c> when the service's <c>minIntervalMs</c> is above 50.
+/// <c>report.transport.source</c>, replaced by the secondary note <c>report.status.wsUnsupported</c> (reports go over HTTP
+/// meanwhile) when the known document lacks a valid capability, and the amber <c>report.transport.throttled</c> when the
+/// service's <c>minIntervalMs</c> is above 50.
 /// </summary>
 /// <param name="CaptionKey">The secondary caption, or null when the unsupported note replaces it.</param>
-/// <param name="Unsupported">Show <c>report.status.wsUnsupported</c>.</param>
+/// <param name="Unsupported">Show <c>report.status.wsUnsupported</c>, led by the information glyph.</param>
 /// <param name="ThrottledMs">Show <c>report.transport.throttled</c> with this interval.</param>
 public sealed record ReportTransportNotes(string? CaptionKey, bool Unsupported, int? ThrottledMs)
 {

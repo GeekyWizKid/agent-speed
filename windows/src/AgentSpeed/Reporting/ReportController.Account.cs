@@ -200,13 +200,12 @@ internal sealed partial class ReportController
         ReportLog.Write($"discovery of {service.Host} for {caller}");
 
         ServiceState = ReportServiceState.Checking;
-        var etag = Identity?.Discovery is null ? null : Identity?.ETag;
         Notify();
         _ = FetchAsync();
 
         async Task FetchAsync()
         {
-            var outcome = await _api.DiscoverAsync(service, etag).ConfigureAwait(true);
+            var outcome = await _api.DiscoverAsync(service).ConfigureAwait(true);
             if (!Equals(SelectedService, service))
             {
                 return;
@@ -257,11 +256,20 @@ internal sealed partial class ReportController
                 ServiceState = new ReportServiceState(ReportServiceStateKind.Ready, fetched.Discovery);
                 if (Identity is not null)
                 {
-                    UpdateIdentity(service.Origin, i => i with { Discovery = fetched.Discovery, DiscoveryFetchedAt = DateTimeOffset.UtcNow, ETag = fetched.ETag });
+                    UpdateIdentity(service.Origin, i => i with { Discovery = fetched.Discovery, DiscoveryFetchedAt = DateTimeOffset.UtcNow });
                 }
 
-                _run?.Scheduler.Update(fetched.Discovery.Limits);
-                StreamDiscovery(fetched.Discovery);
+                if (FollowEffectiveTransport())
+                {
+                    // The document added or dropped the WebSocket capability: the run starts over on the other transport.
+                    Tick();
+                }
+                else
+                {
+                    _run?.Scheduler.Update(fetched.Discovery.Limits);
+                    StreamDiscovery(fetched.Discovery);
+                }
+
                 if (!fetched.Discovery.SupportsThisClient && Identity?.IsRegistered == true)
                 {
                     Problem = ReportProblem.Upgrade;
@@ -269,16 +277,6 @@ internal sealed partial class ReportController
 
                 ScheduleRefresh(RefreshInterval);
                 ConfirmInvitedIfCovered(fetched.Discovery, service);
-                break;
-            case ReportDiscoveryOutcome.NotModified:
-                if (Identity?.Discovery is { } stored)
-                {
-                    ServiceState = new ReportServiceState(ReportServiceStateKind.Ready, stored);
-                }
-
-                UpdateIdentity(service.Origin, i => i with { DiscoveryFetchedAt = DateTimeOffset.UtcNow });
-                StreamDiscovery(Identity?.Discovery);
-                ScheduleRefresh(RefreshInterval);
                 break;
             case ReportDiscoveryOutcome.NotSupported or ReportDiscoveryOutcome.Invalid:
                 ServiceState = new ReportServiceState(outcome is ReportDiscoveryOutcome.Invalid ? ReportServiceStateKind.Invalid : ReportServiceStateKind.NotSupported);

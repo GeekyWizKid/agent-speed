@@ -413,11 +413,6 @@ internal sealed partial class ReportController : IDisposable
                     : new ReportStatus(ReportStatusKind.Connecting);
             }
 
-            if (stream is ReportStreamStatusKind.Unsupported)
-            {
-                return new ReportStatus(ReportStatusKind.Stream) { Stream = stream };
-            }
-
             if (RateLimitedUntil is { } limited && limited > DateTimeOffset.UtcNow)
             {
                 return new ReportStatus(ReportStatusKind.RateLimited) { At = limited };
@@ -601,9 +596,9 @@ internal sealed partial class ReportController : IDisposable
 
     private sealed class LoopbackOnlyTransport(IReportTransport inner) : IReportTransport
     {
-        public Task<ReportHttpResponse> GetAsync(Uri url, string? etag, string userAgent, int maxBytes, TimeSpan timeout,
+        public Task<ReportHttpResponse> GetAsync(Uri url, string userAgent, int maxBytes, TimeSpan timeout,
             CancellationToken cancellationToken = default) =>
-            IsLoopback(url) ? inner.GetAsync(url, etag, userAgent, maxBytes, timeout, cancellationToken) : Refuse(url);
+            IsLoopback(url) ? inner.GetAsync(url, userAgent, maxBytes, timeout, cancellationToken) : Refuse(url);
 
         public Task<ReportHttpResponse> SendAsync(ReportRequest request, int maxBytes, TimeSpan timeout, CancellationToken cancellationToken = default) =>
             IsLoopback(request.Url) ? inner.SendAsync(request, maxBytes, timeout, cancellationToken) : Refuse(request.Url);
@@ -624,11 +619,11 @@ internal sealed partial class ReportController : IDisposable
 
         public int Count => Volatile.Read(ref _count);
 
-        public Task<ReportHttpResponse> GetAsync(Uri url, string? etag, string userAgent, int maxBytes, TimeSpan timeout,
+        public Task<ReportHttpResponse> GetAsync(Uri url, string userAgent, int maxBytes, TimeSpan timeout,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _count);
-            return inner.GetAsync(url, etag, userAgent, maxBytes, timeout, cancellationToken);
+            return inner.GetAsync(url, userAgent, maxBytes, timeout, cancellationToken);
         }
 
         public Task<ReportHttpResponse> SendAsync(ReportRequest request, int maxBytes, TimeSpan timeout, CancellationToken cancellationToken = default)

@@ -79,6 +79,7 @@ internal sealed partial class ReportController
 
     private void Tick()
     {
+        FollowEffectiveTransport();
         var sample = LastSample;
         var now = MonotonicMs;
         _previewWindow?.Observe(sample);
