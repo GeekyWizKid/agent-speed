@@ -29,6 +29,7 @@ internal enum RootFamily
     ZCode,
     Kimi,
     GrokBuild,
+    Hermes,
 }
 
 /// <summary>Per-family file rules: names, parser and the sources it can produce (METRICS 2 and 4).</summary>
@@ -38,7 +39,7 @@ internal static class Families
     public static readonly RootFamily[] FileFamilies =
         [
             RootFamily.Codex, RootFamily.Claude, RootFamily.DeepSeek, RootFamily.Gemini, RootFamily.Omp, RootFamily.Antigravity,
-            RootFamily.WorkBuddy, RootFamily.WorkBuddyAi, RootFamily.Kimi, RootFamily.GrokBuild,
+            RootFamily.WorkBuddy, RootFamily.WorkBuddyAi, RootFamily.Kimi, RootFamily.GrokBuild, RootFamily.Hermes,
         ];
 
     public static TranscriptNaming Naming(RootFamily family) => family switch
@@ -53,6 +54,7 @@ internal static class Families
         RootFamily.ZCode => TranscriptNaming.ZCodeDatabase,
         RootFamily.Kimi => TranscriptNaming.KimiSession,
         RootFamily.GrokBuild => TranscriptNaming.GrokBuildSession,
+        RootFamily.Hermes => TranscriptNaming.HermesLog,
         _ => TranscriptNaming.Jsonl,
     };
 
@@ -69,13 +71,15 @@ internal static class Families
         RootFamily.WorkBuddyAi => new WorkBuddyParser(path, deduper, SourceKind.WorkBuddyAi, root),
         RootFamily.Kimi => new Kimi.KimiParser(path, deduper),
         RootFamily.GrokBuild => new GrokBuild.GrokParser(path, deduper),
+        RootFamily.Hermes => new Hermes.HermesParser(path, deduper),
         _ => throw new ArgumentOutOfRangeException(nameof(family)),
     };
 
     /// <summary>Antigravity databases are queried; every other family is a file read by its extension.</summary>
     public static TranscriptTailer CreateTailer(RootFamily family, string path) =>
         family == RootFamily.Antigravity ? new AntigravityTailer(path)
-        : family == RootFamily.GrokBuild ? new GrokBuild.GrokTailer(path) : TranscriptTailer.For(path);
+        : family == RootFamily.GrokBuild ? new GrokBuild.GrokTailer(path)
+        : family == RootFamily.Hermes ? new FileTailer(path, Hermes.HermesParser.MaxLineBytes) : TranscriptTailer.For(path);
 
     /// <summary>True when any source of the family is enabled.</summary>
     public static bool IsEnabled(RootFamily family, IReadOnlySet<SourceKind> enabled) => family switch
@@ -92,6 +96,7 @@ internal static class Families
         RootFamily.ZCode => enabled.Contains(SourceKind.ZCode),
         RootFamily.Kimi => enabled.Contains(SourceKind.Kimi),
         RootFamily.GrokBuild => enabled.Contains(SourceKind.GrokBuild),
+        RootFamily.Hermes => enabled.Contains(SourceKind.Hermes),
         _ => false,
     };
 
@@ -108,6 +113,7 @@ internal static class Families
         SourceKind.ZCode => RootFamily.ZCode,
         SourceKind.Kimi => RootFamily.Kimi,
         SourceKind.GrokBuild => RootFamily.GrokBuild,
+        SourceKind.Hermes => RootFamily.Hermes,
         _ => RootFamily.Claude,
     };
 }

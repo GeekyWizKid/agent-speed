@@ -33,6 +33,7 @@ internal enum TranscriptNaming
     ZCodeDatabase,
     KimiSession,
     GrokBuildSession,
+    HermesLog,
 }
 
 /// <summary>Recursive transcript enumeration that never follows reparse points or symlinks (METRICS 2).</summary>
@@ -55,6 +56,7 @@ internal static class TranscriptDiscovery
             TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase => false,
             TranscriptNaming.KimiSession => fileName.SequenceEqual("wire.jsonl"),
             TranscriptNaming.GrokBuildSession => fileName.SequenceEqual("updates.jsonl"),
+            TranscriptNaming.HermesLog => Hermes.HermesPaths.IsLogName(fileName),
             TranscriptNaming.OmpSession => Omp.OmpDiscovery.IsSessionFileName(fileName),
             TranscriptNaming.AntigravityDatabase => Antigravity.AntigravityPaths.IsDatabaseName(fileName),
             TranscriptNaming.WorkBuddySession => WorkBuddy.WorkBuddyDiscovery.IsSessionFileName(fileName),
@@ -89,6 +91,11 @@ internal static class TranscriptDiscovery
         CancellationToken cancellationToken = default,
         int limit = MaxFilesPerRoot)
     {
+        if (naming == TranscriptNaming.HermesLog)
+        {
+            return Hermes.HermesPaths.Enumerate(root, limit, cancellationToken);
+        }
+
         if (naming == TranscriptNaming.GeminiSession)
         {
             return Gemini.GeminiDiscovery.Enumerate(root, limit, cancellationToken);
@@ -199,6 +206,11 @@ internal static class TranscriptDiscovery
         if (naming is TranscriptNaming.KimiSession or TranscriptNaming.GrokBuildSession)
         {
             return Harnesses.HarnessDiscovery.IsSessionPath(root, path, naming == TranscriptNaming.KimiSession);
+        }
+
+        if (naming == TranscriptNaming.HermesLog && !Hermes.HermesPaths.IsLogLayout(root, path))
+        {
+            return false;
         }
 
         if (!IsTranscriptName(System.IO.Path.GetFileName(path.AsSpan()), naming))

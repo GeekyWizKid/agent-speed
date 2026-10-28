@@ -50,13 +50,13 @@ internal sealed class AgentProcessRules
     }
 
     /// <summary>
-    /// The rules read a process's arguments only for script hosts, <c>claude</c> executables (the Chrome bridge check) and
+    /// The rules read a process's arguments only for script/Python hosts, <c>claude</c> executables (the Chrome bridge check) and
     /// WorkBuddy's executables; everything else is decided by the path.
     /// </summary>
     public bool NeedsArguments(string executable, Func<string?> bundle)
     {
         var name = _platform.Name(executable);
-        return IsScriptHostName(name) || name == "claude" || _platform.IsUnder(executable, _claudeVersions) || WorkBuddyEdition(name, bundle) is not null;
+        return IsScriptHostName(name) || IsPythonHost(name) || name == "claude" || _platform.IsUnder(executable, _claudeVersions) || WorkBuddyEdition(name, bundle) is not null;
     }
 
     private static Dictionary<string, SourceKind> Editions(Func<string, SourceKind?> sources, params (string Key, string Source)[] pairs)
@@ -120,6 +120,36 @@ internal sealed class AgentProcessRules
         return string.Join(' ', arguments.Skip(1).Select(a => a.Contains('/') || a.Contains('\\') ? _platform.Normalize(a) : a));
     }
 
+    private static bool IsPythonHost(string name)
+    {
+        name = name.ToLowerInvariant();
+        return name is "python" or "pythonw" || name.StartsWith("python3", StringComparison.Ordinal)
+            && name[7..].All(character => char.IsAsciiDigit(character) || character == '.');
+    }
+
+    private bool IsHermes(string name, Func<IReadOnlyList<string>?> arguments)
+    {
+        if (name == "hermes") return true;
+        if (!IsPythonHost(name)) return false;
+        var args = arguments();
+        if (args is null || args.Count < 2) return false;
+        for (var index = 1; index < args.Count; index++)
+        {
+            if (args[index] == "-m" && index + 1 < args.Count)
+                return args[index + 1] is "hermes_cli" or "hermes_cli.main" or "hermes_cli.__main__";
+            if (args[index] is "-c" or "-W" or "-X") return false;
+            if (args[index].StartsWith('-')) continue;
+            var script = _platform.Normalize(args[index]);
+            return script.EndsWith("/bin/hermes", StringComparison.Ordinal)
+                || script.EndsWith("/scripts/hermes", StringComparison.Ordinal)
+                || script.EndsWith("/hermes-agent/hermes_cli/main.py", StringComparison.Ordinal)
+                || script.EndsWith("/hermes-agent/cli.py", StringComparison.Ordinal)
+                || script.EndsWith("/hermes-agent/run_agent.py", StringComparison.Ordinal);
+        }
+
+        return false;
+    }
+
     /// <summary>The source whose row matches; <paramref name="ancestorExecutables"/> are the process's ancestors, nearest first.</summary>
     /// <param name="bundle">macOS: the bundle id of the executable's app, read only when a rule needs it.</param>
     public SourceKind? Source(string executable, Func<IReadOnlyList<string>?> arguments, IReadOnlyList<string> ancestorExecutables,
@@ -131,6 +161,11 @@ internal sealed class AgentProcessRules
         }
 
         var name = _platform.Name(executable);
+        if (IsHermes(name, arguments))
+        {
+            return SourceKind.Hermes;
+        }
+
         if (name == "claude")
         {
             if (_platform.IsUnder(executable, _claudeDesktopCode) || ancestorExecutables.Any(IsClaudeDesktopApp))

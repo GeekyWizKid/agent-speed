@@ -1,0 +1,348 @@
+{
+  "version": 1,
+  "timeZone": "UTC",
+  "files": [
+    {
+      "path": "hermes/logs/agent.log.1",
+      "responses": [
+        {
+          "key": "hermes:sess-a:1792497604000:1",
+          "sessionId": "sess-a",
+          "startMs": 1792497600000,
+          "endMs": 1792497604000,
+          "input": 1200,
+          "cachedInput": 500,
+          "cacheWriteInput": 100,
+          "cacheWrite1hInput": 0,
+          "output": 200,
+          "reasoning": 0,
+          "model": "anthropic/claude-sonnet-4.6",
+          "provider": "anthropic",
+          "final": true,
+          "fast": false,
+          "requestCount": 1
+        },
+        {
+          "key": "hermes:sess-b:1792497604500:1",
+          "sessionId": "sess-b",
+          "startMs": 1792497602500,
+          "endMs": 1792497604500,
+          "input": 800,
+          "cachedInput": 100,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 80,
+          "reasoning": 0,
+          "model": "anthropic/claude-sonnet-4.6",
+          "provider": "anthropic",
+          "final": true,
+          "fast": false,
+          "requestCount": 1
+        }
+      ]
+    },
+    {
+      "path": "hermes/logs/agent.log",
+      "responses": [
+        {
+          "key": "hermes:sess-a:1792497605000:2",
+          "sessionId": "sess-a",
+          "startMs": null,
+          "endMs": 1792497605000,
+          "input": 20,
+          "cachedInput": 0,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 5,
+          "reasoning": 0,
+          "model": "anthropic/claude-sonnet-4.6",
+          "provider": "anthropic",
+          "final": true,
+          "fast": false,
+          "requestCount": 1
+        },
+        {
+          "key": "hermes:sess-a:1792497609000:1",
+          "sessionId": "sess-a",
+          "startMs": 1792497606000,
+          "endMs": 1792497609000,
+          "input": 600,
+          "cachedInput": 0,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 60,
+          "reasoning": 0,
+          "model": "anthropic/claude-sonnet-4.6",
+          "provider": "anthropic",
+          "final": true,
+          "fast": false,
+          "requestCount": 1
+        },
+        {
+          "key": "hermes:sess-c:1792497611000:3",
+          "sessionId": "sess-c",
+          "startMs": 1792497609500,
+          "endMs": 1792497611000,
+          "input": 1000,
+          "cachedInput": 700,
+          "cacheWriteInput": 30,
+          "cacheWrite1hInput": 0,
+          "output": 90,
+          "reasoning": 0,
+          "model": "anthropic/claude-sonnet-4.6",
+          "provider": "anthropic",
+          "final": true,
+          "fast": false,
+          "requestCount": 1
+        },
+        {
+          "key": "hermes:@LOG_ROOT@:1792497612500:1",
+          "sessionId": null,
+          "startMs": 1792497611500,
+          "endMs": 1792497612500,
+          "input": 400,
+          "cachedInput": 0,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 40,
+          "reasoning": 0,
+          "model": "anthropic/claude-sonnet-4.6",
+          "provider": "anthropic",
+          "final": true,
+          "fast": false,
+          "requestCount": 1
+        },
+        {
+          "key": "hermes:sess-long:1792497613000:1",
+          "sessionId": "sess-long",
+          "startMs": null,
+          "endMs": 1792497613000,
+          "input": 500,
+          "cachedInput": 0,
+          "cacheWriteInput": 0,
+          "cacheWrite1hInput": 0,
+          "output": 30,
+          "reasoning": 0,
+          "model": "anthropic/claude-sonnet-4.6",
+          "provider": "anthropic",
+          "final": true,
+          "fast": false,
+          "requestCount": 1
+        }
+      ]
+    },
+    {
+      "path": "hermes/profiles/coder/logs/agent.log",
+      "responses": [
+        {
+          "key": "hermes:sess-profile:1792497614500:1",
+          "sessionId": "sess-profile",
+          "startMs": 1792497614000,
+          "endMs": 1792497614500,
+          "input": 300,
+          "cachedInput": 0,
+          "cacheWriteInput": 100,
+          "cacheWrite1hInput": 0,
+          "output": 20,
+          "reasoning": 0,
+          "model": "anthropic/claude-sonnet-4.6",
+          "provider": "anthropic",
+          "final": true,
+          "fast": false,
+          "requestCount": 1
+        }
+      ]
+    }
+  ],
+  "discover": [
+    "hermes/logs/agent.log.1",
+    "hermes/logs/agent.log",
+    "hermes/profiles/coder/logs/agent.log"
+  ],
+  "timeZones": [
+    {
+      "zone": "UTC",
+      "line": "2026-10-20 12:00:04,000 INFO [sess-a] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=1200 out=200 total=1400 latency=4.0s cache=500/1200 (42%) write=100 id=fixture-response upstream=Example Host",
+      "endMs": 1792497604000
+    },
+    {
+      "zone": "America/Los_Angeles",
+      "line": "2026-10-20 12:00:04,000 INFO [sess-a] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=1200 out=200 total=1400 latency=4.0s cache=500/1200 (42%) write=100 id=fixture-response upstream=Example Host",
+      "endMs": 1792522804000
+    },
+    {
+      "zone": "America/Los_Angeles",
+      "line": "2026-03-08 02:30:00,000 INFO [sess-a] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=1200 out=200 total=1400 latency=4.0s cache=500/1200 (42%) write=100 id=fixture-response upstream=Example Host",
+      "endMs": null
+    }
+  ],
+  "lineCases": [
+    {
+      "name": "positive counters beyond Int64 saturate",
+      "line": "2026-10-20 12:00:04,000 INFO [edge] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=18446744073709551616 out=18446744073709551616 total=36893488147419103232 latency=1.0s",
+      "response": {
+        "key": "hermes:edge:1792497604000:1",
+        "sessionId": "edge",
+        "startMs": 1792497603000,
+        "endMs": 1792497604000,
+        "input": 1000000000000,
+        "cachedInput": 0,
+        "cacheWriteInput": 0,
+        "cacheWrite1hInput": 0,
+        "output": 1000000000000,
+        "reasoning": 0,
+        "model": "anthropic/claude-sonnet-4.6",
+        "provider": "anthropic",
+        "final": true,
+        "fast": false,
+        "requestCount": 1
+      }
+    },
+    {
+      "name": "cache counters beyond Int64 clamp to input",
+      "line": "2026-10-20 12:00:04,000 INFO [edge] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=100 out=10 total=110 latency=1.0s cache=18446744073709551616/100 (100%) write=18446744073709551616",
+      "response": {
+        "key": "hermes:edge:1792497604000:1",
+        "sessionId": "edge",
+        "startMs": 1792497603000,
+        "endMs": 1792497604000,
+        "input": 100,
+        "cachedInput": 100,
+        "cacheWriteInput": 100,
+        "cacheWrite1hInput": 0,
+        "output": 10,
+        "reasoning": 0,
+        "model": "anthropic/claude-sonnet-4.6",
+        "provider": "anthropic",
+        "final": true,
+        "fast": false,
+        "requestCount": 1
+      }
+    },
+    {
+      "name": "unknown is a real session tag",
+      "line": "2026-10-20 12:00:04,000 INFO [unknown] agent.conversation_loop: API call #1: model=unknown provider=unknown in=100 out=10 total=110 latency=1.0s",
+      "response": {
+        "key": "hermes:unknown:1792497604000:1",
+        "sessionId": "unknown",
+        "startMs": 1792497603000,
+        "endMs": 1792497604000,
+        "input": 100,
+        "cachedInput": 0,
+        "cacheWriteInput": 0,
+        "cacheWrite1hInput": 0,
+        "output": 10,
+        "reasoning": 0,
+        "model": null,
+        "provider": null,
+        "final": true,
+        "fast": false,
+        "requestCount": 1
+      }
+    },
+    {
+      "name": "missing session uses log directory",
+      "line": "2026-10-20 12:00:04,000 INFO agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=100 out=10 total=110 latency=1.0s",
+      "response": {
+        "key": "hermes:fixture-root:1792497604000:1",
+        "sessionId": null,
+        "startMs": 1792497603000,
+        "endMs": 1792497604000,
+        "input": 100,
+        "cachedInput": 0,
+        "cacheWriteInput": 0,
+        "cacheWrite1hInput": 0,
+        "output": 10,
+        "reasoning": 0,
+        "model": "anthropic/claude-sonnet-4.6",
+        "provider": "anthropic",
+        "final": true,
+        "fast": false,
+        "requestCount": 1
+      }
+    },
+    {
+      "name": "extra header spaces",
+      "line": "2026-10-20 12:00:04,000 INFO  [edge]  agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=100 out=10 total=110 latency=1.0s",
+      "response": {
+        "key": "hermes:edge:1792497604000:1",
+        "sessionId": "edge",
+        "startMs": 1792497603000,
+        "endMs": 1792497604000,
+        "input": 100,
+        "cachedInput": 0,
+        "cacheWriteInput": 0,
+        "cacheWrite1hInput": 0,
+        "output": 10,
+        "reasoning": 0,
+        "model": "anthropic/claude-sonnet-4.6",
+        "provider": "anthropic",
+        "final": true,
+        "fast": false,
+        "requestCount": 1
+      }
+    },
+    {
+      "name": "unrelated suffix content is not retained",
+      "line": "2026-10-20 12:00:04,000 INFO [edge] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=100 out=10 total=110 latency=1.0s prompt=PRIVATE_SYNTHETIC_PROMPT tool_output=PRIVATE_SYNTHETIC_OUTPUT",
+      "response": {
+        "key": "hermes:edge:1792497604000:1",
+        "sessionId": "edge",
+        "startMs": 1792497603000,
+        "endMs": 1792497604000,
+        "input": 100,
+        "cachedInput": 0,
+        "cacheWriteInput": 0,
+        "cacheWrite1hInput": 0,
+        "output": 10,
+        "reasoning": 0,
+        "model": "anthropic/claude-sonnet-4.6",
+        "provider": "anthropic",
+        "final": true,
+        "fast": false,
+        "requestCount": 1
+      }
+    },
+    {
+      "name": "64 KiB metadata line accepted",
+      "line": "2026-10-20 12:00:04,000 INFO [edge] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=100 out=10 total=110 latency=1.0s",
+      "padToBytes": 65536,
+      "response": {
+        "key": "hermes:edge:1792497604000:1",
+        "sessionId": "edge",
+        "startMs": 1792497603000,
+        "endMs": 1792497604000,
+        "input": 100,
+        "cachedInput": 0,
+        "cacheWriteInput": 0,
+        "cacheWrite1hInput": 0,
+        "output": 10,
+        "reasoning": 0,
+        "model": "anthropic/claude-sonnet-4.6",
+        "provider": "anthropic",
+        "final": true,
+        "fast": false,
+        "requestCount": 1
+      }
+    },
+    {
+      "name": "over 64 KiB ignored",
+      "line": "2026-10-20 12:00:04,000 INFO [edge] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=100 out=10 total=110 latency=1.0s",
+      "padToBytes": 65537,
+      "response": null
+    },
+    {
+      "name": "invalid calendar day ignored",
+      "line": "2026-02-30 12:00:04,000 INFO [edge] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=100 out=10 total=110 latency=1.0s",
+      "response": null
+    }
+  ],
+  "totals": {
+    "requests": 8,
+    "input": 4820,
+    "output": 525,
+    "cachedInput": 1300,
+    "cacheWriteInput": 230,
+    "measuredDurationMs": 12000
+  }
+}

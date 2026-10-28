@@ -17,16 +17,19 @@ public sealed class HarnessSourceSettingsTests
             ZCodeRoot = Path.Combine(Path.GetTempPath(), ".zcode", "cli", "db"),
             KimiRoot = Path.Combine(Path.GetTempPath(), ".kimi-code", "sessions"),
             GrokBuildRoot = Path.Combine(Path.GetTempPath(), ".grok", "sessions"),
+            HermesRoot = Path.Combine(Path.GetTempPath(), ".hermes"),
         };
         settings = settings.WithSourceEnabled(SourceKind.Kimi, false);
         var back = SettingsSerializer.Deserialize(SettingsSerializer.Serialize(settings));
         Assert.Equal(settings.ZCodeRoot, back.ZCodeRoot);
         Assert.Equal(settings.KimiRoot, back.KimiRoot);
         Assert.Equal(settings.GrokBuildRoot, back.GrokBuildRoot);
+        Assert.Equal(settings.HermesRoot, back.HermesRoot);
         var config = back.ToMonitorConfiguration();
         Assert.Equal(settings.ZCodeRoot, config.ZCodeRoot);
         Assert.Equal(settings.KimiRoot, config.KimiRoot);
         Assert.Equal(settings.GrokBuildRoot, config.GrokBuildRoot);
+        Assert.Equal(settings.HermesRoot, config.HermesRoot);
         Assert.DoesNotContain(SourceKind.Kimi, config.EnabledSources);
         Assert.Contains(SourceKind.ZCode, config.EnabledSources);
         Assert.Contains(SourceKind.GrokBuild, config.EnabledSources);
@@ -37,6 +40,7 @@ public sealed class HarnessSourceSettingsTests
     [InlineData(SourceKind.ZCode, "zcode")]
     [InlineData(SourceKind.Kimi, "kimi")]
     [InlineData(SourceKind.GrokBuild, "grokBuild")]
+    [InlineData(SourceKind.Hermes, "hermes")]
     public void EverySurfaceUsesTheSameStableSourceIdentifier(SourceKind kind, string id)
     {
         Assert.Equal(id, ReportBody.SourceId(kind));

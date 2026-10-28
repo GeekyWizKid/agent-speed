@@ -172,6 +172,9 @@ internal sealed class SettingsViewModel : ObservableObject
         ChangeGrokBuildCommand = new RelayCommand(() => ChangeFolder(GrokBuildPath, (s, path) => s with { GrokBuildRoot = path }));
         ResetGrokBuildCommand = new RelayCommand(() => _settings.Update(s => s with { GrokBuildRoot = null }),
             () => _settings.Current.GrokBuildRoot is not null);
+        ChangeHermesCommand = new RelayCommand(() => ChangeFolder(HermesPath, (s, path) => s with { HermesRoot = path }));
+        ResetHermesCommand = new RelayCommand(() => _settings.Update(s => s with { HermesRoot = null }),
+            () => _settings.Current.HermesRoot is not null);
         OpenHistoryCommand = new RelayCommand(openHistory);
         ClearHistoryCommand = new RelayCommand(() =>
         {
@@ -324,6 +327,10 @@ internal sealed class SettingsViewModel : ObservableObject
     public RelayCommand ChangeGrokBuildCommand { get; }
 
     public RelayCommand ResetGrokBuildCommand { get; }
+
+    public RelayCommand ChangeHermesCommand { get; }
+
+    public RelayCommand ResetHermesCommand { get; }
 
     public RelayCommand OpenHistoryCommand { get; }
 
@@ -544,6 +551,10 @@ internal sealed class SettingsViewModel : ObservableObject
 
     public string GrokBuildStatus => StatusFor(SourceKind.GrokBuild);
 
+    public string HermesPath => S.HermesRoot ?? LiveMonitor.DefaultHermesRoot;
+
+    public string HermesStatus => StatusFor(SourceKind.Hermes);
+
     public string CodexStatus => StatusFor(SourceKind.Codex);
 
     public string DshStatus => StatusFor(SourceKind.DeepSeek);
@@ -701,6 +712,7 @@ internal sealed class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(ZCodeStatus));
         OnPropertyChanged(nameof(KimiStatus));
         OnPropertyChanged(nameof(GrokBuildStatus));
+        OnPropertyChanged(nameof(HermesStatus));
         OnPropertyChanged(nameof(UpdateLastCheckedText));
     }
 

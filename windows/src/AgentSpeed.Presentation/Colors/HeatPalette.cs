@@ -88,6 +88,7 @@ public static class HeatPalette
         SourceKind.ZCode => Rgba.FromHex("#466BFF"),
         SourceKind.Kimi => Rgba.FromHex("#E16F8A"),
         SourceKind.GrokBuild => Rgba.FromHex("#8290A6"),
+        SourceKind.Hermes => Rgba.FromHex("#C9984A"),
         _ => Neutral,
     };
 

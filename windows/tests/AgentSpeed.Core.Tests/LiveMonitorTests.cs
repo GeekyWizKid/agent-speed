@@ -161,7 +161,9 @@ public sealed class LiveMonitorTests : IDisposable
         _temp.Combine("omp", "agent", "sessions"),
         _temp.Combine("gemini-home", "antigravity-cli"),
         _temp.Combine("home", ".workbuddy"),
-        _temp.Combine("home", ".workbuddy-ai"));
+        _temp.Combine("home", ".workbuddy-ai"),
+        ZCodeRoot: _temp.Combine("zcode"), KimiRoot: _temp.Combine("kimi"),
+        GrokBuildRoot: _temp.Combine("grok"), HermesRoot: _temp.Combine("hermes"));
 
     private sealed class HubProbe
     {

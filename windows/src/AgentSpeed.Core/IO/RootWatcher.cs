@@ -59,6 +59,7 @@ internal sealed class RootWatcher : IDisposable
         TranscriptNaming.ZCodeDatabase => ["db.sqlite", "db.sqlite-wal"],
         TranscriptNaming.KimiSession => ["wire.jsonl"],
         TranscriptNaming.GrokBuildSession => ["updates.jsonl", "summary.json"],
+        TranscriptNaming.HermesLog => ["agent.log", "agent.log.*"],
 
         // Never *-shm: readers touch it, so watching it would make every read trigger the next one.
         TranscriptNaming.AntigravityDatabase => ["*.db", "*.db-wal"],

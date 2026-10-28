@@ -1,0 +1,1 @@
+2026-10-20 12:00:14,500 INFO [sess-profile] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=300 out=20 total=320 latency=0.5s write=100

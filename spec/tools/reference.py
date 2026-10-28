@@ -30,6 +30,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import prices as pricing  # noqa: E402
 import harness_reference as harnesses  # noqa: E402
+import hermes_reference as hermes  # noqa: E402
 
 if hasattr(sys, "set_int_max_str_digits"):
     sys.set_int_max_str_digits(0)  # integer literals of any length are numbers (METRICS 3.6), not malformed lines
@@ -2001,6 +2002,7 @@ def check_fixtures():
                                                                               st["buckets"].get(int(k))))
     failures += ["prices: " + e for e in pricing.check_cases()]
     failures += ["harnesses: " + e for e in harnesses.check_fixtures(root)]
+    failures += ["hermes: " + e for e in hermes.check_fixtures(root)]
     if failures:
         print("\n".join(failures))
         sys.exit(1)
@@ -2240,7 +2242,7 @@ def startup_files(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=()
 
 
 def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
-               table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None):
+               table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, hermes_root=None):
     started = time.time()
     index = pricing.Index(pricing.load(table))
     now = datetime.now().astimezone()
@@ -2277,7 +2279,7 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
                                          ("reasoning", r["reasoning"]), ("final", r["final"]),
                                          ("provider", r["provider"]), ("fast", r["fast"]),
                                          ("costMicroUsd", index.price(r) if has_day(r["endMs"]) else None)]))
-    for source, agent, record in harnesses.collect(zcode_root, kimi_root, grok_root):
+    for source, agent, record in harnesses.collect(zcode_root, kimi_root, grok_root) + hermes.collect(hermes_root):
         if record["endMs"] >= today_start:
             rows.append(dict(record, source=source, agentId=agent,
                              costMicroUsd=index.price(record) if has_day(record["endMs"]) else None))
@@ -2295,7 +2297,7 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
 
 
 def collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs=(), omp_dirs=(), ag_stores=(),
-                wb_roots=(), include_archived=True, zcode_root=None, kimi_root=None, grok_root=None):
+                wb_roots=(), include_archived=True, zcode_root=None, kimi_root=None, grok_root=None, hermes_root=None):
     """Parses every log completely (METRICS 8) and returns all responses with their source and agent."""
     files = startup_files(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots,
                           limit=10 ** 9, include_archived=include_archived)
@@ -2314,6 +2316,7 @@ def collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs=(), 
         for st in opencode_states(opencode_db, dedupe):
             out += [(st.source, st.path, r) for r in st.responses.values()]
     out += harnesses.collect(zcode_root, kimi_root, grok_root)
+    out += hermes.collect(hermes_root)
     return out
 
 
@@ -2381,6 +2384,7 @@ def main():
     parser.add_argument("--zcode", default=None, help="ZCode data folder, database folder, or db.sqlite")
     parser.add_argument("--kimi", default=None, help="Kimi Code CLI sessions folder")
     parser.add_argument("--grok", default=None, help="Grok Build sessions folder")
+    parser.add_argument("--hermes", default=None, help="Hermes home or logs folder")
     parser.add_argument("--gemini", action="append", default=None, help="Gemini CLI tmp folder (repeatable)")
     parser.add_argument("--omp", action="append", default=None, help="omp sessions folder (repeatable)")
     parser.add_argument("--antigravity", action="append", default=None,
@@ -2408,13 +2412,16 @@ def main():
     zcode_root = args.zcode or os.path.join(os.environ.get("ZCODE_DATA_BASE_DIR") or home, ".zcode", "cli", "db")
     kimi_root = args.kimi or os.path.join(os.environ.get("KIMI_CODE_HOME") or os.path.join(home, ".kimi-code"), "sessions")
     grok_root = args.grok or os.path.join(os.environ.get("GROK_HOME") or os.path.join(home, ".grok"), "sessions")
+    hermes_root = args.hermes or os.environ.get("HERMES_HOME") or (
+        os.path.join(os.environ.get("LOCALAPPDATA", os.path.join(home, "AppData", "Local")), "hermes")
+        if os.name == "nt" else os.path.join(home, ".hermes"))
     if args.write_history_fixture:
         write_history_fixture()
         return
     if args.dump_history:
         rows = daily_history(collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs, omp_dirs,
                                          ag_stores, wb_roots, zcode_root=zcode_root, kimi_root=kimi_root,
-                                         grok_root=grok_root), tz=timezone.utc if args.utc else None,
+                                         grok_root=grok_root, hermes_root=hermes_root), tz=timezone.utc if args.utc else None,
                              day_pricing=pricing.DayPricing([pricing.load(args.prices)]))
         for row in rows:
             print(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
@@ -2423,7 +2430,7 @@ def main():
         check_fixtures()
     elif args.dump_today:
         dump_today(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots, args.prices,
-                   zcode_root, kimi_root, grok_root)
+                   zcode_root, kimi_root, grok_root, hermes_root)
     else:
         parser.print_help()
 

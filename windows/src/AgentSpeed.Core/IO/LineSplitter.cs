@@ -6,9 +6,11 @@ namespace AgentSpeed.Core.IO;
 /// Splits a byte stream into complete lines, buffering an incomplete trailing line and skipping lines over
 /// <see cref="MaxLineBytes"/> (METRICS 4 and 5). Not thread-safe.
 /// </summary>
-internal sealed class LineSplitter
+internal sealed class LineSplitter(int maxLineBytes = LineSplitter.MaxLineBytes)
 {
     public const int MaxLineBytes = 32 * 1024 * 1024;
+
+    private readonly int _maxLineBytes = Math.Clamp(maxLineBytes, 1, MaxLineBytes);
 
     private byte[]? _partial;
     private int _partialLength;
@@ -57,7 +59,7 @@ internal sealed class LineSplitter
                 continue;
             }
 
-            if ((long)_partialLength + segment.Length > MaxLineBytes)
+            if ((long)_partialLength + segment.Length > _maxLineBytes)
             {
                 OversizedLines++;
             }
@@ -91,7 +93,7 @@ internal sealed class LineSplitter
 
     private void Emit(ReadOnlySpan<byte> line, ILineSink sink)
     {
-        if (line.Length > MaxLineBytes)
+        if (line.Length > _maxLineBytes)
         {
             OversizedLines++;
             return;
@@ -113,7 +115,7 @@ internal sealed class LineSplitter
         }
 
         var needed = (long)_partialLength + data.Length;
-        if (needed > MaxLineBytes)
+        if (needed > _maxLineBytes)
         {
             _skippingOversized = true;
             _partialLength = 0;
@@ -122,7 +124,7 @@ internal sealed class LineSplitter
 
         if (_partial is null || _partial.Length < needed)
         {
-            var grown = new byte[(int)Math.Min(MaxLineBytes, Math.Max(needed, Math.Max(64 * 1024, (_partial?.Length ?? 0) * 2L)))];
+            var grown = new byte[(int)Math.Min(_maxLineBytes, Math.Max(needed, Math.Max(64 * 1024, (_partial?.Length ?? 0) * 2L)))];
             _partial.AsSpan(0, _partialLength).CopyTo(grown);
             _partial = grown;
         }

@@ -74,6 +74,7 @@ final class TranscriptSession {
     /// Deduplication owner of every OpenCode row; transcript files count up from 0.
     static let opencodeFileID: FileID = -1
     static let zcodeFileID: FileID = -2
+    static let hermesFileID: FileID = -3
 
     let enabledSources: Set<SourceKind>
     let limits: ReadingLimits
@@ -93,6 +94,8 @@ final class TranscriptSession {
     private(set) var partialHistory = false
     /// The OpenCode database, when that source is enabled (METRICS 4.5, 5.2).
     let opencode: OpencodeSource?
+    let hermes: HermesSource?
+    private let hermesRoot: String
     let zcode: ZcodeSource?
     private let zcodeRoot: String
     private var zcodeNeedsSeed = false
@@ -126,6 +129,8 @@ final class TranscriptSession {
         }
         opencodeRoot = configuration.resolvedOpencodeRoot
         opencode = configuration.readsOpencode ? OpencodeSource(root: opencodeRoot, fileID: Self.opencodeFileID) : nil
+        hermesRoot = configuration.resolvedHermesRoot
+        hermes = configuration.readsHermes ? HermesSource(root: hermesRoot, fileID: Self.hermesFileID) : nil
         zcodeRoot = configuration.resolvedZcodeRoot
         zcode = configuration.readsZcode ? ZcodeSource(root: zcodeRoot, fileID: Self.zcodeFileID) : nil
         refreshAvailability()
@@ -133,7 +138,7 @@ final class TranscriptSession {
 
     // MARK: - Roots
 
-    var hasAvailableRoot: Bool { roots.contains { $0.enabled && $0.detected } || opencode?.isReady == true || zcode?.isReady == true }
+    var hasAvailableRoot: Bool { roots.contains { $0.enabled && $0.detected } || opencode?.isReady == true || zcode?.isReady == true || hermes?.isReady == true }
 
     var watchedPaths: [String] {
         var paths = roots.filter { $0.enabled && $0.available }.map(\.canonicalPath)
@@ -141,9 +146,11 @@ final class TranscriptSession {
             paths.append(directory)
         }
         if let directory = zcode?.watchedDirectory, !paths.contains(directory) { paths.append(directory) }
+        for path in hermes?.watchedPaths ?? [] where !paths.contains(path) { paths.append(path) }
         return paths
     }
 
+    var hermesLocation: (path: String, available: Bool) { (hermesRoot, hermes?.exists ?? false) }
     var zcodeLocation: (path: String, available: Bool) { (zcodeRoot, zcode?.exists ?? false) }
 
     /// Root path and availability of the OpenCode source (the folder that contains `opencode.db`).
@@ -154,7 +161,7 @@ final class TranscriptSession {
     /// Re-checks which roots exist. Returns true when availability changed.
     @discardableResult
     func refreshAvailability() -> Bool {
-        var changed = false
+        var changed = hermes?.refreshAvailability() ?? false
         if let opencode, opencode.refreshAvailability() {
             changed = true
             opencodeNeedsSeed = true
@@ -266,6 +273,14 @@ final class TranscriptSession {
             zcodeNeedsSeed = false
             apply(zcode.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false)
         }
+        if let hermes {
+            summary.filesDiscovered += HermesSource.files(root: hermesRoot).count
+            let before = hermes.bytesRead
+            apply(hermes.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false)
+            summary.filesRead += HermesSource.files(root: hermesRoot).count
+            summary.bytesRead += hermes.bytesRead - before
+            partialHistory = partialHistory || hermes.partialHistory
+        }
         summary.partialHistory = partialHistory
         summary.durationMs = Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
         return summary
@@ -334,8 +349,11 @@ final class TranscriptSession {
     @discardableResult
     func handleChanges(atCanonicalPaths paths: Set<String>) -> Bool {
         var changed = false
+        if let hermes, paths.contains(where: { HermesSource.isLogName(($0 as NSString).lastPathComponent) }) {
+            changed = apply(hermes.refresh(deduper: &deduper), live: true)
+        }
         if let opencode, paths.contains(where: opencode.matches(canonicalPath:)) {
-            changed = apply(opencode.refresh(deduper: &deduper), live: true)
+            changed = apply(opencode.refresh(deduper: &deduper), live: true) || changed
         }
         if let zcode, paths.contains(where: zcode.matches(canonicalPath:)) {
             changed = apply(zcode.refresh(deduper: &deduper), live: true) || changed
@@ -380,8 +398,9 @@ final class TranscriptSession {
     @discardableResult
     func pollRecentFiles(nowMs: Int64) -> Bool {
         var changed = false
+        if let hermes { changed = apply(hermes.refresh(deduper: &deduper), live: true) }
         if let update = opencode?.refreshIfChanged(deduper: &deduper) {
-            changed = apply(update, live: true)
+            changed = apply(update, live: true) || changed
         }
         if let update = zcode?.refreshIfChanged(deduper: &deduper) { changed = apply(update, live: true) || changed }
         let hot = files.values.filter { nowMs - $0.lastStat.modifiedMs <= Self.hotWindowMs }
@@ -403,6 +422,7 @@ final class TranscriptSession {
     @discardableResult
     func rediscover(todayStartMs: Int64) -> Bool {
         var changed = refreshAvailability()
+        if let hermes { changed = apply(hermes.refresh(deduper: &deduper), live: true) || changed }
         var seen: Set<String> = []
         var fresh: [(DiscoveredFile, Root)] = []
         let activeSince = todayStartMs - Self.startupLookbackMs
@@ -593,7 +613,7 @@ final class TranscriptSession {
         files.values.reduce(removedMalformedLines) { $0 + $1.parser.state.malformedLines } + (opencode?.malformedRows ?? 0)
     }
 
-    var unreadableFileCount: Int { unreadablePaths.count + (opencode?.status == .unreadable ? 1 : 0) + (zcode?.status == .unreadable ? 1 : 0) }
+    var unreadableFileCount: Int { unreadablePaths.count + (opencode?.status == .unreadable ? 1 : 0) + (zcode?.status == .unreadable ? 1 : 0) + (hermes?.unreadableFiles ?? 0) }
 
     /// Antigravity databases whose connection is open.
     var openDatabaseCount: Int {
@@ -624,6 +644,7 @@ final class TranscriptSession {
             counts[.opencode] = opencode.activeSessionCount(todayStartMs: todayStartMs)
         }
         if let zcode { counts[.zcode] = zcode.activeSessionCount(todayStartMs: todayStartMs) }
+        if let hermes { counts[.hermes] = hermes.activeSessionCount(todayStartMs: todayStartMs) }
         return counts
     }
 
@@ -695,6 +716,14 @@ final class TranscriptSession {
             zcodeLinks = links
             parentLinksAreStale = true
         }
+        return !update.isEmpty
+    }
+
+    @discardableResult
+    private func apply(_ update: HermesSource.Update, live: Bool) -> Bool {
+        for (upsert, project) in update.upserts { deliver(upsert, project: project, live: live) }
+        for (id, state) in update.agents { engine.setAgent(EngineAgent(id: id, state: state)) }
+        partialHistory = partialHistory || (hermes?.partialHistory ?? false)
         return !update.isEmpty
     }
 

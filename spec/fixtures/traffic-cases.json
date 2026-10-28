@@ -2834,6 +2834,190 @@
      }
     ]
    }
+  },
+  {
+   "platform": "macos",
+   "home": "/Users/dev",
+   "name": "classify-hermes-macos",
+   "samples": [
+    {
+     "t": 1792490400000,
+     "processes": [
+      {
+       "pid": 501,
+       "ppid": 1,
+       "start": 1000,
+       "exe": "/Users/dev/.local/bin/hermes",
+       "args": []
+      },
+      {
+       "pid": 502,
+       "ppid": 1,
+       "start": 1001,
+       "exe": "/usr/bin/python3.12",
+       "args": [
+        "/usr/bin/python3.12",
+        "-u",
+        "-m",
+        "hermes_cli.main",
+        "gateway",
+        "run"
+       ]
+      },
+      {
+       "pid": 503,
+       "ppid": 1,
+       "start": 1002,
+       "exe": "/usr/bin/python3.12",
+       "args": [
+        "/usr/bin/python3.12",
+        "/Users/dev/.hermes/hermes-agent/venv/bin/hermes",
+        "chat"
+       ]
+      },
+      {
+       "pid": 504,
+       "ppid": 1,
+       "start": 1003,
+       "exe": "/usr/bin/python3.12",
+       "args": [
+        "/usr/bin/python3.12",
+        "-c",
+        "print(\"hermes_cli\")"
+       ]
+      },
+      {
+       "pid": 505,
+       "ppid": 1,
+       "start": 1004,
+       "exe": "/usr/bin/python3.12",
+       "args": [
+        "/usr/bin/python3.12",
+        "/projects/tool.py",
+        "-m",
+        "hermes_cli.main"
+       ]
+      },
+      {
+       "pid": 506,
+       "ppid": 1,
+       "start": 1005,
+       "exe": "/Applications/Hermes.app/Contents/MacOS/Hermes",
+       "args": []
+      },
+      {
+       "pid": 507,
+       "ppid": 502,
+       "start": 1006,
+       "exe": "/bin/sh",
+       "args": []
+      }
+     ]
+    }
+   ],
+   "expected": {
+    "classes": {
+     "501": "hermes/agent",
+     "502": "hermes/agent",
+     "503": "hermes/agent",
+     "504": null,
+     "505": null,
+     "506": null,
+     "507": "hermes/tool"
+    }
+   }
+  },
+  {
+   "platform": "windows",
+   "home": "C:/Users/dev",
+   "name": "classify-hermes-windows",
+   "samples": [
+    {
+     "t": 1792490400000,
+     "processes": [
+      {
+       "pid": 501,
+       "ppid": 1,
+       "start": 1000,
+       "exe": "C:/Users/dev/.local/bin/hermes",
+       "args": []
+      },
+      {
+       "pid": 502,
+       "ppid": 1,
+       "start": 1001,
+       "exe": "C:/Python/python.exe",
+       "args": [
+        "C:/Python/python.exe",
+        "-u",
+        "-m",
+        "hermes_cli.main",
+        "gateway",
+        "run"
+       ]
+      },
+      {
+       "pid": 503,
+       "ppid": 1,
+       "start": 1002,
+       "exe": "C:/Python/python.exe",
+       "args": [
+        "C:/Python/python.exe",
+        "C:/Users/dev/.hermes/hermes-agent/venv/bin/hermes",
+        "chat"
+       ]
+      },
+      {
+       "pid": 504,
+       "ppid": 1,
+       "start": 1003,
+       "exe": "C:/Python/python.exe",
+       "args": [
+        "C:/Python/python.exe",
+        "-c",
+        "print(\"hermes_cli\")"
+       ]
+      },
+      {
+       "pid": 505,
+       "ppid": 1,
+       "start": 1004,
+       "exe": "C:/Python/python.exe",
+       "args": [
+        "C:/Python/python.exe",
+        "/projects/tool.py",
+        "-m",
+        "hermes_cli.main"
+       ]
+      },
+      {
+       "pid": 506,
+       "ppid": 1,
+       "start": 1005,
+       "exe": "C:/Apps/Hermes/Hermes.exe",
+       "args": []
+      },
+      {
+       "pid": 507,
+       "ppid": 502,
+       "start": 1006,
+       "exe": "C:/Windows/System32/cmd.exe",
+       "args": []
+      }
+     ]
+    }
+   ],
+   "expected": {
+    "classes": {
+     "501": "hermes/agent",
+     "502": "hermes/agent",
+     "503": "hermes/agent",
+     "504": null,
+     "505": null,
+     "506": null,
+     "507": "hermes/tool"
+    }
+   }
   }
  ]
 }

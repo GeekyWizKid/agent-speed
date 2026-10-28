@@ -52,6 +52,8 @@ struct DayAggregate: Equatable, Sendable {
     var measuredMs: Int64 = 0
     var unfinalized = 0
     var agents = 0
+    /// Hermes shares log files between sessions and rotates a session across files. Only opaque IDs are persisted.
+    var agentHashes: Set<UInt64> = []
     var models: [String: ModelTally] = [:]
     var modes: [ExecutionModeUsageKey: ExecutionModeUsage] = [:]
     /// Nil when the contribution was stored before costs existed (METRICS 8).
@@ -95,7 +97,8 @@ struct DayAggregate: Equatable, Sendable {
         measuredOutput = measuredOutput.saturatingAdd(other.measuredOutput)
         measuredMs += other.measuredMs
         unfinalized += other.unfinalized
-        agents += other.agents
+        agents += other.agents - agentHashes.intersection(other.agentHashes).count
+        agentHashes.formUnion(other.agentHashes)
         for (key, usage) in other.modes {
             if modes[key] == nil { modes[key] = usage } else { modes[key]?.add(usage) }
         }
@@ -115,9 +118,14 @@ struct DayAggregate: Equatable, Sendable {
         var days: [UsageKey: DayAggregate] = [:]
         for record in records where DayLabeler.hasDay(record.endMs) {
             let day = labeler.label(forMs: record.endMs)
-            days[UsageKey(day: day, source: source), default: DayAggregate()].add(record, cost: pricing.cost(of: record, day: day))
+            let key = UsageKey(day: day, source: source)
+            days[key, default: DayAggregate()].add(record, cost: pricing.cost(of: record, day: day))
+            if source == .hermes { days[key]?.agentHashes.insert(KeyHash.fnv1a(record.agentId)) }
         }
-        for key in days.keys { days[key]?.agents = 1 }
+        for key in days.keys {
+            let agents = source == .hermes ? (days[key]?.agentHashes.count ?? 0) : 1
+            days[key]?.agents = agents
+        }
         return days
     }
 

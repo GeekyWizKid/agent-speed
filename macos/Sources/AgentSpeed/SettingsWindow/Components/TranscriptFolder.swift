@@ -18,6 +18,7 @@ enum TranscriptFolder: CaseIterable {
     case zcode
     case kimi
     case grokBuild
+    case hermes
 
     /// Every default location, in reading order.
     var defaultURLs: [URL] {
@@ -33,6 +34,7 @@ enum TranscriptFolder: CaseIterable {
         case .zcode: [LiveMonitor.defaultZcodeRoot]
         case .kimi: [LiveMonitor.defaultKimiRoot]
         case .grokBuild: [LiveMonitor.defaultGrokBuildRoot]
+        case .hermes: [LiveMonitor.defaultHermesRoot]
         case .workbuddyAi: [LiveMonitor.defaultWorkBuddyAiDataFolder]
         }
     }
@@ -52,6 +54,7 @@ enum TranscriptFolder: CaseIterable {
         case .zcode: "mac.settings.sources.chooseZcode"
         case .kimi: "mac.settings.sources.chooseKimi"
         case .grokBuild: "mac.settings.sources.chooseGrokBuild"
+        case .hermes: "mac.settings.sources.chooseHermes"
         case .workbuddyAi: "mac.settings.sources.chooseWorkbuddyAi"
         }
     }
@@ -70,6 +73,7 @@ enum TranscriptFolder: CaseIterable {
         case .zcode: "settings.sources.zcodeHint"
         case .kimi: "settings.sources.kimiHint"
         case .grokBuild: "settings.sources.grokBuildHint"
+        case .hermes: "settings.sources.hermesHint"
         case .workbuddyAi: "settings.sources.workbuddyAiHint"
         }
     }
@@ -88,6 +92,7 @@ enum TranscriptFolder: CaseIterable {
         case .zcode: settings.zcodeRoot
         case .kimi: settings.kimiRoot
         case .grokBuild: settings.grokBuildRoot
+        case .hermes: settings.hermesRoot
         case .workbuddyAi: settings.workbuddyAiRoot
         }
     }
@@ -114,7 +119,7 @@ enum TranscriptFolder: CaseIterable {
         case .antigravity:
             let found = defaultURLs.filter(isReadable)
             return found.isEmpty ? defaultURLs : found
-        case .codex, .claude, .dsh, .opencode, .gemini, .workbuddy, .workbuddyAi, .zcode, .kimi, .grokBuild:
+        case .codex, .claude, .dsh, .opencode, .gemini, .workbuddy, .workbuddyAi, .zcode, .kimi, .grokBuild, .hermes:
             return defaultURLs
         }
     }
@@ -142,6 +147,7 @@ enum TranscriptFolder: CaseIterable {
         case .zcode: settings.zcodeRoot = value
         case .kimi: settings.kimiRoot = value
         case .grokBuild: settings.grokBuildRoot = value
+        case .hermes: settings.hermesRoot = value
         case .workbuddyAi: settings.workbuddyAiRoot = value
         }
     }
@@ -152,7 +158,7 @@ enum TranscriptFolder: CaseIterable {
         switch self {
         case .workbuddy, .workbuddyAi:
             Self.isSameFolder(LiveMonitor.workbuddyProjectsFolder(url), LiveMonitor.workbuddyProjectsFolder(defaultURL))
-        case .codex, .claude, .dsh, .opencode, .gemini, .omp, .antigravity, .zcode, .kimi, .grokBuild:
+        case .codex, .claude, .dsh, .opencode, .gemini, .omp, .antigravity, .zcode, .kimi, .grokBuild, .hermes:
             Self.isSameFolder(url, defaultURL)
         }
     }

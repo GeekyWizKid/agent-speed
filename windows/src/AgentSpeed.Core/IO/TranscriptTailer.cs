@@ -23,9 +23,10 @@ internal enum StartAlignment
 /// </summary>
 internal abstract class TranscriptTailer
 {
-    protected TranscriptTailer(string path)
+    protected TranscriptTailer(string path, int maxLineBytes = LineSplitter.MaxLineBytes)
     {
         Path = path;
+        Lines = new LineSplitter(maxLineBytes);
     }
 
     public string Path { get; }
@@ -39,7 +40,7 @@ internal abstract class TranscriptTailer
 
     public long TotalBytesRead { get; protected set; }
 
-    protected LineSplitter Lines { get; } = new();
+    protected LineSplitter Lines { get; }
 
     /// <summary>
     /// Plain JSONL for most files, a zstd frame stream for <c>.zstd</c> (METRICS 5.1), a whole zstd stream for Codex

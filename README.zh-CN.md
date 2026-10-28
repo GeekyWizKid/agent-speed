@@ -4,7 +4,7 @@
 
 # Agent Speed
 
-**看见你的 AI agent 全速奔跑。** 为 Codex、Claude Code、Claude Desktop、DSH（DeepSeek Harness）、OpenCode、Gemini CLI、omp、Antigravity、WorkBuddy、WorkBuddy AI、ZCode、Kimi Code CLI 与 Grok Build 打造的原生实时 token 速度仪表——空闲时安静，冲到红线时全面燃烧。
+**看见你的 AI agent 全速奔跑。** 为 Codex、Claude Code、Claude Desktop、DSH（DeepSeek Harness）、OpenCode、Gemini CLI、omp、Antigravity、WorkBuddy、WorkBuddy AI、ZCode、Kimi Code CLI、Grok Build 与 Hermes 打造的原生实时 token 速度仪表——空闲时安静，冲到红线时全面燃烧。
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
@@ -88,6 +88,9 @@ Agent Speed 只读取 agent 本来就写在你电脑上的记录：
 | ZCode | `~/.zcode/cli/db/db.sqlite`（或 `$ZCODE_DATA_BASE_DIR/.zcode/cli/db`） |
 | Kimi Code CLI（TypeScript v2） | `~/.kimi-code/sessions`（或 `$KIMI_CODE_HOME/sessions`） |
 | Grok Build | `~/.grok/sessions`（或 `$GROK_HOME/sessions`） |
+| Hermes（桌面端和 CLI） | `~/.hermes/logs/agent.log` 及数字轮转日志，含命名配置（或 `$HERMES_HOME`；Windows：`%LOCALAPPDATA%/hermes`） |
+
+Hermes 从本地日志读取已完成 API 调用的用量，速度在每次调用结束后更新，采用日志中精确到 0.1 秒的耗时，不计入工具执行或消息之间的等待。没有用量记录的旧日志无法还原。可以在设置中选择 Hermes 数据或 `logs` 文件夹。
 
 Grok Build 提供每回合、每模型的原生批次记录：Token、API 耗时与实际调用数交给同一套速度引擎计算。子 agent 用量已合并在父会话中，因此只计算一次，仍会显示子 agent 的活动状态；上游未保存每次调用的独立时间线，无法重建批次内的并行速度。
 

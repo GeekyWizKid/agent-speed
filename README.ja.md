@@ -4,7 +4,7 @@
 
 # Agent Speed
 
-**AI agent が全力で走る瞬間を、目で感じる。** Codex・Claude Code・Claude Desktop・DSH（DeepSeek Harness）・OpenCode・Gemini CLI・omp・Antigravity・WorkBuddy・WorkBuddy AI・ZCode・Kimi Code CLI・Grok Build のトークン速度をリアルタイムに映し出すネイティブ計器。待機中は静かに、レッドラインでは燃え上がる。
+**AI agent が全力で走る瞬間を、目で感じる。** Codex・Claude Code・Claude Desktop・DSH（DeepSeek Harness）・OpenCode・Gemini CLI・omp・Antigravity・WorkBuddy・WorkBuddy AI・ZCode・Kimi Code CLI・Grok Build・Hermes のトークン速度をリアルタイムに映し出すネイティブ計器。待機中は静かに、レッドラインでは燃え上がる。
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
@@ -88,6 +88,9 @@ Agent Speed は、agent がすでにローカルに書き出している記録�
 | ZCode | `~/.zcode/cli/db/db.sqlite`（または `$ZCODE_DATA_BASE_DIR/.zcode/cli/db`） |
 | Kimi Code CLI（TypeScript v2） | `~/.kimi-code/sessions`（または `$KIMI_CODE_HOME/sessions`） |
 | Grok Build | `~/.grok/sessions`（または `$GROK_HOME/sessions`） |
+| Hermes（デスクトップと CLI） | `~/.hermes/logs/agent.log` と番号付きローテーションログ。名前付きプロファイルを含む（または `$HERMES_HOME`。Windows: `%LOCALAPPDATA%/hermes`） |
+
+Hermes はローカルログから完了した API 呼び出しの使用量を読み取り、完了後に速度を更新します。ログに保存された 0.1 秒単位の所要時間を使用し、ツール実行やメッセージ間の待機時間は含めません。使用量のない古いログは復元できません。設定で Hermes のデータまたは `logs` フォルダを選択できます。
 
 Grok Build のターン別・モデル別バッチに保存されたトークン数、API 所要時間、実際の呼び出し回数を、既存の速度エンジンで計算します。サブエージェントの使用量は親に集約されるため一度だけ計上し、子の動作状態も表示します。個々の呼び出しのタイムラインは保存されないため、バッチ内の並列実行速度は復元できません。
 

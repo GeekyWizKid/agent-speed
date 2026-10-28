@@ -474,6 +474,11 @@ internal sealed partial class MonitorCore : IDisposable
             return _zcode?.ActiveSessionCount(todayStartMs) ?? 0;
         }
 
+        if (kind == SourceKind.Hermes)
+        {
+            return HermesAgents().Count(agent => agent.LastLineMs >= todayStartMs);
+        }
+
         var mainOnly = WorkBuddyPaths.IsWorkBuddy(kind) || kind is SourceKind.Kimi or SourceKind.GrokBuild;
         var count = 0;
         foreach (var tracked in _files.Values)
@@ -964,6 +969,12 @@ internal sealed partial class MonitorCore : IDisposable
         }
 
         tracked.PushedVersion = parser.Version;
+        if (parser is Hermes.HermesParser)
+        {
+            PushHermesAgents();
+            return;
+        }
+
         if (parser.LastLineMs is null)
         {
             return;
@@ -1100,6 +1111,11 @@ internal sealed partial class MonitorCore : IDisposable
             {
                 _connections.Forget(database);
                 database.Dispose();
+            }
+
+            if (tracked.Parser is Hermes.HermesParser)
+            {
+                PushHermesAgents();
             }
 
             _removedMalformedLines += tracked.Parser.MalformedLines;

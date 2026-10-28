@@ -277,7 +277,9 @@ internal sealed partial class HistoryAnalyzer
 
                 plan.Discovered++;
                 // An Antigravity database's size and time already combine its -wal (METRICS 8).
-                var previous = _entries.GetValueOrDefault(file.Path);
+                var storagePath = family == RootFamily.Hermes ? Hermes.HermesPaths.HistoryKey(file.Path) : file.Path;
+                if (storagePath is null || family == RootFamily.Hermes && !seen.Add(storagePath)) continue;
+                var previous = _entries.GetValueOrDefault(storagePath);
                 if (previous is not null && !zoneChanged && previous.Version == _options.Version
                     && string.Equals(previous.Family, familyName, StringComparison.Ordinal)
                     && previous.Size == file.Length && previous.Modified == file.LastWriteUtc.Ticks
@@ -286,7 +288,7 @@ internal sealed partial class HistoryAnalyzer
                     continue;
                 }
 
-                plan.Files.Add(new PlannedFile(file.Path, family, root, file.Length, file.LastWriteUtc, previous));
+                plan.Files.Add(new PlannedFile(file.Path, storagePath, family, root, file.Length, file.LastWriteUtc, previous));
             }
         }
 
@@ -416,7 +418,8 @@ internal sealed partial class HistoryAnalyzer
             state = state with { FilesDone = state.FilesDone + 1, BytesDone = state.BytesDone + file.Size };
             var sink = new LatestResponses(merge: file.Family == RootFamily.Claude);
             var applied = false;
-            if (prepared is { Error: null, Batch: { } batch })
+            if (prepared is { Error: null, Batch: { } batch }
+                && (file.Family != RootFamily.Hermes || Hermes.HermesPaths.HistoryKey(file.Path) == file.StoragePath))
             {
                 try
                 {
@@ -448,14 +451,14 @@ internal sealed partial class HistoryAnalyzer
             var entry = new StoredFile
             {
                 Id = file.Previous?.Id ?? 0,
-                Path = file.Path,
+                Path = file.StoragePath,
                 Family = file.Family.ToString(),
                 Size = result.Length,
                 Modified = result.LastWriteUtc.Ticks,
                 Version = _options.Version,
                 Days = DayAggregate.Contributions(sink.Items.Values, prepared.Parser.Source, labeler, Pricing),
             };
-            _entries[file.Path] = entry;
+            _entries[file.StoragePath] = entry;
             pending.Add((entry, owned));
             analyzed++;
             bytes += result.Length;
@@ -549,7 +552,7 @@ internal sealed partial class HistoryAnalyzer
         }
     }
 
-    private sealed record PlannedFile(string Path, RootFamily Family, string Root, long Size, DateTime LastWriteUtc, StoredFile? Previous);
+    private sealed record PlannedFile(string Path, string StoragePath, RootFamily Family, string Root, long Size, DateTime LastWriteUtc, StoredFile? Previous);
 
     private sealed record PlannedSession(OpenCodeSessionInfo Info, long Rows, long ModifiedMs, StoredFile? Previous);
 

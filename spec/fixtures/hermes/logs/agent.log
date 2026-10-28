@@ -1,0 +1,13 @@
+2026-10-20 12:00:04,000 INFO [sess-a] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=1200 out=200 total=1400 latency=4.0s cache=500/1200 (42%) write=100 id=fixture-response upstream=Example Host
+2026-10-20 12:00:05,000 INFO [sess-a] agent.conversation_loop: API call #2: model=anthropic/claude-sonnet-4.6 provider=anthropic in=20 out=5 total=25 latency=0.0s
+2026-10-20 12:00:09,000 INFO [sess-a] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=600 out=60 total=660 latency=3.0s
+2026-10-20 12:00:11,000 INFO [sess-c] run_agent: API call #3: model=anthropic/claude-sonnet-4.6 provider=anthropic in=1000 out=90 total=1090 latency=1.5s cache=700/1000 (70%) write=30
+2026-10-20 12:00:12,500 INFO agent.turn_usage: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=400 out=40 total=440 latency=1.0s
+2026-10-20 12:00:13,000 INFO [sess-long] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=500 out=30 total=530 latency=901.0s
+2026-10-20 12:00:14,000 INFO [sess-a] agent.conversation_loop: API call #4: model=test provider=test in=? out=? total=? latency=0.1s usage=unavailable
+2026-10-20 12:00:15,000 INFO [wrong-logger] unrelated.logger: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=999 out=999 total=1998 latency=1.0s
+2026-02-30 12:00:15,000 INFO [invalid-date] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=999 out=999 total=1998 latency=1.0s
+2026-10-20 12:00:15,000 INFO [negative] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=-1 out=999 total=998 latency=1.0s
+2026-10-20 12:00:15,000 INFO [bad-latency] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=999 out=999 total=1998 latency=NaNs
+API call #1: model=example provider=example in=999 out=999 total=1998 latency=1.0s
+2026-10-20 12:00:16,000 INFO [sess-a] agent.conversation_loop: Turn ended: reason=text_response model=example api_calls=2/20

@@ -1,0 +1,1 @@
+2026-10-20 12:00:04,000 INFO [sess-a] agent.conversation_loop: API call #1: model=anthropic/claude-sonnet-4.6 provider=anthropic in=1200 out=200 total=1400 latency=4.0s cache=500/1200 (42%) write=100 id=fixture-response upstream=Example Host

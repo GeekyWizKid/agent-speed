@@ -486,6 +486,12 @@
     "en": "Traffic",
     "ja": "通信量"
   },
+  "mac.settings.sources.chooseHermes": {
+    "zh-Hant": "選擇 Hermes 資料夾",
+    "zh-Hans": "选择 Hermes 文件夹",
+    "en": "Choose Hermes Folder",
+    "ja": "Hermes フォルダを選択"
+  },
   "mac.settings.sources.chooseZcode": {
     "zh-Hant": "選擇 ZCode 資料夾",
     "zh-Hans": "选择 ZCode 文件夹",

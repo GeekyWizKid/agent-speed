@@ -242,6 +242,7 @@ internal sealed partial class HistoryStore : IDisposable
         }
 
         LoadModes(byId);
+        LoadHermesAgents(byId);
         var result = new Dictionary<string, StoredFile>(byId.Count, pathComparer);
         foreach (var entry in byId.Values)
         {
@@ -318,6 +319,7 @@ internal sealed partial class HistoryStore : IDisposable
                 deleteDays.Bind(1, entry.Id).Run();
                 deleteModels.Bind(1, entry.Id).Run();
                 SaveModes(entry);
+                SaveHermesAgents(entry);
                 foreach (var (key, day) in entry.Days)
                 {
                     var source = SourceNames.Of(key.Source);
@@ -608,6 +610,7 @@ internal sealed partial class HistoryStore : IDisposable
 
             connection.Execute(TrafficSchema);
             connection.Execute(ModesSchema);
+            connection.Execute(HermesAgentsSchema);
             return new HistoryStore(connection);
         }
         catch
@@ -706,6 +709,7 @@ internal static class SourceNames
         SourceKind.ZCode => "zcode",
         SourceKind.Kimi => "kimi",
         SourceKind.GrokBuild => "grokBuild",
+        SourceKind.Hermes => "hermes",
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 
@@ -724,6 +728,7 @@ internal static class SourceNames
         "zcode" => SourceKind.ZCode,
         "kimi" => SourceKind.Kimi,
         "grokBuild" => SourceKind.GrokBuild,
+        "hermes" => SourceKind.Hermes,
         _ => null,
     };
 }

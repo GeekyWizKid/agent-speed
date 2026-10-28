@@ -8,8 +8,8 @@ shared fixtures in `spec/fixtures/`.
 
 | Term | Meaning |
 | --- | --- |
-| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build). This is the append-only *source order*. |
-| Agent | One transcript file. Agent id = absolute file path. Sub-agents have their own files and are separate agents. (OpenCode: one per session row, 4.5; Antigravity: one per conversation database, 4.8.) |
+| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build), `hermes` (Hermes). This is the append-only *source order*. |
+| Agent | One transcript file. Agent id = absolute file path. Sub-agents have their own files and are separate agents. (OpenCode: one per session row, 4.5; Antigravity: one per conversation database, 4.8; Hermes: one per logged session, 4.13.) |
 | Response | One model API call that produced a usage record. |
 | Phase | `generating` (a request is in flight), `tools` (model finished, waiting for tool results), `idle` |
 
@@ -32,6 +32,7 @@ responses (4.12); the speed engine still processes its normalized tokens and dur
 | ZCode | `~/.zcode/cli/db/db.sqlite`; `$ZCODE_DATA_BASE_DIR` replaces the home base, with `.zcode/cli/db` underneath | user setting (data directory, database folder, or `db.sqlite`) |
 | Kimi Code CLI (TypeScript v2) | `$KIMI_CODE_HOME/sessions`, else `~/.kimi-code/sessions` | user setting (data directory or its `sessions` folder) |
 | Grok Build | `$GROK_HOME/sessions`, else `~/.grok/sessions` | user setting (data directory or its `sessions` folder) |
+| Hermes (desktop and CLI) | `$HERMES_HOME`, else `~/.hermes` on macOS or `%LOCALAPPDATA%/hermes` on Windows; `logs/agent.log` and numbered rotations, also `profiles/<name>/logs` | user setting (Hermes home or `logs` folder) |
 
 `~` is `HOME` on macOS and `%USERPROFILE%` on Windows. Claude Code and Claude Desktop share one root; each file is
 assigned to a source by its `entrypoint` field (section 4.1). Ordinary Claude Desktop chat conversations are not stored
@@ -1131,6 +1132,49 @@ existing price book on the native model batch, so tier selection and rounding ca
 Evidence and executable checks: `spec/research/harnesses.md`, `spec/tools/harness_reference.py`, and
 `spec/fixtures/harness-expected.json`.
 
+### 4.13 Hermes
+
+Hermes Desktop and Hermes Agent CLI write the same local Python logs. Read only `logs/agent.log` and
+`agent.log.<digits>` rotations, also under immediate named `profiles/<name>/logs` directories.
+A selected `logs` directory is read directly. Discovery never follows symlinks; unrelated debug, gateway, GUI,
+error and tool logs do not contribute usage. See `spec/research/hermes.md` for upstream evidence.
+On Windows, an existing legacy `~/.hermes` home is used when the current default directory does not exist.
+
+The canonical record is an INFO line from `agent.turn_usage`, `agent.conversation_loop`, or legacy `run_agent`, with the format:
+
+```text
+2026-10-20 12:00:04,000 INFO [session-id] agent.turn_usage: API call #1: model=MODEL provider=PROVIDER in=1200 out=200 total=1400 latency=4.0s cache=500/1200 (42%) write=100
+```
+
+The session tag is optional. Parse the timestamp as local wall time: Hermes does not persist a UTC offset.
+A log copied from another timezone, or an ambiguous daylight-saving transition, cannot recover its original offset.
+The logger's millisecond timestamp is `endMs`. A positive `latency` of at most 900 seconds gives
+`startMs = endMs - latency * 1000`; zero, missing or invalid duration must never manufacture measured speed.
+Latency is rounded by Hermes to 0.1 seconds. All common interval validation and speed formulas still apply.
+
+`input = in` already includes cache reads and writes; `output = out` already includes reasoning. The optional
+`cache=read/prompt` numerator supplies `cachedInput`; optional `write=N` supplies `cacheWriteInput`. Do not add
+cache counts a second time. `reasoning` and `cacheWrite1hInput` are zero because this log does not split them out.
+Use the logged model and provider for the existing price lookup; `unknown` provider is null. Ignore `total`,
+request ids and upstream-routing text. A line with `in=? out=? ... usage=unavailable` is not a known usage record.
+No message content, prompt text, tool output or database session totals are parsed as tokens.
+
+`key = "hermes:" + sessionId + ":" + endMs + ":" + callIndex`; a missing session tag substitutes the normalized
+log directory for the session id. This deduplicates rotation overlap and copied session logs while allowing the
+call counter to restart at a different time. Agent identity combines the log directory with the session id,
+so interleaved sessions remain separate. Untagged records share one anonymous agent per log directory.
+The log has no reliable parent links or project metadata, so neither is inferred.
+
+Only completed calls are measured. INFO logs do not reliably include request starts, tool boundaries or streaming
+usage, so Hermes does not claim an in-flight generating phase or a pre-completion speed estimate. Logs from older
+Hermes versions without numeric API-call usage cannot reconstruct past tokens. Specialized providers that fold
+several internal calls into one reported call expose only that logged aggregate, not their internal concurrency.
+History keys physical log segments by file identity rather than the reused rotation filename, retaining per-day
+totals after old segments disappear. Hermes contributions persist only hashes of agent identities to count a
+session once per day across segments while separating multiple sessions in one file. Existing sources keep their
+per-file counting rules. Shared synthetic cases and an independent reader are in `spec/fixtures/hermes/` and
+`spec/tools/hermes_reference.py`.
+
 ## 5. Reading files
 
 - Startup reading order (it decides which file owns a duplicated key): files sorted by modification time ascending,
@@ -1714,7 +1758,7 @@ date is needed.
 
 The app keeps a **process table** of the current user's processes (on Windows: of the app's session), refreshed on the
 ticks 10.10 gives: pid, parent pid, start time,
-executable path and, only for script hosts (`node`, `bun`, `deno`, with or without `.exe`) and WorkBuddy's
+executable path and, only for script hosts (`node`, `bun`, `deno`, Python/Python 3, with or without `.exe`) and WorkBuddy's
 executables (below), the argument list; on macOS, for WorkBuddy, also the bundle id of the app whose `Contents/MacOS`
 holds the executable (`CFBundleIdentifier` of its `Contents/Info.plist`, read once per app path).
 macOS: `proc_listallpids`, `proc_pidinfo(PROC_PIDTBSDINFO)`, `proc_pidpath`, `sysctl(KERN_PROCARGS2)`. Windows: one
@@ -1743,6 +1787,10 @@ desktop app that runs its agent on its own executable, so its row needs the argu
 | `omp` | `name == omp`, or a script host whose arguments contain `/@oh-my-pi/` or `/oh-my-pi/`. |
 | `antigravity` | `name == agy`, or `name` starts with `language_server_` (the Antigravity language server, started by the CLI, the desktop app and the IDE with `--app_data_dir`). |
 | `workbuddy`, `workbuddyAi` | The embedded CodeBuddy Code CLI, which makes the model calls itself: an executable of the edition — macOS: in the app with bundle id `com.tencent.workbuddy.mac` (WorkBuddy) or `com.workbuddy.workbuddy-ai` (WorkBuddy AI), whose main executable is named `Electron`; Windows: `name` `WorkBuddy` or `WorkBuddyAI` — whose arguments after the first contain a path with `/app.asar.unpacked/cli/` (the CLI entry `…/app.asar.unpacked/cli/bin/codebuddy`, run with `ELECTRON_RUN_AS_NODE`). Observed in the 5.8 code: pooled `--prewarm` processes that later serve one conversation each (`--serve --session-id <id>`; the command line does not change when one is taken from the pool), cold `--serve` starts, and the fallback `--acp` with first argument `wb-acp:<id>`. Not verified with a running app; the Windows install folder is unknown, so only the name is used. |
+| `hermes` | `name == hermes`; Python running `-m hermes_cli`, `hermes_cli.main` or `hermes_cli.__main__`, a `bin/hermes` / `Scripts/hermes` entry, or `hermes-agent/cli.py`, `run_agent.py` or `hermes_cli/main.py`. Python flags such as `-u` may precede the entry. Ordinary scripts merely mentioning Hermes in their arguments are excluded. The desktop gateway launches `python -m hermes_cli.main gateway run`; its tool descendants follow the existing tree rules. The Electron desktop shell itself is not an agent. |
+
+Hermes's isolated `python -I -c` system-service bootstraps are not attributed; their local API logs still provide
+token usage and speed. Arbitrary Python command strings are not classified by substring matching.
 
 The desktop apps' own processes are **not** agent processes, nor are their Electron or Tauri helpers: macOS
 `/Applications/{Claude,ChatGPT,Codex,OpenCode,Antigravity}.app/Contents/MacOS/<name>`; Windows executables in the

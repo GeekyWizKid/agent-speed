@@ -55,7 +55,10 @@ final class HistoryDatabase {
             try connection.execute(Self.metaTableSQL)
         }
         try connection.execute(Self.trafficTableSQL)
-        if migrating || version == 0 { try connection.execute(Self.modeTableSQL) }
+        if migrating || version == 0 {
+            try connection.execute(Self.modeTableSQL)
+            try connection.execute(Self.agentTableSQL)
+        }
     }
 
     static func inMemory() throws -> HistoryDatabase {
@@ -240,6 +243,7 @@ final class HistoryDatabase {
                 cost: Self.cost(row, 8))
         }
         try loadModes(into: &entries, paths: paths)
+        try loadAgents(into: &entries, paths: paths)
         return entries
     }
 
@@ -314,7 +318,9 @@ final class HistoryDatabase {
                 clearModels.bind(1, id)
                 try clearModels.run()
                 try deleteModes(fileId: id)
+                try deleteAgents(fileId: id)
                 for (key, day) in entry.days {
+                    try saveAgents(day.agentHashes, fileId: id, day: key.day, source: key.source)
                     try saveModes(day.modes.values.sorted { $0.id < $1.id }, fileId: id, day: key.day, source: key.source)
                     insertDay.bind(1, id)
                     insertDay.bind(2, key.day)

@@ -11,8 +11,8 @@ internal class FileTailer : TranscriptTailer
 
     private StartAlignment _alignment;
 
-    public FileTailer(string path)
-        : base(path)
+    public FileTailer(string path, int maxLineBytes = LineSplitter.MaxLineBytes)
+        : base(path, maxLineBytes)
     {
     }
 

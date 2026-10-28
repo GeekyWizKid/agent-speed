@@ -125,6 +125,11 @@ enum TranscriptLocations {
         (TranscriptDiscovery.normalizedRoot(root) as NSString).deletingLastPathComponent
     }
 
+    static var defaultHermesRoot: URL {
+        environment("HERMES_HOME").map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? home.appendingPathComponent(".hermes", isDirectory: true)
+    }
+
     static var defaultZcodeRoot: URL {
         let base = environment("ZCODE_DATA_BASE_DIR").map { URL(fileURLWithPath: $0, isDirectory: true) } ?? home
         return base.appendingPathComponent(".zcode/cli/db", isDirectory: true)
@@ -247,6 +252,8 @@ extension MonitorConfiguration {
     var readsClaude: Bool { reads(.claude) }
     var readsDsh: Bool { reads(.dsh) }
     var readsOpencode: Bool { enabledSources.contains(.opencode) }
+    var readsHermes: Bool { enabledSources.contains(.hermes) }
+    var resolvedHermesRoot: String { TranscriptDiscovery.normalizedRoot((hermesRoot ?? TranscriptLocations.defaultHermesRoot).path) }
     var readsZcode: Bool { enabledSources.contains(.zcode) }
     var resolvedZcodeRoot: String { TranscriptDiscovery.normalizedRoot((zcodeRoot ?? TranscriptLocations.defaultZcodeRoot).path) }
 
@@ -256,5 +263,6 @@ extension MonitorConfiguration {
             || TranscriptFamily.allCases.contains { resolvedRoots(for: $0) != other.resolvedRoots(for: $0) }
             || resolvedOpencodeRoot != other.resolvedOpencodeRoot
             || resolvedZcodeRoot != other.resolvedZcodeRoot
+            || resolvedHermesRoot != other.resolvedHermesRoot
     }
 }

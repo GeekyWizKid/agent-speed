@@ -38,11 +38,11 @@ struct AgentProcessRules: Sendable {
     private static let workbuddyExecutables: [String: SourceKind] = ["WorkBuddy": .workbuddy, "WorkBuddyAI": .workbuddyAi]
     private static let workbuddyCLI = "/app.asar.unpacked/cli/"
 
-    /// The rules read a process's arguments only for script hosts, `claude` executables (the Chrome bridge check) and
-    /// WorkBuddy's executables; everything else is decided by the path.
+    /// Arguments are needed for script hosts, Python (Hermes entrypoints), `claude` (the Chrome bridge check), and
+    /// WorkBuddy executables; everything else is decided by the path.
     func needsArguments(executable: String, bundleIdentifier: () -> String?) -> Bool {
         let name = platform.name(executable)
-        return Self.scriptHosts.contains(name.lowercased()) || name == "claude"
+        return Self.scriptHosts.contains(name.lowercased()) || Self.isPython(name) || name == "claude"
             || platform.isUnder(executable, ["~/.local/share/claude/versions"])
             || workbuddyEdition(executable: executable, bundleIdentifier: bundleIdentifier) != nil
     }
@@ -116,12 +116,30 @@ struct AgentProcessRules: Sendable {
         if name == "zcode" || name == "zcode-cli" || script.contains("/@zcode/cli/") { return .zcode }
         if name == "kimi" || name == "kimi-code" || script.contains("/@moonshot-ai/kimi-code/") { return .kimi }
         if name == "grok" || name == "grok-build" { return .grokBuild }
+        if name == "hermes" { return .hermes }
+        if Self.isPython(name), isHermesPython(arguments() ?? []) { return .hermes }
         // Only the embedded CodeBuddy Code CLI is the agent; the app, its helpers and its daemon are not.
         if let edition = workbuddyEdition(executable: executable, bundleIdentifier: bundleIdentifier),
            (arguments() ?? []).dropFirst().contains(where: { platform.normalize($0).contains(Self.workbuddyCLI) }) {
             return edition
         }
         return nil
+    }
+
+    private static func isPython(_ name: String) -> Bool {
+        let name = name.lowercased()
+        if name == "python" || name == "pythonw" || name == "python3" { return true }
+        guard name.hasPrefix("python3.") else { return false }
+        let minor = name.dropFirst("python3.".count)
+        return !minor.isEmpty && minor.utf8.allSatisfy { (48...57).contains($0) }
+    }
+
+    private func isHermesPython(_ arguments: [String]) -> Bool {
+        let args = Array(arguments.dropFirst().drop { ["-u", "-B", "-E", "-I", "-s", "-S"].contains($0) })
+        if args.count >= 2, args[0] == "-m", ["hermes_cli", "hermes_cli.main", "hermes_cli.__main__"].contains(args[1]) { return true }
+        guard let entry = args.first, !entry.hasPrefix("-") else { return false }
+        let path = platform.normalize(entry)
+        return ["/bin/hermes", "/scripts/hermes", "/hermes-agent/cli.py", "/hermes-agent/run_agent.py", "/hermes-agent/hermes_cli/main.py"].contains { path.hasSuffix($0) }
     }
 
     private static func containsAny(_ text: String, _ needles: [String]) -> Bool {

@@ -25,7 +25,13 @@ struct LiveMonitorTests {
             opencodeRoot: directory.file("missing-opencode"),
             geminiRoot: directory.file("missing-gemini"),
             ompRoot: directory.file("missing-omp"),
-            antigravityRoot: directory.file("missing-antigravity")
+            antigravityRoot: directory.file("missing-antigravity"),
+            workbuddyRoot: directory.file("missing-workbuddy"),
+            workbuddyAiRoot: directory.file("missing-workbuddy-ai"),
+            zcodeRoot: directory.file("missing-zcode"),
+            kimiRoot: directory.file("missing-kimi"),
+            grokBuildRoot: directory.file("missing-grok"),
+            hermesRoot: directory.file("missing-hermes")
         ))
         monitor.start()
         defer { monitor.stop() }

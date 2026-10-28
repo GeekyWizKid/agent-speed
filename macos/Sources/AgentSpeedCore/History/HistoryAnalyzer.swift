@@ -105,6 +105,11 @@ final class HistoryAnalyzer {
         var previous: HistoryDatabase.Entry?
     }
 
+    private struct PlannedHermesLog {
+        var file: HermesSource.LogFile
+        var previous: HistoryDatabase.Entry?
+    }
+
     private struct Plan {
         var files: [PlannedFile] = []
         var discovered = 0
@@ -112,8 +117,9 @@ final class HistoryAnalyzer {
         var opencodeIdentity: String?
         var zcode: [PlannedZcodeSession] = []
         var zcodeIdentity: String?
+        var hermes: [PlannedHermesLog] = []
 
-        var bytes: Int64 { files.reduce(0) { $0 + $1.stat.size } }
+        var bytes: Int64 { files.reduce(0) { $0 + $1.stat.size } + hermes.reduce(0) { $0 + $1.file.stat.size } }
     }
 
     /// The work a run would do: discovered files whose identity or analysis version changed, and changed OpenCode
@@ -147,6 +153,16 @@ final class HistoryAnalyzer {
         }
         if configuration.readsZcode {
             try planZcode(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing, into: &plan)
+        }
+        if configuration.readsHermes {
+            for file in HermesSource.files(root: configuration.resolvedHermesRoot) {
+                plan.discovered += 1
+                let previous = entries[file.historyKey]
+                if let previous, !zoneChanged, previous.version == options.analysisVersion,
+                   previous.size == file.stat.size, previous.modified == file.stat.modifiedNs,
+                   !(repricing && previous.hasUnpriced) { continue }
+                plan.hermes.append(PlannedHermesLog(file: file, previous: previous))
+            }
         }
         return plan
     }
@@ -240,18 +256,18 @@ final class HistoryAnalyzer {
         let plan = try plan(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing)
         report.filesDiscovered = plan.discovered
         let sessions = plan.opencode?.sessions ?? []
-        var state = Progress(filesTotal: plan.files.count + sessions.count + plan.zcode.count, bytesTotal: plan.bytes)
+        var state = Progress(filesTotal: plan.files.count + sessions.count + plan.zcode.count + plan.hermes.count, bytesTotal: plan.bytes)
         progress(state)
         func elapsedMs() -> Double { Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000 }
 
-        if plan.files.isEmpty && sessions.isEmpty && plan.zcode.isEmpty {
+        if plan.files.isEmpty && sessions.isEmpty && plan.zcode.isEmpty && plan.hermes.isEmpty {
             try finish(plan: plan, zone: zone, priceVersion: priceVersion)
             report.durationMs = elapsedMs()
             return report
         }
 
         var deduper = Deduper.hashed()
-        let replaced = Set(plan.files.compactMap(\.previous?.id) + sessions.compactMap(\.previous?.id) + plan.zcode.compactMap(\.previous?.id))
+        let replaced = Set(plan.files.compactMap(\.previous?.id) + sessions.compactMap(\.previous?.id) + plan.zcode.compactMap(\.previous?.id) + plan.hermes.compactMap(\.previous?.id))
         try database.loadKeys(excluding: replaced, into: &deduper)
         var labeler = DayLabeler(timeZone: options.timeZone)
         var pending: [(path: String, entry: HistoryDatabase.Entry, keys: [UInt64])] = []
@@ -314,6 +330,39 @@ final class HistoryAnalyzer {
                 pending.append((file.path, entry, keys))
                 report.filesAnalyzed += 1
                 report.bytesAnalyzed += stat.size
+                try flush(force: false)
+                progress(state)
+            }
+        }
+
+        if !report.cancelled {
+            let parser = HermesLine()
+            for planned in plan.hermes {
+                if isCancelled() { report.cancelled = true; break }
+                let file = planned.file
+                var tailer = FileTailer(path: file.path, maxLineBytes: 64 * 1024)
+                var records: [String: ResponseRecord] = [:]
+                let read = tailer.read { bytes in
+                    if let record = parser.record(bytes, logDirectory: file.directory) { records[record.key] = record }
+                }
+                state.filesDone += 1
+                state.bytesDone += file.stat.size
+                // A rotation between planning and opening must never replace the old inode's history with new data.
+                guard !read.failed, let actual = read.stat, actual.identity == file.stat.identity else {
+                    report.filesUnreadable += 1
+                    if let id = planned.previous?.id { deduper.insertSettled(try database.keys(ofFile: id)) }
+                    progress(state)
+                    continue
+                }
+                let accepted = records.values.filter { deduper.claim($0.key, for: TranscriptSession.hermesFileID) != .otherFile }
+                let keys = deduper.finishFile()
+                let entry = HistoryDatabase.Entry(id: planned.previous?.id, family: "hermes", size: actual.size,
+                                                  modified: actual.modifiedNs, version: options.analysisVersion,
+                                                  days: DayAggregate.contributions(of: accepted, source: .hermes, labeler: &labeler, pricing: pricing))
+                entries[file.historyKey] = entry
+                pending.append((file.historyKey, entry, keys))
+                report.filesAnalyzed += 1
+                report.bytesAnalyzed += file.stat.size
                 try flush(force: false)
                 progress(state)
             }

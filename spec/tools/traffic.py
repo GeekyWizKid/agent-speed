@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -23,7 +24,7 @@ FORGET_AFTER = 3
 MAX_BYTES_PER_SECOND = 12_500_000_000
 SCRIPT_HOSTS = {"node", "nodejs", "bun", "deno"}
 SOURCES = ("codex", "claudeCode", "claudeDesktop", "deepseek", "opencode", "gemini", "omp", "antigravity", "workbuddy",
-           "workbuddyAi", "zcode", "kimi", "grokBuild")
+           "workbuddyAi", "zcode", "kimi", "grokBuild", "hermes")
 
 
 # ---------------------------------------------------------------------------------------------------- formatting
@@ -141,6 +142,24 @@ def _script_args(env: Env, proc: dict) -> str:
     return " ".join(env.norm(a) if ("/" in a or "\\" in a) else a for a in (proc.get("args") or [])[1:])
 
 
+def _is_hermes(env: Env, name: str, args: list[str]) -> bool:
+    if name == "hermes":
+        return True
+    if not re.fullmatch(r"python(?:w|3(?:[.][0-9]+)?)?", name.lower()):
+        return False
+    for index, argument in enumerate(args[1:], 1):
+        if argument == "-m" and index + 1 < len(args):
+            return args[index + 1] in ("hermes_cli", "hermes_cli.main", "hermes_cli.__main__")
+        if argument in ("-c", "-W", "-X"):
+            return False
+        if argument.startswith("-"):
+            continue
+        path = env.norm(argument)
+        return path.endswith(("/bin/hermes", "/scripts/hermes", "/hermes-agent/cli.py",
+                              "/hermes-agent/run_agent.py", "/hermes-agent/hermes_cli/main.py"))
+    return False
+
+
 def match_source(env: Env, proc: dict, ancestors: list[dict]) -> str | None:
     """The source whose agent-process row (METRICS 10.5) matches, or None."""
     exe = proc.get("exe") or ""
@@ -149,6 +168,8 @@ def match_source(env: Env, proc: dict, ancestors: list[dict]) -> str | None:
     name = env.name(exe)
     args = proc.get("args") or []
     script = _script_args(env, proc)
+    if _is_hermes(env, name, args):
+        return "hermes"
     if name == "claude":
         if _under(env, exe, CLAUDE_DESKTOP_CODE[env.platform]) or any(_is_claude_desktop_app(env, a) for a in ancestors):
             return "claudeDesktop"

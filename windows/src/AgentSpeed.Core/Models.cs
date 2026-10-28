@@ -25,6 +25,7 @@ public enum SourceKind
     ZCode,
     Kimi,
     GrokBuild,
+    Hermes,
 }
 
 public enum AgentPhase
@@ -240,7 +241,8 @@ public sealed record MonitorConfiguration(
     string? WorkBuddyAiRoot = null,
     string? ZCodeRoot = null,
     string? KimiRoot = null,
-    string? GrokBuildRoot = null)
+    string? GrokBuildRoot = null,
+    string? HermesRoot = null)
 {
     public static MonitorConfiguration Default { get; } =
         new(new HashSet<SourceKind>(Enum.GetValues<SourceKind>()));
@@ -259,10 +261,11 @@ public sealed record MonitorConfiguration(
         && WorkBuddyAiRoot == other.WorkBuddyAiRoot
         && ZCodeRoot == other.ZCodeRoot
         && KimiRoot == other.KimiRoot
-        && GrokBuildRoot == other.GrokBuildRoot;
+        && GrokBuildRoot == other.GrokBuildRoot
+        && HermesRoot == other.HermesRoot;
 
     public override int GetHashCode() => HashCode.Combine(
         HashCode.Combine(EnabledSources.Count, CodexRoot, ClaudeRoot, DshRoot, OpenCodeRoot, GeminiRoot, OmpRoot, AntigravityRoot),
         WorkBuddyRoot,
-        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot);
+        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, HermesRoot);
 }

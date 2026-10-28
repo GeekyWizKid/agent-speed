@@ -161,6 +161,9 @@ public sealed class LiveMonitor : IDisposable
     public static string DefaultGrokBuildRoot => Path.Combine(
         Environment.GetEnvironmentVariable("GROK_HOME") is { Length: > 0 } home ? home : Path.Combine(UserHome, ".grok"), "sessions");
 
+    /// <summary>Hermes data home; explicit HERMES_HOME takes precedence over platform defaults.</summary>
+    public static string DefaultHermesRoot => Hermes.HermesPaths.DefaultHome(UserHome);
+
     private static string GeminiHome
     {
         get

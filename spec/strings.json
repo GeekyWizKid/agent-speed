@@ -4596,6 +4596,18 @@
     "en": "Kimi Code CLI",
     "ja": "Kimi Code CLI"
   },
+  "source.hermes": {
+    "zh-Hant": "Hermes",
+    "zh-Hans": "Hermes",
+    "en": "Hermes",
+    "ja": "Hermes"
+  },
+  "settings.sources.hermesHint": {
+    "zh-Hant": "讀取 Hermes 的本機 API 呼叫日誌（含具名設定檔）；每次呼叫完成後更新速度。可選擇 Hermes 資料或 logs 資料夾。",
+    "zh-Hans": "读取 Hermes 的本地 API 调用日志（含命名配置）；每次调用完成后更新速度。可选择 Hermes 数据或 logs 文件夹。",
+    "en": "Reads Hermes’s local API call logs, including named profiles. Speed updates after each call completes. Choose the Hermes home or logs folder.",
+    "ja": "名前付きプロファイルを含む Hermes のローカル API ログを読み取り、呼び出し完了後に速度を更新します。Hermes のデータまたは logs フォルダを選択できます。"
+  },
   "source.grokBuild": {
     "zh-Hant": "Grok Build",
     "zh-Hans": "Grok Build",

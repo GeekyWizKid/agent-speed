@@ -69,8 +69,11 @@ internal sealed class DayAggregate
 
     public long Unfinalized { get; set; }
 
-    /// <summary>Distinct agents; a file is one agent, so per-file contributions carry 1 and totals are sums.</summary>
+    /// <summary>Distinct agents; ordinary transcripts carry one, while Hermes logs can multiplex sessions.</summary>
     public int Agents { get; set; }
+
+    /// <summary>Hermes session identity hashes, retained to count sessions once across rotated log segments.</summary>
+    public HashSet<ulong>? HermesAgentHashes { get; set; }
 
     public Dictionary<string, ModelTotals> Models { get; } = new(StringComparer.Ordinal);
 
@@ -141,7 +144,16 @@ internal sealed class DayAggregate
         MeasuredOutput += other.MeasuredOutput;
         MeasuredMs += other.MeasuredMs;
         Unfinalized += other.Unfinalized;
-        Agents += other.Agents;
+        if (other.HermesAgentHashes is { } hashes)
+        {
+            HermesAgentHashes ??= [];
+            HermesAgentHashes.UnionWith(hashes);
+            Agents = HermesAgentHashes.Count;
+        }
+        else
+        {
+            Agents += other.Agents;
+        }
         foreach (var (key, value) in other.Modes) Modes[key] = Modes.GetValueOrDefault(key) + value;
         foreach (var (model, usage) in other.Models)
         {
@@ -217,7 +229,17 @@ internal sealed class DayAggregate
             var key = new DayKey(day, source);
             if (!days.TryGetValue(key, out var aggregate))
             {
-                days[key] = aggregate = new DayAggregate { Agents = 1 };
+                days[key] = aggregate = new DayAggregate
+                {
+                    Agents = source == SourceKind.Hermes ? 0 : 1,
+                    HermesAgentHashes = source == SourceKind.Hermes ? [] : null,
+                };
+            }
+
+            if (aggregate.HermesAgentHashes is { } hashes)
+            {
+                hashes.Add(KeyHash.Fnv1a(response.AgentId));
+                aggregate.Agents = hashes.Count;
             }
 
             aggregate.Add(response, pricing.Cost(response, day));

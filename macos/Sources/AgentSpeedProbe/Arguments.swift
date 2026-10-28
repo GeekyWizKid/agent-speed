@@ -32,7 +32,7 @@ struct ProbeArguments {
                                 | --traffic SECONDS [--traffic-interval 0|1|5] [--no-live] [--history-store PATH])
                                [--prices PATH] [--codex PATH] [--claude PATH] [--dsh PATH] [--opencode PATH]
                                [--gemini PATH] [--omp PATH] [--antigravity PATH] [--workbuddy PATH] [--workbuddy-ai PATH]
-                               [--zcode PATH] [--kimi PATH] [--grok-build PATH]
+                               [--zcode PATH] [--kimi PATH] [--grok-build PATH] [--hermes PATH]
                AgentSpeedProbe --sync-prices DIR | --sync-rates DIR CURRENCY
         """
 
@@ -105,6 +105,9 @@ struct ProbeArguments {
                 // WorkBuddy AI's data folder or its `projects` folder.
                 guard let path = iterator.next() else { return nil }
                 configuration.workbuddyAiRoot = URL(fileURLWithPath: path, isDirectory: true)
+            case "--hermes":
+                guard let path = iterator.next() else { return nil }
+                configuration.hermesRoot = URL(fileURLWithPath: path)
             case "--zcode":
                 guard let path = iterator.next() else { return nil }
                 configuration.zcodeRoot = URL(fileURLWithPath: path)
