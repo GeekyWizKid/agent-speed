@@ -34,8 +34,7 @@ struct ReportTransportRow: View {
                 RowTitle(l10n("report.transport"))
             }
             if unsupported {
-                // A note, not a warning: reports still go out, over HTTP.
-                Notice(text: caption, symbol: "info.circle")
+                FallbackNote(text: caption)
                     .transition(.opacity)
             } else {
                 Footnote(caption)
@@ -49,5 +48,25 @@ struct ReportTransportRow: View {
         }
         .animation(model.accessibility.reduceMotion ? nil : Motion.fade, value: websocket)
         .animation(model.accessibility.reduceMotion ? nil : Motion.fade, value: unsupported)
+    }
+}
+
+/// `report.status.wsUnsupported` in the caption's place, in the caption's font and color and led by an information
+/// glyph of the same color: a note, not a warning, since reports still go out over HTTP. The glyph sits on the first
+/// line's baseline and wrapped lines align with the text.
+private struct FallbackNote: View {
+    let text: String
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.xxs) {
+            Image(systemName: "info.circle")
+                .accessibilityHidden(true)
+            Text(text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.subheadline)
+        .foregroundStyle(isEnabled ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary))
+        .accessibilityElement(children: .combine)
     }
 }
