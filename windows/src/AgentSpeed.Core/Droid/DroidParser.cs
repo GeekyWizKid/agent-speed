@@ -175,6 +175,7 @@ internal sealed class DroidParser : TranscriptParser
         switch (line.Kind)
         {
             case DroidLineKind.Message when line.Role == DroidRole.User:
+                RecordTools(in line.Tools, ts);
                 if (!line.UserOnly)
                 {
                     _pendingStartMs = ts;
@@ -237,7 +238,13 @@ internal sealed class DroidParser : TranscriptParser
         }
 
         var key = KeyPrefix + id;
-        if (_seen.Contains(key) || (Deduper.TryGetOwner(key, out var owner) && !string.Equals(owner, AgentId, StringComparison.Ordinal)))
+        if (Deduper.TryGetOwner(key, out var owner) && !string.Equals(owner, AgentId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        RecordTools(in line.Tools, ts);
+        if (_seen.Contains(key))
         {
             return;
         }

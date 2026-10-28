@@ -1028,7 +1028,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _historyStarted = true;
         try
         {
-            _historyService = new HistoryService(_historyHub, Settings.ToMonitorConfiguration(), pricing: _cost.Book);
+            _historyService = new HistoryService(_historyHub, Settings.ToMonitorConfiguration(), pricing: _cost.Book)
+            {
+                CalibrationUpdated = models => _monitor?.SetTaskCalibration(models),
+            };
             _historyService.Start();
         }
         catch (Exception ex)

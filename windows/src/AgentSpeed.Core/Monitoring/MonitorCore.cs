@@ -59,6 +59,7 @@ internal sealed partial class MonitorCore : IDisposable
     private bool _partialHistory;
     private long? _observedAtMs;
     private bool _keepEveryTask;
+    private IReadOnlyDictionary<SourceKind, Tasks.TaskModels> _taskModels = new Dictionary<SourceKind, Tasks.TaskModels>();
     private long _seededFiles;
 
     public MonitorCore(
@@ -682,7 +683,7 @@ internal sealed partial class MonitorCore : IDisposable
                 a.Live,
                 a.RecentSpeed,
                 UnixTime.FromMs(a.Info.LastLineMs ?? nowMs),
-                a.ParentId) { Modes = a.Info.Modes, Grade = a.Grade, Intelligence = a.Intelligence, Work = a.Work })
+                a.ParentId) { Modes = a.Info.Modes, Intelligence = a.Intelligence, Task = a.Info.Task, Work = a.Work })
             .ToList();
 
         var sources = Enum.GetValues<SourceKind>()
@@ -1156,8 +1157,39 @@ internal sealed partial class MonitorCore : IDisposable
             parser.Phase,
             parser.InFlightStartMs,
             parser.LastLineMs,
-            _parents.GetValueOrDefault(parser.AgentId)) { Modes = parser.Modes, Work = parser.WorkActions });
+            _parents.GetValueOrDefault(parser.AgentId)) { Modes = parser.Modes, Work = parser.WorkActions, Task = TaskStatusOf(parser) });
     }
+
+    /// <summary>
+    /// The coefficients the predictions of each scored source use (METRICS 6.11 <i>Calibration</i>, from the history);
+    /// a source without an entry uses the priors. Every scored agent is evaluated again with the new models.
+    /// </summary>
+    internal void SetTaskModels(IReadOnlyDictionary<SourceKind, Tasks.TaskModels> models)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+        if (ReferenceEquals(models, _taskModels))
+        {
+            return;
+        }
+
+        _taskModels = models;
+        foreach (var tracked in _files.Values)
+        {
+            if (tracked.Parser.Tasks is not null)
+            {
+                tracked.PushedVersion = -1;
+                PushAgent(tracked);
+            }
+        }
+
+        RepushOpenClawAgents();
+    }
+
+    /// <summary>The agent's current task, evaluated over everything read (METRICS 6.9 <i>Event stream</i>).</summary>
+    private Tasks.AgentTaskStatus? TaskStatusOf(TranscriptParser parser) =>
+        parser.Tasks is { } tasks
+            ? Tasks.AgentTaskStatus.Of(tasks.Events, _taskModels.GetValueOrDefault(parser.Source) ?? Tasks.TaskModels.Prior)
+            : null;
 
     /// <summary>Applies one read of the OpenCode database; true when anything changed.</summary>
     private bool ApplyOpenCode(OpenCodeUpdate update, bool seeded)

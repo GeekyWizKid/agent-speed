@@ -22,8 +22,39 @@ public readonly record struct TaskValue(TaskValueForm Form, double? Score, int? 
 /// <summary>One agent of a set, for <see cref="TaskValues.Highest"/>.</summary>
 public readonly record struct TaskCandidate(string AgentId, long LastLineMs, TaskValue Value);
 
-/// <summary>A set's or group's value and the agent that supplied it (null for none).</summary>
-public readonly record struct TaskSetValue(TaskValueForm Form, double? Score, int? Shown, string? AgentId);
+/// <summary>
+/// A set's or group's value and the agent that supplied it (null for none), with that agent's latest line, so values of
+/// parts of a set merge into the value of the whole (<see cref="Merge"/>).
+/// </summary>
+public readonly record struct TaskSetValue(TaskValueForm Form, double? Score, int? Shown, string? AgentId)
+{
+    public static TaskSetValue None => default;
+
+    /// <summary>The supplying agent's <c>lastLineMs</c> (ties prefer the latest).</summary>
+    public long LastLineMs { get; init; }
+
+    /// <summary>One agent's own value as a set of one.</summary>
+    public static TaskSetValue Of(string agentId, long lastLineMs, TaskValue value) =>
+        value.Score is null ? None : new TaskSetValue(value.Form, value.Score, value.Shown, agentId) { LastLineMs = lastLineMs };
+
+    /// <summary>The highest rule over two disjoint parts: the value of their union.</summary>
+    public static TaskSetValue Merge(TaskSetValue a, TaskSetValue b)
+    {
+        if (b.Score is null)
+        {
+            return a;
+        }
+
+        if (a.Score is null)
+        {
+            return b;
+        }
+
+        return TaskValues.Highest([a.AsCandidate(), b.AsCandidate()]);
+    }
+
+    private TaskCandidate AsCandidate() => new(AgentId ?? string.Empty, LastLineMs, new TaskValue(Form, Score, Shown, null));
+}
 
 /// <summary>Agent, group and set values (METRICS 6.9 <i>Values</i>).</summary>
 public static class TaskValues
@@ -85,7 +116,7 @@ public static class TaskValues
         }
 
         var value = best.Value.Score!.Value;
-        return new TaskSetValue(best.Value.Form, value, TaskRounding.HalfAwayFromZero(value), best.AgentId);
+        return new TaskSetValue(best.Value.Form, value, TaskRounding.HalfAwayFromZero(value), best.AgentId) { LastLineMs = best.LastLineMs };
     }
 
     private static TaskCandidate Better(TaskCandidate? current, TaskCandidate agent)

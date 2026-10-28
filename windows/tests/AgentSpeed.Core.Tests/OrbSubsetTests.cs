@@ -1,4 +1,5 @@
 using AgentSpeed.Core.Intelligence;
+using AgentSpeed.Core.Tasks;
 
 namespace AgentSpeed.Core.Tests;
 
@@ -126,10 +127,16 @@ public sealed class OrbSubsetTests
     }
 
     [Fact]
-    public void AnOrbAddsTheIntelligenceSumsOfItsOwnAvailableSources()
+    public void AnOrbAddsTheThinkingSumsAndTakesTheHighestScoreOfItsOwnAvailableSources()
     {
-        var claude = new IntelligenceSums(Output: 300, Graded: 300 * 124, Thinking: 100, ThinkingBasis: 300);
-        var codex = new IntelligenceSums(Output: 100, Graded: 100 * 92, Thinking: 50, ThinkingBasis: 100);
+        var claude = new IntelligenceSums(Output: 300, Thinking: 100, ThinkingBasis: 300)
+        {
+            Score = new TaskSetValue(TaskValueForm.Resting, 70.5, 71, "claude-a") { LastLineMs = 5 },
+        };
+        var codex = new IntelligenceSums(Output: 100, Thinking: 50, ThinkingBasis: 100)
+        {
+            Score = new TaskSetValue(TaskValueForm.Live, 12.5, 13, "codex-a") { LastLineMs = 9 },
+        };
         var snapshot = Snapshot with
         {
             Sources = Snapshot.Sources.Select(s => s.Kind switch
@@ -140,10 +147,20 @@ public sealed class OrbSubsetTests
             }).ToList(),
         };
 
-        Assert.Equal(claude + codex, OrbSubset.Reading(snapshot, null).Intelligence);
+        var all = OrbSubset.Reading(snapshot, null).Intelligence;
+        Assert.Equal(claude + codex, all);
+        Assert.Equal(400, all.Output);
+        Assert.Equal(150, all.Thinking);
+
+        // A live score beats a higher resting one (METRICS 6.9 Sets and groups).
+        Assert.Equal(13, all.Shown);
+        Assert.Equal("codex-a", all.Score.AgentId);
         Assert.Equal(claude, OrbSubset.Reading(snapshot, Partial).Intelligence);
-        Assert.Equal(131, OrbSubset.Reading(snapshot, Partial).Intelligence.Shown);
-        Assert.False(OrbSubset.Reading(snapshot, [SourceKind.Gemini]).Intelligence.IsActive);
+        Assert.Equal(71, OrbSubset.Reading(snapshot, Partial).Intelligence.Shown);
+        Assert.True(OrbSubset.Reading(snapshot, Partial).Intelligence.Resting);
+        var gemini = OrbSubset.Reading(snapshot, [SourceKind.Gemini]).Intelligence;
+        Assert.False(gemini.IsActive);
+        Assert.Null(gemini.Shown);
     }
 
     private static SourceStatus Source(
