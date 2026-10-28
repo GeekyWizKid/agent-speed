@@ -119,13 +119,18 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
                 full |= !Layer(BoardHeroNumber.GlyphKeys[i], new BoardLayerRequest(BoardLayerKind.Glyph, scene, null, BoardHeroNumber.Glyphs[i]));
             }
 
-            var glyphs = BoardValueGlyphs.Glyphs.Length;
             var sets = Sets(scene);
-            for (var i = 0; i < sets.Count * glyphs && !full; i++)
+            for (var s = 0; s < sets.Count && !full; s++)
             {
-                var set = sets[i / glyphs];
-                full |= !Layer(BoardValueGlyphs.Keys(set)[i % glyphs],
-                    new BoardLayerRequest(BoardLayerKind.ValueGlyph, scene, null, BoardValueGlyphs.Glyphs[i % glyphs], Set: set));
+                var set = sets[s];
+                foreach (var glyph in BoardValueGlyphs.Alphabet(set))
+                {
+                    full |= !Layer(BoardValueGlyphs.KeyOf(glyph, set)!, new BoardLayerRequest(BoardLayerKind.ValueGlyph, scene, null, glyph, Set: set));
+                    if (full)
+                    {
+                        break;
+                    }
+                }
             }
 
             // The live metrics' text layers (DESIGN 2c, Live metrics); a painter describes none for switched-off readouts.

@@ -61,10 +61,19 @@ public static class BoardValueGlyphs
     /// <summary>Room around a glyph's advance box in its layer.</summary>
     public const double Pad = 2;
 
+    /// <summary>The characters a set draws (an index is digits or <c>–</c>; a rate also has its separators and suffixes).</summary>
+    public static string Alphabet(BoardValueSet set) => set switch
+    {
+        BoardValueSet.IntelGroup or BoardValueSet.IntelSub or BoardValueSet.IntelGroupRest or BoardValueSet.IntelSubRest or BoardValueSet.GaugeMain
+            or BoardValueSet.GaugeMainPlain => "0123456789–",
+        BoardValueSet.GaugeTable or BoardValueSet.GaugeTablePlain or BoardValueSet.RowCost => "0123456789.,kMB–<",
+        _ => "0123456789.kMB–−+",
+    };
+
     /// <summary>Room around a set's glyphs: neon bakes the glow of its lit sets into their layers.</summary>
     public static double PadOf(BoardValueSet set) => set switch
     {
-        BoardValueSet.GaugeMain => 14,
+        BoardValueSet.GaugeMain => 10,
         BoardValueSet.GaugeTable or BoardValueSet.IntelGroup or BoardValueSet.IntelSub => 8,
         _ => Pad,
     };

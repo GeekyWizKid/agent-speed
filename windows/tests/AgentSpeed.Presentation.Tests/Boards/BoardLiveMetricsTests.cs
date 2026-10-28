@@ -311,6 +311,25 @@ public class BoardLiveMetricsTests
         Assert.Contains(En.Format("boards.tooltip.subscription", "Claude Code"), row.TooltipLines);
     }
 
+    [Fact]
+    public void ABoardWhoseSourcesAreAllSubscriptionsShowsTheTag()
+    {
+        var display = new CostDisplay(En) { Settings = Settings.CostSettings.Default with { Subscriptions = SourceSet.Everything } };
+        var texts = new BoardTexts(En, TitleTheme.Vehicles, display);
+        var board = new BoardDefinition("b");
+        var feed = new BoardLiveFeed(board);
+        feed.Configure(board, SpeedMetric.Output, 2000, 0);
+        var agent = Agent("a", 300) with { LiveCost = new LiveCost(9_000, 300) };
+        var tick = feed.Update(BoardLiveFeedTests.Snapshot(0, agent), 0, texts);
+        Assert.Equal(En["cost.subscription.tag"], tick.CostText);
+        Assert.Equal(BoardMoneyState.Tag, tick.Gauge.Cost.State);
+        Assert.Equal(BoardMoneyState.Tag, tick.Entries.First(e => e.Kind == BoardEntryKind.Group).Readout!.Cost!.State);
+
+        // Including subscriptions counts them again.
+        display.Settings = display.Settings with { IncludeSubscriptions = true };
+        Assert.Equal("$12.34", feed.Update(BoardLiveFeedTests.Snapshot(1, agent), 1, texts).CostText);
+    }
+
     // Rows kept with the readouts on (the team story as the prototype shows it: five groups).
     [Theory]
     [InlineData(BoardStyle.Glass, BoardSize.S, true, 3, true)]

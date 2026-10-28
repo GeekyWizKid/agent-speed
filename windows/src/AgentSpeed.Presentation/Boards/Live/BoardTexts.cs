@@ -186,16 +186,34 @@ public sealed class BoardTexts
 
         var total = CostTally.Zero;
         long requests = 0;
+        int available = 0, excluded = 0;
         foreach (var status in snapshot.Sources)
         {
-            if (!status.Enabled || status.Today.Requests <= 0 || !cost.Billable.Contains(status.Kind)
-                || (sources is { } set && !set.Contains(status.Kind)))
+            if (sources is { } members && !members.Contains(status.Kind) || OrbSubset.IsUnavailable(status))
+            {
+                continue;
+            }
+
+            available++;
+            if (!cost.Billable.Contains(status.Kind))
+            {
+                excluded++;
+                continue;
+            }
+
+            if (!status.Enabled || status.Today.Requests <= 0)
             {
                 continue;
             }
 
             total += status.TodayCost;
             requests += status.Today.Requests;
+        }
+
+        // Every source of the board excluded as a subscription: the tag, as on the sub-gauge (DESIGN 2c, Live metrics: Values).
+        if (available > 0 && excluded == available)
+        {
+            return Localizer["cost.subscription.tag"];
         }
 
         return requests == 0 ? cost.AmountText(0) : cost.TallyText(total, requests);
