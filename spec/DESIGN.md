@@ -1451,6 +1451,42 @@ Glanceable and calm; it must never jitter in width.
 - Click: open/close the dashboard. Right-click (Windows) / ⌥-click (macOS): quick menu.
 - The widget follows the system/taskbar light or dark theme for text; the glyph keeps heat colors.
 
+### Position on the taskbar (Windows)
+
+Windows only. macOS has no equivalent: the system places menu bar items and the user rearranges them with ⌘-drag.
+
+- Default spot: just before the notification area — the widget's trailing edge (the one facing the notification area)
+  4 px × the taskbar's DPI scale before it, spanning the notification area's height when that is shorter than the
+  taskbar. Other programs that draw on the taskbar (for example KuGou Music's taskbar lyrics) may claim the same spot,
+  so the user can move the widget along the taskbar.
+- Drag: press the left button on the widget and move the pointer along the taskbar (left/right; up/down on a vertical
+  taskbar). Once the pointer has moved along the taskbar by more than the system drag distance (`SM_CXDRAG` /
+  `SM_CYDRAG` at the taskbar's DPI), the press becomes a drag: the widget follows the pointer at once (no animation)
+  and keeps the grabbed point under it, the cursor is the two-way sizing arrow, the tooltip stays hidden. Movement
+  across the taskbar never starts a drag. Releasing ends the drag and saves the position; it never toggles the
+  dashboard. A press released without a drag is a click — the dashboard toggles when it is released over the widget,
+  nothing happens otherwise. Losing the mouse capture during a drag cancels it: the widget returns to the saved
+  position. The right-click menu is unchanged.
+- Stored value `taskbar.offset`: the distance in DIPs, rounded to 0.01, from the default spot to the widget's trailing
+  edge, measured toward the taskbar's start (left, or up on a vertical taskbar); 0 = the default spot (default), never
+  negative, at most 10 000. Physical offset = round(offset × DPI / 96). It is a distance from the notification area,
+  not an absolute or fractional position, because the taskbar lays out its items from its ends: when the notification
+  area grows or shrinks (icons, clock, input indicator) the widget moves with it and keeps its gap to whatever sits in
+  between, and DIPs keep that gap visually the same when the taskbar's DPI changes or it moves to a monitor of another
+  resolution (a fraction of the taskbar's length would drift with every resolution change). 0.01 DIP keeps a dropped
+  position on the same pixel at every scale up to 500 %.
+- Limits (applied when placing, never written back): the widget's far edge never passes the point a quarter of the
+  taskbar's length from its start — the room the widget already needs at its default spot — which keeps a
+  left-aligned Start button and the first app buttons clear. A stored distance that does not fit (a smaller monitor, a
+  wider notification area, a wider widget) places the widget as far along as it fits and is kept, so the position
+  comes back when there is room again; a drag stores the position where the widget was dropped. Without room even at
+  the default spot the widget is unavailable, as before. The widget keeps hugging its content: width changes move its
+  far edge, never its trailing edge.
+- Only the primary taskbar shows the widget, so there is one value. The floating fallback (when the widget cannot be
+  embedded in the taskbar) follows the same rules.
+- The taskbar tooltip ends with `taskbar.dragHint` in caption size and the tertiary text color.
+- Undo: Settings → 工作列 → `settings.taskbar.position.reset` (section 5) — also the keyboard and screen reader route.
+
 ## 4. Dashboard
 
 macOS: popover-style panel under the menu bar item. Windows: flyout above the taskbar with Mica. Width 368 pt/DIP.
@@ -2062,7 +2098,10 @@ with Mica). Sections:
   shows that metric's values (compact `k`/`M`). Below the redline: the title theme picker and the custom set editor
   (Title themes, below).
 - **選單列 / 工作列 Menu bar / Taskbar** — Display mode, Colored glyph, Show unit, `settings.bar.traffic` (network
-  speed or live intelligence, section 10), `settings.liveUnit` (section 9).
+  speed or live intelligence, section 10), `settings.liveUnit` (section 9). Windows adds, right after
+  `settings.bar.show`, the card `settings.taskbar.position` with the hint `settings.taskbar.position.hint` and the
+  button `settings.taskbar.position.reset`: it puts the widget back at its default spot (`taskbar.offset` 0, section
+  3, Position on the taskbar) and is disabled while the widget is already there, whether or not the widget is shown.
 - **懸浮窗 Floating orbs** — the orb list and the per-orb editor (Floating orb pane, below).
 - **特效 Effects** — Intensity (Off / Soft / Standard / Max), Celebrate new peaks, Response pulses,
   **Preview effects** button: runs the demo driver for 20 s sweeping through every tier.
@@ -2243,6 +2282,8 @@ not.
   and high-contrast themes on Windows.
 - Text contrast ≥ 4.5:1 for all secondary text.
 - Network rates and totals are read as words, never as arrows (`a11y.orb.traffic`, section 10).
+- A position set by dragging the Windows taskbar widget can be undone without a mouse: Settings → 工作列 →
+  `settings.taskbar.position.reset` (section 3, Position on the taskbar).
 
 ## 8. Localization
 
