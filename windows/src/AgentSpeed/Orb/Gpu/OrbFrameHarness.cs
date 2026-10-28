@@ -21,10 +21,12 @@ namespace AgentSpeed.Orb.Gpu;
 /// Developer harness <c>AGENT_SPEED_ORB_FRAMES=DIR</c>: renders every orb style on a simulated clock with the Direct3D
 /// renderer into PNG sheets laid out like the macOS previews (<c>orb-style-STYLE-dark|light.png</c>: columns idle, cruise,
 /// boost, overdrive, redline, beyond, new peak, hover, pulse; rows 96 (64 for minimal), 148 and 240 pt at 2×, R = 2000,
-/// three agents, zh-Hant), plus per-level sheets, the two-line readout's network and intelligence modes (<c>orb-lines.png</c>)
-/// and the GPU/CPU cost of each frame, then exits. Deterministic: fixed seeds,
-/// fixed time steps; no window, so it also runs without a desktop. <c>AGENT_SPEED_ORB_FRAMES_STYLES</c> limits the styles,
-/// <c>AGENT_SPEED_ORB_FRAMES_SCALE</c> sets the pixel scale.
+/// three agents, zh-Hant), plus per-level sheets, the two-line readout's network and intelligence modes (<c>orb-lines.png</c>),
+/// the intelligence readout at 112, 148 and 196 pt (<c>orb-intel-dark|light.png</c>, its fit in the report) and the GPU/CPU
+/// cost of each frame, then exits. Deterministic: fixed seeds, fixed time steps; no window, so it also runs without a
+/// desktop. <c>AGENT_SPEED_ORB_FRAMES_STYLES</c> limits the styles, <c>AGENT_SPEED_ORB_FRAMES_SCALE</c> sets the pixel
+/// scale, <c>AGENT_SPEED_ORB_FRAMES_LANG</c> the language (zh-Hant, zh-Hans, en, ja), and
+/// <c>AGENT_SPEED_ORB_FRAMES_LINES=1</c> renders only the two-line readout's sheets.
 /// </summary>
 internal static class OrbFrameHarness
 {
@@ -67,7 +69,10 @@ internal static class OrbFrameHarness
         report.AppendLine(CultureInfo.InvariantCulture, $"adapter: {device.AdapterName}");
         var scale = double.TryParse(Environment.GetEnvironmentVariable("AGENT_SPEED_ORB_FRAMES_SCALE"), NumberStyles.Float, CultureInfo.InvariantCulture,
             out var s) && s > 0 ? s : 2;
-        var loc = new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
+        var language = Environment.GetEnvironmentVariable("AGENT_SPEED_ORB_FRAMES_LANG") is { } code && LanguageCodes.All.Contains(code)
+            ? code
+            : LanguageCodes.ZhHant;
+        var loc = new Localizer(Localizer.LoadEmbeddedTable(), language);
         device.Atlas.Culture = loc.Culture;
         var titles = Enum.GetValues<SpeedTitle>().Select(t => DisplayText.TitleLabel(t, loc)).ToArray();
         var strings = new OrbReadoutStrings(loc["unit.tokS"], loc["peak.new"], titles, loc.UsesLatinScript);
@@ -77,6 +82,12 @@ internal static class OrbFrameHarness
         GpuDevice.Shared.Current.Context.Flush();
         OrbGpuRenderer.Timer = new GpuTimer();
         using var target = new OffscreenTarget();
+        if (Environment.GetEnvironmentVariable("AGENT_SPEED_ORB_FRAMES_LINES") is { Length: > 0 })
+        {
+            LineSheets(device, target, styles, scale, strings, info, loc, directory, report);
+            File.WriteAllText(Path.Combine(directory, "orb-frames.txt"), report.ToString());
+            return 0;
+        }
 
         foreach (var dark in new[] { true, false })
         {
@@ -173,7 +184,33 @@ internal static class OrbFrameHarness
 
         WriteSheet(money, true, scale, Path.Combine(directory, "orb-money.png"));
 
-        // The two-line readout (DESIGN 10): network speed, then live intelligence, at 148 and 196 pt; dark, light, high contrast.
+        LineSheets(device, target, styles, scale, strings, info, loc, directory, report);
+
+        // GPU time per frame at S = 240 (the budget's size) at the redline, Max effects.
+        foreach (var style in styles)
+        {
+            OrbGpuRenderer.Timer?.Drain();
+            _ = Still(device, target, style, 240, scale, true, Redline * 1.45, Extra.None, strings, info, EffectsIntensity.Max, warmFrames: 120);
+            device.Current.Context.Flush();
+            Thread.Sleep(50);
+            _ = Still(device, target, style, 240, scale, true, Redline * 1.45, Extra.None, strings, info, EffectsIntensity.Max, warmFrames: 2);
+            var gpu = OrbGpuRenderer.Timer?.Drain() ?? (0.0, 0);
+            report.AppendLine(CultureInfo.InvariantCulture, $"gpu {OrbStyles.Key(style)} S240 max: {gpu.Milliseconds:0.000} ms over {gpu.Frames} frames");
+        }
+
+        report.AppendLine(CultureInfo.InvariantCulture, $"atlas: {device.Atlas.Rasterized} strings rasterized");
+        File.WriteAllText(Path.Combine(directory, "orb-frames.txt"), report.ToString());
+        return 0;
+    }
+
+    /// <summary>
+    /// The two-line readout (DESIGN 10): network speed against live intelligence at 148 and 196 pt in dark, light and high
+    /// contrast (<c>orb-lines.png</c>); and the intelligence readout alone, a short and a long reading at 112, 148 and 196 pt
+    /// (<c>orb-intel-dark|light.png</c>, a row per style) with each size's fit in the report.
+    /// </summary>
+    private static void LineSheets(GpuDevice device, OffscreenTarget target, OrbStyle[] styles, double scale, OrbReadoutStrings strings,
+        string info, Localizer loc, string directory, System.Text.StringBuilder report)
+    {
         var traffic = OrbLinesText.Traffic(new Core.Traffic.TrafficRate(1_280_000, 64_000), false, loc);
         var intelligence = OrbLinesText.Intelligence(new Core.Intelligence.IntelligenceSums(1200, 1200 * 124, 528, 1200), true, loc);
         var lines = new List<List<BitmapSource>>();
@@ -201,21 +238,50 @@ internal static class OrbFrameHarness
 
         WriteSheet(lines, true, scale, Path.Combine(directory, "orb-lines.png"));
 
-        // GPU time per frame at S = 240 (the budget's size) at the redline, Max effects.
+        // 61 over 5.0 tok/s, and 133 over 176 tok/s.
+        var readings = new[]
+        {
+            OrbLinesText.Intelligence(new Core.Intelligence.IntelligenceSums(400, 400 * 60, 15, 400), true, loc),
+            intelligence,
+        };
+        var sizes = new[] { 112.0, 148, 196 };
+        var measure = new OrbLinesDraw(device.Atlas.ForScale(scale));
         foreach (var style in styles)
         {
-            OrbGpuRenderer.Timer?.Drain();
-            _ = Still(device, target, style, 240, scale, true, Redline * 1.45, Extra.None, strings, info, EffectsIntensity.Max, warmFrames: 120);
-            device.Current.Context.Flush();
-            Thread.Sleep(50);
-            _ = Still(device, target, style, 240, scale, true, Redline * 1.45, Extra.None, strings, info, EffectsIntensity.Max, warmFrames: 2);
-            var gpu = OrbGpuRenderer.Timer?.Drain() ?? (0.0, 0);
-            report.AppendLine(CultureInfo.InvariantCulture, $"gpu {OrbStyles.Key(style)} S240 max: {gpu.Milliseconds:0.000} ms over {gpu.Frames} frames");
+            var placement = OrbLinesPlacement.For(style);
+            foreach (var size in sizes)
+            {
+                var (top, bottom) = measure.WidestLines(placement.TextSize(size), intelligence.Content!);
+                var drawn = measure.Fits(placement, size, intelligence.Content) ? "drawn" : "not drawn";
+                report.AppendLine(CultureInfo.InvariantCulture,
+                    $"intel {OrbStyles.Key(style)} {size:0}: {drawn} (widest lines {top:0.0} / {bottom:0.0} pt, room {placement.Fit * size:0.0} pt)");
+            }
         }
 
-        report.AppendLine(CultureInfo.InvariantCulture, $"atlas: {device.Atlas.Rasterized} strings rasterized");
-        File.WriteAllText(Path.Combine(directory, "orb-frames.txt"), report.ToString());
-        return 0;
+        foreach (var dark in new[] { true, false })
+        {
+            var rows = new List<List<BitmapSource>>();
+            foreach (var style in styles)
+            {
+                var row = new List<BitmapSource>();
+                foreach (var size in sizes)
+                {
+                    foreach (var reading in readings)
+                    {
+                        var (bitmap, _) = Still(device, target, style, size, scale, dark, Redline * 0.3, Extra.None, strings, info,
+                            EffectsIntensity.Standard, lines: reading);
+                        if (bitmap is not null)
+                        {
+                            row.Add(bitmap);
+                        }
+                    }
+                }
+
+                rows.Add(row);
+            }
+
+            WriteSheet(rows, dark, scale, Path.Combine(directory, $"orb-intel-{(dark ? "dark" : "light")}.png"));
+        }
     }
 
     /// <summary>A still of <paramref name="style"/> at <paramref name="value"/> after 2.4 s at that speed, with the extra event in flight.</summary>

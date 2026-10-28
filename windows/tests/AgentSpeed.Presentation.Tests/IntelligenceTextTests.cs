@@ -27,7 +27,19 @@ public class IntelligenceTextTests
         var content = OrbLinesText.Intelligence(sums, generating: false, ZhHant).Content!;
         Assert.Equal("智力 133 · 思考 44%\n估算指數，不是測驗分數", content.Detail);
         Assert.Equal("智力 133，思考每秒 176 個 token", content.Spoken);
-        Assert.Equal(("智", "思"), (content.First.Glyph, content.Second.Glyph));
+    }
+
+    [Theory]
+    [InlineData(LanguageCodes.ZhHant, "智力", "思考")]
+    [InlineData(LanguageCodes.ZhHans, "智力", "思考")]
+    [InlineData(LanguageCodes.En, "IQ", "TH")]
+    [InlineData(LanguageCodes.Ja, "知", "思考")]
+    public void TheOrbReadoutsGlyphsNameIntelligenceAndThinking(string language, string intelligence, string thinking)
+    {
+        var localizer = new Localizer(Localizer.LoadEmbeddedTable(), language);
+        var content = OrbLinesText.Intelligence(new IntelligenceSums(Output: 300, Graded: 300 * 92), generating: true, localizer).Content!;
+        Assert.Equal((intelligence, "92", string.Empty), (content.First.Glyph, content.First.Number, content.First.Unit));
+        Assert.Equal((thinking, localizer["unit.tokS"]), (content.Second.Glyph, content.Second.Unit));
     }
 
     [Fact]

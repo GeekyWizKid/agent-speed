@@ -476,7 +476,7 @@ public sealed class OrbGpuOrb
             return 0;
         }
 
-        return placement.StackShift(style.Readout, ctx.Size, reading.Alpha(Scene.Time, Scene.Effects.ReduceMotion));
+        return placement.StackShift(style.Readout, ctx.Size, reading.Content.Kind, reading.Alpha(Scene.Time, Scene.Effects.ReduceMotion));
     }
 
     /// <summary><c>needle</c>: the unit leaves the hub for the dial face while the readout is on and fits (DESIGN 10).</summary>

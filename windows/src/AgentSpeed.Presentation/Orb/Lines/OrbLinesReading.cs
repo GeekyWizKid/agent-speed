@@ -6,25 +6,22 @@ public enum OrbLinesKind : byte
     /// <summary>Arrows: ↓ over ↑ in every style.</summary>
     Traffic,
 
-    /// <summary>Text glyphs: the intelligence line nearest the value, the thinking line beyond it.</summary>
+    /// <summary>Text glyphs: a larger intelligence line over a smaller thinking line, each centered on its own.</summary>
     Intelligence,
 }
 
-/// <summary>One line: a glyph (an arrow's character, or text), a number right-aligned in its cell, a unit left-aligned in its cell.</summary>
-/// <param name="Integer">The number cell is as wide as <c>888</c> instead of <c>8.88</c> (the intelligence index).</param>
-public readonly record struct OrbLine(string Glyph, string Number, string Unit, bool Integer = false);
+/// <summary>One line: a glyph (an arrow's character, or text), a number and a unit (empty: none).</summary>
+public readonly record struct OrbLine(string Glyph, string Number, string Unit);
 
-/// <summary>The readout's text at one sample, with the spoken form the orb's label adds while it is visible.</summary>
+/// <summary>
+/// The readout's text at one sample, with the spoken form the orb's label adds while it is visible. The first line is the
+/// top one in every style.
+/// </summary>
 /// <param name="First">Traffic: the ↓ line; intelligence: the intelligence line.</param>
 /// <param name="Second">Traffic: the ↑ line; intelligence: the thinking line.</param>
 /// <param name="Bits">Traffic in bits: the unit cell is as wide as <c>Mb/s</c> instead of <c>MB/s</c>.</param>
 /// <param name="Detail">More than the lines say (the orb's tooltip); null when there is nothing more.</param>
-public sealed record OrbLinesContent(OrbLinesKind Kind, OrbLine First, OrbLine Second, bool Bits, string Spoken, string? Detail = null)
-{
-    /// <summary>The lines from top to bottom: traffic keeps ↓ over ↑; the intelligence line sits nearest the value.</summary>
-    public (OrbLine Top, OrbLine Bottom) Stack(bool below) =>
-        Kind == OrbLinesKind.Traffic || below ? (First, Second) : (Second, First);
-}
+public sealed record OrbLinesContent(OrbLinesKind Kind, OrbLine First, OrbLine Second, bool Bits, string Spoken, string? Detail = null);
 
 /// <summary>
 /// One sample for the quiet rule: its mode, what to show (null: no value now, keep the last of the same mode) and whether

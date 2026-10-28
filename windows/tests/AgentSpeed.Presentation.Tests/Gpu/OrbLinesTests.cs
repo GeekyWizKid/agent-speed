@@ -12,11 +12,12 @@ using AgentSpeed.Presentation.Settings;
 
 namespace AgentSpeed.Presentation.Tests.Gpu;
 
-/// <summary>The orb's two-line readout (DESIGN 10, Floating orb readout): quiet rule, placement, centering and frames.</summary>
+/// <summary>The orb's two-line readout (DESIGN 10, Floating orb readout and Intelligence readout): quiet rule, placement, centering and frames.</summary>
 public class OrbLinesTests
 {
     private const double Redline = 2000;
     private static readonly Localizer En = new(Localizer.LoadEmbeddedTable(), LanguageCodes.En);
+    private static readonly Localizer ZhHant = new(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
     private static readonly OrbReadoutStrings Strings = new("tok/s", "NEW PEAK",
         Enum.GetValues<SpeedTitle>().Select(t => t.ToString().ToUpperInvariant()).ToArray(), true);
 
@@ -31,6 +32,49 @@ public class OrbLinesTests
     }
 
     private static OrbLinesSample Traffic(double rx, double tx, bool bits = false) => OrbLinesText.Traffic(new TrafficRate(rx, tx), bits, En);
+
+    /// <summary>133 over 176 tok/s.</summary>
+    private static readonly IntelligenceSums Long = new(1200, 1200 * 124, 528, 1200);
+
+    /// <summary>69 over 59 tok/s.</summary>
+    private static readonly IntelligenceSums Short = new(400, 400 * 60, 177, 400);
+
+    private static OrbLinesSample Intelligence(IntelligenceSums sums, Localizer? localizer = null) =>
+        OrbLinesText.Intelligence(sums, generating: true, localizer ?? En);
+
+    private readonly record struct DrawnLine(double Left, double Right, double Baseline, double Size);
+
+    /// <summary>
+    /// The readout's own quads at <paramref name="size"/> (no stack shift), in lines from the top. FakeGlyphs pads each quad
+    /// by 2 pt around the advance and puts the baseline 0.75 × size below the text's top.
+    /// </summary>
+    private static DrawnLine[] Drawn(OrbGpuOrb orb, OrbStyle style, double size)
+    {
+        var effects = new EffectsPolicy(EffectsIntensity.Standard, false, false);
+        var ctx = new OrbGpuContext(size, 2, OrbTokens.Dark, effects);
+        var list = new OrbDrawList();
+        orb.Lines.Add(list, ctx, orb.Scene, orb.LinesReading!.Value, OrbLinesPlacement.For(style), 0, OrbLinesColors.Standard(ctx),
+            OrbTextClip.None, yieldsToPill: false);
+        var quads = list.Texts.ToArray()
+            .Select(q => new DrawnLine(q.Rect.X + 2, q.Rect.X + q.Rect.Z - 2, q.Rect.Y + 2 + 0.75 * (q.Rect.W - 4), q.Rect.W - 4))
+            .OrderBy(q => q.Baseline)
+            .ToArray();
+        var lines = new List<List<DrawnLine>>();
+        foreach (var quad in quads)
+        {
+            if (lines.Count == 0 || quad.Baseline - lines[^1][0].Baseline > 1)
+            {
+                lines.Add([]);
+            }
+
+            lines[^1].Add(quad);
+        }
+
+        return lines.Select(l => new DrawnLine(l.Min(q => q.Left), l.Max(q => q.Right), l[0].Baseline, l.Max(q => q.Size))).ToArray();
+    }
+
+    /// <summary>FakeGlyphs' advance of a string at a size (the atlas quantizes sizes to 0.25 pt).</summary>
+    private static double Advance(string text, double size) => text.Length * (float)(Math.Round(size * 4) / 4) * 0.56;
 
     private static double RenderFor(OrbGpuOrb orb, double from, double seconds)
     {
@@ -104,7 +148,7 @@ public class OrbLinesTests
         Assert.True(rule.Apply(OrbLinesText.Intelligence(active, generating: true, En), 1));
         var shown = rule.Reading!.Value.Content;
         Assert.Equal(OrbLinesKind.Intelligence, shown.Kind);
-        Assert.Equal(new OrbLine(En["intel.glyph"], "133", string.Empty, Integer: true), shown.First);
+        Assert.Equal(new OrbLine(En["intel.glyph"], "133", string.Empty), shown.First);
         Assert.Equal(new OrbLine(En["intel.thinking.glyph"], "59", En["unit.tokS"]), shown.Second);
         Assert.Equal(En.Format("a11y.orb.intel", "133", "59"), shown.Spoken);
         Assert.StartsWith(En.Format("intel.tooltip", "133", "44%"), shown.Detail, StringComparison.Ordinal);
@@ -139,37 +183,142 @@ public class OrbLinesTests
     [InlineData(OrbStyle.Reactor)]
     [InlineData(OrbStyle.Needle)]
     [InlineData(OrbStyle.Minimal)]
-    public void TheIntelligenceReadoutUsesTheTrafficTableSoSwitchingMovesNothing(OrbStyle style)
+    public void TheIntelligenceLinesAreEachCenteredOnTheOrbTheLargerOnTop(OrbStyle style)
     {
-        var traffic = Create(style, size: 196);
-        traffic.SetLines(0, Traffic(1_280_000, 64_000), true);
-        var t = RenderFor(traffic, 0, 1);
-        var intelligence = Create(style, size: 196);
-        intelligence.SetLines(0, OrbLinesText.Intelligence(new IntelligenceSums(400, 400 * 124, 176, 400), true, En), true);
-        RenderFor(intelligence, 0, 1);
+        var orb = Create(style, size: 196);
+        orb.SetLines(0, Intelligence(Long, ZhHant), true);
+        RenderFor(orb, 0, 1);
+        Assert.True(orb.LinesVisible(1));
 
-        Assert.True(intelligence.LinesVisible(t));
-        Assert.Equal(traffic.ReadoutShift, intelligence.ReadoutShift, 6);
-        Assert.Equal(traffic.UnitOnDial, intelligence.UnitOnDial);
         var placement = OrbLinesPlacement.For(style);
-        var size = placement.TextSize(196);
-        var trafficContent = traffic.LinesReading!.Value.Content;
-        var intelligenceContent = intelligence.LinesReading!.Value.Content;
+        var t = placement.TextSize(196);
+        var lines = Drawn(orb, style, 196);
+        Assert.Equal(2, lines.Length);
+        var (intelligence, thinking) = (lines[0], lines[1]);
+        var (top, bottom) = placement.Baselines(0.75 * 196, 196, OrbLinesKind.Intelligence);
+        Assert.Equal(top, intelligence.Baseline, 3);
+        Assert.Equal(bottom, thinking.Baseline, 3);
 
-        // Same number and unit cells; only the glyph cell widens to a text glyph's own advance.
-        Assert.Equal(OrbLinesPlacement.ArrowWidth * size, traffic.Lines.GlyphCell(size, trafficContent), 6);
-        Assert.True(intelligence.Lines.GlyphCell(size, intelligenceContent) >= OrbLinesPlacement.ArrowWidth * size);
-        Assert.Equal(
-            traffic.Lines.LineWidth(size, trafficContent) - traffic.Lines.GlyphCell(size, trafficContent),
-            intelligence.Lines.LineWidth(size, intelligenceContent) - intelligence.Lines.GlyphCell(size, intelligenceContent), 6);
+        // Each line on its own: centered on the orb by its width (within the device pixel its left edge snaps to).
+        foreach (var line in lines)
+        {
+            Assert.InRange((line.Left + line.Right) / 2, 0.75 * 196 - 0.35, 0.75 * 196 + 0.35);
+            Assert.Equal(Math.Round(line.Left * 2), line.Left * 2, 3);
+        }
 
-        // The index sits in an 888 cell inside the 8.88 cell.
-        Assert.True(intelligence.Lines.IntegerCell(size) < intelligence.Lines.Cells(size, bits: false).Number);
+        Assert.NotEqual(intelligence.Left, thinking.Left, 1);
 
-        // The intelligence line is the one nearest the value: ↑'s place above it, ↓'s below it (needle).
-        var (top, bottom) = intelligenceContent.Stack(placement.Below);
-        Assert.Equal(placement.Below ? intelligenceContent.First : intelligenceContent.Second, top);
-        Assert.Equal(placement.Below ? intelligenceContent.Second : intelligenceContent.First, bottom);
+        // The intelligence number at p = 1.25 t, the thinking number at t.
+        Assert.Equal(Math.Round(1.25 * t * 4) / 4, intelligence.Size, 3);
+        Assert.Equal(Math.Round(t * 4) / 4, thinking.Size, 3);
+    }
+
+    [Fact]
+    public void ALineMovesOnlyWhenItsWidthChanges()
+    {
+        var orb = Create(OrbStyle.Led, size: 196);
+        orb.SetLines(0, Intelligence(Long), true);
+        RenderFor(orb, 0, 1);
+        var before = Drawn(orb, OrbStyle.Led, 196);
+
+        // 132 over 412 tok/s: the same digit counts, so neither line moves.
+        orb.SetLines(1, Intelligence(new IntelligenceSums(2000, 2000 * 120, 1236, 2000)), true);
+        var same = Drawn(orb, OrbStyle.Led, 196);
+        Assert.Equal(("132", "412"), (orb.LinesReading!.Value.Content.First.Number, orb.LinesReading!.Value.Content.Second.Number));
+        Assert.Equal(before.Select(l => l.Left), same.Select(l => l.Left));
+
+        // 69 over 59: both lines narrow, so both recenter.
+        orb.SetLines(2, Intelligence(Short), true);
+        var narrower = Drawn(orb, OrbStyle.Led, 196);
+        Assert.Equal(("69", "59"), (orb.LinesReading!.Value.Content.First.Number, orb.LinesReading!.Value.Content.Second.Number));
+        Assert.True(narrower[0].Left > before[0].Left);
+        Assert.True(narrower[1].Left > before[1].Left);
+    }
+
+    [Theory]
+    [InlineData(OrbStyle.Led)]
+    [InlineData(OrbStyle.Liquid)]
+    [InlineData(OrbStyle.Reactor)]
+    [InlineData(OrbStyle.Needle)]
+    [InlineData(OrbStyle.Minimal)]
+    public void TheIntelligenceReadoutFitsWithItsWidestNumbersWhateverItShows(OrbStyle style)
+    {
+        var draw = new OrbLinesDraw(new FakeGlyphs());
+        var placement = OrbLinesPlacement.For(style);
+        var shown = Intelligence(Long, ZhHant).Content!;
+        var quiet = Intelligence(Short, ZhHant).Content!;
+        var fits = 0;
+        for (var s = 64.0; s <= 320; s += 2)
+        {
+            var t = placement.TextSize(s);
+            var p = 1.25 * t;
+            var (intelligence, thinking) = draw.WidestLines(t, shown);
+            Assert.Equal(Advance("智力", 0.82 * p) + 0.20 * p + 3 * 0.56 * p, intelligence, 3);
+            Assert.Equal(Advance("思考", 0.82 * t) + 0.16 * t + 3 * 0.56 * t + Advance(".", t) + 0.16 * t + Advance("tok/s", 0.82 * t), thinking, 3);
+            Assert.Equal(Math.Max(intelligence, thinking) <= placement.Fit * s, draw.Fits(placement, s, shown));
+            Assert.Equal(draw.Fits(placement, s, shown), draw.Fits(placement, s, quiet));
+            fits += draw.Fits(placement, s, shown) ? 1 : 0;
+        }
+
+        Assert.InRange(fits, 1, 128);
+    }
+
+    [Fact]
+    public void TheThinkingLineSitsOnTheNearestBaselineAndTheLargerLineKeepsTheCapTopInTheHub()
+    {
+        // Above the value: the thinking line on the nearest baseline, the intelligence line one pitch above it.
+        var (intelligence, thinking) = OrbLinesPlacement.Led.Baselines(100, 148, OrbLinesKind.Intelligence);
+        Assert.Equal(100 - 0.245 * 148, thinking, 6);
+        Assert.Equal(thinking - 1.32 * 7.4, intelligence, 6);
+
+        // Below it (needle): the intelligence line drops by its extra cap height, the thinking line one pitch below.
+        var t = 0.046 * 196;
+        var (top, bottom) = OrbLinesPlacement.Needle.Baselines(100, 196, OrbLinesKind.Intelligence);
+        Assert.Equal(100 + 0.108 * 196 + 0.70 * (1.25 * t - t), top, 6);
+        Assert.Equal(top + 1.32 * t, bottom, 6);
+        Assert.Equal(OrbLinesPlacement.Needle.Baselines(100, 196, OrbLinesKind.Traffic).Top - 0.70 * t, top - 0.70 * 1.25 * t, 6);
+    }
+
+    [Theory]
+    [InlineData(OrbStyle.Led)]
+    [InlineData(OrbStyle.Liquid)]
+    [InlineData(OrbStyle.Minimal)]
+    public void TheLargerIntelligenceLineRaisesTheBlocksTopForTheStackShift(OrbStyle style)
+    {
+        var placement = OrbLinesPlacement.For(style);
+        var layout = OrbReadoutLayout.For(style);
+        var t = placement.TextSize(196);
+        var traffic = placement.StackShift(layout, 196, OrbLinesKind.Traffic);
+
+        // Half the extra cap height, but still never closer to the agent dots than the clearance.
+        var titleBottom = layout.TitleBaseline * 196 + 0.22 * OrbReadoutLayout.TextSize(layout.TitleSize, 196);
+        var limit = layout.DotsY is { } dots ? dots * 196 - OrbLinesPlacement.DotDiameter(196) / 2 - 0.05 * 196 - titleBottom : double.MaxValue;
+        var intelligence = placement.StackShift(layout, 196, OrbLinesKind.Intelligence);
+        Assert.True(intelligence > traffic);
+        Assert.Equal(Math.Min(traffic + 0.70 * (1.25 * t - t) / 2, limit), intelligence, 6);
+
+        var orb = Create(style, size: 196);
+        orb.SetLines(0, Intelligence(Long), true);
+        RenderFor(orb, 0, 1);
+        Assert.Equal(placement.StackShift(layout, 196, OrbLinesKind.Intelligence), orb.ReadoutShift, 6);
+    }
+
+    [Fact]
+    public void TheNetworkReadoutKeepsItsTable()
+    {
+        var orb = Create(OrbStyle.Led, size: 196);
+        orb.SetLines(0, Traffic(1_280_000, 64_000), true);
+        RenderFor(orb, 0, 1);
+        var t = OrbLinesPlacement.Led.TextSize(196);
+        var lines = Drawn(orb, OrbStyle.Led, 196);
+        var (down, up) = OrbLinesPlacement.Led.Baselines(0.75 * 196, 196, OrbLinesKind.Traffic);
+        Assert.Equal(down, lines[0].Baseline, 3);
+        Assert.Equal(up, lines[1].Baseline, 3);
+
+        // Both arrows centered in the 0.50 t box at the shared left edge of a line centered on the orb.
+        var left = 0.75 * 196 - orb.Lines.LineWidth(t, bits: false) / 2;
+        Assert.All(lines, line => Assert.Equal(left + (0.50 * t - Advance("↓", t)) / 2, line.Left, 3));
+        Assert.Equal(OrbLinesPlacement.Led.StackShift(OrbReadoutLayout.Led, 196, OrbLinesKind.Traffic), orb.ReadoutShift, 6);
     }
 
     [Theory]
@@ -181,9 +330,10 @@ public class OrbLinesTests
     public void TheStackShiftCentersBlockAndValue(OrbStyle style, double expected)
     {
         var placement = OrbLinesPlacement.For(style);
-        Assert.Equal(expected, placement.StackShift(OrbReadoutLayout.For(style), 148) / 148, 3);
-        Assert.Equal(0, placement.StackShift(OrbReadoutLayout.For(style), 148, 0));
-        Assert.Equal(placement.StackShift(OrbReadoutLayout.For(style), 148), placement.StackShift(OrbReadoutLayout.For(style), 148, 1), 9);
+        var layout = OrbReadoutLayout.For(style);
+        Assert.Equal(expected, placement.StackShift(layout, 148, OrbLinesKind.Traffic) / 148, 3);
+        Assert.Equal(0, placement.StackShift(layout, 148, OrbLinesKind.Traffic, 0));
+        Assert.Equal(placement.StackShift(layout, 148, OrbLinesKind.Traffic), placement.StackShift(layout, 148, OrbLinesKind.Traffic, 1), 9);
     }
 
     [Fact]
@@ -191,7 +341,7 @@ public class OrbLinesTests
     {
         // At 96 pt the 7 pt floor makes the block relatively tall: the title would come within 0.05 S of the dots.
         var layout = OrbReadoutLayout.Led;
-        var shift = OrbLinesPlacement.Led.StackShift(layout, 96);
+        var shift = OrbLinesPlacement.Led.StackShift(layout, 96, OrbLinesKind.Traffic);
         Assert.Equal(0.0929, shift / 96, 3);
         var titleBottom = (layout.TitleBaseline * 96 + shift) + 0.22 * OrbReadoutLayout.TextSize(layout.TitleSize, 96);
         var dotsTop = layout.DotsY!.Value * 96 - OrbLinesPlacement.DotDiameter(96) / 2;
@@ -201,10 +351,10 @@ public class OrbLinesTests
     [Fact]
     public void LinesStackDownloadOverUpload()
     {
-        var (down, up) = OrbLinesPlacement.Led.Baselines(100, 148);
+        var (down, up) = OrbLinesPlacement.Led.Baselines(100, 148, OrbLinesKind.Traffic);
         Assert.Equal(100 - 0.245 * 148, up, 6);
         Assert.Equal(up - 1.32 * 7.4, down, 6);
-        var (needleDown, needleUp) = OrbLinesPlacement.Needle.Baselines(100, 148);
+        var (needleDown, needleUp) = OrbLinesPlacement.Needle.Baselines(100, 148, OrbLinesKind.Traffic);
         Assert.Equal(100 + 0.108 * 148, needleDown, 6);
         Assert.True(needleUp > needleDown);
     }

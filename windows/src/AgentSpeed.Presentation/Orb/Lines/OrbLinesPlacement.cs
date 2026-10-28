@@ -6,7 +6,9 @@ namespace AgentSpeed.Presentation.Orb.Lines;
 /// Where a style puts the two-line readout (DESIGN 10, Floating orb readout), in diameters from the center, y down.
 /// </summary>
 /// <param name="NearestBaseline">Baseline of the line nearest the value.</param>
-/// <param name="Below">The lines sit below the value (<c>needle</c>, ↓ line nearest); otherwise above it (↑ line nearest).</param>
+/// <param name="Below">
+/// The lines sit below the value (<c>needle</c>: the top line nearest); otherwise above it (the bottom line nearest).
+/// </param>
 /// <param name="Size">Text size <c>t</c> = max(7 pt, size × S).</param>
 /// <param name="Fit">A line must fit in this × S, else the readout is not drawn.</param>
 /// <param name="Recenters">
@@ -26,8 +28,14 @@ public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, doubl
 
     public const double ArrowHeight = 0.66;
 
-    /// <summary>Unit size, and a text glyph's size, × t.</summary>
+    /// <summary>Unit size, and a text glyph's size, × the line's size.</summary>
     public const double UnitScale = 0.82;
+
+    /// <summary>The intelligence line's size p, × t (DESIGN 10, Intelligence readout).</summary>
+    public const double IntelligenceScale = 1.25;
+
+    /// <summary>Gap between the intelligence line's glyph and its number, × p.</summary>
+    public const double IntelligenceGap = 0.20;
 
     /// <summary>Cap height of the orb fonts, × size.</summary>
     public const double CapHeight = 0.70;
@@ -68,12 +76,26 @@ public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, doubl
     /// <summary>Never below the 7 pt floor of every orb label.</summary>
     public double TextSize(double s) => Math.Max(OrbReadoutLayout.MinTextSize, Size * s);
 
-    /// <summary>Baselines of the top and bottom lines, from the center <paramref name="y"/>.</summary>
-    public (double Top, double Bottom) Baselines(double y, double s)
+    /// <summary>Size of the top line: the intelligence line's p, else t.</summary>
+    public double TopSize(OrbLinesKind kind, double s) =>
+        kind == OrbLinesKind.Intelligence ? IntelligenceScale * TextSize(s) : TextSize(s);
+
+    /// <summary>
+    /// Baselines of the top and bottom lines, from the center <paramref name="y"/>. Below the value a larger top line drops
+    /// by its extra cap height, so its cap top stays where a t line's would be.
+    /// </summary>
+    public (double Top, double Bottom) Baselines(double y, double s, OrbLinesKind kind)
     {
         var nearest = y + NearestBaseline * s;
-        var pitch = Pitch * TextSize(s);
-        return Below ? (nearest, nearest + pitch) : (nearest - pitch, nearest);
+        var t = TextSize(s);
+        var pitch = Pitch * t;
+        if (!Below)
+        {
+            return (nearest - pitch, nearest);
+        }
+
+        var top = nearest + CapHeight * (TopSize(kind, s) - t);
+        return (top, top + pitch);
     }
 
     /// <summary>
@@ -81,7 +103,7 @@ public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, doubl
     /// so the whole stack stays centered (DESIGN 10): half the block's height over the value's cap top, but never so far
     /// that the title's bottom comes closer to the agent dots than the clearance.
     /// </summary>
-    public double StackShift(OrbReadoutLayout layout, double s)
+    public double StackShift(OrbReadoutLayout layout, double s, OrbLinesKind kind)
     {
         ArgumentNullException.ThrowIfNull(layout);
         if (!Recenters || Below)
@@ -89,8 +111,7 @@ public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, doubl
             return 0;
         }
 
-        var t = TextSize(s);
-        var blockTop = NearestBaseline * s - Pitch * t - CapHeight * t;
+        var blockTop = NearestBaseline * s - Pitch * TextSize(s) - CapHeight * TopSize(kind, s);
         var valueTop = (layout.ValueBaseline - CapHeight * layout.ValueSize) * s;
         var centered = Math.Max(0, (valueTop - blockTop) / 2);
         if (layout.DotsY is not { } dots)
@@ -108,6 +129,6 @@ public sealed record OrbLinesPlacement(double NearestBaseline, bool Below, doubl
     public static double DotDiameter(double s) => 4 * s / 148;
 
     /// <summary>The stack's shift at a moment: follows the block's quiet-rule opacity (smoothstep), never the pill's fade.</summary>
-    public double StackShift(OrbReadoutLayout layout, double s, double shown) =>
-        StackShift(layout, s) * Easing.SmoothStep(0, 1, Math.Clamp(shown, 0, 1));
+    public double StackShift(OrbReadoutLayout layout, double s, OrbLinesKind kind, double shown) =>
+        StackShift(layout, s, kind) * Easing.SmoothStep(0, 1, Math.Clamp(shown, 0, 1));
 }
