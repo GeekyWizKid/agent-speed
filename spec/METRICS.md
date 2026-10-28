@@ -1593,12 +1593,12 @@ droid before 0.123, which kept no counters (they count nothing), cloud sessions 
   it is the Factory folder and that `sessions` folder is the root; otherwise the folder itself is the root. It replaces
   the automatic root.
 - **Sessions**: regular files (never symlinks) whose name ends in `.jsonl` and does not start with `.`, directly in the
-  root (older droid versions) or in a folder directly in it (the working directory with its separators replaced by
-  `-`, such as `-Users-dev-projects-forge` or `-C-Users-dev-halo`; not a symlink, name not starting with `.`); nothing
+  root (older droid versions) or in a folder directly in it (the working directory with its separators replaced by `-`,
+  such as `-Users-dev-projects-forge` or `-C-Users-dev-halo`; not a symlink, name not starting with `.`); nothing
   deeper. The *session id* is the file name without `.jsonl` (droid names the file after `session_start.id`). The
   sidecar is the regular file `<session id>.settings.json` in the same folder. Nothing else is opened: not
-  `<session id>.settings.json.bak` (the previous copy droid keeps), index and cache files, or anything outside the root —
-  `~/.factory/settings.json` holds the user's API keys in plain text.
+  `<session id>.settings.json.bak` (the previous copy droid keeps), index and cache files, or anything outside the
+  root — `~/.factory/settings.json` holds the user's API keys in plain text.
 
 #### Transcript lines
 
@@ -1624,23 +1624,25 @@ becomes an *open* response:
 - `startMs = pendingStartMs` (may be null), `endMs = ts`, `final = true`, one request. In the recordings each
   assistant message is one model call, written when it ends, and the user line before it (a prompt, the turn's context
   or tool results) is written just before the request is sent, so the interval is the call's end-to-end time (3.3).
-- `model` = `message.modelId` when it is a string that is not blank (trimmed), else the session model (Sidecar).
-  Custom ids (`custom:<name>-<n>`, the user's own models) stay as written; 9.2 prices them by `<name>`.
+- `model` = `message.modelId` when it is a string that is not blank (trimmed), else the session model (Sidecar) as it is
+  when the call's tokens are allocated. Custom ids (`custom:<name>-<n>`, the user's own models) stay as written; 9.2
+  prices them by `<name>`.
 - `provider` = `custom` when the model starts with `custom:` (ASCII case-insensitive), else null. The sidecar's
   `providerLock` names an API dialect (`anthropic`, `openai`, `generic-chat-completion-api`), not a provider, and is
   not used.
 - Its two weights (Allocation) and its effort fact (EXECUTION-MODES).
 
 Then `pendingStartMs = null`; phase `tools` when `message.content` is an array with a block whose `type` is
-`tool_use`, else `idle`; the agent's `model` = the call's model. An open response is emitted (4.4) when tokens are
-allocated to it, with its tokens and nothing else changed.
+`tool_use`, else `idle`. The agent's `model` is the latest call's `modelId`, else (no call yet, or the latest call has
+none) the session model. An open response is emitted (4.4) when tokens are allocated to it.
 
 #### Sidecar
 
-- **Reading**: the whole file, a regular file (a symlink is not followed) of at most 1 MiB, UTF-8 with an optional
-  leading U+FEFF, which must be a JSON object (3.6) whose `tokenUsage` is an object; otherwise the sidecar has *no
-  counters*. On Windows it is opened with read, write and delete sharing and closed right after reading (droid
-  replaces it and keeps a `.bak`).
+- **Reading**: the whole file, which must be a regular file (a symlink is not followed) of at most 1 MiB, valid UTF-8
+  (one leading U+FEFF is removed) and a JSON object (3.6); otherwise it is *unreadable* and changes nothing (droid may
+  be replacing it; the next read cycle tries again). A readable sidecar sets the session model, and it has *counters*
+  when its `tokenUsage` is an object. On Windows it is opened with read, write and delete sharing and closed right
+  after reading (droid replaces it and keeps a `.bak`).
 - **Counters**: `inputTokens`, `cacheCreationTokens`, `cacheReadTokens`, `outputTokens` and `thinkingTokens` of
   `tokenUsage`, each a token value of 3.2 (missing → 0). Not used: `factoryCredits` (Factory's billing unit, not
   tokens), `inclusiveTokenUsage` and `childInclusiveTokenUsageBySessionId` (they add the session's sub-agents, which
@@ -1648,7 +1650,7 @@ allocated to it, with its tokens and nothing else changed.
   tool runs included — 75.4 s for a recorded 75.2 s turn — so it cannot time calls).
 - **Session model**: `effectiveFactoryRouterModel.modelId` when it is a string that is not blank (the model Factory's
   router chose when `model` is `auto`), else `model` when it is a string that is not blank and not `auto` (ASCII
-  case-insensitive); trimmed; else null. It is the agent's `model` until its first call.
+  case-insensitive); trimmed; else null.
 - **Own counters**: a session with a `parent` (a fork, or a successor started by droid 0.226's `/compress` or by
   `/handoff`) starts from its parent's counters: a recorded `/compress` successor began at its parent's 60/37
   input/output tokens, while its `assistantActiveTimeMs` started over; forks are assumed alike. Its own counters are,
@@ -1688,30 +1690,30 @@ and `w_i ≤ 2^23`, so every product fits in 64 bits).
 **State** per session: `H`, the own counters already accounted (a high-water mark, all 0 at first), `P`, growth not
 yet allocated (0), and the open calls.
 
-**Read cycle.** Whenever a session is read — its startup read, appended transcript lines, a changed sidecar — the
-parser (1) feeds the new transcript lines; (2) reads the sidecar when it is new or its size, modification time or
-identity changed, and when it has counters adds `max(0, own_f − H_f)` to `P_f` and sets `H_f = max(H_f, own_f)`, for
-each field; (3) when `P` is not zero and calls are open, allocates `P` to the open calls, emits them, and sets `P = 0`
-(no call is open any more).
+**Read cycle.** Whenever a session is read — its startup read, appended transcript lines, a changed sidecar — the parser
+(1) feeds the new transcript lines; (2) reads the sidecar when it is new, its size, modification time or identity
+changed, or its last read found it unreadable, and when it has counters adds `max(0, own_f − H_f)` to `P_f` and sets
+`H_f = max(H_f, own_f)`, for each field; (3) when `P` is not zero and calls are open, allocates `P` to the open calls,
+emits them, and sets `P = 0` (no call is open any more).
 
 - One call per rewrite: the call gets exactly its own tokens, whichever of the two files droid writes first (a rewrite
   read before its call's line waits in `P`). Calls that share a rewrite (a late read, a sidecar written once per turn)
   split it by their weights.
 - Growth while no call is open (a session title, a compaction summary, a retry) waits in `P` for the next call.
 - Lower counters (a restored `.bak`, a recount) add nothing: `H` keeps the highest value, so growth counts again only
-  above it. A sidecar without counters (missing, malformed, droid before 0.123) changes nothing. A new session is a new
+  above it. A sidecar without counters (missing, unreadable, droid before 0.123) adds nothing. A new session is a new
   file with its own state.
 - A transcript that shrinks or changes identity resets the session (section 5): `H`, `P` and the open calls start
   over, and its lines are read again (the same keys update their responses, 4.4).
 
-**Startup and history.** A session read from the start (at startup within the window of section 5, when discovered
-while running, and in the history analysis) feeds its whole transcript before its first sidecar read, so its own
-counters are allocated over all its calls at once — the *history rule*. A session whose transcript starts at its end
-(older than the startup window) has no open calls and takes `H` from its sidecar at that moment, without adding to
-`P` (no sidecar or no counters: `H` stays 0): only later growth counts. After the history rule the history analysis (8) emits what is left in `P` (own counters but no call,
-for example every call failed before writing a message) as one response `"droid:" + session id + ":session"` with
-`startMs = null`, `endMs = lastLineMs` (nothing when `lastLineMs` is null), the session model and `P`'s tokens; the
-live parser keeps such growth in `P`.
+**Startup and history.** A session read from the start (at startup within the window of section 5, when discovered while
+running, and in the history analysis) feeds its whole transcript before its first sidecar read, so its own counters are
+allocated over all its calls at once — the *history rule*. A session whose transcript starts at its end (older than the
+startup window) has no open calls and takes `H` from its sidecar at that moment, without adding to `P` (no sidecar or no
+counters: `H` stays 0): only later growth counts. After the history rule the history analysis (8) emits what is left in
+`P` (own counters but no call, for example every call failed before writing a message) as one response with the key
+`"droid:" + session id + ":session"`, `startMs = null`, `endMs = lastLineMs` (nothing when `lastLineMs` is null), the
+session model and `P`'s tokens; the live parser keeps such growth in `P`.
 
 **Live and history.** Both count the same calls (keys, times, models, effort) and, once `P` is empty and the counters
 never went down, the same total per session. They can differ in how a session's tokens are split between its calls:
@@ -2161,20 +2163,20 @@ A response whose `endMs` is before `0001-01-03T00:00:00Z` or after `9999-12-29T2
 get there, 3.1, 3.6) has no date, since in some time zone it would fall outside the years 0001–9999: it is left out of
 daily history and has no cost (it counts as unpriced, 9.3, 9.6), while it still counts in the live totals.
 
-Incremental cache: for each file keep its identity (path, size, modification time; for an Antigravity database also
-the size and modification time of its `-wal`), the 64-bit FNV-1a hashes of the
-response keys it owns, and its per-day contributions. On launch and periodically (every 10 minutes and at midnight),
-unchanged files reuse their contributions; new or changed files are re-parsed completely, skipping keys owned by any
-other file (ownership follows startup order); files that no longer exist keep their contributions. Hermes Agent
-logs (4.15) are cached by file identity instead of path: a rotation renames a log without changing it, so it keeps its
-contributions and keys under its new name, and the oldest log, which rotation deletes, keeps its contributions like any
-deleted file. A Factory Droid session's identity adds its sidecar's size and modification time and, for a session with
-a `parent`, those of the parent's sidecar, whose counters it subtracts (4.16); the history rule of 4.16 makes its
-contributions a function of these files alone. Daily totals are the sums over files. The history store is versioned: a parser change bumps the version
-and triggers a full recomputation that keeps previously stored days for which no logs exist any more (analysis version
-7: the unpriced facts of 9.10; 6: the Codex ordinal rule of 3.5). Adding a source needs no new version: no earlier
-build read its files, so the first analysis finds them as new files (Factory Droid, 4.16, and the `custom` step of
-9.2, which in practice only its ids reach). "Clear history" (settings) deletes the store and recomputes from the current logs.
+Incremental cache: for each file keep its identity (path, size, modification time; for an Antigravity database also the
+size and modification time of its `-wal`), the 64-bit FNV-1a hashes of the response keys it owns, and its per-day
+contributions. On launch and periodically (every 10 minutes and at midnight), unchanged files reuse their contributions;
+new or changed files are re-parsed completely, skipping keys owned by any other file (ownership follows startup order);
+files that no longer exist keep their contributions. Hermes Agent logs (4.15) are cached by file identity instead of
+path: a rotation renames a log without changing it, so it keeps its contributions and keys under its new name, and the
+oldest log, which rotation deletes, keeps its contributions like any deleted file. A Factory Droid session's identity
+adds its sidecar's size and modification time and, for a session with a `parent`, those of the parent's sidecar, whose
+counters it subtracts (4.16); the history rule of 4.16 makes its contributions a function of these files alone. Daily
+totals are the sums over files. The history store is versioned: a parser change bumps the version and triggers a full
+recomputation that keeps previously stored days for which no logs exist any more (analysis version 7: the unpriced facts
+of 9.10; 6: the Codex ordinal rule of 3.5). Adding a source needs no new version: no earlier build read its files, so
+the first analysis finds them as new files (Factory Droid, 4.16, and the `custom` step of 9.2, which in practice only
+its ids reach). "Clear history" (settings) deletes the store and recomputes from the current logs.
 
 Cost (9.7): every row also has `costMicroUsd` and `unpricedRequests`, every model `costMicroUsd` and
 `unpricedRequests`, and every date a `priceVersion`. The cost feature bumps the store version; days kept from an
