@@ -3791,7 +3791,8 @@ style. Data: METRICS 6.11, *Comparison* — the complete task records whose day 
 (`bySource`) and per model id across sources (`byModel`). Everything follows the window's range; the window's source
 picker narrows it (below).
 
-**Header.** `history.tasks.title` (15 pt semibold) and an ⓘ button whose popover (340 pt) holds `history.tasks.info`
+**Header.** `history.tasks.title` (15 pt semibold) and an ⓘ button (accessibility label and tooltip
+`history.tasks.info.a11y`) whose popover (340 pt) holds `history.tasks.info`
 and, as a definition list, every metric's full name with its `.hint`. Trailing: two small bordered pop-up buttons
 (a 7 pt source dot and the name) with `history.tasks.vs` (11 pt, tertiary) between them, labelled
 `history.tasks.pickA.a11y` and `history.tasks.pickB.a11y`. They list the scored sources with records in the range, in
@@ -3817,14 +3818,18 @@ holds the full name (12 pt medium, the label color at 85 %, centred, up to two l
 ones (all but success), `history.tasks.lowerBetter` (10 pt, tertiary). Each side: the value in a 64 pt column at the
 outer edge (13 pt, tabular; rates as whole percents, attempts with one decimal in `history.tasks.attempts`, times as
 `time.seconds`, `time.minutes`, `time.hours` or `time.hoursMinutes` — seconds below a minute, whole minutes below an
-hour), and between it and the centre a 6 pt track (radius 3) filled from the centre outward in the source color
+hour; the unit follows the rounded value, each rounding taken once from milliseconds, half away from zero: seconds
+`s = round(ms / 1000)` when `s < 60`, else minutes `m = round(ms / 60 000)` when `m < 60`, else hours and minutes of
+`round(ms / 60 000)` — so 59.6 s reads 1 分鐘 and 59.4 s reads 59 秒; a rate's tooltip shows its numerator and
+denominator from METRICS 6.11, e.g. `successes / scoredTasks`), and between it and the centre a 6 pt track (radius 3) filled from the centre outward in the source color
 (dark at 85 %). Scale: rates 0–100 %; attempts and times the larger of the two values × 1.25 (attempts at least 3,
 times at least 5 minutes). A null value shows `–` (tertiary) with `history.tasks.noValue.attempts` or
 `.firstPass` as its tooltip and an empty track. A rate's tooltip gives its counts: `history.tasks.rate.scored`
 (success), `.tasks` (stall), `.fixes` (fix failure).
 
-**Better** is marked only when both sides have at least 10 scored tasks and the values differ by at least 1
-percentage point (rates) or 5 % of the larger value (attempts, times): the better value — higher success, lower
+**Better** is marked only when both sides have at least 10 scored tasks, the values differ by at least 1
+percentage point (rates) or 5 % of the larger value (attempts, times), and the two texts as shown differ (two sides
+that both read `5 分鐘` are not ranked): the better value — higher success, lower
 otherwise — in semibold label color, the other in regular secondary. Otherwise both are regular, in the label color.
 No color and no arrow says "better": small or noisy samples must not crown a winner.
 

@@ -873,14 +873,19 @@ def aggregate(records):
     recovered = seq_sum(r["counts"]["recovered"] for r in records)
     first_pass = [r["firstPassMs"] - r["startMs"] for r in records if r["firstPassMs"] is not None]
     med = quantile(scores, 0.5)
+    successes = seq_sum(1 for r in scored if r["success"])
+    stalls = seq_sum(1 for r in records if r["stalled"])
+    fix_failures = seq_sum(r["counts"]["fixFailures"] for r in records)
     return {
         "tasks": len(records), "scoredTasks": len(scored), "medianScore": med,
         "medianShown": None if med is None else round_half_away(med),
         "lowerQuartile": quantile(scores, 0.25), "upperQuartile": quantile(scores, 0.75),
         "histogram": histogram(scores),
-        "successRate": seq_sum(1 for r in scored if r["success"]) / len(scored) if scored else None,
-        "stallRate": seq_sum(1 for r in records if r["stalled"]) / len(records) if records else None,
-        "fixFailureRate": seq_sum(r["counts"]["fixFailures"] for r in records) / fix_attempts if fix_attempts else None,
+        "successes": successes, "stalls": stalls, "fixFailures": fix_failures, "fixAttempts": fix_attempts,
+        "recovered": recovered,
+        "successRate": successes / len(scored) if scored else None,
+        "stallRate": stalls / len(records) if records else None,
+        "fixFailureRate": fix_failures / fix_attempts if fix_attempts else None,
         "recoverAttempts": seq_sum(r["counts"]["recoverAttempts"] for r in records) / recovered if recovered else None,
         "timeToFirstPassMs": quantile(first_pass, 0.5),
     }
