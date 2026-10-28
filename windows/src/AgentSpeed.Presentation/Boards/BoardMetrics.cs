@@ -56,8 +56,8 @@ public sealed record BoardMetrics(
     /// <summary>The rows show the 智力 column and the captions line above the ranking.</summary>
     public bool IntelligenceColumn => Readouts.Intelligence;
 
-    /// <summary>Group rows have a second line with the model and the cost per second (never at S).</summary>
-    public bool TwoLineRows => Readouts.RowCost && Size != BoardSize.S;
+    /// <summary>Group rows have a second line with the model (at M and L, whatever the switches; never at S).</summary>
+    public bool TwoLineRows => Size != BoardSize.S;
 
     /// <summary>The board's size.</summary>
     public BoardSize Size { get; init; } = BoardSize.M;
@@ -70,7 +70,7 @@ public sealed record BoardMetrics(
 
     public double StripHeight { get; init; }
 
-    /// <summary>The geometry without the live metrics (every switch off): the boards as before them.</summary>
+    /// <summary>The geometry without the live metrics (every switch off): the hero as before them, two-line group rows at M and L.</summary>
     public static BoardMetrics For(BoardStyle style, BoardSize size) => For(style, size, BoardReadouts.None);
 
     /// <summary>
@@ -90,10 +90,10 @@ public sealed record BoardMetrics(
         };
 
         var row = new[] { 30.0, 30, 32 }[i];
-        var group = readouts.RowCost && size != BoardSize.S ? row + 8 : plain.GroupHeight;
+        var group = size != BoardSize.S ? row + 8 : plain.GroupHeight;
         if (!readouts.Hero)
         {
-            // The original hero; only the rows' second line can change the list (RowCost alone).
+            // The original hero; at M and L the rows' second line still makes group rows taller.
             return plain with { GroupHeight = group };
         }
 

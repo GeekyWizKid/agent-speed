@@ -127,7 +127,7 @@ enum BoardStackChecks {
 
         // A switch change: the hero crossfades as a whole, rows spring to their new places.
         var off = next
-        off.metrics.readouts = BoardReadouts(intelligence: false, thinking: true, cost: true, rowCost: false)
+        off.metrics.readouts = BoardReadouts(intelligence: false, thinking: true, cost: true)
         off.rows = BoardLayoutPlanner.plan(off.groups.map { group in BoardPlanGroup(group) { _ in 0 } },
                                            metrics: BoardLayoutMetrics(BoardGeometry(.glass, .medium, readouts: off.metrics.readouts)))
         var switched = builder.layout(off)

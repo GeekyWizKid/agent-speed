@@ -66,10 +66,7 @@ internal sealed class GlassBoardPainter : BoardStylePainter
             BoardReadoutFont.IntelGroupRest => new(BoardFont.Display, 11, FontWeight.Medium),
             BoardReadoutFont.IntelSubRest => new(BoardFont.Display, 10.5f, FontWeight.Medium),
             BoardReadoutFont.Captions => new(BoardFont.Ui, 9, FontWeight.SemiBold, 0.06f),
-            BoardReadoutFont.RowUnit => new(BoardFont.Display, 9, FontWeight.Medium),
-            BoardReadoutFont.RowAtLeast => new(BoardFont.Display, 10.5f * 0.85f, FontWeight.Medium),
-            BoardReadoutFont.RowTag => new(BoardFont.Ui, 10.5f, FontWeight.SemiBold),
-            _ => new(BoardFont.Display, 10.5f, FontWeight.Medium),
+            _ => throw new ArgumentOutOfRangeException(nameof(font)),
         };
     }
 

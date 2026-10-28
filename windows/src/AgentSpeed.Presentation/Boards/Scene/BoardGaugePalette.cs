@@ -40,11 +40,8 @@ public sealed record BoardGaugePalette(
     /// <summary>The rows' 智力 cell while live (neon's <c>led</c> at 78 %).</summary>
     public Rgba RowLive { get; init; }
 
-    /// <summary>The rows' 智力 cell while resting or none, and quiet costs.</summary>
+    /// <summary>The rows' 智力 cell while resting or none.</summary>
     public Rgba RowQuiet { get; init; }
-
-    /// <summary>The rows' cost line (<c>ink-2</c>).</summary>
-    public Rgba RowCost { get; init; }
 
     /// <summary>The dark appearance (glass's tip is white with a glow on dark, <c>pearl-b</c> without one on light).</summary>
     public bool Dark { get; init; }
@@ -62,7 +59,6 @@ public sealed record BoardGaugePalette(
                 Dark = dark,
                 RowLive = ink,
                 RowQuiet = dim,
-                RowCost = ink,
             };
         }
 
@@ -76,7 +72,6 @@ public sealed record BoardGaugePalette(
                     Dark = dark,
                     RowLive = palette.Ink2,
                     RowQuiet = palette.Ink3,
-                    RowCost = palette.Ink2,
                 };
             case BoardStyle.Neon:
             {
@@ -90,7 +85,6 @@ public sealed record BoardGaugePalette(
                     Dark = dark,
                     RowLive = led.MultiplyAlpha(0.78),
                     RowQuiet = palette.Ink3,
-                    RowCost = palette.Ink2,
                 };
             }
 
@@ -105,7 +99,6 @@ public sealed record BoardGaugePalette(
                     Dark = dark,
                     RowLive = palette.Ink2,
                     RowQuiet = palette.Ink3,
-                    RowCost = palette.Ink2,
                 };
         }
     }

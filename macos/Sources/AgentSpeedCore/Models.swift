@@ -114,8 +114,6 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
     public var lastActivity: Date
     /// The parent agent's id when the parent is also in the list (METRICS 6.7).
     public var parentId: String?
-    /// The agent's live cost rate (METRICS 9.5).
-    public var liveCost: LiveCost
     /// The full working directory the transcript names (METRICS 10.6); nil when it names none.
     public var cwdPath: String?
     /// The grade of its current model and effort (METRICS 6.9); nil while its model is unknown.
@@ -136,7 +134,6 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
         recentSpeed: Double?,
         lastActivity: Date,
         parentId: String? = nil,
-        liveCost: LiveCost = .zero,
         cwdPath: String? = nil,
         modes: ExecutionModes = .empty,
         grade: IntelligenceGrade? = nil,
@@ -154,7 +151,6 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
         self.recentSpeed = recentSpeed
         self.lastActivity = lastActivity
         self.parentId = parentId
-        self.liveCost = liveCost
         self.cwdPath = cwdPath
         self.grade = grade
         self.intelligence = intelligence

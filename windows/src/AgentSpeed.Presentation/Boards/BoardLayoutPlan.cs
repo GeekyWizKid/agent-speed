@@ -36,10 +36,10 @@ public sealed record BoardEntry(
     int Rest = 0,
     double RestLive = 0)
 {
-    /// <summary>A group row with its second line (model and cost per second; DESIGN 2c, Live metrics, at M and L).</summary>
+    /// <summary>A group row with its second line (its model; DESIGN 2c, Live metrics, at M and L).</summary>
     public bool TwoLine { get; init; }
 
-    /// <summary>The row's live metrics as worded for this tick (its 智力 and cost); null for the more lines or without them.</summary>
+    /// <summary>The row's live metrics as worded for this tick (its 智力 and tooltip lines); null for the more lines or without them.</summary>
     public BoardRowReadout? Readout { get; init; }
 }
 

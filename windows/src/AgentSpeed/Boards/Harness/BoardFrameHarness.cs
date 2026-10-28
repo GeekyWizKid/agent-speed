@@ -68,7 +68,7 @@ internal static class BoardFrameHarness
 
     /// <summary>
     /// The live metrics states of the metrics sheets: every readout on with 思考 above zero; 思考 hidden at zero (no source reports
-    /// reasoning); quiet (nothing generating); every switch off (the board as before); 智力 off; 每列費用 off; every source a
+    /// reasoning); quiet (nothing generating); every switch off (the plain hero, two-line rows at M and L); 智力 off; every source a
     /// subscription (the tag).
     /// </summary>
     private static readonly (string Name, BoardReadouts Readouts, bool NoReasoning, bool Quiet, bool Subscriptions)[] MetricsStates =
@@ -78,7 +78,6 @@ internal static class BoardFrameHarness
         ("quiet", BoardReadouts.All, false, true, false),
         ("off", BoardReadouts.None, false, false, false),
         ("nointel", BoardReadouts.All with { Intelligence = false }, false, false, false),
-        ("norowcost", BoardReadouts.All with { RowCost = false }, false, false, false),
         ("tag", BoardReadouts.All, false, false, true),
     ];
 

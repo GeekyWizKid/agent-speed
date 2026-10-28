@@ -67,7 +67,7 @@ public sealed class BoardDemoFeed
     public BoardTick Current(BoardStyle style, BoardSize size, string? expanded = null)
     {
         var agents = Sim.Statuses(Epoch);
-        var groups = BoardGrouping.Group(agents, Metric, Billable);
+        var groups = BoardGrouping.Group(agents, Metric);
         var inputs = new BoardRankInput[groups.Count];
         for (var i = 0; i < groups.Count; i++)
         {
@@ -80,8 +80,8 @@ public sealed class BoardDemoFeed
         var readouts = Readouts;
         var texts = Texts();
         var entries = BoardReadoutRows.Word(BoardLayoutPlan.Arrange(ranked, BoardSizes.Limits(size), BoardMetrics.For(style, size, readouts), Metric,
-            expanded), readouts, Metric, texts);
-        var gauge = texts.Hero(agents.Aggregate(IntelligenceSums.Zero, (sum, a) => sum + a.Intelligence.Sums), Cost(agents));
+            expanded), readouts, texts);
+        var gauge = texts.Hero(agents.Aggregate(IntelligenceSums.Zero, (sum, a) => sum + a.Intelligence.Sums), Cost());
         _thinking.Update(readouts, gauge, Sim.Time);
         Events += result.Events.Count;
         var total = Sim.Total;
@@ -120,24 +120,24 @@ public sealed class BoardDemoFeed
 
     private static readonly Lazy<Localizer> DefaultLocalizer = new(() => new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.En));
 
-    // The board's live cost as OrbSubset.Cost reads it, from the agents' own costs (METRICS 9.5) over the billable sources.
-    private CostReading Cost(IReadOnlyList<AgentStatus> agents)
+    // The board's live cost as OrbSubset.Cost reads it, from the sim's agent costs (sim.js measure) over the billable sources.
+    private CostReading Cost()
     {
         double micro = 0, known = 0, output = 0;
         var excluded = new HashSet<SourceKind>();
         var billable = 0;
-        foreach (var agent in agents)
+        foreach (var (source, live, cost) in Sim.Costs())
         {
-            if (!Billable.Contains(agent.Source))
+            if (!Billable.Contains(source))
             {
-                excluded.Add(agent.Source);
+                excluded.Add(source);
                 continue;
             }
 
             billable++;
-            micro += agent.LiveCost.MicroUsdPerSecond;
-            known += agent.LiveCost.KnownOutput;
-            output += agent.Live.Output;
+            micro += cost.MicroUsdPerSecond;
+            known += cost.KnownOutput;
+            output += live;
         }
 
         var share = new LiveCost(micro, known).KnownShare(output);

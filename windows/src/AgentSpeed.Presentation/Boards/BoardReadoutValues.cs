@@ -50,14 +50,12 @@ public sealed record BoardHeroReadouts(string Intelligence, int? Shown, string T
 }
 
 /// <summary>
-/// A ranking row's live metrics of one tick (DESIGN 2c, Ranking rows): its 智力 cell and, for a group row, its cost per second.
+/// A ranking row's live metrics of one tick (DESIGN 2c, Ranking rows): its 智力 cell and, for a group row, its tooltip lines.
 /// </summary>
 /// <param name="Intelligence">The cell's text: the live index, the resting grade, or <c>–</c>.</param>
 /// <param name="Spoken"><c>a11y.agent.intel</c> or <c>a11y.agent.grade</c>; empty for none.</param>
-/// <param name="Cost">The group's cost (null for a sub row and while the row's value shows <c>–</c>).</param>
 /// <param name="TooltipLines">The group tooltip's live metrics lines (DESIGN 2c, Tooltip), in order.</param>
-public sealed record BoardRowReadout(string Intelligence, AgentIntelligenceForm Form, string Spoken, BoardMoney? Cost,
-    IReadOnlyList<string> TooltipLines)
+public sealed record BoardRowReadout(string Intelligence, AgentIntelligenceForm Form, string Spoken, IReadOnlyList<string> TooltipLines)
 {
     public bool Live => Form == AgentIntelligenceForm.Live;
 }

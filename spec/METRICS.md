@@ -2004,7 +2004,8 @@ contributes nothing (the orb shows it as unavailable).
 - The history store (8) is unaffected: its `peak` stays the all-sources `peakToday`.
 - **Boards** (DESIGN 2c) are evaluated exactly like orbs, each with its own `A`, `peakToday_A` and `newPeak_A`. A
   board's hero adds the 6.9 values of `A` (the highest task score, *Sets and groups*, and the thinking sums, *Live
-  thinking*) and the cost above; its group rows use the group forms of 6.9 (the same two parts) and 9.5 (*Per group*).
+  thinking*) and the cost above; its group rows use the group form of 6.9 (*Sets and groups*). Boards show no cost per
+  agent or group (9.5).
 
 ### 6.9 Task score
 
@@ -2905,8 +2906,8 @@ sources. A mark is a current setting, not data: changing it rewrites nothing.
 
 ### 9.5 Live cost rate
 
-The money unit of the orb, menu bar and dashboard (DESIGN 9) and the cost readouts of a board (DESIGN 2c). Window,
-intervals and estimates are those of 6.3.
+The money unit of the orb, menu bar and dashboard (DESIGN 9) and a board's 費用 (DESIGN 2c). Window, intervals and
+estimates are those of 6.3.
 
 - Measured: for every measured response with a known cost, `costMicroUsd * overlap(interval, [start', end]) /
   (end - start')`.
@@ -2921,22 +2922,11 @@ intervals and estimates are those of 6.3.
 - Per source: the same formula restricted to the source's responses and agents. Both values are additive over
   sources, so an orb or a board (6.8) and the billable sum (9.4) add per-source values:
   `knownShare = Σ known tokens / Σ tokens`.
-- **Per agent** (a board's rows, DESIGN 2c): the sums above restricted to the contributions of agent `a` — its own
-  measured and unmeasured responses (`agentId` = `a`) and its own in-flight estimate. As for the agent sums of 6.9
-  (*Live thinking*), only the contributions are restricted: `costRate`, the reference set and the tokens of every
-  estimate are exactly those of the unrestricted value (a reference set may hold other agents' responses, 6.2), so the
-  agents' sums add up to the value of their set. A sub-agent is an agent of its own. `liveCost_a = (measured_a + estimated_a) / (W / 1000)`;
-  `liveCostKnownShare_a` = its known tokens ÷ its tokens (1 when it has none).
-- **Per group** (a board group `G`: a root and its descendants in the board's agents list, DESIGN 2c and 6.9
-  *Sets and groups*): `liveCost_G = Σ_{a ∈ G} liveCost_a` and `liveCostKnownShare_G = Σ known tokens_a / Σ tokens_a` over
-  the members (1 when the tokens add up to 0) — never an average of the members' shares. Subscriptions (9.4) apply per
-  member: a member whose source is excluded adds nothing, neither cost nor tokens; a group with no billable member has
-  no displayed cost (DESIGN 2c shows the subscription tag). Every 6.7 parent link stays within one source, so a group
-  is either billable or excluded as a whole.
+- No per-agent or per-group form: boards show only the cost of their sources (DESIGN 2c; user's choice, 2026-10-28,
+  the per-row and tooltip costs are retired), and nothing else shows a live cost per agent, so the engine keeps none.
 - The money value never drives heat, tiers, titles, peaks or `newPeak`; those follow the token metric.
 
-Engine cases with `liveCost` in `spec/fixtures/engine-cases.json` give responses their `costMicroUsd` directly; their
-`groups` queries check the per-agent and per-group forms (a group of one agent is that agent).
+Engine cases with `liveCost` in `spec/fixtures/engine-cases.json` give responses their `costMicroUsd` directly.
 
 ### 9.6 Today
 

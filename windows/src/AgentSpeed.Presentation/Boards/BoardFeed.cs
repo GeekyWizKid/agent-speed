@@ -99,7 +99,7 @@ public sealed class BoardFeed
         var newPeak = _feed.Update(snapshot, nowSeconds);
         var reading = _feed.Reading;
         var counted = billable ?? SourceSet.Everything;
-        var groups = BoardGrouping.Group(reading.Agents, _feed.Metric, counted);
+        var groups = BoardGrouping.Group(reading.Agents, _feed.Metric);
         IReadOnlyList<BoardRankEvent> events = [];
         if (nowSeconds - _lastTick >= MinTickSeconds || _order.Count == 0 && groups.Count > 0)
         {

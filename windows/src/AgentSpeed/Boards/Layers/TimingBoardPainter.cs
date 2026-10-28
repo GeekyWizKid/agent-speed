@@ -79,10 +79,7 @@ internal sealed class TimingBoardPainter : BoardStylePainter
             BoardReadoutFont.IntelGroupRest => new(BoardFont.Mono, 11, FontWeight.SemiBold),
             BoardReadoutFont.IntelSubRest => new(BoardFont.Mono, 10, FontWeight.SemiBold),
             BoardReadoutFont.Captions => new(BoardFont.Mono, 8.5f, FontWeight.Bold, 0.1f, true),
-            BoardReadoutFont.RowUnit => new(BoardFont.Mono, 8, FontWeight.Bold, 0, true),
-            BoardReadoutFont.RowAtLeast => new(BoardFont.Mono, 9.5f * 0.85f, FontWeight.Bold),
-            BoardReadoutFont.RowTag => new(BoardFont.Ui, 9.5f, FontWeight.SemiBold),
-            _ => new(BoardFont.Mono, 9.5f, FontWeight.Bold),
+            _ => throw new ArgumentOutOfRangeException(nameof(font)),
         };
     }
 

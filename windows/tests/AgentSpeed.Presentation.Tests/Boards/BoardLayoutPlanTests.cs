@@ -21,8 +21,13 @@ public class BoardLayoutPlanTests
         return BoardGrouping.Group(agents, SpeedMetric.Output);
     }
 
+    // The planner's fixture: the board without metrics and with one-line group rows at every size (the S height, 2 more at L), so
+    // the cases exercise the limits of DESIGN 2c Layout per size; the app's M and L boards add the second line.
+    private static BoardMetrics OneLine(BoardStyle style, BoardSize size) =>
+        BoardMetrics.For(style, size) with { GroupHeight = BoardMetrics.For(style, BoardSize.S).GroupHeight + (size == BoardSize.L ? 2 : 0) };
+
     private static IReadOnlyList<BoardEntry> Plan(BoardStyle style, BoardSize size, IReadOnlyList<BoardGroup> groups, string? expanded = null) =>
-        BoardLayoutPlan.Arrange(groups, BoardSizes.Limits(size), BoardMetrics.For(style, size), SpeedMetric.Output, expanded);
+        BoardLayoutPlan.Arrange(groups, BoardSizes.Limits(size), OneLine(style, size), SpeedMetric.Output, expanded);
 
     [Theory]
     [InlineData(BoardStyle.Glass, BoardSize.S, 9, 3)]

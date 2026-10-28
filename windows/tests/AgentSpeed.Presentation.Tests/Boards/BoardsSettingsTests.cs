@@ -18,7 +18,7 @@ public class BoardsSettingsTests
                 new BoardDefinition(IdA)
                 {
                     Style = BoardStyle.Timing, Size = BoardSize.L, Sources = OrbSources.Of(SourceSet.Of(SourceKind.Codex)), Opacity = 0.7, AlwaysOnTop = false,
-                    ClickThrough = true, AllSpaces = false, Readouts = new BoardReadouts(intelligence: true, thinking: false, cost: true, rowCost: false),
+                    ClickThrough = true, AllSpaces = false, Readouts = new BoardReadouts(intelligence: true, thinking: false, cost: true),
                 },
                 new BoardDefinition(IdB) { Visible = false },
             ])
@@ -48,7 +48,7 @@ public class BoardsSettingsTests
         Assert.True(a.ClickThrough);
         Assert.False(a.AlwaysOnTop);
         Assert.False(back.Boards.Find(IdB)!.Visible);
-        Assert.Equal(new BoardReadouts(true, false, true, false), a.Readouts);
+        Assert.Equal(new BoardReadouts(true, false, true), a.Readouts);
         Assert.Equal(BoardReadouts.All, back.Boards.Find(IdB)!.Readouts);
         Assert.Equal(OrbAxis.High(12), back.Boards.RecordFor(Arrangement, IdA)!.Value.X);
     }
@@ -74,7 +74,7 @@ public class BoardsSettingsTests
         Assert.True(readouts["intelligence"]!.GetValue<bool>());
         Assert.False(readouts["thinking"]!.GetValue<bool>());
         Assert.True(readouts["cost"]!.GetValue<bool>());
-        Assert.False(readouts["rowCost"]!.GetValue<bool>());
+        Assert.Null(readouts["rowCost"]);
 
         var record = boards["layouts"]![Arrangement]![IdA]!;
         Assert.Equal("high", record["xAnchor"]!.GetValue<string>());
@@ -101,19 +101,30 @@ public class BoardsSettingsTests
         Assert.Equal(expected, settings.Boards.Boards[0].Size);
     }
 
-    // DESIGN 2c data model: a missing field or key, or a value that is not a boolean, reads as true; no migration step.
+    // DESIGN 2c data model: a missing field or key, or a value that is not a boolean, reads as true; no migration step. An earlier
+    // version's rowCost key is ignored.
     [Theory]
-    [InlineData("", true, true, true, true)]
-    [InlineData(", \"readouts\": 7", true, true, true, true)]
-    [InlineData(", \"readouts\": null", true, true, true, true)]
-    [InlineData(", \"readouts\": { }", true, true, true, true)]
-    [InlineData(", \"readouts\": { \"thinking\": false }", true, false, true, true)]
-    [InlineData(", \"readouts\": { \"intelligence\": \"no\", \"cost\": 0, \"rowCost\": false }", true, true, true, false)]
-    [InlineData(", \"readouts\": { \"intelligence\": false, \"thinking\": false, \"cost\": false, \"rowCost\": false }", false, false, false, false)]
-    public void ReadoutsReadTolerantly(string field, bool intelligence, bool thinking, bool cost, bool rowCost)
+    [InlineData("", true, true, true)]
+    [InlineData(", \"readouts\": 7", true, true, true)]
+    [InlineData(", \"readouts\": null", true, true, true)]
+    [InlineData(", \"readouts\": { }", true, true, true)]
+    [InlineData(", \"readouts\": { \"thinking\": false }", true, false, true)]
+    [InlineData(", \"readouts\": { \"intelligence\": \"no\", \"cost\": 0, \"rowCost\": false }", true, true, true)]
+    [InlineData(", \"readouts\": { \"intelligence\": false, \"thinking\": false, \"cost\": false, \"rowCost\": false }", false, false, false)]
+    [InlineData(", \"readouts\": { \"rowCost\": true, \"cost\": false }", true, true, false)]
+    public void ReadoutsReadTolerantly(string field, bool intelligence, bool thinking, bool cost)
     {
         var settings = Read("{ \"version\": 1, \"boards\": [ { \"id\": \"" + IdA + "\"" + field + " } ] }");
-        Assert.Equal(new BoardReadouts(intelligence, thinking, cost, rowCost), settings.Boards.Boards[0].Readouts);
+        Assert.Equal(new BoardReadouts(intelligence, thinking, cost), settings.Boards.Boards[0].Readouts);
+    }
+
+    [Fact]
+    public void AStoredRowCostKeyIsDroppedOnTheNextWrite()
+    {
+        var settings = Read("{ \"version\": 1, \"boards\": [ { \"id\": \"" + IdA + "\", \"readouts\": { \"thinking\": false, \"rowCost\": false } } ] }");
+        var readouts = JsonNode.Parse(SettingsSerializer.Serialize(settings))!["boards"]!["boards"]![0]!["readouts"]!.AsObject();
+        Assert.Equal(["intelligence", "thinking", "cost"], readouts.Select(p => p.Key));
+        Assert.False(readouts["thinking"]!.GetValue<bool>());
     }
 
     [Fact]

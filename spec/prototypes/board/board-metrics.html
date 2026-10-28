@@ -8,7 +8,7 @@
 </head>
 <body data-theme="dark">
 <header class="pg-top">
-  <h1>排行看板 · 新指標版面<small>智力 · 思考 · 每秒費用；選定 B（副錶）＋每列費用，規格見 DESIGN 2c Live metrics</small></h1>
+  <h1>排行看板 · 新指標版面<small>智力 · 思考 · 每秒費用；選定 B（副錶），每列第二行只放模型，規格見 DESIGN 2c Live metrics</small></h1>
   <span class="spacer"></span>
   <span class="seg" id="styles" role="group" aria-label="風格">
     <button data-v="glass">流光玻璃</button><button data-v="timing">計時塔</button><button data-v="neon">霓虹座艙</button></span>
@@ -25,8 +25,7 @@
   <span class="seg" id="scenarios" role="group" aria-label="情境"><button data-v="swarm">100 子 agent</button><button data-v="team">團隊</button>
     <button data-v="duel">對決</button><button data-v="calm">安靜</button></span>
   <span class="lab">顯示</span>
-  <span class="chips" id="metrics" role="group" aria-label="顯示的指標"><button data-v="intel">智力</button><button data-v="think">思考</button><button data-v="cost">費用</button>
-    <button data-v="rowCost" title="每個群組多一行：模型與這個群組的每秒費用（API 等值）。預設開啟，和其他三個開關各自獨立；S 尺寸不畫">每列費用</button></span>
+  <span class="chips" id="metrics" role="group" aria-label="顯示的指標"><button data-v="intel">智力</button><button data-v="think">思考</button><button data-v="cost">費用</button></span>
   <label title="來源不分開記錄推理 token（例如 DeepSeek Harness）：思考讀到 0，3 秒後收起"><input type="checkbox" id="noreason"> 思考為 0</label>
   <span class="seg" id="currencies" role="group" aria-label="幣別"><button data-v="USD">US$</button><button data-v="TWD">NT$</button>
     <button data-v="CNY">CN¥</button><button data-v="JPY">JP¥</button></span>
@@ -56,9 +55,9 @@
       chosen: true,
       name: { glass: "光環副錶", timing: "資料盒", neon: "LED 副錶" },
       why: "主數字右邊變成副錶：智力大、思考與費用小，各自置中，和懸浮球選定的主副讀數同一套語言。",
-      pros: "層次最清楚、和懸浮球一致；三個版面中最省空間：每列費用關閉時 M 的群組一個都不少，開啟（預設）時 M 留 4 個群組加「還有 N 個」。",
+      pros: "層次最清楚、和懸浮球一致；每個群組的第二行放模型，M 留 4 個群組加「還有 N 個」。",
       cons: "歷史曲線改成整寬細條（玻璃、計時塔），起伏較扁；S 時右欄最窄，費用一行最緊。",
-      small: "副錶縮到 92 pt（計時塔的資料盒 110）、字 7.5–9.5 pt；每列費用不畫；排行剩 3 個群組加「還有 N 個」。",
+      small: "副錶縮到 92 pt（計時塔的資料盒 110）、字 7.5–9.5 pt；每列回到單行；排行剩 3 個群組加「還有 N 個」。",
     },
     C: {
       name: { glass: "明細表", timing: "明細表", neon: "明細表" },
@@ -69,7 +68,7 @@
     },
   };
   const ROW_NOTE = "每一列（群組與子 agent）都有自己的智力：在推理強度膠囊與 tok/s 之間的獨立數字欄，三位數右對齊；閒置時改顯示等級，字色更淡。群組列算的是整個群組（主 agent 加所有子 agent 的加權和），整組閒置時顯示主 agent 的等級。欄名「智力 / tok/s」寫在排行頂端的細線上。";
-  const TOGGLE_NOTE = "<b>指標開關</b>（全部預設開啟）：看板右鍵「看板顯示 ▸ 智力 / 思考 / 費用 / 每列費用」，設定 → 懸浮窗的看板編輯器也有。四個開關各自獨立；關掉的讀數直接收起、其餘重新置中；智力同時管排行的智力欄；全部關掉時看板回到原本的樣子。思考讀到 0 時停 3 秒後收起（底下勾「思考為 0」試）。網址加 <code>subs=all</code> 看全部來源標記為訂閱的樣子。";
+  const TOGGLE_NOTE = "<b>指標開關</b>（全部預設開啟）：看板右鍵「看板顯示 ▸ 智力 / 思考 / 費用」，設定 → 懸浮窗的看板編輯器也有。三個開關各自獨立；關掉的讀數直接收起、其餘重新置中；智力同時管排行的智力欄；全部關掉時看板回到原本的樣子，只有 M、L 的群組仍保留第二行的模型。每列費用已取消：看板不顯示每個 agent 的即時費用。思考讀到 0 時停 3 秒後收起（底下勾「思考為 0」試）。網址加 <code>subs=all</code> 看全部來源標記為訂閱的樣子。";
 
   const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(location.search);
@@ -77,7 +76,7 @@
     style: params.get("style") || "neon", view: params.get("view") || "single", option: params.get("option") || "B",
     size: params.get("size") || "M", theme: params.get("theme") || "dark", scenario: params.get("scenario") || "team",
     currency: params.get("currency") || "USD",
-    metrics: { intel: true, think: true, cost: true }, rowCost: params.get("rowcost") !== "0",
+    metrics: { intel: true, think: true, cost: true },
     subscriptionOnly: params.get("subs") === "all", noReasoning: params.get("noreasoning") === "1",
     rm: matchMedia("(prefers-reduced-motion: reduce)").matches, effects: true,
   };
@@ -105,7 +104,7 @@
   }
   function board(host, style, option) {
     const b = MetricBoards.create(host, { style, option, size: st.size, metrics: st.metrics, currency: st.currency,
-                                          rowCost: st.rowCost, subscriptionOnly: st.subscriptionOnly, noReasoning: st.noReasoning,
+                                          subscriptionOnly: st.subscriptionOnly, noReasoning: st.noReasoning,
                                           reduceMotion: st.rm, effects: st.effects && !st.rm, tip });
     boards.push(b);
     return b;
@@ -174,11 +173,7 @@
     const set = (id, v) => $(id).querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === v)));
     set("styles", st.style); set("views", st.view); set("options", st.option); set("sizes", st.size); set("themes", st.theme);
     set("scenarios", st.scenario); set("currencies", st.currency);
-    $("metrics").querySelectorAll("button").forEach(b => {
-      const v = b.dataset.v, row = v === "rowCost";
-      b.setAttribute("aria-pressed", String(row ? st.rowCost || (st.view === "single" && st.option === "C") : st.metrics[v]));
-      if (row) b.disabled = st.view === "single" && st.option === "C";
-    });
+    $("metrics").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(st.metrics[b.dataset.v])));
     $("options").querySelectorAll("button").forEach(b => { b.disabled = st.view !== "single"; });
     $("styles").querySelectorAll("button").forEach(b => { b.disabled = st.view === "all"; });
     $("rm").checked = st.rm;
@@ -196,7 +191,7 @@
   seg("themes", (v) => { st.theme = v; document.body.dataset.theme = v; });
   seg("scenarios", (v) => { st.scenario = v; sim.setScenario(v); });
   seg("currencies", (v) => { st.currency = v; build(); });
-  seg("metrics", (v) => { if (v === "rowCost") st.rowCost = !st.rowCost; else st.metrics[v] = !st.metrics[v]; sync(); build(); });
+  seg("metrics", (v) => { st.metrics[v] = !st.metrics[v]; sync(); build(); });
   $("rm").addEventListener("change", (e) => { st.rm = e.target.checked; sync(); boards.forEach(b => b.setReduceMotion(st.rm)); });
   $("noreason").addEventListener("change", (e) => { st.noReasoning = e.target.checked; boards.forEach(b => b.setNoReasoning(st.noReasoning)); });
   $("pause").addEventListener("click", () => { if (sim.running) { sim.stop(); $("pause").textContent = "繼續"; } else { sim.start(); $("pause").textContent = "暫停"; } });

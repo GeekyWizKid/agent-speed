@@ -16,7 +16,7 @@ public struct BoardGroup: Equatable, Sendable, Identifiable {
     public var lastActive: Date
     /// Members in phase `generating`.
     public var generating: Int
-    /// The members' live intelligence and cost sums (METRICS 6.9 Group intelligence, 9.5 Per group).
+    /// The members' live intelligence sums (METRICS 6.9 Group intelligence).
     public var sums = AgentGroupSums.zero
 
     /// Live over the group's sums, else the root's grade, else none.
@@ -30,8 +30,8 @@ public enum BoardGrouping {
 
     /// `agents` is the board's agents list (METRICS 6.7 filtered by 6.8, so a parent outside the set is already
     /// cleared). A sub-agent whose parent is not listed is its own root; cycles resolve to the agent itself. Groups
-    /// come in the order of their roots in `agents`. `billable`: the sources whose costs count (METRICS 9.4).
-    public static func groups(_ agents: [AgentStatus], metric: SpeedMetric, billable: SourceSet = .everything) -> [BoardGroup] {
+    /// come in the order of their roots in `agents`.
+    public static func groups(_ agents: [AgentStatus], metric: SpeedMetric) -> [BoardGroup] {
         var index: [String: Int] = [:]
         for (position, agent) in agents.enumerated() where index[agent.id] == nil { index[agent.id] = position }
         func root(_ start: Int) -> Int {
@@ -65,12 +65,12 @@ public enum BoardGrouping {
             var lastActive = rootAgent.lastActivity
             var generating = rootAgent.phase == .generating ? 1 : 0
             var sums = AgentGroupSums()
-            sums.add(rootAgent, billable: billable.contains(rootAgent.source))
+            sums.add(rootAgent)
             for sub in subs {
                 subLive += max(0, sub.live.value(for: metric))
                 lastActive = max(lastActive, sub.lastActivity)
                 if sub.phase == .generating { generating += 1 }
-                sums.add(sub, billable: billable.contains(sub.source))
+                sums.add(sub)
             }
             return BoardGroup(
                 root: rootAgent,
