@@ -1465,8 +1465,9 @@ Windows only. macOS has no equivalent: the system places menu bar items and the 
   and keeps the grabbed point under it, the cursor is the two-way sizing arrow, the tooltip stays hidden. Movement
   across the taskbar never starts a drag. Releasing ends the drag and saves the position; it never toggles the
   dashboard. A press released without a drag is a click — the dashboard toggles when it is released over the widget,
-  nothing happens otherwise. Losing the mouse capture during a drag cancels it: the widget returns to the saved
-  position. The right-click menu is unchanged.
+  nothing happens otherwise. Losing the mouse capture during a press, or the taskbar changing DPI or orientation under
+  it, cancels it: no click, and a dragged widget returns to the saved position. The right-click menu is unchanged (a
+  right-click during a press is ignored).
 - Stored value `taskbar.offset`: the distance in DIPs, rounded to 0.01, from the default spot to the widget's trailing
   edge, measured toward the taskbar's start (left, or up on a vertical taskbar); 0 = the default spot (default), never
   negative, at most 10 000. Physical offset = round(offset × DPI / 96). It is a distance from the notification area,
