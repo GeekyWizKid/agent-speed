@@ -1819,7 +1819,7 @@ The latest task is the agent's **current task**. It stays current after the agen
 
 | Source | Prompt | Never a prompt |
 | --- | --- | --- |
-| Claude (both) | a `type == "user"` line classified *prompt* or *command* below | assistant lines, every other type |
+| Claude (both) | a `type == "user"` line classified *prompt* or *command* below; a *queued message* (below) | assistant lines, every other attachment, every other type |
 | Codex | `event_msg` with `payload.type == "user_message"`; its text is `payload.message` (a non-string counts as empty, so an images-only message is a prompt) | every other line: the `response_item` user message that repeats it, injected context (`developer` and `system` messages, `<environment_context>`, AGENTS.md), mailbox input (4.2), tool outputs |
 | omp, Pi, OpenClaw | a `message` entry with `message.role == "user"` whose content is a non-blank string, or has a non-blank `text` block or an `image` block; its text is the string, or the `text` blocks joined with LF | `developer`, `toolResult`, `bashExecution` and the other roles; `compaction`, `branch_summary`, `custom_message` and every other entry |
 
@@ -1838,6 +1838,16 @@ The latest task is the agent's **current task**. It stays current after the agen
 4. **Command**: the lead starts with `<command-name>` or `<command-message>` (a slash command or skill the user typed).
 5. Otherwise a **prompt**. Its text is the string content, or the `text` blocks whose text, with leading whitespace
    removed, does not start with `<` (IDE selections and other tag blocks attached to the prompt), joined with LF.
+
+A message the user types while the agent works is not a `user` line: Claude Code stores it as a `type ==
+"attachment"` line whose `attachment.type` is `queued_command`. It is a **queued message**, a prompt, when
+`attachment.commandMode == "prompt"`, `attachment.humanTurn == true`, and neither the line's nor the attachment's
+`isMeta` is `true`; its content is `attachment.prompt` (a string or blocks), read like a `user` line's content (rule 1's
+test for text or an image or document, rule 5's text), so it can be a continuation. Its time is
+`attachment.timestamp` (when the user sent it) when that is a timestamp (3.1), else the line's own. Every other
+`queued_command` is not a prompt: background-task notices (`commandMode == "task-notification"`) and the hand-back
+messages of sub-agents (`isMeta`, text starting `<agent-message`). Checked against real Claude Code logs, counts and
+field names only (2026-10-28).
 
 **Withdrawal** (Claude, omp, Pi, OpenClaw). A prompt or command takes effect as soon as its line is read, so the new
 task shows at once. It is *withdrawn* — as if the line were not there, and the previous task stays current — when:
@@ -1869,8 +1879,8 @@ entry is ASCII or CJK (after NFKC, which also maps full-width letters to ASCII),
 change no result and would differ between platforms. The text is compared in memory and never kept. Cases:
 `continuations`.
 
-Approximation: Codex records a message the user sends while the agent works (steering) as a `user_message`, so it
-starts a new task unless it is in the list.
+A message the user sends while the agent works (steering: a Claude queued message, a Codex `user_message`) starts a
+new task unless it is in the list. A correction typed mid-task therefore splits the task: an approximation.
 
 #### Event stream
 

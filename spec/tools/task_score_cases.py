@@ -16,7 +16,8 @@ COMMENT = (
     "METRICS 6.9 and 6.11, checked by spec/tools/task_score.py and generated from spec/tools/task_score_cases.py "
     "(--write). Events are the normalised stream of 6.9 (prompt / action with kind, tool, digest, command, outcome, "
     "failures, hunks); an outcome whose `t` is after a query's `nowMs` is not known yet. `continuations`: is the text a "
-    "continuation. `promptLines`: the prompt kind of one line of a source. `segmentation`: prompt events from "
+    "continuation. `promptLines`: the prompt kind of one line of a source (`t`: the prompt's own time when it is not "
+    "the line's, a queued Claude message). `segmentation`: prompt events from "
     "classified lines. `tasks`: the current task of a stream at `nowMs` (absent: everything): state, score (unrounded), "
     "shown (half away from zero), the five dimensions, IG, loop and oscillation shares, counts, first pass and stall "
     "window ends. `values`: agent forms and the highest-score rule for groups and the whole set (agent `weight` is "
@@ -161,6 +162,37 @@ def prompt_lines():
         ("openclaw: a tool result is not a prompt", "openclaw",
          {"type": "message", "id": "e1", "message": {"role": "toolResult", "toolCallId": "c1", "content": "x"}}, None),
         ("hermes has no tasks", "hermes", {"type": "message", "message": {"role": "user", "content": "hi"}}, None),
+    ]
+
+    def queued(mode, prompt_value, line_meta=None, **fields):
+        attachment = dict({"type": "queued_command", "commandMode": mode, "prompt": prompt_value,
+                           "timestamp": "2026-10-28T09:15:02.250Z", "origin": "user", "source_uuid": "u-1",
+                           "delivery_id": "d-1"}, **fields)
+        line = {"type": "attachment", "timestamp": "2026-10-28T09:15:40.000Z", "attachment": attachment}
+        if line_meta is not None:
+            line["isMeta"] = line_meta
+        return line
+
+    typed_ms = 1_793_178_902_250
+    cases += [
+        ("claude: a message typed mid-turn (queued, human) is a prompt at its own time", "claudeCode",
+         queued("prompt", "Also cover the empty input case", humanTurn=True),
+         {"kind": "prompt", "continuation": False, "t": typed_ms}),
+        ("claude: a queued continuation, prompt as blocks", "claudeCode",
+         queued("prompt", [{"type": "text", "text": "keep going"}], humanTurn=True),
+         {"kind": "prompt", "continuation": True, "t": typed_ms}),
+        ("claude: a queued message without a valid timestamp takes the line's time", "claudeDesktop",
+         queued("prompt", "and the docs", humanTurn=True, timestamp="2026-10-28 09:15"), p),
+        ("claude: a queued background-task notice is not a prompt", "claudeCode",
+         queued("task-notification", "<task-notification>build finished</task-notification>"), None),
+        ("claude: a queued sub-agent hand-back (meta) is not a prompt", "claudeCode",
+         queued("prompt", "<agent-message from=\"reviewer\">done</agent-message>", isMeta=True), None),
+        ("claude: a meta line around a queued prompt is not a prompt", "claudeCode",
+         queued("prompt", "<agent-message from=\"reviewer\">done</agent-message>", line_meta=True, humanTurn=True), None),
+        ("claude: a queued prompt that is not a human turn is not a prompt", "claudeCode",
+         queued("prompt", "Run the linter"), None),
+        ("claude: other attachments are not prompts", "claudeCode",
+         {"type": "attachment", "attachment": {"type": "todo_reminder", "content": []}}, None),
     ]
     return [{"name": n, "source": s, "line": line, "want": want} for n, s, line, want in cases]
 

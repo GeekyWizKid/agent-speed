@@ -20,6 +20,7 @@ import unicodedata
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import live_thinking as thinking  # noqa: E402
+import reference as engine  # noqa: E402
 
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures", "task-score-cases.json")
 
@@ -105,7 +106,33 @@ def _content_parts(content, media_types):
     return texts, media, texts[0] if texts else ""
 
 
+def _prompt_text(content, texts):
+    return content if isinstance(content, str) else "\n".join(t for t in texts if not t.lstrip().startswith("<"))
+
+
+def claude_queued_prompt(obj):
+    """A message the user typed while the agent worked: a `queued_command` attachment in prompt mode, from a human."""
+    attachment = obj.get("attachment")
+    if not isinstance(attachment, dict) or attachment.get("type") != "queued_command":
+        return None
+    if attachment.get("commandMode") != "prompt" or attachment.get("humanTurn") is not True:
+        return None
+    if obj.get("isMeta") is True or attachment.get("isMeta") is True:
+        return None
+    content = attachment.get("prompt")
+    parts = _content_parts(content, ("image", "document"))
+    if parts is None:
+        return None
+    found = {"kind": "prompt", "continuation": is_continuation(_prompt_text(content, parts[0]))}
+    queued_ms = engine.parse_ts(attachment.get("timestamp"))
+    if queued_ms is not None:
+        found["t"] = queued_ms
+    return found
+
+
 def claude_prompt(obj):
+    if obj.get("type") == "attachment":
+        return claude_queued_prompt(obj)
     if obj.get("type") != "user" or any(obj.get(f) is True for f in
                                         ("isMeta", "isCompactSummary", "isVisibleInTranscriptOnly")):
         return None
@@ -126,8 +153,7 @@ def claude_prompt(obj):
         return None
     if head.startswith("<command-name>") or head.startswith("<command-message>"):
         return {"kind": "command"}
-    text = content if isinstance(content, str) else "\n".join(t for t in texts if not t.lstrip().startswith("<"))
-    return {"kind": "prompt", "continuation": is_continuation(text)}
+    return {"kind": "prompt", "continuation": is_continuation(_prompt_text(content, texts))}
 
 
 def codex_prompt(obj):
@@ -154,7 +180,7 @@ PROMPT_LINES = {"claudeCode": claude_prompt, "claudeDesktop": claude_prompt, "co
 
 def prompt_line(source, obj):
     """The prompt kind of one line that passed its source's copied-history rules: prompt, command, commandOutput or
-    None (anything else)."""
+    None (anything else). A prompt with `t` takes that time instead of the line's (a queued Claude message)."""
     extractor = PROMPT_LINES.get(source)
     return extractor(obj) if extractor and isinstance(obj, dict) else None
 
