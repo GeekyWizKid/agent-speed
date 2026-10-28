@@ -21,7 +21,14 @@ public readonly record struct OrbLine(string Glyph, string Number, string Unit);
 /// <param name="Second">Traffic: the ↑ line; intelligence: the thinking line.</param>
 /// <param name="Bits">Traffic in bits: the unit cell is as wide as <c>Mb/s</c> instead of <c>MB/s</c>.</param>
 /// <param name="Detail">More than the lines say (the orb's tooltip); null when there is nothing more.</param>
-public sealed record OrbLinesContent(OrbLinesKind Kind, OrbLine First, OrbLine Second, bool Bits, string Spoken, string? Detail = null);
+public sealed record OrbLinesContent(OrbLinesKind Kind, OrbLine First, OrbLine Second, bool Bits, string Spoken, string? Detail = null)
+{
+    /// <summary>Intelligence: the thinking line's value reads 0, so it hides after its hold (<see cref="OrbThinkingFade"/>).</summary>
+    public bool ThinkingZero { get; init; }
+
+    /// <summary>Intelligence: what the label adds while the thinking line is hidden (<c>a11y.orb.intel.only</c>).</summary>
+    public string? SpokenAlone { get; init; }
+}
 
 /// <summary>
 /// One sample for the quiet rule: its mode, what to show (null: no value now, keep the last of the same mode) and whether
@@ -39,6 +46,19 @@ public readonly record struct OrbLinesReading(OrbLinesContent Content, double Sh
 {
     public const double FadeIn = 0.25;
     public const double FadeOut = 0.6;
+
+    /// <summary>Intelligence: the thinking line's hold, fade and glide while its value reads 0.</summary>
+    public OrbThinkingFade Thinking { get; init; }
+
+    /// <summary>What the orb's label adds at <paramref name="time"/>: the intelligence alone once the thinking line hides.</summary>
+    public string Spoken(double time) => Content.SpokenAlone is { } alone && Thinking.Hides(time) ? alone : Content.Spoken;
+
+    /// <summary>The next scheduled change still ahead of <paramref name="time"/> (the quiet fade, the thinking line's hold end).</summary>
+    public double? NextChange(double time)
+    {
+        var quiet = QuietAt > time ? QuietAt : (double?)null;
+        return Thinking.NextChange(time) is { } hide && (quiet is null || hide < quiet) ? hide : quiet;
+    }
 
     /// <summary>Opacity at <paramref name="time"/>; Reduce Motion makes both fades instant.</summary>
     public double Alpha(double time, bool reduceMotion)
@@ -84,10 +104,14 @@ public sealed class OrbLinesQuietRule
     {
         if (current is not { } shown || shown.IsGone(time))
         {
-            return sample.Loud && sample.Content is { } content ? new OrbLinesReading(content, time, time + QuietAfter) : current;
+            return sample.Loud && sample.Content is { } content
+                ? new OrbLinesReading(content, time, time + QuietAfter) { Thinking = default(OrbThinkingFade).Next(content.ThinkingZero, time) }
+                : current;
         }
 
-        var next = shown with { Content = sample.Content ?? shown.Content };
+        var next = sample.Content is { } update
+            ? shown with { Content = update, Thinking = shown.Thinking.Next(update.ThinkingZero, time) }
+            : shown;
         if (!sample.Loud)
         {
             return next;

@@ -13,7 +13,7 @@ using AgentSpeed.Presentation.Settings;
 namespace AgentSpeed.Presentation.Tests.Gpu;
 
 /// <summary>The orb's two-line readout (DESIGN 10, Floating orb readout and Intelligence readout): quiet rule, placement, centering and frames.</summary>
-public class OrbLinesTests
+public partial class OrbLinesTests
 {
     private const double Redline = 2000;
     private static readonly Localizer En = new(Localizer.LoadEmbeddedTable(), LanguageCodes.En);

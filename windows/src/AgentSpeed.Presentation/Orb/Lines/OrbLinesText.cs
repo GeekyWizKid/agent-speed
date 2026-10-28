@@ -27,8 +27,9 @@ public static class OrbLinesText
     }
 
     /// <summary>
-    /// The intelligence line (integer index) and the thinking line (<c>liveThinking</c> tok/s); quiet without output in the
-    /// window or a generating agent. With nothing generated the last shown values stay while the readout fades.
+    /// The intelligence line (integer index) and the thinking line (<c>liveThinking</c> tok/s, hidden after 3 s at 0); quiet
+    /// without output in the window or a generating agent. With nothing generated the last shown values stay while the
+    /// readout fades.
     /// </summary>
     public static OrbLinesSample Intelligence(IntelligenceSums sums, bool generating, Localizer localizer)
     {
@@ -45,7 +46,11 @@ public static class OrbLinesText
             new OrbLine(localizer["intel.thinking.glyph"], thinking, localizer["unit.tokS"]),
             false,
             localizer.Format("a11y.orb.intel", shown, thinking),
-            localizer.Format("intel.tooltip", shown, HistoryText.Percent(sums.ThinkingShare)) + "\n" + localizer["intel.disclaimer"]);
+            localizer.Format("intel.tooltip", shown, HistoryText.Percent(sums.ThinkingShare)) + "\n" + localizer["intel.disclaimer"])
+        {
+            ThinkingZero = ThinkingZeroHold.ReadsZero(sums.LiveThinking),
+            SpokenAlone = localizer.Format("a11y.orb.intel.only", shown),
+        };
         return new OrbLinesSample(OrbLinesKind.Intelligence, content, true);
     }
 }

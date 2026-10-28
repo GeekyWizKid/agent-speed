@@ -35,6 +35,9 @@ internal sealed class PinnedSpeedDriver : IDisposable
     private readonly DateTimeOffset _startedAt = DateTimeOffset.Now;
     private double _peak;
 
+    /// <summary>The agents report reasoning; off, the thinking rate of every surface reads 0 (DESIGN 10, Thinking hidden at zero).</summary>
+    public bool Reasoning { get; set; } = true;
+
     public PinnedSpeedDriver(SpeedHub hub, Dispatcher dispatcher, IReadOnlyList<double> speeds)
     {
         _hub = hub;
@@ -86,7 +89,7 @@ internal sealed class PinnedSpeedDriver : IDisposable
             var live = a.Share * speed;
             var grade = a.Model is null ? (ModelGrade?)null : ModelGrade.Of(PriceBook.Bundled, a.Model, null, a.Effort);
             var window = live * WindowSeconds;
-            var sums = IntelligenceSums.Zero.Add(a.Source, window, window * a.Thinking, grade ?? ModelGrade.Unknown);
+            var sums = IntelligenceSums.Zero.Add(a.Source, window, Reasoning ? window * a.Thinking : 0, grade ?? ModelGrade.Unknown);
             return new AgentStatus(a.Id, a.Source, a.Project, a.Model, a.Phase, a.ParentId is not null, new Rate(live, live * 24),
                 live > 0 ? live : null, now, a.ParentId)
             {

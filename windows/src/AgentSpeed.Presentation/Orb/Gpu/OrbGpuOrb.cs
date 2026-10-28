@@ -98,8 +98,23 @@ public sealed class OrbGpuOrb
     /// <summary>The accent color of the highlight ring.</summary>
     public Rgba Accent { get; set; } = Rgba.FromHex("#3B82F6");
 
-    /// <summary>When static, the time (shared clock) of the next scheduled change.</summary>
-    public double? NextWake => Scene.NextWake;
+    /// <summary>
+    /// When static, the time (shared clock) of the next scheduled change: the scene's, or the two-line readout's quiet fade
+    /// and the end of its thinking line's hold.
+    /// </summary>
+    public double? NextWake
+    {
+        get
+        {
+            var scene = Scene.NextWake;
+            if (_lines.Reading is not { } reading || _unavailable || reading.NextChange(Scene.Time) is not { } lines)
+            {
+                return scene;
+            }
+
+            return scene is { } at && at < lines ? at : lines;
+        }
+    }
 
     public bool IsConfigured => _context is not null && _style is not null;
 
@@ -476,7 +491,9 @@ public sealed class OrbGpuOrb
             return 0;
         }
 
-        return placement.StackShift(style.Readout, ctx.Size, reading.Content.Kind, reading.Alpha(Scene.Time, Scene.Effects.ReduceMotion));
+        var reduce = Scene.Effects.ReduceMotion;
+        return placement.StackShift(style.Readout, ctx.Size, reading.Content.Kind, reading.Alpha(Scene.Time, reduce),
+            reading.Thinking.Single(Scene.Time, reduce));
     }
 
     /// <summary><c>needle</c>: the unit leaves the hub for the dial face while the readout is on and fits (DESIGN 10).</summary>
@@ -505,7 +522,10 @@ public sealed class OrbGpuOrb
         }
     }
 
-    /// <summary>The readout fades (quiet rule), or fades back after the pill (DESIGN 10): frames at 30 fps.</summary>
+    /// <summary>
+    /// The readout fades (quiet rule), its thinking line fades as the intelligence line glides, or it fades back after the
+    /// pill (DESIGN 10): frames at 30 fps.
+    /// </summary>
     private bool LinesMoving(double now)
     {
         if (_lines.Reading is not { } reading || _unavailable)
@@ -513,13 +533,19 @@ public sealed class OrbGpuOrb
             return false;
         }
 
-        if (reading.IsFading(now, Scene.Effects.ReduceMotion))
+        var reduce = Scene.Effects.ReduceMotion;
+        if (reading.IsFading(now, reduce))
         {
             return true;
         }
 
-        return !reading.IsGone(now) && Scene.PeakAge is { } age && age >= OrbScene.PeakPillDuration
-            && age < OrbScene.PeakPillDuration + OrbLinesDraw.PillFade + 0.05;
+        if (reading.IsGone(now))
+        {
+            return false;
+        }
+
+        return reading.Thinking.IsMoving(now, reduce)
+            || (Scene.PeakAge is { } age && age >= OrbScene.PeakPillDuration && age < OrbScene.PeakPillDuration + OrbLinesDraw.PillFade + 0.05);
     }
 
     private OrbFrame Frame(double now, double dt, OrbGpuConfig config, double readoutShift) => new(

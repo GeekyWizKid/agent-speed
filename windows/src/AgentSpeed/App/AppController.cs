@@ -51,6 +51,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     private CostService _cost = null!;
     private Traffic.TrafficService _traffic = null!;
     private TaskbarState? _lastTaskbarState;
+    private readonly ThinkingZeroHold _barThinking = new();
     private SpeedHub _hub = null!;
     private HistoryHub _historyHub = null!;
     private HistoryController? _history;
@@ -732,7 +733,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             accessible = $"{accessible}{SpokenSeparator}{spokenTraffic}";
         }
 
-        var intelligence = BarIntelligenceBlock.From(s, _speed.Snapshot, _loc);
+        var intelligence = BarIntelligence();
         if (intelligence is not null)
         {
             accessible = $"{accessible}{SpokenSeparator}{intelligence.Spoken}";
@@ -758,6 +759,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             intelligence);
         _taskbar.Update(_lastTaskbarState);
     }
+
+    /// <summary>The taskbar intelligence block, its thinking line hidden after 3 s at 0 (DESIGN 10).</summary>
+    private BarIntelligenceBlock? BarIntelligence() => BarIntelligenceBlock.From(Settings, _speed.Snapshot, _loc, _barThinking, _speed.Now);
 
     /// <summary>The taskbar money block (DESIGN 3): the live rate and today's total after tok/s with the live value "tok/s + cost".</summary>
     private BarSecondary? BarSecondaryValue()
@@ -790,7 +794,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             : $"{SpeedFormat.Speed(_speed.Value)} {_loc["unit.tokS"]}";
         var line = BarSecondaryValue() is { } secondary ? $"{main} · {secondary.Spoken} · {title}" : $"{main} · {title}";
         var readout = BarTrafficBlock.From(Settings, _traffic.Snapshot, _loc)?.Spoken
-            ?? BarIntelligenceBlock.From(Settings, _speed.Snapshot, _loc)?.Spoken;
+            ?? BarIntelligence()?.Spoken;
         return readout is not null ? $"{line} · {readout}" : line;
     }
 
@@ -1120,8 +1124,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     /// <summary>
     /// Developer capture operations for the title themes (only with <c>--capture-dir</c>): <c>page-&lt;key&gt;</c>,
     /// <c>theme-&lt;preset id in lowercase&gt;</c>, <c>theme-custom</c> (a sample custom set), <c>lang-&lt;code&gt;</c>,
-    /// <c>appearance-&lt;auto|light|dark&gt;</c>, <c>dashboard</c>, and live reporting's <c>report-enable</c>, <c>report-start</c>,
-    /// <c>report-preview</c>, <c>report-cancel</c>.
+    /// <c>appearance-&lt;auto|light|dark&gt;</c>, <c>dashboard</c>, live reporting's <c>report-enable</c>, <c>report-start</c>,
+    /// <c>report-preview</c>, <c>report-cancel</c>, and <c>demo-reasoning-off</c> / <c>demo-reasoning-on</c> (with
+    /// <c>--demo-speed</c>: the pinned agents stop or resume reporting reasoning, so the thinking rate reads 0).
     /// </summary>
     private void RunTitleCaptureOperation(string op)
     {
@@ -1167,6 +1172,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         else if (op == "dashboard")
         {
             ShowDashboard(CursorAnchor());
+        }
+        else if (op is "demo-reasoning-off" or "demo-reasoning-on" && _pinnedSpeeds is { } pinned)
+        {
+            pinned.Reasoning = op == "demo-reasoning-on";
         }
         else if (op == "report-enable")
         {

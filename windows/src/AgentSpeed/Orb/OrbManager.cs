@@ -796,13 +796,13 @@ internal sealed class OrbManager : IDisposable
             accessible = _loc.Format("a11y.orb.named", name, SpeedFormat.Speed(feed.Value), ThemeOf(orb).Text(feed.Title, _loc));
         }
 
-        var lines = unavailableTitle is null && surface.LinesVisible ? surface.LinesReading?.Content : null;
-        if (lines is not null)
+        var lines = unavailableTitle is null && surface.LinesVisible ? surface.LinesReading : null;
+        if (lines is { } shown)
         {
-            accessible += DisplayText.SpokenSeparator(_loc) + lines.Spoken;
+            accessible += DisplayText.SpokenSeparator(_loc) + shown.Spoken(_clock.Now);
         }
 
-        entry.Window.SetDiscHint(lines?.Detail);
+        entry.Window.SetDiscHint(lines?.Content.Detail);
 
         if (accessible != entry.PendingName)
         {
