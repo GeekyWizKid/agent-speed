@@ -3787,10 +3787,10 @@
     "ja": "知"
   },
   "intel.thinking.glyph": {
-    "zh-Hant": "思",
-    "zh-Hans": "思",
+    "zh-Hant": "思考",
+    "zh-Hans": "思考",
     "en": "TH",
-    "ja": "思"
+    "ja": "思考"
   },
   "intel.tooltip": {
     "zh-Hant": "智力 %@ · 思考 %@",
