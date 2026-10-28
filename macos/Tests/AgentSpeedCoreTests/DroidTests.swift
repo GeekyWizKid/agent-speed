@@ -305,7 +305,7 @@ struct DroidTests {
         let live = try #require(try Self.droidFixtures["live"] as? [String: Any])
         let steps = try #require(live["steps"] as? [[String: Any]])
         let lines = try Self.liveLines()
-        #expect(lines.count == steps.count && steps.filter { $0["read"] != nil }.count == 11)
+        #expect(lines.count == steps.count && steps.filter { $0["read"] != nil }.count == 17)
         let home = try TempDirectory()
         var deduper = Deduper()
         var tails: [String: Tail] = [:]
@@ -328,8 +328,12 @@ struct DroidTests {
                 }
             } else if let relative = step.string("sidecar") {
                 let path = DroidPaths.sidecarPath(ofTranscript: home.file(relative).path)
-                let doc = try #require(step["doc"])
-                try JSONSerialization.data(withJSONObject: doc, options: [.prettyPrinted]).write(to: URL(fileURLWithPath: path))
+                if let text = step.string("text") {
+                    try Data(text.utf8).write(to: URL(fileURLWithPath: path))
+                } else {
+                    let doc = try #require(step["doc"])
+                    try JSONSerialization.data(withJSONObject: doc, options: [.prettyPrinted]).write(to: URL(fileURLWithPath: path))
+                }
                 let mtime = try #require(step.int64("mtime"))
                 try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: Double(mtime) / 1000)],
                                                       ofItemAtPath: path)
@@ -351,6 +355,96 @@ struct DroidTests {
                 if let phase = step.string("phase") { #expect(tail.parser.state.phase.rawValue == phase, "\(label) phase") }
             }
         }
+    }
+
+    // MARK: - History with unreadable parent sidecars
+
+    /// Writes a `droid.history` `write` step: the file's text and its modification time (ms).
+    static func write(_ step: [String: Any], in home: TempDirectory) throws {
+        let relative = try #require(step.string("write"))
+        let mtime = try #require(step.int64("mtime"))
+        try home.write(relative, try #require(step.string("text")), modified: Date(timeIntervalSince1970: Double(mtime) / 1000))
+    }
+
+    /// One analysis the way `reference.py` collects it: every session in startup order, read whole with one sidecar
+    /// read, skipping those whose own counters are unknown; `memory` carries the unreadable parent sidecars.
+    static func analyse(_ home: TempDirectory, memory: inout [String: DroidPaths.Signature])
+        -> (responses: [String: [ResponseRecord]], skipped: [String]) {
+        var index = DirectoryIndex(root: home.file(".factory/sessions").path, names: .droidSession)
+        let files = TranscriptDiscovery.files(at: index.scan(), family: .droid).sorted(by: TranscriptDiscovery.startupOrder)
+        var deduper = Deduper()
+        var responses: [String: [ResponseRecord]] = [:]
+        var skipped: [String] = []
+        for (number, file) in files.enumerated() {
+            let relative = String(file.path.dropFirst(home.path.count + 1))
+            var parser = TranscriptParser(family: .droid, agentId: file.path, fileID: FileID(number))
+            parser.droidUnreadableParent = memory[file.path]
+            var reader = TranscriptReader(path: file.path)
+            let read = reader.read(onLineAt: { line, offset in
+                parser.consume(rawLine: line, offset: offset, deduper: &deduper) { _ in }
+            })
+            parser.noteReadStart(read.startOffset)
+            var records: [ResponseRecord] = []
+            _ = parser.finishReadCycle { records.append($0.record) }
+            memory[file.path] = parser.droidUnreadableParent
+            if parser.droidOwnCountersUnknown {
+                skipped.append(relative)
+                continue
+            }
+            parser.finishHistory { records.append($0.record) }
+            if !records.isEmpty { responses[relative] = records }
+        }
+        return (responses, skipped.sorted())
+    }
+
+    @Test func historySkipsSessionsWhoseOwnCountersAreUnknown() throws {
+        let history = try #require(try Self.droidFixtures["history"] as? [String: Any])
+        let steps = try #require(history["steps"] as? [[String: Any]])
+        #expect(steps.filter { $0["analyze"] != nil }.count == 3)
+        let home = try TempDirectory()
+        var memory: [String: DroidPaths.Signature] = [:]
+        for (number, step) in steps.enumerated() {
+            if step["write"] != nil {
+                try Self.write(step, in: home)
+                continue
+            }
+            let (responses, skipped) = Self.analyse(home, memory: &memory)
+            let wanted = try #require(step["responses"] as? [String: [[String: Any]]])
+            #expect(skipped == step["skipped"] as? [String], "analysis at step \(number + 1) skipped")
+            #expect(Set(responses.keys) == Set(wanted.keys), "analysis at step \(number + 1) sessions")
+            for (relative, records) in responses {
+                let want = wanted[relative] ?? []
+                #expect(records.count == want.count, "\(relative)")
+                for (record, expected) in zip(records, want) {
+                    #expect((Self.response(record) as NSDictionary).isEqual(to: expected), "\(relative) \(record.key)")
+                }
+            }
+        }
+    }
+
+    /// The same steps through the daily history itself: a skipped session is not stored, so the next analysis reads it
+    /// again, and the remembered parent signature carries over between analyses of one analyser.
+    @Test func theHistoryAnalysesASkippedSessionAgain() throws {
+        let history = try #require(try Self.droidFixtures["history"] as? [String: Any])
+        let steps = try #require(history["steps"] as? [[String: Any]])
+        let home = try TempDirectory()
+        let analyzer = try HistoryAnalyzer(database: HistoryDatabase.inMemory())
+        let configuration = MonitorConfiguration(enabledSources: [.droid], droidRoot: home.file(".factory"))
+        var analysed: [Int] = []
+        for step in steps {
+            if step["write"] != nil {
+                try Self.write(step, in: home)
+                continue
+            }
+            let report = try analyzer.run(configuration: configuration, options: HistoryAnalyzer.Options(timeZone: HistoryTests.utc))
+            analysed.append(report.filesAnalyzed)
+            let wanted = (step["responses"] as? [String: [[String: Any]]] ?? [:]).values.flatMap { $0 }
+            let days = analyzer.days(sources: [.droid])
+            #expect(days.reduce(0) { $0 + $1.totals.requests } == wanted.count)
+            #expect(days.reduce(0) { $0 + $1.totals.output } == wanted.reduce(0) { $0 + (($1["output"] as? Int) ?? 0) })
+            #expect(days.reduce(0) { $0 + $1.totals.input } == wanted.reduce(0) { $0 + (($1["input"] as? Int) ?? 0) })
+        }
+        #expect(analysed == [2, 3, 0], "the parents first; then the changed parent and both successors; then nothing")
     }
 
     // MARK: - Lines

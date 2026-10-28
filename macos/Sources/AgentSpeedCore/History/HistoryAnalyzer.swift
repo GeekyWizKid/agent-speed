@@ -68,6 +68,9 @@ final class HistoryAnalyzer {
     private var indexes: [String: DirectoryIndex] = [:]
     /// Factory Droid sessions' parent ids by transcript, read once per transcript identity (`DroidHistoryIdentity`).
     private var droidParents = DroidHistoryIdentity.ParentCache()
+    /// The parent sidecar each Factory Droid session last found unreadable, carried from one analysis to the next
+    /// (METRICS 4.16 Own counters); a relaunch starts without it.
+    private var droidUnreadableParents: [String: DroidPaths.Signature] = [:]
 
     init(database: HistoryDatabase, pricing: PriceBook = PriceBook()) throws {
         self.database = database
@@ -428,17 +431,28 @@ final class HistoryAnalyzer {
                     continue
                 }
                 // Parsers bridge paths through NSString; drain those per file on this long-running thread.
-                let (days, keys) = autoreleasepool { () -> ([UsageKey: DayAggregate], [UInt64]) in
+                let (days, keys, unknown) = autoreleasepool { () -> ([UsageKey: DayAggregate], [UInt64], Bool) in
                     var parser = TranscriptParser(
                         family: file.family, agentId: file.path, fileID: FileID(truncatingIfNeeded: index), root: file.root)
+                    if file.family == .droid { parser.droidUnreadableParent = droidUnreadableParents[file.path] }
                     var latest: [String: ResponseRecord] = [:]
                     parser.consume(output.lines, deduper: &deduper) { latest[$0.record.key] = $0.record }
                     // Factory Droid's history rule: the whole transcript, then one sidecar read (METRICS 4.16).
                     _ = parser.finishReadCycle { latest[$0.record.key] = $0.record }
+                    if file.family == .droid {
+                        droidUnreadableParents[file.path] = parser.droidUnreadableParent
+                        if parser.droidOwnCountersUnknown { return ([:], deduper.finishFile(), true) }
+                    }
                     parser.finishHistory { latest[$0.record.key] = $0.record }
                     let days = DayAggregate.contributions(
                         of: latest.values, source: parser.state.source, labeler: &labeler, pricing: pricing)
-                    return (days, deduper.finishFile())
+                    return (days, deduper.finishFile(), false)
+                }
+                if unknown {
+                    // A Factory Droid session whose parent sidecar could not be read: not stored, so the next analysis
+                    // tries again (METRICS 4.16 Own counters).
+                    progress(state)
+                    continue
                 }
                 let stat = file.family == .grokBuild ? file.family.stat(file.path) ?? output.read.stat ?? file.stat
                     : output.read.stat ?? file.stat

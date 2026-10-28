@@ -45,6 +45,12 @@ struct DroidParser: Sendable {
     private var readSignature: DroidPaths.Signature?
     /// The sidecar version last looked at, readable or not: a different one starts a read cycle.
     private var observedSignature: DroidPaths.Signature?
+    /// The parent sidecar version the last attempt found unreadable; unreadable again with it, the parent gives 0.
+    var unreadableParent: DroidPaths.Signature?
+    /// The last sidecar read could not tell the own counters (the parent sidecar was unreadable); nothing changed.
+    private(set) var ownCountersUnknown = false
+    /// The transcript started at its end: the first read with known own counters only sets `H`.
+    private var baselinePending = false
 
     init(agentId: String, fileID: FileID) {
         self.agentId = agentId
@@ -54,8 +60,9 @@ struct DroidParser: Sendable {
 
     var sidecarPath: String { DroidPaths.sidecarPath(ofTranscript: agentId) }
 
-    /// The sidecar is not the version last looked at (new, rewritten, replaced or removed).
-    var sidecarHasChanged: Bool { DroidPaths.signature(sidecarPath) != observedSignature }
+    /// The sidecar is not the version last looked at (new, rewritten, replaced or removed), or the last read could not
+    /// tell the own counters: either way the next read cycle reads it again.
+    var sidecarHasChanged: Bool { ownCountersUnknown || DroidPaths.signature(sidecarPath) != observedSignature }
 
     mutating func noteMalformedLine() {
         state.malformedLines += 1
@@ -144,21 +151,16 @@ struct DroidParser: Sendable {
     /// Steps 2 and 3 of a read cycle: the sidecar when it changed, then the growth waiting in `pending` to the open
     /// calls. Returns true when the sidecar was read or calls were emitted.
     mutating func finishReadCycle(emit: (ResponseUpsert) -> Void) -> Bool {
-        let signature = DroidPaths.signature(sidecarPath)
-        observedSignature = signature
-        var changed = false
-        if let signature, signature != readSignature {
-            changed = apply(signature: signature, content: DroidSidecar.read(sidecarPath), baseline: false)
-        }
+        let path = sidecarPath
+        let changed = readSidecar(signature: DroidPaths.signature(path)) { DroidSidecar.read(path) }
         return allocate(emit: emit) || changed
     }
 
     /// A session whose transcript starts at its end takes `H` from its sidecar, without adding to `pending`: only later
-    /// growth counts.
+    /// growth counts. While the own counters cannot be told, `H` waits for the first read cycle that can.
     mutating func takeBaseline(_ snapshot: DroidSidecar.Snapshot) {
-        observedSignature = snapshot.signature
-        guard let signature = snapshot.signature, signature != readSignature else { return }
-        _ = apply(signature: signature, content: snapshot.content, baseline: true)
+        baselinePending = true
+        _ = readSidecar(signature: snapshot.signature) { snapshot.content }
     }
 
     /// History only, after the whole transcript and one sidecar read: own counters left without a call become one
@@ -171,17 +173,37 @@ struct DroidParser: Sendable {
         pending = .zero
     }
 
-    private mutating func apply(signature: DroidPaths.Signature, content: DroidSidecar.Content?, baseline: Bool) -> Bool {
-        readSignature = signature
-        guard let content else {
-            // Unreadable (droid may be replacing it): the next read cycle tries again.
+    /// Step 2 of a read cycle: reads the sidecar when it is not the version last read. An unreadable sidecar, or own
+    /// counters that cannot be told, change nothing and are tried again at the next read cycle.
+    private mutating func readSidecar(signature: DroidPaths.Signature?, content read: () -> DroidSidecar.Content?) -> Bool {
+        observedSignature = signature
+        ownCountersUnknown = false
+        guard let signature else {
+            // No sidecar: an old session's baseline stays 0.
+            baselinePending = false
+            return false
+        }
+        guard signature != readSignature else { return false }
+        guard let content = read() else {
+            // Unreadable (droid may be replacing it).
             readSignature = nil
             return false
         }
+        var own: DroidCounters?
+        if let counters = content.counters {
+            guard let known = ownCounters(counters) else {
+                readSignature = nil
+                ownCountersUnknown = true
+                return false
+            }
+            own = known
+        }
+        readSignature = signature
         sessionModel = content.model
         state.model = callModel ?? sessionModel
-        guard let counters = content.counters else { return true }
-        let own = ownCounters(counters)
+        let baseline = baselinePending
+        baselinePending = false
+        guard let own else { return true }
         for field in DroidCounters.fields {
             if !baseline { pending[keyPath: field] += max(0, own[keyPath: field] - mark[keyPath: field]) }
             mark[keyPath: field] = max(mark[keyPath: field], own[keyPath: field])
@@ -190,15 +212,31 @@ struct DroidParser: Sendable {
     }
 
     /// A fork or successor started from its parent's counters, which are removed; thinking is capped at the output.
-    private func ownCounters(_ counters: DroidCounters) -> DroidCounters {
-        var inherited = DroidCounters.zero
-        if let parent {
-            let path = DroidPaths.sidecarPath(ofTranscript: DroidPaths.sibling(parent, of: agentId))
-            inherited = DroidSidecar.read(path)?.counters ?? .zero
-        }
+    /// Nil while the parent's counters cannot be told.
+    private mutating func ownCounters(_ counters: DroidCounters) -> DroidCounters? {
+        guard let inherited = parentCounters() else { return nil }
         var own = counters.subtracting(inherited)
         own.thinking = min(own.thinking, own.output)
         return own
+    }
+
+    /// The parent's counters: 0 without a parent, without its sidecar or without counters there; nil when its sidecar
+    /// exists but is unreadable (droid may be replacing it), unless the last attempt found it unreadable with the same
+    /// signature: then it will not mend, and gives 0.
+    private mutating func parentCounters() -> DroidCounters? {
+        guard let parent else { return .zero }
+        let path = DroidPaths.sidecarPath(ofTranscript: DroidPaths.sibling(parent, of: agentId))
+        guard let signature = DroidPaths.signature(path) else {
+            unreadableParent = nil
+            return .zero
+        }
+        if let content = DroidSidecar.read(path) {
+            unreadableParent = nil
+            return content.counters ?? .zero
+        }
+        if signature == unreadableParent { return .zero }
+        unreadableParent = signature
+        return nil
     }
 
     private mutating func allocate(emit: (ResponseUpsert) -> Void) -> Bool {

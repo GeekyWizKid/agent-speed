@@ -240,6 +240,31 @@ struct DroidSessionTests {
         #expect(try run().filesAnalyzed == 0)
     }
 
+    @Test func anUnreadableParentSidecarIsRetriedByTheNextReadCycle() throws {
+        let home = Home()
+        let cutOff = #"{"model":"claude-opus-5-5","tokenUsage":{"inputTokens":4"#
+        for (parent, fork) in [("p-1", "k-1"), ("p-2", "k-2")] {
+            try home.write("-w-forge/\(parent).jsonl", Self.start(parent) + Self.user("u-\(parent)", Self.base + 1000)
+                + Self.assistant("m-\(parent)", Self.base + 4000))
+            try home.write("-w-forge/\(parent).settings.json", cutOff)
+            try home.write("-w-forge/\(fork).jsonl", Self.start(fork, parent: parent) + Self.user("u-\(fork)", Self.base + 6000)
+                + Self.assistant("m-\(fork)", Self.base + 8000))
+            try home.write("-w-forge/\(fork).settings.json", Self.sidecar(1500, 0, 0, 160, 0))
+        }
+        let session = TranscriptSession(configuration: home.configuration, clock: { Self.base + 10_000 })
+        _ = session.seed(todayStartMs: Self.base)
+        #expect(session.responses.isEmpty, "the parents' counters are unknown, so neither fork counts yet")
+
+        // p-1 is written out: k-1 counts its own share. p-2 stays cut off: the second attempt counts it as 0.
+        try home.replace("-w-forge/p-1.settings.json", Self.sidecar(1000, 0, 0, 100, 0))
+        #expect(session.pollRecentFiles(nowMs: Clock.milliseconds(Date())))
+        let responses = Self.responses(session)
+        #expect(responses["droid:m-k-1"]?.usage == Self.usage(500, cached: 0, write: 0, output: 60, reasoning: 0))
+        #expect(responses["droid:m-k-2"]?.usage == Self.usage(1500, cached: 0, write: 0, output: 160, reasoning: 0))
+        #expect(responses["droid:m-p-1"]?.usage.output == 100 && responses["droid:m-p-2"] == nil)
+        #expect(!session.pollRecentFiles(nowMs: Clock.milliseconds(Date())), "known now: nothing more to read")
+    }
+
     @Test func aFolderSettingReadsItsSessionsFolder() throws {
         let directory = try TempDirectory()
         try directory.write("moved/sessions/-w-p/s1.jsonl", Self.start("s1", cwd: "/w/p") + Self.user("u1", Self.base + 1000)

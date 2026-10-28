@@ -302,6 +302,15 @@ struct TranscriptParser: Sendable {
 
     /// A Factory Droid session's counter growth not yet allocated (P).
     var droidPending: DroidCounters? { droid?.pending }
+
+    /// The last read of a Factory Droid session could not tell its own counters: history does not store it.
+    var droidOwnCountersUnknown: Bool { droid?.ownCountersUnknown ?? false }
+
+    /// The parent sidecar a Factory Droid session last found unreadable, kept between history analyses.
+    var droidUnreadableParent: DroidPaths.Signature? {
+        get { droid?.unreadableParent }
+        set { droid?.unreadableParent = newValue }
+    }
 }
 
 /// Reads a whole transcript (from the reader's position) and decodes its lines, off the state-machine thread.
