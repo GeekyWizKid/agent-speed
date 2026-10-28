@@ -1542,10 +1542,11 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
    - Room: the cell never truncates, shrinks or hides; the name block gives way. The detail (model · source)
      truncates at its tail first (the source name goes first, the badge color still carries it), then the project
      name with a tail ellipsis; the traffic suffix stays whole. The panel has one width (368 pt/DIP, rows 328), so
-     the room is fixed by the trailing columns and the indent; on macOS (badge 16, two 8 pt row spacings, cell 24,
-     6, live value 48) the name block keeps 218 pt at depth 0 and 194 pt at the deepest indent (depth 2) with no
-     capsule, ≈ 145 / 121 pt with a typical capsule (meter and `xhigh`, ≈ 65 pt) and ≈ 102 / 78 pt with the widest
-     (meter, `ultracode`, two bolts, ≈ 108 pt), so words drop only in rare combinations (the 72 pt rule above).
+     the room is fixed by the trailing columns and the indent; on macOS (badge 16, two 12 pt row spacings, cell 24,
+     6, live value 48) the name block keeps 210 pt at depth 0 and 186 pt at the deepest indent (depth 2) with no
+     capsule, ≈ 137 / 113 pt with a typical capsule (meter and `xhigh`, ≈ 65 pt) and ≈ 94 / 70 pt with the widest
+     (meter, `ultracode`, two bolts, ≈ 108 pt), so words drop only in rare combinations — the widest capsule at the
+     deepest indent (the 72 pt rule above).
      Windows keeps its row structure (name block over two lines, badge column 30, live value 56) and inserts the
      cell between the capsule column and the live value by the same rules.
    - Tooltip (the row's, after the effort and speed lines): while live, `intel.tooltip` with the shown value and

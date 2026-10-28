@@ -99,10 +99,7 @@ enum AgentIntelligencePreviews {
         if let tier, let fact = ExecutionModeFact(kind: .serviceTier, rawValue: tier, evidence: .served, provider: "openai", scope: .response) {
             modes.append(fact)
         }
-        var grade = PreviewData.previewGrade(model)
-        if let effort, let level = ModeDisplay.effortLevel(effort) {
-            grade?.level = level + (ModeDisplay.isTopRung(effort) ? 1 : 0)
-        }
+        let grade = PreviewData.previewGrade(model, effort: effort)
         var sums = IntelligenceSums()
         if let index, live > 0 {
             // Thinking share 0.3 on top of a weighted grade that lands on `index`.

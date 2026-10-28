@@ -159,12 +159,13 @@ enum PreviewData {
         )
     }
 
-    /// A plausible grade at medium effort for the preview models (METRICS 6.9).
-    static func previewGrade(_ model: String?) -> IntelligenceGrade? {
+    /// A plausible grade for the preview models at `effort` (medium when unknown; METRICS 6.9).
+    static func previewGrade(_ model: String?, effort: String? = nil) -> IntelligenceGrade? {
         guard let model, !model.isEmpty else { return nil }
         let flagship = ["opus", "fable", "gpt-6.1-sol", "gpt-5.5"].contains { model.contains($0) } && !model.contains("mini")
         let light = ["haiku", "flash", "mini", "glm", "kimi", "deepseek"].contains { model.contains($0) }
-        return IntelligenceGrade(modelClass: flagship ? .flagship : light ? .light : .standard, level: 2)
+        let level = effort.flatMap { token in ModeDisplay.effortLevel(token).map { $0 + (ModeDisplay.isTopRung(token) ? 1 : 0) } }
+        return IntelligenceGrade(modelClass: flagship ? .flagship : light ? .light : .standard, level: level ?? 2)
     }
 
     /// An agent's own sums (METRICS 6.9) for `output` tok/s at `grade` with `thinkingShare` of it reasoning.
