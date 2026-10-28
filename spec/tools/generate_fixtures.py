@@ -1013,6 +1013,16 @@ resolve_cases = [{"table": t, "model": m, "provider": p, "expect": e} for t, m, 
     ("v2", "MiMo-V2.6-Pro", None, "mimo-v2.6-pro"),
     ("v2", "xiaomi/mimo-v2.6-pro", "custom", "mimo-v2.6-pro"),
     ("v2", "mimo-v2.6-pro-fast", "custom", "unknown"),
+    ("v2", "custom:GPT-5.5-[OpenAI-BYOK]-0", "custom", "gpt-5.5"),
+    ("v2", "Custom:Claude-Opus-5.5-Thinking-0", "custom", "claude-opus-5-5"),
+    ("v2", "custom:Claude-Opus-5.5-[Bedrock]-12", "custom", "claude-opus-5-5"),
+    ("v2", "custom:Claude Opus 5.5-0", "custom", "unknown"),
+    ("v2", "custom:claude-opus-5-5-fast-0", "custom", "claude-opus-5-5 fast"),
+    ("v2", "custom:gpt-5.5", "custom", "gpt-5.5"),
+    ("v2", "custom:superbased-0", "custom", "unknown"),
+    ("v2", "custom:Kimi-K3-(free)-0", "custom", "unknown"),
+    ("v2", "custom:-0", "custom", "unknown"),
+    ("v2", "gpt-5.5-0", None, "unknown"),
 ]]
 with open(os.path.join(ROOT, "price-cases.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "METRICS 9.2-9.3 against the fixture tables in `tables` (paths relative to this folder). "
