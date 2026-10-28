@@ -81,6 +81,10 @@ public struct TaskSetValue: Equatable, Sendable {
     }
 
     /// The value of the union of two disjoint sets: associative, so per-source values combine in any grouping.
+    public mutating func merge(_ other: TaskSetValue) {
+        self = merged(with: other)
+    }
+
     public func merged(with other: TaskSetValue) -> TaskSetValue {
         other.supersedes(self) ? other : self
     }

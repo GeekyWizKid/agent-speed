@@ -25,7 +25,7 @@ enum BoardTooltip {
         return lines
     }
 
-    /// While 智力 is on: the group's live index and thinking share, the root's grade; while 費用 or 每列費用 is on and
+    /// While 智力 is on: the group's live task score and thinking share; while 費用 or 每列費用 is on and
     /// the group is live: its cost as shown, then why part or all of it is missing. The disclaimer is the caption.
     @MainActor
     static func metricLines(_ group: BoardGroup, l10n: Localizer, readouts: BoardReadouts, money: BoardMoney?) -> [String] {
@@ -37,7 +37,6 @@ enum BoardTooltip {
                 let share = records ? AgentSignalText.percent(group.sums.intelligence.thinkingShare) : "–"
                 lines.append(l10n("intel.tooltip", String(shown), share))
             }
-            if let grade = group.root.grade { lines.append(AgentSignalText.grade(grade, l10n)) }
         }
         if readouts.cost || readouts.rowCost, live, let money {
             switch money.state {

@@ -8,20 +8,25 @@ import Testing
 @Suite("Agent intelligence column")
 @MainActor
 struct AgentIntelligenceRowTests {
-    static func agent(_ source: SourceKind = .claudeCode, model: String? = "claude-opus-5-5", grade: IntelligenceGrade?,
-                      output: Double = 0, index: Double = 0, thinkingShare: Double = 0) -> AgentStatus {
+    /// `score`: the agent's task score (METRICS 6.9), live while it generates, resting otherwise.
+    static func agent(_ source: SourceKind = .claudeCode, model: String? = "claude-opus-5-5", score: Double?,
+                      output: Double = 0, thinkingShare: Double = 0) -> AgentStatus {
         var sums = IntelligenceSums()
         if output > 0 {
             sums.output = output
-            sums.gradedOutput = output * (index - 20 * thinkingShare)
             if source.recordsReasoningApart {
                 sums.thinking = output * thinkingShare
                 sums.thinkingBase = output
             }
         }
+        if let score {
+            let value = TaskAgentValue(form: output > 0 ? .live : .resting, score: score, shown: taskRoundHalfAway(score),
+                                       state: .passing)
+            sums.score = TaskSetValue(id: "a", lastLineMs: nil, value: value)
+        }
         return AgentStatus(id: "a", source: source, project: "p", model: model, phase: output > 0 ? .generating : .idle,
                            isSubagent: false, live: Rate(output: output, total: output), recentSpeed: nil,
-                           lastActivity: Date(), grade: grade, intelligence: sums)
+                           lastActivity: Date(), intelligence: sums)
     }
 
     // MARK: Cell
@@ -55,38 +60,36 @@ struct AgentIntelligenceRowTests {
 
     // MARK: Tooltip and accessibility
 
-    @Test func liveRowsSayTheValueAndThinkingShareThenTheGrade() {
+    @Test func liveRowsSayTheScoreAndThinkingShare() {
         let l10n = Localizer(preference: .zhHant)
-        let grade = IntelligenceGrade(modelClass: .standard, level: 4)
-        let agent = Self.agent(grade: grade, output: 40, index: 105, thinkingShare: 0.245)
-        #expect(agent.intelligenceForm.shown == 105)
-        #expect(AgentSignalText.intelligence(agent, l10n) == ["智力 105 · 思考 25%", "等級 104 · 標準"])
-        #expect(AgentSignalText.intelligenceAccessibility(agent.intelligenceForm, l10n) == "智力 105")
+        let agent = Self.agent(score: 92.5, output: 40, thinkingShare: 0.245)
+        #expect(agent.intelligenceForm.shown == 93)
+        #expect(AgentSignalText.intelligence(agent, l10n) == ["智力 93 · 思考 25%"])
+        #expect(AgentSignalText.intelligenceAccessibility(agent.intelligenceForm, l10n) == "智力 93")
     }
 
-    @Test func aSourceWithoutSeparateReasoningShowsADashForTheShare() {
+    @Test func aSourceWithoutATaskScoreSaysNothing() {
         let l10n = Localizer(preference: .en)
-        let agent = Self.agent(.deepseek, model: "deepseek-v4-pro", grade: IntelligenceGrade(modelClass: .light, level: 3),
-                               output: 50, index: 78)
-        #expect(AgentSignalText.intelligence(agent, l10n).first == "Intelligence 78 · thinking –")
+        let agent = Self.agent(.deepseek, model: "deepseek-v4-pro", score: nil, output: 50)
+        #expect(AgentSignalText.intelligence(agent, l10n).isEmpty)
+        #expect(AgentSignalText.intelligenceAccessibility(agent.intelligenceForm, l10n) == nil)
     }
 
-    @Test func restingRowsSayOnlyTheGrade() {
+    @Test func restingRowsKeepTheLastScoreWithoutTheLiveLine() {
         let l10n = Localizer(preference: .zhHant)
-        let grade = IntelligenceGrade(modelClass: .flagship, level: 4)
-        let agent = Self.agent(grade: grade)
-        #expect(AgentSignalText.intelligence(agent, l10n) == ["等級 124 · 旗艦"])
-        #expect(AgentSignalText.intelligenceAccessibility(agent.intelligenceForm, l10n) == "等級 124")
-        #expect(AgentSignalText.intelligenceAccessibility(agent.intelligenceForm, Localizer(preference: .en)) == "grade 124")
+        let agent = Self.agent(score: 73.75)
+        #expect(agent.intelligenceForm == .resting(73.75))
+        #expect(agent.intelligenceForm.shown == 74)
+        #expect(AgentSignalText.intelligence(agent, l10n).isEmpty)
     }
 
-    @Test func modelLessRowsSayNothingWhileQuietAndNoGradeWhileLive() {
+    @Test func rowsWithoutAScoreSayNothing() {
         let l10n = Localizer(preference: .zhHant)
-        let quiet = Self.agent(model: nil, grade: nil)
+        let quiet = Self.agent(model: nil, score: nil)
         #expect(AgentSignalText.intelligence(quiet, l10n).isEmpty)
         #expect(AgentSignalText.intelligenceAccessibility(quiet.intelligenceForm, l10n) == nil)
-        let live = Self.agent(.gemini, model: nil, grade: nil, output: 20, index: 97, thinkingShare: 0.25)
-        #expect(AgentSignalText.intelligence(live, l10n) == ["智力 97 · 思考 25%"])
+        let working = Self.agent(.gemini, model: nil, score: nil, output: 20, thinkingShare: 0.25)
+        #expect(AgentSignalText.intelligence(working, l10n).isEmpty)
     }
 
     @Test func percentRoundsHalfAwayFromZero() {

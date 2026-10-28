@@ -8,8 +8,6 @@ struct InFlightEstimate: Sendable {
     var startMs: Int64
     var endMs: Int64?
     var reference: SpeedEstimate
-    /// The unmeasured response's grade, or the in-flight agent's (METRICS 6.9).
-    var grade: IntelligenceGrade
 
     var speed: Rate { reference.speed }
 }
@@ -155,8 +153,7 @@ struct LiveWindow: Sendable {
         unmeasured: [TimedResponse],
         agents: [String: EngineAgent],
         latestEnds: [String: Int64],
-        references: SpeedReferences,
-        grader: IntelligenceGrader
+        references: SpeedReferences
     ) {
         let windowStart = nowMs - SpeedEngine.liveWindowMs
         let seconds = Double(SpeedEngine.liveWindowMs) / 1000
@@ -171,9 +168,9 @@ struct LiveWindow: Sendable {
         var sourceIntelligence: [SourceKind: IntelligenceSums] = [:]
         var agentIntelligence: [String: IntelligenceSums] = [:]
 
-        func addIntelligence(output: Double, reasoning: Double, grade: IntelligenceGrade, source: SourceKind, agentId: String) {
-            sourceIntelligence[source, default: .zero].add(output: output, reasoning: reasoning, grade: grade, from: source)
-            agentIntelligence[agentId, default: .zero].add(output: output, reasoning: reasoning, grade: grade, from: source)
+        func addIntelligence(output: Double, reasoning: Double, source: SourceKind, agentId: String) {
+            sourceIntelligence[source, default: .zero].add(output: output, reasoning: reasoning, from: source)
+            agentIntelligence[agentId, default: .zero].add(output: output, reasoning: reasoning, from: source)
         }
 
         for response in measuredResponses {
@@ -185,7 +182,7 @@ struct LiveWindow: Sendable {
             sourceTokens[response.record.source, default: .zero].add(tokens)
             agentTokens[response.record.agentId, default: .zero].add(tokens)
             addIntelligence(
-                output: tokens.output, reasoning: response.reasoning * share, grade: grader.grade(of: response.record),
+                output: tokens.output, reasoning: response.reasoning * share,
                 source: response.record.source, agentId: response.record.agentId
             )
             if let microUsd = response.record.costMicroUsd {
@@ -206,7 +203,7 @@ struct LiveWindow: Sendable {
             estimatedSourceTokens[estimate.source, default: .zero].add(tokens)
             agentTokens[estimate.agentId, default: .zero].add(tokens)
             addIntelligence(
-                output: tokens.output, reasoning: tokens.output * estimate.reference.reasoningShare, grade: estimate.grade,
+                output: tokens.output, reasoning: tokens.output * estimate.reference.reasoningShare,
                 source: estimate.source, agentId: estimate.agentId
             )
             if let costRate = estimate.reference.costRate {
@@ -223,7 +220,7 @@ struct LiveWindow: Sendable {
             guard let reference = references.estimate(for: agent) else { continue }
             addEstimate(InFlightEstimate(
                 agentId: record.agentId, source: record.source, startMs: response.startMs, endMs: response.endMs,
-                reference: reference, grade: grader.grade(of: record)
+                reference: reference
             ))
         }
 
@@ -235,8 +232,7 @@ struct LiveWindow: Sendable {
             else { continue }
             let start = max(inFlightStart, latestEnds[agent.id] ?? inFlightStart)
             addEstimate(InFlightEstimate(
-                agentId: agent.id, source: agent.source, startMs: start, endMs: nil, reference: reference,
-                grade: grader.grade(of: agent)
+                agentId: agent.id, source: agent.source, startMs: start, endMs: nil, reference: reference
             ))
         }
 

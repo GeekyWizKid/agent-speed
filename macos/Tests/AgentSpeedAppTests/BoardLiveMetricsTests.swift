@@ -34,11 +34,11 @@ struct BoardLiveMetricsTests {
     @Test func theSimulationShowsThePrototypesNumbers() {
         let tick = Self.feed(.glass, .medium).tick
         #expect(tick.valueText == "707")
-        #expect(tick.metrics.intelligence == 123 && tick.metrics.thinking == "174")
+        #expect(tick.metrics.intelligence == 90 && tick.metrics.thinking == "174")
         #expect(tick.metrics.cost == BoardMoney(number: "0.024", unit: "US$/s"))
         #expect(tick.costText == "US$42.71")
         let first = tick.groups[0]
-        #expect(first.root.project == "opencdn" && first.intelligence.shown == 135)
+        #expect(first.root.project == "opencdn" && first.intelligence.shown == 58)
         #expect(tick.metrics.rowCosts[first.id]?.number == "0.0056")
         #expect(tick.groups.map { SpeedFormat.speed($0.live) } == ["177", "197", "168", "139", "25"])
     }
@@ -86,13 +86,13 @@ struct BoardLiveMetricsTests {
         let neon = Self.feed(.neon, .small).layout
         let meter = try #require(Self.item(neon, "gauge.meter"))
         #expect(meter.frame.width == 62 + 16 || meter.frame.width == 62 + 17)
-        #expect(Self.keys(neon, prefix: "gauge.iq.n").count == 3, "three rolling digits")
+        #expect(Self.keys(neon, prefix: "gauge.iq.n").count == 2, "two rolling digits for the task score 90")
     }
 
     @Test func thinkingHiddenAtZeroFoldsTheSubGauge() throws {
         let shown = Self.feed(.glass, .medium).layout
         let hidden = Self.feed(.glass, .medium, reasoning: false)
-        #expect(hidden.tick.metrics.thinkingHidden && hidden.tick.metrics.intelligence == 117)
+        #expect(hidden.tick.metrics.thinkingHidden && hidden.tick.metrics.intelligence == 90)
         let folded = hidden.layout
         #expect(!Self.keys(shown, prefix: "gauge.think").isEmpty)
         #expect(Self.keys(folded, prefix: "gauge.think").isEmpty)
@@ -109,7 +109,7 @@ struct BoardLiveMetricsTests {
     @Test func rowsCarryTheIntelligenceColumnAndTheCostLine() {
         let medium = Self.feed(.neon, .medium)
         let models = BoardRowModels.make(medium.tick, l10n: Self.l10n, twoLine: true)
-        #expect(models[0].intel == "135" && models[0].intelLive && models[0].cost?.number == "0.0056" && models[0].twoLine)
+        #expect(models[0].intel == "58" && models[0].intelLive && models[0].cost?.number == "0.0056" && models[0].twoLine)
         #expect(Self.item(medium.layout, "captions") != nil)
         #expect(medium.layout.items.contains { $0.key.hasSuffix("#cost") } && medium.layout.items.contains { $0.key.hasSuffix("#iq") })
         // S never draws the second line.
@@ -140,17 +140,16 @@ struct BoardLiveMetricsTests {
         let tick = Self.feed(.glass, .medium).tick
         let group = tick.groups[0]
         let lines = BoardTooltip.metricLines(group, l10n: Self.l10n, readouts: .all, money: tick.metrics.rowCosts[group.id])
-        #expect(lines.first?.hasPrefix("智力 135 · 思考 ") == true)
-        #expect(lines.contains("等級 130 · 旗艦"))
+        #expect(lines.first?.hasPrefix("智力 58 · 思考 ") == true)
         #expect(lines.last == "費用 0.0056 US$/s（API 等值）")
         #expect(BoardTooltip.caption(readouts: .all, l10n: Self.l10n) == "估算指數，不是測驗分數")
         let words = BoardAccessibilityReporter.metricWords(tick.metrics, currency: "美元", l10n: Self.l10n)
-        #expect(words == ["智力 123，思考每秒 174 個 token", "費用每秒 0.024 美元（API 等值）"])
+        #expect(words == ["智力 90，思考每秒 174 個 token", "費用每秒 0.024 美元（API 等值）"])
         let row = BoardAccessibilityReporter.rowLabel(group, rank: 1, l10n: Self.l10n, intelligence: true,
                                                       cost: tick.metrics.rowCosts[group.id], currency: "美元")
-        #expect(row.hasPrefix("第 1 名，opencdn，每秒 177 個 token，智力 135，") && row.hasSuffix("，費用每秒 0.0056 美元"))
+        #expect(row.hasPrefix("第 1 名，opencdn，每秒 177 個 token，智力 58，") && row.hasSuffix("，費用每秒 0.0056 美元"))
         var hidden = tick.metrics
         hidden.thinkingHidden = true
-        #expect(BoardAccessibilityReporter.metricWords(hidden, currency: "美元", l10n: Self.l10n).first == "智力 123")
+        #expect(BoardAccessibilityReporter.metricWords(hidden, currency: "美元", l10n: Self.l10n).first == "智力 90")
     }
 }

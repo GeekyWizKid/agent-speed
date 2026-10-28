@@ -149,9 +149,9 @@ enum PreviewData {
         _ id: String, _ source: SourceKind, _ project: String, _ model: String,
         _ phase: AgentPhase, _ isSubagent: Bool, _ live: Double, _ activity: Date, parent: String? = nil
     ) -> AgentStatus {
-        let grade = previewGrade(model)
+        let id = "/preview/\(id).jsonl"
         return AgentStatus(
-            id: "/preview/\(id).jsonl",
+            id: id,
             source: source,
             project: project,
             model: model,
@@ -162,8 +162,8 @@ enum PreviewData {
             lastActivity: activity,
             parentId: parent.map { "/preview/\($0).jsonl" },
             liveCost: liveCost(source, live),
-            grade: grade,
-            intelligence: intelligence(output: live, grade: grade, thinkingShare: 0.3, source: source)
+            intelligence: intelligence(output: live, score: previewScore(model, source: source), id: id, idle: phase == .idle,
+                                       thinkingShare: 0.3, source: source)
         )
     }
 
@@ -178,21 +178,25 @@ enum PreviewData {
         return LiveCost(microUsdPerSecond: live * known * price, knownOutput: live * known)
     }
 
-    /// A plausible grade for the preview models at `effort` (medium when unknown; METRICS 6.9).
-    static func previewGrade(_ model: String?, effort: String? = nil) -> IntelligenceGrade? {
-        guard let model, !model.isEmpty else { return nil }
-        let flagship = ["opus", "fable", "gpt-6.1-sol", "gpt-5.5"].contains { model.contains($0) } && !model.contains("mini")
-        let light = ["haiku", "flash", "mini", "glm", "kimi", "deepseek"].contains { model.contains($0) }
-        let level = effort.flatMap { token in ModeDisplay.effortLevel(token).map { $0 + (ModeDisplay.isTopRung(token) ? 1 : 0) } }
-        return IntelligenceGrade(modelClass: flagship ? .flagship : light ? .light : .standard, level: level ?? 2)
+    /// A plausible task score for the preview models (METRICS 6.9); nil for a source without one.
+    static func previewScore(_ model: String?, source: SourceKind) -> Double? {
+        guard TaskScoring.scores(source), let model, !model.isEmpty else { return nil }
+        let strong = ["opus", "fable", "gpt-6.1-sol", "gpt-5.5"].contains { model.contains($0) } && !model.contains("mini")
+        let light = ["haiku", "flash", "mini"].contains { model.contains($0) }
+        return strong ? 88.75 : light ? 42.5 : 66.25
     }
 
-    /// An agent's own sums (METRICS 6.9) for `output` tok/s at `grade` with `thinkingShare` of it reasoning.
-    static func intelligence(output: Double, grade: IntelligenceGrade?, thinkingShare: Double, source: SourceKind) -> IntelligenceSums {
+    /// An agent's own sums (METRICS 6.9) for `output` tok/s with `thinkingShare` of it reasoning, and its task `score`
+    /// (live, or resting while `idle`).
+    static func intelligence(output: Double, score: Double?, id: String = "", idle: Bool = false, thinkingShare: Double,
+                             source: SourceKind) -> IntelligenceSums {
         var sums = IntelligenceSums()
+        if let score {
+            let value = TaskAgentValue(form: idle ? .resting : .live, score: score, shown: Int(score.rounded()), state: .passing)
+            sums.score = TaskSetValue(id: id, lastLineMs: nil, value: value)
+        }
         guard output > 0 else { return sums }
         sums.output = output
-        sums.gradedOutput = output * Double(grade?.value ?? 92)
         if source.recordsReasoningApart {
             sums.thinking = output * thinkingShare
             sums.thinkingBase = output

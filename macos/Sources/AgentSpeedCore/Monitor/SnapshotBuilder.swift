@@ -82,8 +82,8 @@ enum SnapshotBuilder {
                 liveCost: row.liveCost,
                 cwdPath: row.agent.cwdPath,
                 modes: row.agent.modes,
-                grade: row.grade,
                 intelligence: row.intelligence,
+                task: row.agent.task,
                 signals: row.signals
             )
         }

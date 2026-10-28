@@ -36,9 +36,11 @@ enum IntelligenceBarPreviews {
         var sums = IntelligenceSums()
         guard let index = scenario.index else { return sums }
         let output = max(scenario.thinking * 2.5, 40)
-        let share = scenario.thinking / output
         sums.output = output
-        sums.gradedOutput = output * (index - 20 * share)
+        // The old grade scale reached 136; the task score stops at 100.
+        let score = min(index, 100)
+        sums.score = TaskSetValue(form: .live, score: score, shown: Int(score.rounded()), agentId: "preview",
+                                  lastLineMs: nil)
         sums.thinking = scenario.thinking
         sums.thinkingBase = output
         return sums

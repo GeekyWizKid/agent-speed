@@ -19,8 +19,8 @@ public struct BoardGroup: Equatable, Sendable, Identifiable {
     /// The members' live intelligence and cost sums (METRICS 6.9 Group intelligence, 9.5 Per group).
     public var sums = AgentGroupSums.zero
 
-    /// Live over the group's sums, else the root's grade, else none.
-    public var intelligence: AgentIntelligence { sums.intelligence(rootGrade: root.grade) }
+    /// The highest task score of its members (METRICS 6.9 Sets and groups).
+    public var intelligence: AgentIntelligence { sums.intelligenceForm }
 }
 
 /// Groups a board's agents by their root (DESIGN 2c, Content 2; METRICS 6.7 parent links).

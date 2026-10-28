@@ -21,21 +21,14 @@ enum AgentSignalText {
         return lines
     }
 
-    /// `intel.grade`: the grade of the agent's current model and effort, with its class.
-    static func grade(_ grade: IntelligenceGrade, _ l10n: Localizer) -> String {
-        l10n("intel.grade", String(grade.value), l10n(grade.modelClass.titleKey))
-    }
-
     /// The tooltip's intelligence lines (DESIGN 4, Intelligence column): while live, `intel.tooltip` with the shown
-    /// value and the thinking share as a whole percent (`–` for a source that keeps no reasoning apart from output);
-    /// then `intel.grade` whenever the agent has a grade.
+    /// task score and the thinking share as a whole percent (`–` for a source that keeps no reasoning apart from output).
     static func intelligence(_ agent: AgentStatus, _ l10n: Localizer) -> [String] {
         var lines: [String] = []
         if case .live = agent.intelligenceForm, let shown = agent.intelligenceForm.shown {
             let share = agent.source.recordsReasoningApart ? percent(agent.intelligence.thinkingShare) : "–"
             lines.append(l10n("intel.tooltip", String(shown), share))
         }
-        if let grade = agent.grade { lines.append(Self.grade(grade, l10n)) }
         return lines
     }
 
@@ -48,16 +41,6 @@ enum AgentSignalText {
     /// A share as a whole percent, rounded half away from zero.
     static func percent(_ share: Double) -> String {
         "\(Int((share.clamped(to: 0...1) * 100).rounded()))%"
-    }
-}
-
-extension ModelClass {
-    var titleKey: String {
-        switch self {
-        case .flagship: "intel.class.flagship"
-        case .standard: "intel.class.standard"
-        case .light: "intel.class.light"
-        }
     }
 }
 

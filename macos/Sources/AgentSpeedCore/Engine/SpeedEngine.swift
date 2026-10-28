@@ -109,10 +109,9 @@ struct SpeedEngine: Sendable {
         let measured = timed.filter(\.record.isFinal)
         let unmeasured = timed.filter { !$0.record.isFinal }
         let references = SpeedReferences(timed: measured, nowMs: nowMs)
-        let grader = IntelligenceGrader(table: currentTable, agentProviders: agentProviders)
         let window = LiveWindow(
             nowMs: nowMs, measured: measured, unmeasured: unmeasured, agents: agents,
-            latestEnds: latestEndsByAgent(), references: references, grader: grader
+            latestEnds: latestEndsByAgent(), references: references
         )
         let history = Self.history(nowMs: nowMs, measured: measured, estimates: window.estimates)
 
@@ -140,6 +139,8 @@ struct SpeedEngine: Sendable {
         }
         previousPeakOutput = peak.output
 
+        let listing = agentList(nowMs: nowMs, window: window, references: references)
+
         var subsetPeaks = [SourceSet: Double](minimumCapacity: subsets.count)
         for set in subsets {
             subsetPeaks[set] = ledger?.measuredPeakOutput(for: set) ?? 0
@@ -153,9 +154,9 @@ struct SpeedEngine: Sendable {
             sourceLiveEstimated: window.estimatedBySource,
             liveCost: window.cost,
             sourceLiveCost: window.costBySource,
-            intelligence: window.intelligence,
-            sourceIntelligence: window.intelligenceBySource,
-            agents: agentList(nowMs: nowMs, window: window, references: references, grader: grader),
+            intelligence: listing.intelligence,
+            sourceIntelligence: listing.sourceIntelligence,
+            agents: listing.agents,
             history: history,
             today: ledger?.totals ?? TokenTotals(),
             todayBySource: ledger?.bySource ?? [:],
@@ -316,18 +317,25 @@ struct SpeedEngine: Sendable {
 
     // MARK: - Agents list
 
-    private func agentList(nowMs: Int64, window: LiveWindow, references: SpeedReferences,
-                           grader: IntelligenceGrader) -> [EngineAgentStatus] {
+    /// The agents list (METRICS 6.7) with each agent's task score value, and the window's thinking sums with the highest
+    /// value of the listed agents, in total and per source (6.9 *Sets and groups*).
+    private func agentList(nowMs: Int64, window: LiveWindow, references: SpeedReferences)
+        -> (agents: [EngineAgentStatus], intelligence: IntelligenceSums, sourceIntelligence: [SourceKind: IntelligenceSums]) {
         func status(of agent: EngineAgent) -> EngineAgentStatus {
             let isFresh = agent.lastLineMs.map { nowMs - $0 <= Self.staleMs } ?? false
+            let phase = isFresh ? agent.phase : .idle
+            var intelligence = window.intelligenceByAgent[agent.id] ?? .zero
+            if let task = agent.task {
+                intelligence.score = TaskSetValue(id: agent.id, lastLineMs: agent.lastLineMs,
+                                                  value: task.value(idle: phase == .idle))
+            }
             return EngineAgentStatus(
                 agent: agent,
-                phase: isFresh ? agent.phase : .idle,
+                phase: phase,
                 live: window.byAgent[agent.id] ?? .zero,
                 recentSpeed: references.recent(for: agent.id)?.output,
                 liveCost: window.costByAgent[agent.id] ?? .zero,
-                grade: grader.ownGrade(of: agent),
-                intelligence: window.intelligenceByAgent[agent.id] ?? .zero,
+                intelligence: intelligence,
                 signals: WorkSignals(agent.actions, nowMs: nowMs)
             )
         }
@@ -345,7 +353,13 @@ struct SpeedEngine: Sendable {
                 next = parent.parentId
             }
         }
-        return AgentListOrder.arrange(listed)
+        var bySource = window.intelligenceBySource
+        var all = window.intelligence
+        for row in listed.values where row.intelligence.score.form != .none {
+            bySource[row.agent.source, default: .zero].score.merge(row.intelligence.score)
+            all.score.merge(row.intelligence.score)
+        }
+        return (AgentListOrder.arrange(listed), all, bySource)
     }
 
     // MARK: - Summaries

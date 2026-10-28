@@ -20,6 +20,8 @@ final class TrackedFile {
     var lastReadNs: UInt64 = 0
     /// The database changed while a read was throttled; read it once the interval has passed.
     var isDirty = false
+    /// The current task's evaluation, kept until the task stream or the calibration changes (METRICS 6.9).
+    var taskStatus: (version: Int, models: Int, status: AgentTaskStatus)?
 
     init(
         path: String,
@@ -36,12 +38,23 @@ final class TrackedFile {
         self.fileID = fileID
         lastStat = stat
         reader = TranscriptReader(path: path, start: start, maxLineBytes: maxLineBytes, readsHeaderFirst: family == .omp || family == .pi)
-        parser = TranscriptParser(family: family, agentId: path, fileID: fileID, root: root)
+        parser = TranscriptParser(family: family, agentId: path, fileID: fileID, root: root, tasks: .live)
     }
 
     /// Parser state restarts after truncation or replacement; the global dedupe set is kept.
     func resetParser() {
-        parser = TranscriptParser(family: family, agentId: path, fileID: fileID, root: root)
+        parser = TranscriptParser(family: family, agentId: path, fileID: fileID, root: root, tasks: .live)
+        taskStatus = nil
+    }
+
+    /// The current task's status with `models` (the calibration of version `modelsVersion`), evaluated again only
+    /// after the stream changed.
+    func currentTaskStatus(models: TaskModels, modelsVersion: Int) -> AgentTaskStatus? {
+        guard let tasks = parser.tasks else { return nil }
+        if let cached = taskStatus, cached.version == tasks.version, cached.models == modelsVersion { return cached.status }
+        let status = AgentTaskStatus(events: tasks.events, now: nil, models: models)
+        taskStatus = (tasks.version, modelsVersion, status)
+        return status
     }
 
     /// A Factory Droid session also changes when its sidecar does, whatever its modification time (METRICS 4.16).

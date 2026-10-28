@@ -1,10 +1,10 @@
 import Foundation
 
-/// A board group's live sums (METRICS 6.9 *Group intelligence*, 9.5 *Per group*): its members' agent sums added,
-/// never an average of their values. Subscriptions (9.4) apply per member: an excluded member adds nothing to the
+/// A board group's live sums (METRICS 6.9 *Sets and groups*, *Live thinking*, 9.5 *Per group*): its members' thinking
+/// sums added (never an average of their values) and the highest of their task scores. Subscriptions (9.4) apply per member: an excluded member adds nothing to the
 /// cost or its tokens, and a group without a billable member has no displayed cost.
 public struct AgentGroupSums: Equatable, Sendable {
-    /// Σ of the members' own intelligence sums.
+    /// Σ of the members' thinking sums; `score` is the highest member value.
     public var intelligence = IntelligenceSums.zero
     /// Σ of the billable members' live cost.
     public var cost = LiveCost.zero
@@ -25,10 +25,8 @@ public struct AgentGroupSums: Equatable, Sendable {
         costOutput += agent.live.output
     }
 
-    /// The group's form: live over its sums, else the root's grade, else none (even when a sub-agent has a grade).
-    public func intelligence(rootGrade: IntelligenceGrade?) -> AgentIntelligence {
-        AgentIntelligence(intelligence, grade: rootGrade)
-    }
+    /// The group's 智力: the highest live score of its members, else the highest resting one, else none.
+    public var intelligenceForm: AgentIntelligence { AgentIntelligence(intelligence.score) }
 
     /// `liveCostKnownShare_G`: Σ known tokens ÷ Σ tokens over the billable members (1 when they add up to 0).
     public var costKnownShare: Double { cost.knownShare(liveOutput: costOutput) }
