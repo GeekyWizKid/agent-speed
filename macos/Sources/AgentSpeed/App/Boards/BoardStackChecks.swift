@@ -102,7 +102,8 @@ enum BoardStackChecks {
             }
         }
 
-        // A new 智力: the arc's mask and the tip move on the roll's curve, changed digits roll.
+        // A small rise of 智力 (1 or 2): the arc's mask and the tip move on the roll's curve, the digits change in place;
+        // the table's changed digits roll.
         let builder = BoardContentBuilders.make(style: .glass, size: .medium, dark: true, l10n: l10n, capsule: nil, highContrast: false)
         let stack = BoardContentStack()
         stack.setBoard(side: 340, corner: 26)
@@ -110,7 +111,9 @@ enum BoardStackChecks {
         stack.apply(base.takeItems(), animated: false)
         clear(stack.layer)
         var next = shown
-        next.metrics.intelligence = 129
+        let score = shown.metrics.intelligence
+        next.metrics.intelligence = TaskSetReading(form: .live, shown: (score.shown ?? 50) + 2, state: score.state,
+                                                   count: score.count, agentId: score.agentId)
         next.metrics.thinking = "175"
         var moved = builder.layout(next)
         stack.apply(moved.takeItems(), animated: true)
@@ -118,12 +121,32 @@ enum BoardStackChecks {
         check("a new 智力 turns the tip", !animations(stack.layer, key: "turn").isEmpty)
         // Core Animation files the rolls' push transitions under "transition".
         let pushes = animations(stack.layer, key: "transition").compactMap { $0 as? CATransition }.filter { $0.type == .push }
-        check("changed readout digits roll", pushes.count >= 2)
+        // 思考 174 → 175: its last digit rolls; 智力's digits never roll (DESIGN 12 Motion).
+        check("changed 思考 digits roll, 智力's do not", pushes.count == 1)
         clear(stack.layer)
         var again = builder.layout(next)
         stack.apply(again.takeItems(), animated: true)
         check("an equal tick adds no animation",
               count(stack.layer, keys: ["transition", "sweep", "turn", "move", "leave", "enter", "change"]) == 0)
+
+        // A rise of 3 or more counts up (DESIGN 12 Motion): no sweep on the tick, the frames follow the shown value.
+        clear(stack.layer)
+        var climb = next
+        climb.metrics.intelligence.shown = (next.metrics.intelligence.shown ?? 50) + 30 > 100 ? 100 : (next.metrics.intelligence.shown ?? 50) + 30
+        var climbing = builder.layout(climb)
+        stack.apply(climbing.takeItems(), animated: true)
+        check("a climb starts a count-up", builder.climbsUntil(after: Clock.now) != nil)
+        check("a climb's first frame does not sweep", animations(stack.layer, key: "sweep").isEmpty)
+        // A fall crossfades the number in 0.2 s, never rolling down.
+        clear(stack.layer)
+        var fall = climb
+        fall.metrics.intelligence.shown = 12
+        var fallen = builder.layout(fall)
+        stack.apply(fallen.takeItems(), animated: true)
+        let transitions = animations(stack.layer, key: "transition").compactMap { $0 as? CATransition }
+        check("a fall crossfades the number", transitions.contains { $0.type == .fade && abs($0.duration - 0.2) < 0.001 })
+        check("a fall never rolls", !transitions.contains { $0.type == .push })
+        check("a fall ends the count-up", builder.climbsUntil(after: Clock.now) == nil)
 
         // A switch change: the hero crossfades as a whole, rows spring to their new places.
         var off = next

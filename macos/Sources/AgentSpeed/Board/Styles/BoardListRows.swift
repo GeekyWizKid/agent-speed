@@ -122,24 +122,30 @@ struct BoardListRows {
     }
 
     /// The 智力 cell: right-aligned on the value's baseline; live one step quieter than the value, resting and `–`
-    /// quieter still. Its text changes in place; live ↔ resting crossfades.
-    private func intelItem(_ text: String, model: BoardRowModel, sub: Bool, key: String, frame: CGRect, baseline: CGFloat?,
+    /// quieter still, the proof mark under an unproven score (drawn in the cell's cached image). Its text changes in
+    /// place; a fall, live ↔ resting and the proof mark crossfade.
+    private func intelItem(_ score: BoardRowScore, model: BoardRowModel, sub: Bool, key: String, frame: CGRect, baseline: CGFloat?,
                            accents: BoardRowAccents, look: AnyHashable) -> BoardContentItem {
         let palette = self.palette, neon = self.neon
         let right = intelRight(frame.width)
         let cell = CGRect(x: right - intelCell - 4, y: 0, width: intelCell + 8, height: frame.height)
-        let live = model.intelLive
+        let live = score.live
         let font = Self.intelFont(style: style, sub: sub, live: live)
         let valueFont = valueFont(sub: sub, idle: false)
+        let text = score.text
         var item = BoardContentItem.part(key + "#iq", of: frame, rect: cell.insetBy(dx: neon ? -8 : 0, dy: 0), motion: .row,
-                                         revision: AnyHashable([AnyHashable(text), AnyHashable(live), AnyHashable(sub),
-                                                                AnyHashable(baseline), look])) { context in
-            let label = BoardLabel(text, font, color: live ? (neon ? palette.led.opacity(0.78) : palette.ink2) : palette.quiet)
+                                         revision: AnyHashable([AnyHashable(score), AnyHashable(sub), AnyHashable(baseline), look])) { context in
+            let color = live ? (neon ? palette.led.opacity(0.78) : palette.ink2) : palette.quiet
+            let label = BoardLabel(text, font, color: color)
             let line = baseline ?? BoardLabel(text, valueFont, color: palette.ink).baseline(centeredOn: frame.height / 2)
             let glow = neon && live && palette.dark && palette.glows ? BoardPalette.ledGlow : nil
             label.draw(in: context, x: right - label.width, baseline: line, glow: glow, blur: 6)
+            if score.unproven {
+                BoardScoreNumber.drawUnderline(in: context, x: right - label.width, baseline: line, width: label.width,
+                                               textSize: font.size, color: color, highContrast: palette.highContrast)
+            }
         }
-        if accents.intelChanged { item.accents.append(.crossfade(0.2)) }
+        if let fade = accents.intelFade { item.accents.append(.crossfade(fade)) }
         return item
     }
 

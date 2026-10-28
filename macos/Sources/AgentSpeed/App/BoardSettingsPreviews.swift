@@ -61,8 +61,9 @@ enum BoardSettingsPreviews {
         for id in [neon, glass, timing] { boards.remove(id) }
     }
 
-    /// The live metrics' words (DESIGN 2c Live metrics, *Tooltip* and *Accessibility*): each board's top group tooltip
-    /// as a card, and every board's and row's accessibility label in a text file.
+    /// The live metrics' words (DESIGN 2c Live metrics, *Tooltip and score card* and *Accessibility*): each board's top
+    /// group's score card (its text tooltip with `intelligence` off), and every board's and row's accessibility label
+    /// and the card's lines in a text file.
     private static func writeMetricTexts(_ model: AppModel, ids: [String], into directory: URL) {
         var text = ""
         for id in ids {
@@ -78,12 +79,22 @@ enum BoardSettingsPreviews {
                                                                     intelligence: config.readouts.intelligence) + "\n"
             }
             guard let group = tick.groups.first else { continue }
-            let lines = BoardTooltip.lines(group, metric: tick.metric, l10n: model.l10n, readouts: config.readouts)
-            let caption = BoardTooltip.caption(readouts: config.readouts, l10n: model.l10n)
-            text += "  tooltip: " + (lines + [caption].compactMap { $0 }).joined(separator: " | ") + "\n"
+            let name = "\(config.style.rawValue)"
+            if config.readouts.intelligence {
+                let card = BoardScoreCards.group(group, l10n: model.l10n)
+                text += "  card: " + TaskScoreCardText.accessibilityLines(card, model.l10n).joined(separator: " | ") + "\n"
+                for dark in [false, true] {
+                    PreviewSnapshot.writeHosted(TaskScoreCardView(model: card, l10n: model.l10n).modifier(TaskScoreCardSolidSurface())
+                        .padding(12), dark: dark,
+                                                to: directory.appendingPathComponent("boards-card-\(name)-\(dark ? "dark" : "light").png"))
+                }
+                continue
+            }
+            let lines = BoardTooltip.lines(group, metric: tick.metric, l10n: model.l10n)
+            text += "  tooltip: " + lines.joined(separator: " | ") + "\n"
             for dark in [false, true] {
-                PreviewSnapshot.writeHosted(BoardTooltipView(lines: lines, caption: caption), dark: dark,
-                                            to: directory.appendingPathComponent("boards-tooltip-\(config.style.rawValue)-\(dark ? "dark" : "light").png"))
+                PreviewSnapshot.writeHosted(BoardTooltipView(lines: lines), dark: dark,
+                                            to: directory.appendingPathComponent("boards-tooltip-\(name)-\(dark ? "dark" : "light").png"))
             }
         }
         try? text.write(to: directory.appendingPathComponent("boards-a11y.txt"), atomically: true, encoding: .utf8)

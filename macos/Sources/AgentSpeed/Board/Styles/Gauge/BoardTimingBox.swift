@@ -5,7 +5,8 @@ import AppKit
 /// one right edge — right-aligned at the side inset and centred in the hero band. Each row is a cached piece of the box
 /// (its slab, tab, separator and its share of the outline), so 思考 hiding at zero closes the box like a drawer: the
 /// row fades in place while the rows around it glide together. A value too wide for its row widens the box to the left
-/// at once; it narrows 6 s after the last value that needed it.
+/// at once; it narrows 6 s after the last value that needed it. 智力 counts a rise up in its row; resting and `–` are
+/// drawn in `ink-3`, an unproven score with the dotted underline (DESIGN 12).
 @MainActor
 final class BoardTimingBox {
     let size: BoardSize
@@ -14,6 +15,12 @@ final class BoardTimingBox {
     let metrics: BoardGaugeMetrics
     private var boxWidth = BoardCellWidth()
     private var widthKey: [String] = []
+    private var score = BoardHeroScore()
+    /// The 智力 row, where the hero's score card opens (board points); nil without 智力.
+    private(set) var scoreArea: CGRect?
+
+    /// When a running count-up lands (the board lays itself out on every frame until then).
+    func climbsUntil(after now: TimeInterval) -> TimeInterval? { score.climbsUntil(after: now) }
 
     init(size: BoardSize, palette: BoardPalette, l10n: Localizer) {
         self.size = size
@@ -56,8 +63,10 @@ final class BoardTimingBox {
         let readings = BoardGaugeReadings(tick, l10n: l10n, uppercase: true)
         var rows: [Row] = []
         if readings.intelligenceOn {
-            rows.append(Row(key: "intel", label: l10n("intel.glyph").uppercased(with: l10n.locale), number: readings.intelligence,
-                            unit: "", atLeast: false, quiet: readings.intelligenceQuiet, tag: false, main: true, previous: "intel"))
+            let intelligence = tick.intelligence
+            rows.append(Row(key: "intel", label: l10n("intel.glyph").uppercased(with: l10n.locale),
+                            number: intelligence.shown.map(String.init) ?? "–", unit: "", atLeast: false,
+                            quiet: intelligence.form != .live, tag: false, main: true, previous: "intel"))
         }
         for (reading, key) in [(readings.thinking, "think"), (readings.cost, "cost")] {
             guard let reading else { continue }
@@ -109,6 +118,7 @@ final class BoardTimingBox {
         let left = frame.right - width
         let memory = frame.memory
         var items: [BoardContentItem] = []
+        scoreArea = nil
         for (index, row) in rows.enumerated() {
             let rowTop: CGFloat, height: CGFloat, baseline: CGFloat
             if row.main {
@@ -124,6 +134,18 @@ final class BoardTimingBox {
             let first = index == 0, last = index == rows.count - 1
             items.append(slab(row, frame: CGRect(x: left, y: rowTop, width: width, height: height), tab: tab, first: first,
                               last: last, baseline: baseline - rowTop))
+            if row.main {
+                let reading = tick.intelligence
+                let (shown, motion) = score.update(reading, previous: memory.previousHeroScore, fresh: memory.fresh,
+                                                   now: frame.now, reduceMotion: frame.reduceMotion)
+                scoreArea = CGRect(x: left, y: rowTop, width: width, height: height)
+                let number = BoardScoreNumber(key: "box.intel.n", shown: shown, font: numberFont(main: true),
+                                              color: reading.form == .live ? palette.ink : palette.quiet,
+                                              anchor: .right(frame.right - CGFloat(metrics.boxRightPadding)), baseline: baseline,
+                                              unproven: reading.isUnproven, highContrast: palette.highContrast)
+                items += number.items(fade: motion.numberFade)
+                continue
+            }
             let number = BoardRollingText(key: "box.\(row.key).n", text: row.number,
                                           font: row.tag ? tagFont(main: row.main) : numberFont(main: row.main),
                                           color: row.quiet ? palette.quiet : palette.ink,

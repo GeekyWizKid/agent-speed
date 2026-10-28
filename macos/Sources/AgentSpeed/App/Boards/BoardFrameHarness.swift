@@ -17,7 +17,8 @@ import AppKit
 /// the theme's), `AGENT_SPEED_BOARD_LANG`, `AGENT_SPEED_BOARD_SCENARIO` (team by default), the live metrics'
 /// `AGENT_SPEED_BOARD_READOUTS`, `AGENT_SPEED_BOARD_CURRENCY`, `AGENT_SPEED_BOARD_SUBS=1` and
 /// `AGENT_SPEED_BOARD_NOREASONING=1` (see `BoardSimFeed.Metrics`), `AGENT_SPEED_BOARD_CHECKS=1` (the content stack's
-/// checks instead, see `BoardStackChecks`).
+/// checks instead, see `BoardStackChecks`), `AGENT_SPEED_BOARD_SCORES=1` (the 智力 previews instead, see
+/// `BoardScorePreviews`).
 @MainActor
 enum BoardFrameHarness {
     struct State {
@@ -54,6 +55,7 @@ enum BoardFrameHarness {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let environment = ProcessInfo.processInfo.environment
         if environment["AGENT_SPEED_BOARD_CHECKS"] == "1" { return BoardStackChecks.run(into: directory) }
+        if environment["AGENT_SPEED_BOARD_SCORES"] == "1" { return BoardScorePreviews.run(into: directory) }
         func list<T>(_ key: String, _ make: (String) -> T?) -> [T]? {
             environment[key].map { $0.split(separator: ",").compactMap { make(String($0)) } }
         }
