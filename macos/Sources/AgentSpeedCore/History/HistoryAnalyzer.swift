@@ -190,9 +190,18 @@ final class HistoryAnalyzer {
             let identity = [path, "\(stat.identity.device):\(stat.identity.inode)", "\(stat.size):\(stat.modifiedNs)",
                             wal.map { "\($0.size):\($0.modifiedNs)" } ?? "-", "v\(options.analysisVersion)"].joined(separator: "|")
             if !zoneChanged, !reprices, try database.meta(Self.openclawMetaPrefix + path) == identity { continue }
-            // A busy, unreadable or unsupported database is tried again on the next run.
-            guard let source = try? OpenClawDatabase(path: path) else { continue }
             var planned = PlannedOpenClawDatabase(path: path, identity: identity)
+            let source: OpenClawDatabase
+            do {
+                source = try OpenClawDatabase(path: path)
+            } catch .unsupported {
+                // No session tables (2026.7 and older): opened again only once its files change.
+                plan.openclaw.append(planned)
+                continue
+            } catch {
+                // A busy or unreadable database is tried again on the next run.
+                continue
+            }
             do {
                 try source.read {
                     for window in try source.windows() {

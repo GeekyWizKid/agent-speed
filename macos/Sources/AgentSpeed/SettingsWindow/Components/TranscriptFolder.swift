@@ -204,6 +204,9 @@ enum TranscriptFolder: CaseIterable {
 /// the choice. Never writes anything.
 @MainActor
 enum FolderChooser {
+    /// OpenClaw's agent database (METRICS 4.14), the one file a picker may accept.
+    nonisolated static let openclawDatabaseName = "openclaw-agent.sqlite"
+
     static func choose(
         message: String,
         prompt: String,
@@ -223,14 +226,21 @@ enum FolderChooser {
         panel.message = message
         panel.prompt = prompt
         panel.directoryURL = nearestExistingFolder(current)
+        // The panel holds its delegate weakly; the handlers below keep the filter alive while it is open.
+        let filter = acceptsDatabaseFile ? DatabaseFileFilter() : nil
+        panel.delegate = filter
 
         if let window {
             panel.beginSheetModal(for: window) { response in
-                MainActor.assumeIsolated { finish(panel, response, acceptsDatabaseFile, completion) }
+                MainActor.assumeIsolated {
+                    withExtendedLifetime(filter) { finish(panel, response, acceptsDatabaseFile, completion) }
+                }
             }
         } else {
             panel.begin { response in
-                MainActor.assumeIsolated { finish(panel, response, acceptsDatabaseFile, completion) }
+                MainActor.assumeIsolated {
+                    withExtendedLifetime(filter) { finish(panel, response, acceptsDatabaseFile, completion) }
+                }
             }
         }
     }
@@ -252,7 +262,7 @@ enum FolderChooser {
 
     /// A local regular file named `openclaw-agent.sqlite` (METRICS 4.14).
     nonisolated static func isOpenClawDatabase(_ url: URL) -> Bool {
-        guard url.isFileURL, url.lastPathComponent == "openclaw-agent.sqlite" else { return false }
+        guard url.isFileURL, url.lastPathComponent == openclawDatabaseName else { return false }
         let values = try? url.standardizedFileURL.resourceValues(forKeys: [.isRegularFileKey])
         return values?.isRegularFile == true
     }
@@ -264,6 +274,14 @@ enum FolderChooser {
         let values = try? standardized.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
         guard values?.isDirectory == true, values?.isPackage != true else { return nil }
         return URL(fileURLWithPath: standardized.path, isDirectory: true)
+    }
+
+    /// Enables folders and `openclaw-agent.sqlite` only, so no other file can be picked.
+    private final class DatabaseFileFilter: NSObject, NSOpenSavePanelDelegate {
+        func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+            return values?.isDirectory == true || url.lastPathComponent == FolderChooser.openclawDatabaseName
+        }
     }
 
     private static func nearestExistingFolder(_ url: URL) -> URL {
