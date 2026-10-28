@@ -485,6 +485,24 @@ OUTCOMES = [
 ]
 
 
+# Masked runs through `outcome` (3.10, 4.2 The call).
+OUTCOMES += [
+    ("claude-printed-status", "claudeCode", claude("error[E0425]: cannot find value `x`\nexit 101"), "Bash",
+     {"command": "cargo build 2>&1 | tail -2; echo \"exit ${PIPESTATUS[0]}\""}, O(101, True)),
+    ("claude-filter-silent", "claudeCode", claude("(Bash completed with no output)"), "Bash",
+     {"command": "cargo check 2>&1 | grep -E \"error|warning\""}, O(None, False)),
+    ("claude-filter-test-unknown", "claudeCode", claude("(Bash completed with no output)"), "Bash",
+     {"command": "cargo test 2>&1 | grep -i error"}, O(None, None)),
+    ("claude-else-word", "claudeCode", claude("lint: 3 problems\nFAILED"), "Bash",
+     {"command": "npm run lint || echo FAILED"}, O(None, True)),
+    ("codex-printed-status", "codex", codex("Exit code: 0\nWall time: 3.1 seconds\nOutput:\nCompiling\nEXIT=1\n"),
+     "shell_command", '{"command":"swift build; echo EXIT=$?"}', O(1, True)),
+    ("codex-filter-empty", "codex", codex("Exit code: 0\nWall time: 9.0 seconds\nOutput:\n"), "shell_command",
+     '{"command":"go build ./... 2>&1 | grep error"}', O(0, False)),
+    ("pi-branches-ok", "pi", pi("ok"), "bash", {"command": "npx tsc --noEmit && echo ok || echo fail"}, O(0, False)),
+]
+
+
 def outcomes():
     out = []
     for name, source, result, tool, value, want in OUTCOMES:
@@ -636,6 +654,129 @@ SCRIPTS = [
     ("no-argument", "text(await tools.list_agents());",
      script([script_call("list_agents", "tools.list_agents()", None)], [[0, "result"]])),
 ]
+
+
+# Masked runs (3.10): printed statuses and error filters; every non-form stays unknown (None).
+NO_OUT = "(Bash completed with no output)"
+MASKED = [
+    # printed: `; echo …$?…` after a command that owns its status
+    ("echo-bare", "swift build; echo $?", "Compiling Orbit\n0", {"exitCode": 0, "failed": False}),
+    ("echo-exit-colon", "make -j8; echo \"exit: $?\"", "cc -c a.c\nexit: 2", {"exitCode": 2, "failed": True}),
+    ("echo-assign", "npx tsc --noEmit; echo EXIT=$?", "EXIT=0", {"exitCode": 0, "failed": False}),
+    ("echo-braces", "go vet ./...; echo \"status ${?}\"", "status 1", {"exitCode": 1, "failed": True}),
+    ("echo-newline", "cargo clippy\necho \"rc=$?\"", "warning: x\nrc=0", {"exitCode": 0, "failed": False}),
+    ("echo-trailing-blank", "swift build; echo \"exit $? \"", "exit 1   \n\n", {"exitCode": 1, "failed": True}),
+    ("echo-test-class", "cargo test; echo \"EXIT: $?\"", "test result: FAILED. 1 passed; 1 failed\nEXIT: 101",
+     {"exitCode": 101, "failed": True}),
+    ("pipestatus", "cargo build 2>&1 | tail -3; echo \"exit ${PIPESTATUS[0]}\"", "error: aborting\nexit 101",
+     {"exitCode": 101, "failed": True}),
+    ("pipestatus-bare", "swift build 2>&1 | tail -2; echo $PIPESTATUS", "Build complete!\n0",
+     {"exitCode": 0, "failed": False}),
+    ("pipestatus-index", "cd app && npm run lint 2>&1 | grep -v debug | tail -5; echo ${PIPESTATUS[0]}", "3",
+     {"exitCode": 3, "failed": True}),
+    ("pipefail", "set -o pipefail; cargo build 2>&1 | tail -3; echo $?", "error: x\n101",
+     {"exitCode": 101, "failed": True}),
+    # branches and else
+    ("branches-ok", "npm run lint && echo ok || echo fail", "ok", {"exitCode": 0, "failed": False}),
+    ("branches-fail", "npm run lint && echo ok || echo fail", "src/a.ts\n  3:1 error\nfail",
+     {"exitCode": None, "failed": True}),
+    ("branches-fail-code", "cargo check && echo PASS || echo \"FAIL $?\"", "error[E0308]\nFAIL 101",
+     {"exitCode": 101, "failed": True}),
+    ("else-code", "go vet ./... || echo \"failed $?\"", "vet: x.go:3: bad\nfailed 1", {"exitCode": 1, "failed": True}),
+    ("else-fixed", "swiftlint --strict || echo FAILED", "x.swift:3: warning\nFAILED", {"exitCode": None, "failed": True}),
+    # error filters (build and check only)
+    ("filter-placeholder", "cargo check 2>&1 | grep -E \"error|warning\" | head -20", NO_OUT,
+     {"exitCode": None, "failed": False}),
+    ("filter-empty", "npx tsc --noEmit 2>&1 | grep -i error", " \n", {"exitCode": None, "failed": False}),
+    ("filter-error-colon", "swift build 2>&1 | grep -E \"error:|FAIL\"", "", {"exitCode": None, "failed": False}),
+    ("filter-e-options", "go build ./... 2>&1 | grep -n -e warning -e Error | tail -5", "",
+     {"exitCode": None, "failed": False}),
+    ("filter-combined-flags", "cd web && pnpm run build 2>&1 | grep -iE '(error|failed)' --color=never", NO_OUT,
+     {"exitCode": None, "failed": False}),
+    # non-forms: stay unknown
+    ("pipe-dollar-q", "cargo build 2>&1 | tail -3; echo $?", "Finished\n0", None),
+    ("pipe-and-branches", "cargo build | tail -3 && echo ok || echo fail", "ok", None),
+    ("pipestatus-wrong-index", "cargo build 2>&1 | tail -3; echo ${PIPESTATUS[1]}", "0", None),
+    ("echo-not-last-line", "swift build; echo \"exit $?\"", "exit 0\nlater output", None),
+    ("echo-mismatch", "swift build; echo \"exit $?\"", "exit: 0", None),
+    ("echo-two-refs", "swift build; echo \"$? $?\"", "0 0", None),
+    ("echo-other-expansion", "swift build; echo \"$HOME $?\"", "/Users/dev 0", None),
+    ("echo-option", "swift build; echo -n $?", "0", None),
+    ("echo-redirected", "swift build; echo $? > rc.txt", "", None),
+    ("echo-then-more", "swift build; echo $?; cd ..", "0", None),
+    ("else-absent", "go vet ./... || echo \"failed $?\"", "all good", None),
+    ("else-zero", "go vet ./... || echo \"failed $?\"", "failed 0", None),
+    ("branches-same-text", "npm run lint && echo done || echo done", "done", None),
+    ("filter-test-class", "cargo test 2>&1 | grep -i error", NO_OUT, None),
+    ("filter-with-output", "cargo check 2>&1 | grep -i error", "error[E0425]: x", None),
+    ("filter-tail-only", "cargo build 2>&1 | tail -3", NO_OUT, None),
+    ("filter-head-only", "npx tsc --noEmit | head -20", "", None),
+    ("filter-inverted", "npx tsc --noEmit 2>&1 | grep -v error", "", None),
+    ("filter-count", "npx tsc --noEmit 2>&1 | grep -c error", "0", None),
+    ("filter-quiet", "npx tsc --noEmit 2>&1 | grep -q error", "", None),
+    ("filter-file-operand", "npx tsc --noEmit 2>&1 | grep error build.log", "", None),
+    ("filter-no-error-word", "cargo build 2>&1 | grep -E \"warning|FAIL\"", "", None),
+    ("filter-then-sort", "cargo build 2>&1 | grep error | sort", "", None),
+    ("filter-then-echo", "cargo build 2>&1 | grep error; echo done", "done", None),
+    ("not-masked", "swift build && echo ok", "ok", None),
+]
+
+
+# Factory Droid (2, 3.1, 4.1, 4.2, 6.2): Anthropic-shaped blocks, names from public recordings.
+def droid_result(content, is_error=False):
+    return {"type": "tool_result", "tool_use_id": "toolu_d1", "content": content, "is_error": is_error}
+
+
+DROID_KINDS = [
+    ("execute-test", "Execute", {"command": "npm test", "riskLevel": "low"}, "command"),
+    ("execute-read", "Execute", {"command": "cat package.json"}, "read"),
+    ("execute-search", "Execute", {"command": "rg -n flush src"}, "search"),
+    ("read", "Read", {"file_path": "src/scheduler.ts"}, "read"),
+    ("ls", "LS", {"path": "C:\\Users\\dev"}, "read"),
+    ("grep", "Grep", {"pattern": "flush"}, "search"),
+    ("glob", "Glob", {"patterns": ["**/*.ts"]}, "search"),
+    ("create", "Create", {"file_path": "a.ts", "content": "x"}, "edit"),
+    ("multiedit", "MultiEdit", {"file_path": "a.ts", "edits": []}, "edit"),
+    ("task", "Task", {"subagent_type": "worker", "prompt": "x"}, "delegate"),
+    ("fetch", "FetchUrl", {"url": "https://example.com"}, "web"),
+    ("todo", "TodoWrite", {"todos": []}, "other"),
+    ("lowercase", "execute", {"command": "npm test"}, "other"),
+]
+DROID_OUTCOMES = [
+    ("droid-ok", droid_result("12 passing"), "Execute", {"command": "npm test"}, O(None, False)),
+    ("droid-error", droid_result("2 failing", True), "Execute", {"command": "npm test"}, O(None, True)),
+    ("droid-masked", droid_result("2 failing"), "Execute", {"command": "npm test | tail -3"}, O(None, None)),
+    ("droid-filter", droid_result(""), "Execute", {"command": "npx tsc --noEmit 2>&1 | grep error"}, O(None, False)),
+    ("droid-edit-error", droid_result("old_str not found", True), "Edit", {"file_path": "a.ts"}, O(None, True)),
+]
+DROID_EDITS = [
+    ("create", "Create", {"file_path": "/Users/dev/projects/forge/src/a.ts", "content": "export {}\n"},
+     [H("src/a.ts", None, "export {}")]),
+    ("edit-str", "Edit", {"file_path": "src/main.ts", "old_str": "let a = 1;", "new_str": "const a = 1;"},
+     [H("src/main.ts", "let a = 1;", "const a = 1;")]),
+    ("edit-string", "Edit", {"file_path": "src/main.ts", "old_string": "a", "new_string": "b"}, [H("src/main.ts", "a", "b")]),
+    ("multiedit", "MultiEdit", {"file_path": "src/main.ts", "edits": [{"old_str": "a", "new_str": "b"}, {"x": 1},
+                                                                       {"old_string": "c", "new_string": "d"}]},
+     [H("src/main.ts", "a", "b"), H("src/main.ts", "c", "d")]),
+    ("edit-no-path", "Edit", {"old_str": "a", "new_str": "b"}, []),
+]
+
+
+def droid_cases():
+    out = [{"id": "kind-droid-" + n, "group": "actionKind", "source": "droid", "tool": tool, "input": value,
+            "want": want} for n, tool, value, want in DROID_KINDS]
+    out += [{"id": "out-" + n, "group": "outcome", "source": "droid", "result": result, "t": want["t"], "cwd": CWD,
+             "tool": tool, "input": value, "want": want} for n, result, tool, value, want in DROID_OUTCOMES]
+    out += [{"id": "text-droid", "group": "resultText", "source": "droid",
+             "result": droid_result([{"type": "text", "text": "a\r\nb"}]), "want": "a\nb"}]
+    out += [{"id": "edit-droid-" + n, "group": "edits", "source": "droid", "tool": tool, "input": value,
+             "cwd": "/Users/dev/projects/forge", "want": want} for n, tool, value, want in DROID_EDITS]
+    return out
+
+
+def masked_cases():
+    return [{"id": "masked-" + n, "group": "maskedStatus", "text": text, "output": out, "want": want}
+            for n, text, out, want in MASKED]
 
 
 def scripts():
@@ -966,6 +1107,15 @@ EXTRA_FAILURES = [
      {"failedCount": 300, "passedCount": 0, "fingerprintCount": 256}),
 ]
 
+# An error filter with no output (3.10, 5.4): zero failures, for build and check only.
+EXTRA_FAILURES += [
+    ("filter-silent", "cargo check 2>&1 | grep -i error", "(Bash completed with no output)", False, None,
+     {"fingerprints": [], "failedCount": 0, "passedCount": None, "framework": None}),
+    ("filter-silent-unknown-outcome", "cargo check 2>&1 | grep -i error", "", None, None,
+     {"failedCount": None}),
+    ("filter-test-class", "cargo test 2>&1 | grep -i error", "", False, None, {"failedCount": None}),
+]
+
 # Completion markers (5.4): a tool that ends cleanly reports zero failures, even when a pipe hides its exit code.
 EXTRA_FAILURES += [
     ("complete-cargo", "cargo build 2>&1 | tail -3",
@@ -1011,7 +1161,7 @@ def last_token(name):
 def hand_check(case, got):
     want = case["want"]
     problems = []
-    if case["group"] in ("actionKind", "resultText", "notification", "codeScript", "codeItems"):
+    if case["group"] in ("actionKind", "resultText", "notification", "codeScript", "codeItems", "maskedStatus"):
         if got != want:
             problems.append("expected %r got %r" % (want, got))
         return problems
@@ -1055,4 +1205,4 @@ def check_relations(cases, outputs):
 
 def cases():
     return kinds() + commands() + outcomes() + result_texts() + sessions() + notifications() + scripts() + \
-        code_items_cases() + edits() + output_cases() + extra_failures()
+        code_items_cases() + masked_cases() + droid_cases() + edits() + output_cases() + extra_failures()

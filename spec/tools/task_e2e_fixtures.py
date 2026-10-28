@@ -583,6 +583,88 @@ def openclaw_database(out):
             "ocMirror": rel + "#w-codex-0003"}
 
 
+# ----------------------------------------------------------------------------- Factory Droid
+
+def droid_line(kind, clock=None, **fields):
+    row = {"type": kind}
+    if clock is not None:
+        row["timestamp"] = iso(at(clock))
+    row.update(fields)
+    return row
+
+
+def droid_user(mid, clock, content, visibility=None):
+    msg = {"role": "user", "content": content}
+    if visibility:
+        msg["visibility"] = visibility
+    return droid_line("message", clock, id=mid, parentId=None, message=msg)
+
+
+def droid_assistant(mid, clock, content):
+    return droid_line("message", clock, id=mid, parentId=None, message={
+        "role": "assistant", "content": content, "modelId": "claude-opus-5-5", "reasoningEffort": "high"})
+
+
+def droid_tool(mid, clock, call_id, name, value):
+    return droid_assistant(mid, clock, [{"type": "tool_use", "id": call_id, "name": name, "input": value}])
+
+
+def droid_result(mid, clock, call_id, content, is_error=False):
+    return droid_user(mid, clock, [{"type": "tool_result", "tool_use_id": call_id, "content": content,
+                                    "is_error": is_error}])
+
+
+def droid_sessions(out):
+    forge = WORK + "/forge"
+    main, worker, fork = ("0a1b2c3d-1111-4a5b-8c6d-7e8f9a0b1c01", "0a1b2c3d-2222-4a5b-8c6d-7e8f9a0b1c02",
+                          "0a1b2c3d-3333-4a5b-8c6d-7e8f9a0b1c03")
+    m = [droid_line("session_start", id=main, title="Cache flush", owner="dev", version=2, cwd=forge,
+                    hostId="host-7f3a"),
+         droid_user("context-t1", "10:44:00", [{"type": "text", "text": "<system-reminder>cwd: %s</system-reminder>"
+                                                % forge}], "llm_only"),
+         droid_user("u1", "10:44:00.500", [{"type": "text", "text": "Make the cache flush test pass"}]),
+         droid_tool("a1", "10:44:05", "toolu_f1", "Execute",
+                    {"command": "npm test 2>&1 | tail -5; echo \"exit: ${PIPESTATUS[0]}\"", "riskLevel": "low"}),
+         droid_result("r1", "10:44:20", "toolu_f1", "  12 passing (38ms)\n  2 failing\nexit: 1"),
+         droid_tool("a2", "10:44:30", "toolu_f2", "Edit", {"file_path": forge + "/src/cache.ts",
+                                                          "old_str": "this.flush();", "new_str": "await this.flush();"}),
+         droid_result("r2", "10:44:31", "toolu_f2", "ok"),
+         droid_tool("a3", "10:44:40", "toolu_f3", "Task", {"subagent_type": "worker",
+                                                          "description": "Check other flush callers",
+                                                          "prompt": "Find every caller of flush()"}),
+         droid_result("r3", "10:45:30", "toolu_f3", "agentId: %s\nNo other callers." % worker),
+         droid_tool("a4", "10:45:40", "toolu_f4", "Execute",
+                    {"command": "npx tsc --noEmit 2>&1 | grep -E \"error|warning\"", "riskLevel": "low"}),
+         droid_result("r4", "10:45:48", "toolu_f4", ""),
+         droid_tool("a5", "10:45:50", "toolu_f5", "Execute", {"command": "npm test", "riskLevel": "low"}),
+         droid_result("r5", "10:45:58", "toolu_f5", "  14 passing (40ms)"),
+         droid_assistant("a6", "10:46:00", [{"type": "text", "text": "The flush test passes."}]),
+         droid_line("agent_turn_outcome", turnId="t1", reason="completed", resultKind="text"),
+         droid_user("u2", "10:58:00", [{"type": "text", "text": "ok"}])]
+    w = [droid_line("session_start", id=worker, title="worker: Check other flush callers", owner="dev", version=2,
+                    cwd=forge, hostId="host-7f3a", callingSessionId=main, callingToolUseId="toolu_f3"),
+         droid_user("w1", "10:44:41", [{"type": "text", "text": "Find every caller of flush()"}]),
+         droid_tool("w2", "10:44:45", "toolu_w1", "Grep", {"pattern": "flush\\(", "path": forge + "/src"}),
+         droid_result("w3", "10:44:46", "toolu_w1", "src/cache.ts:12: this.flush();"),
+         droid_assistant("w4", "10:45:25", [{"type": "text", "text": "No other callers."}]),
+         droid_line("agent_turn_outcome", turnId="tw", reason="completed", resultKind="text")]
+    f = [droid_line("session_start", id=fork, title="Cache flush (fork)", owner="dev", version=2, cwd=forge,
+                    hostId="host-7f3a", parent=main, forkedAtMessageId="r1")]
+    f += [dict(row) for row in m[1:5]]
+    f += [droid_user("fu1", "10:50:00", [{"type": "text", "text": "Write a changelog line"}]),
+          droid_tool("fa1", "10:50:05", "toolu_g1", "Create", {"file_path": forge + "/CHANGELOG.md",
+                                                              "content": "- Cache flush awaits\n"}),
+          droid_result("fr1", "10:50:06", "toolu_g1", "File created"),
+          droid_assistant("fa2", "10:50:20", [{"type": "text", "text": "Added."}]),
+          droid_line("agent_turn_outcome", turnId="tf", reason="completed", resultKind="text")]
+    folder = os.path.join(out, ROOT, "droid", ".factory", "sessions", "-Users-dev-work-forge")
+    rel = "/".join((ROOT, "droid", ".factory", "sessions", "-Users-dev-work-forge"))
+    for sid, rows in ((main, m), (worker, w), (fork, f)):
+        write_jsonl(os.path.join(folder, sid + ".jsonl"), rows)
+    return {"droid": rel + "/" + main + ".jsonl", "droidWorker": rel + "/" + worker + ".jsonl",
+            "droidFork": rel + "/" + fork + ".jsonl"}
+
+
 # ----------------------------------------------------------------------------- expectations
 
 def write(out):
@@ -591,6 +673,7 @@ def write(out):
     files.update(claude_sessions(out))
     files.update(omp_pi_sessions(out))
     files.update(openclaw_database(out))
+    files.update(droid_sessions(out))
     return files
 
 
@@ -599,13 +682,14 @@ def meta(files):
     order = [("codex", files["history"]), ("codex", files["comet"]), ("omp", files["omp"]),
              ("omp", files["ompSub"]), ("claudeCode", files["claudeSub"]), ("claudeCode", files["main"]),
              ("codex", files["orbit"]), ("openclaw", files["openclaw"]), ("claudeCode", files["fork"]),
-             ("pi", files["pi"]), ("codex", files["codexSub"]), ("claudeCode", files["desk"])]
+             ("pi", files["pi"]), ("codex", files["codexSub"]), ("claudeCode", files["desk"]),
+             ("droid", files["droidWorker"]), ("droid", files["droid"]), ("droid", files["droidFork"])]
     return {"nowMs": NOW, "analysisMs": NOW, "timeZone": "UTC",
             "roots": {"omp": "/".join((ROOT, "omp", "agent", "sessions")), "pi": "/".join((ROOT, "pi", "agent",
                                                                                           "sessions"))},
             "order": [{"source": s, "path": p} for s, p in order],
-            "sets": [None, ["codex"], ["claudeCode"], ["claudeDesktop"], ["omp"], ["pi"], ["openclaw"],
-                     ["codex", "pi"], ["omp", "openclaw"]],
+            "sets": [None, ["codex"], ["claudeCode"], ["claudeDesktop"], ["omp"], ["pi"], ["openclaw"], ["droid"],
+                     ["codex", "pi"], ["omp", "openclaw"], ["claudeCode", "droid"]],
             "comparison": {"first": "2026-10-27", "last": "2026-10-27"}}
 
 
@@ -637,6 +721,13 @@ def want(files):
             f["ocSub"]: {"form": "none", "state": "none", "parentId": f["ocMain"]},
             # the delegated window's mirror adds no actions: a task without a score
             f["ocMirror"]: {"form": "none", "state": "none", "taskStartMs": at("10:45:01")},
+            # npm test fails (its exit code printed through PIPESTATUS), edit, Task worker, tsc piped into a grep for
+            # errors with no output (a pass), npm test passes; "ok" continues: V40 C25 R15, E = 10 * 5/8, K10
+            f["droid"]: {"source": "droid", "form": "live", "state": "passing", "score": 96.25,
+                         "taskStartMs": at("10:44:00.500")},
+            f["droidWorker"]: {"form": "none", "state": "none", "parentId": f["droid"]},
+            # the copied prompt is withdrawn; the fork's own Create: E = 10 * 1/8
+            f["droidFork"]: {"form": "resting", "state": "unverified", "score": 1.25, "taskStartMs": at("10:50:00")},
         },
         "records": {
             # task 1 with its continuation: piped fail, edit, pass, edit, background pass stitched by the notice:
@@ -654,17 +745,24 @@ def want(files):
             f["pi"]: [{"state": "pending", "score": 43.75, "complete": False}],
             f["ocMain"]: [{"state": "passing", "score": 69.0}],
             f["ocMirror"]: [],
+            f["droid"]: [{"state": "passing", "score": 96.25, "complete": False,
+                          "counts": {"runs": 3, "failingRuns": 1, "recovered": 1, "edits": 1}}],
+            # the worker's only task ended 14.6 minutes before analysisMs: not complete yet (30 minutes)
+            f["droidWorker"]: [{"state": "none", "score": None, "complete": False}],
+            f["droidFork"]: [{"state": "unverified", "startMs": at("10:50:00")}],
         },
         "sets": [
-            {"sources": None, "form": "live", "score": 67.75, "agent": f["main"]},
+            {"sources": None, "form": "live", "score": 96.25, "agent": f["droid"]},
             {"sources": ["codex"], "form": "live", "score": 66.5, "agent": f["orbit"]},
             {"sources": ["claudeCode"], "form": "live", "score": 67.75},
             {"sources": ["claudeDesktop"], "form": "none"},
             {"sources": ["omp"], "form": "none"},
             {"sources": ["pi"], "form": "live", "score": 43.75},
             {"sources": ["openclaw"], "form": "resting", "score": 69.0, "agent": f["ocMain"]},
+            {"sources": ["droid"], "form": "live", "score": 96.25, "agent": f["droid"]},
             {"sources": ["codex", "pi"], "form": "live", "score": 66.5},
             {"sources": ["omp", "openclaw"], "form": "resting", "score": 69.0},
+            {"sources": ["claudeCode", "droid"], "form": "live", "score": 96.25, "agent": f["droid"]},
         ],
         "groups": {
             f["orbit"]: {"form": "live", "score": 66.5, "members": [f["orbit"], f["codexSub"]]},
@@ -674,7 +772,7 @@ def want(files):
         "calibration": {"codex": {"success": {"calibrated": True}, "stall": {"calibrated": True},
                                   "fix": {"calibrated": False}},
                         "claudeCode": {"success": {"calibrated": False}}},
-        "stitched": {f["orbit"]: 1, f["comet"]: 1, f["main"]: 1},
+        "stitched": {f["orbit"]: 1, f["comet"]: 1, f["main"]: 1, f["droid"]: 0},
     }
 
 

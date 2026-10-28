@@ -685,6 +685,85 @@
      "failed": true
     }
    ]
+  },
+  {
+   "name": "Factory Droid: tool_use in an assistant message line, tool_result in the next user message line",
+   "format": "droid",
+   "lines": [
+    [
+     1000000000000,
+     {
+      "type": "message",
+      "id": "a1",
+      "message": {
+       "role": "assistant",
+       "content": [
+        {
+         "type": "tool_use",
+         "id": "toolu_d1",
+         "name": "Execute",
+         "input": {
+          "command": "swift test",
+          "description": "Run tests"
+         }
+        }
+       ]
+      }
+     }
+    ],
+    [
+     1000000001500,
+     {
+      "type": "message",
+      "id": "r1",
+      "message": {
+       "role": "user",
+       "content": [
+        {
+         "type": "tool_result",
+         "tool_use_id": "toolu_d1",
+         "content": "2 failing",
+         "is_error": true
+        }
+       ]
+      }
+     }
+    ],
+    [
+     1000000002000,
+     {
+      "type": "message",
+      "id": "a2",
+      "message": {
+       "role": "assistant",
+       "content": [
+        {
+         "type": "tool_use",
+         "id": "toolu_d2",
+         "name": "Read",
+         "input": {
+          "file_path": "Package.swift"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   ],
+   "expect": [
+    {
+     "at": 1000000000000,
+     "tool": "Execute",
+     "digest": "d136c52b4213bdd6",
+     "failed": true
+    },
+    {
+     "at": 1000000002000,
+     "tool": "Read",
+     "digest": "e8c8ae869c9c2e6a",
+     "failed": null
+    }
+   ]
   }
  ]
 }

@@ -8,7 +8,8 @@ outputs listed here are kept (section 7).
 | Function | Output |
 | --- | --- |
 | `action_kind(source, tool, input, cwd)` | `read`, `search`, `edit`, `command`, `delegate`, `web` or `other` (2) |
-| `command_info(text, cwd)` | `{class, suite, targeted, key}` plus `masked` and `background` (3) |
+| `command_info(text, cwd)` | `{class, suite, targeted, key}` plus `masked`, `background` and `errorFilter` (3) |
+| `masked_status(text, outputText, cwd)` | `{exitCode, failed}` that a masked command shows in its own output, or null (3.10) |
 | `outcome(source, result, t, tool, input, cwd)` | `{exitCode, failed, t}` (4.2) |
 | `result_text(source, result)` | the output text that `failures` reads (4.1) |
 | `continuation(source, tool, input)`, `running_session(source, result)` | a session key or null (4.3) |
@@ -25,13 +26,13 @@ reference.
 
 ## 1. Conventions
 
-- **Sources.** The functions apply to `claudeCode` and `claudeDesktop` (family `claude`), `codex`, `omp`, `pi` and
-  `openclaw`, the sources that record tool calls (METRICS 6.10). For any other source: kind `other`, the outcome
+- **Sources.** The functions apply to `claudeCode` and `claudeDesktop` (family `claude`), `codex`, `omp`, `pi`,
+  `openclaw` and `droid` (Factory Droid), the sources that record tool calls (METRICS 6.10). For any other source: kind `other`, the outcome
   `{exitCode: null, failed: null, t}`, empty text, no session, no hunks.
 - **Inputs as stored.** `tool` is the call's name; `input` is the call's input as the line stores it (METRICS 6.10): an
   object for Claude, omp, Pi and OpenClaw; a string for Codex (`arguments` of a `function_call`, `input` of a
-  `custom_tool_call`). `result` is the Claude `tool_result` block, the Codex `…_output` payload, or the omp, Pi and
-  OpenClaw `toolResult` message. `cwd` is the agent's working directory (METRICS 4: `cwdPath`), or null. Any input of
+  `custom_tool_call`). `result` is the Claude or Factory Droid `tool_result` block, the Codex `…_output` payload, or
+  the omp, Pi and OpenClaw `toolResult` message. `cwd` is the agent's working directory (METRICS 4: `cwdPath`), or null. Any input of
   an unexpected type is treated as absent; no function ever fails.
 - **JSON.** *Parsing* follows RFC 8259: `NaN`, `Infinity` and `-Infinity` are rejected, duplicate keys keep the last
   value, and a document nested too deeply for the parser fails; a failed parse means *none*. *The input as an object*:
@@ -73,13 +74,19 @@ reference.
 | omp | `read` | `grep`, `search`, `find`, `glob`, `ast_grep`, `lsp` | `edit`, `write`, `ast_edit` | `bash` | `task` | `web_search`, `fetch`, `browser` |
 | Pi | `read`, `ls` | `grep`, `find` | `edit`, `write` | `bash`, `powershell` | — | — |
 | OpenClaw | `read`, `ls` | — | `edit`, `write`, `apply_patch` | `exec`, `bash` | `sessions_spawn`, `sessions_send` | `web_search`, `web_fetch`, `x_search`, `browser` |
+| Factory Droid | `Read`, `LS` | `Grep`, `Glob` | `Create`, `Edit`, `MultiEdit` | `Execute` | `Task` | `WebSearch`, `FetchUrl` |
 
 Evidence for the omp, Pi and OpenClaw names: their published packages (omp 18.13.3 `BUILTIN_TOOL_NAMES`, Pi 1.4.0
 `core/tools`, OpenClaw 2026.10.8 tool catalog), read on 2026-10-28; Codex: `codex-rs` `tools` (main, same day).
+Factory Droid (closed source): the names seen in public recordings of droid (`spec/research/droid.md`: Read, LS, Glob,
+Grep, Execute, Create, Edit, MultiEdit, TodoWrite, Task, Skill, WebSearch, FetchUrl, AskUser, GenerateDroid,
+ExitSpecMode); `TodoWrite`, `Skill`, `AskUser`, `GenerateDroid` and `ExitSpecMode` are `other`. Names compare exactly.
+Not seen and therefore `other`: an `ApplyPatch` tool, which droid may offer to some models. No Droid session was read on
+this machine.
 
 ## 3. `command_info`
 
-`command_info(text, cwd)` → `{class, suite, targeted, key, masked, background}`:
+`command_info(text, cwd)` → `{class, suite, targeted, key, masked, background, errorFilter}`:
 
 | Field | Value |
 | --- | --- |
@@ -89,6 +96,7 @@ Evidence for the omp, Pi and OpenClaw names: their published packages (omp 18.13
 | `key` | 16-hex digest of the normalised command (3.7) |
 | `masked` | the command's exit status may hide the chosen segment's (3.7); used by `outcome` |
 | `background` | the chosen segment runs in the background (3.7); used by `outcome` |
+| `errorFilter` | class build or check, and the chosen segment's output goes only through a grep for error lines (3.10); used by `outcome` and `failures` |
 
 The order puts tests first because a passing test run proves a build too (runners such as `cargo test`, `swift test`,
 `go test` and `dotnet test` build first), a build proves more than a lint or type check, and anything else proves
@@ -100,7 +108,7 @@ nothing. METRICS 6.9 consumes `class`, `suite`, `targeted` and `key`.
 
 | Source and tool | Text |
 | --- | --- |
-| Claude `Bash`, `PowerShell`; omp, Pi `bash`, `powershell`; OpenClaw `exec`, `bash`; Codex `shell_command` | `command` (a string) |
+| Claude `Bash`, `PowerShell`; omp, Pi `bash`, `powershell`; OpenClaw `exec`, `bash`; Codex `shell_command`; Factory Droid `Execute` | `command` (a string) |
 | Codex `shell`, `container.exec`, `local_shell` (`ARGV_TOOLS`) | `command`: a string as is; a non-empty array of strings joined (below) |
 | Codex `exec_command` | `cmd` (a string) |
 | Codex `exec` (custom tool) | when the input is an object: its string `cmd`, else its string `command`, else no text; otherwise the raw input string |
@@ -393,6 +401,61 @@ strings: `python -m pytest`, `uv run pytest` and `pytest -q` are all `pytest`; `
 So Codex reading files through `sed -n` or `rg` counts like Claude's `Read` and `Grep`, which keeps the two comparable
 in METRICS 6.11. Shell edits other than `apply_patch` (`sed -i`, `cat > file`) stay `command`, as METRICS 6.9 assumes.
 
+### 3.10 Masked runs
+
+Agents often pipe a check through `tail` or `grep`, or print its status themselves (real logs, 2026-10-28: about nine in
+ten Claude Code build and check commands are masked). A masked command's exit status is the pipeline's or the last
+list element's, not the chosen segment's, so `outcome` leaves `failed` null (4.2) — unless the command's own output
+states the chosen segment's status in one of the forms below (user's decision, 2026-10-28). Nothing else is read:
+every other masked command stays unknown, and the counts of 5 decide.
+
+Terms, over the segments of 3.3 (an LF counts as `;`): the *pipeline* of the chosen segment C is C with the segments
+joined to it by `|`; C's *index* is its position in that pipeline from 0; C *owns* the pipeline's status when C is
+its last segment or the command is `pipefail` (3.7; then a failing C makes the status non-zero). An *echo* is a segment
+whose program is `echo`, with at least one word after it, no redirection and no here-document, and whose first word
+after `echo` does not start with `-`; it prints its words joined by single spaces. A *status reference* is `$?`,
+`${?}`, `${PIPESTATUS[N]}` (N decimal) or `$PIPESTATUS` (N = 0) (*search* `STATUS_REF`); an echo text is *fixed* when it
+holds no `$`, no backquote and is not blank after trimming, and a *status text* when it holds exactly one status
+reference and, around it, no other `$` or backquote — its *prefix* and *suffix* are the text before and after the
+reference. (`${PIPESTATUS[N]}` is bash's; zsh's `$pipestatus` is not read. Single quotes are not distinguished: a
+literal `'$?'` prints `$?`, which never matches below.)
+
+**Printed status.** The output's *last line* is its last line that is not empty after trimming, trimmed; no other line
+is read. It *shows* a status text when it starts with the prefix with its leading whitespace removed, ends with the
+suffix with its trailing whitespace removed, and what lies between matches `STATUS_VALUE` (an optionally negative
+integer, read as in 1). The forms, each with the echo segments ending the command:
+
+| Form | Command after C's pipeline | Counts when | Last line → result |
+| --- | --- | --- | --- |
+| printed | `;` then one echo with a status text (`; echo $?`, `; echo "exit: $?"`, `; echo EXIT=$?`, `; echo "${PIPESTATUS[0]}"`) | a `$?` reference: C owns the status; a `PIPESTATUS` reference: N is C's index | shows the status text with value V → `{exitCode: V, failed: V ≠ 0}` |
+| branches | `&&` one echo with a fixed text, then `\|\|` one echo with a fixed text (different) or a status text with `$?` (`&& echo ok \|\| echo fail`, `&& echo PASS \|\| echo "FAIL $?"`) | C owns the status | equals the first text → `{exitCode: 0, failed: false}`; equals the second (fixed) → `{exitCode: null, failed: true}`; shows the second (status text) with V ≠ 0 → `{exitCode: V, failed: true}` |
+| else | `\|\|` then one echo with a fixed text or a status text with `$?` (`\|\| echo FAILED`, `\|\| echo "failed $?"`) | C owns the status | as the second text of *branches*; anything else (the echo did not run) stays unknown |
+
+So `cargo build 2>&1 | tail -3; echo $?` stays unknown (`$?` is `tail`'s), while `… | tail -3; echo
+"${PIPESTATUS[0]}"` and `set -o pipefail; … | tail -3; echo $?` count. A `$?` after `&&` or `||` echoes is the status
+of the list so far, which these forms read only where it is C's pipeline's. A list before C (`cd x && cargo build;
+echo $?`) makes `$?` the list's status: a failing `cd` reads as a failed run (an approximation). The forms apply to every
+class: a printed exit code is the chosen segment's own.
+
+**Error filters** (`errorFilter`, build and check only). C's class is `build` or `check`, C is followed by `|` and a
+segment whose program is `grep` or `egrep` (`GREP_PROGRAMS`), then only `|`-joined segments whose program is `head` or
+`tail` (`LIMITERS`), and that pipeline ends the command. The grep must read only its input and keep matching lines:
+its options are short flags whose letters are all in `GREP_FLAGS` (case-insensitive, extended or Perl patterns, line
+numbers, whole words, fixed strings, text, no messages, file names, only matching), the long flags `GREP_LONG_FLAGS`,
+`--color` / `--colour` with or without a value, and `GREP_VALUE_OPTIONS` with their value (`-e PATTERN`, context and
+`-m` counts; also written `-ePATTERN`, `-A3` or `--name=value`); anything else (`-v`, `-c`, `-l`, `-q`, `-r`, `-f`, …)
+makes it no filter. Its patterns are the `-e` values, else its first operand; any further operand is a file, so no
+filter. Some pattern must contain `error` (ASCII case-insensitive): `grep -i error`, `grep -E "error|warning"`,
+`grep -E "error:|FAIL"`, `grep -e warning -e error`. When such a command produced **no output** — the output text,
+stripped of JSON whitespace (space, tab, CR, LF), is empty or is Claude Code's placeholder `(Bash completed with no
+output)` (`NO_OUTPUT`; real logs) — the check found no error line: `{failed: false}` (the exit code is kept) and
+`failures` reports `failedCount` 0 (5.4). A filter with output, `| tail` or `| head` alone, and every test-class
+command (a test must show its summary, 5) stay unknown.
+
+`masked_status(text, outputText, cwd)`: null when `command_info` is not masked; otherwise the first of a printed
+status (when the command has a form above and its last line gives a result) and an error filter with no output
+(`{exitCode: null, failed: false}`), else null.
+
 ## 4. Results
 
 ### 4.1 `result_text`
@@ -406,6 +469,7 @@ The text `failures` reads, LF-normalised:
 - **Codex**: the *body* of the Codex status (below).
 - **omp, Pi, OpenClaw**: the blocks text of the message's `content`; trailing lines that are empty after trimming are
   dropped, then a last line that, trimmed, matches `PI_EXIT`.
+- **Factory Droid**: the blocks text of the block's `content` (a string in every recording).
 
 **Codex status** of a result:
 
@@ -443,6 +507,9 @@ The text `failures` reads, LF-normalised:
   was found.
 - `failed` = `exitCode ≠ 0` when an exit code is known, else `is_error == true` (absent → false, as METRICS 6.10).
 
+**Factory Droid**: `exitCode` null, state `done`, `failed` = `is_error == true` (absent → false). The recordings show no
+exit-code line, background run or interruption marker in a result, so none is read (TASK-PARSERS 10).
+
 **Codex**: the Codex status (4.1) gives the exit code and the state; `failed` = `exitCode ≠ 0` when an exit code is
 known, else the patch verdict, else null.
 
@@ -459,8 +526,10 @@ known, else the patch verdict, else null.
 
 **The call.** When `tool` is given, its command text exists (3.1) and the state is `done`: the state becomes
 `running` when the input says so (Claude `run_in_background == true`, OpenClaw `background == true`) or `command_info`
-says `background`; otherwise, when `command_info` says `masked`, `failed` becomes null (the exit code is kept: it is
-the pipeline's, not the check's).
+says `background`; otherwise, when `command_info` says `masked`, `masked_status(text, result_text(source, result), cwd)`
+(3.10) decides: null → `failed` becomes null (the exit code is kept: it is the pipeline's, not the check's); a result →
+its `failed`, and its `exitCode` when that is not null, or null when `failed` is true (a failure word: the exit code
+shown is the echo's).
 
 **Final.** In any state other than `done`, `failed` is null; in `running` and `aborted`, `exitCode` is null too.
 Unknown sources give `{exitCode: null, failed: null, t}`.
@@ -695,6 +764,8 @@ null; last keeps the last), in order of first appearance.
   marker's name in `COMPLETION_FRAMEWORKS`, from the first such line in output order. These tools print the line only
   when they finish without errors, so a build piped through `tail` still reads as passed (real logs: nine in ten
   Claude Code build and check commands end in a pipe, which hides the exit code).
+- Else, when `failed` is false, `info.errorFilter` is true and the output shows no output (3.10): `failedCount` = 0,
+  `passedCount` = null, `framework` = null.
 - Else both are null.
 
 `framework` = among the chosen frameworks, the first (in order of appearance) with a non-zero failed count, else the
@@ -764,6 +835,9 @@ edit or whose input cannot be split.
 | Pi, omp, OpenClaw `write` | whole-file write of `content` at `path` |
 | OpenClaw `apply_patch` | the patch in `input` |
 | omp `ast_edit` | `[]` (a structural rewrite; its effect is not in the input) |
+| Factory Droid `Create` | whole-file write of `content` at `file_path` |
+| Factory Droid `Edit` | one hunk of `old_str` → `new_str` (else `old_string` → `new_string`) in `file_path` |
+| Factory Droid `MultiEdit` | one hunk per entry of `edits` with such a pair, in `file_path` |
 
 ### 6.3 Codex patches
 
@@ -821,9 +895,9 @@ names from the fixed vocabulary, 16-hex digests, counts, exit codes and times le
 `python3 spec/tools/task_parsers.py` checks every case of `spec/fixtures/task-parser-cases.json` and Appendix A;
 `--write` regenerates both after checking the hand expectations of the corpus (the digests there are computed with
 `hashlib` from hand-normalised text, independently of the reference). Each case has `group` (`actionKind`, `command`,
-`outcome`, `resultText`, `session`, `notification`, `codeScript`, `codeItems`, `failures`, `edits`), its inputs and
-`expect`. `command` cases also expect
-`masked` and `background`; `failures` cases list `canonical`. Ports run every case through their own functions and
+`outcome`, `resultText`, `session`, `notification`, `codeScript`, `codeItems`, `maskedStatus`, `failures`, `edits`),
+its inputs and `expect`. `command` cases also expect `masked`, `background` and `errorFilter`; `failures` cases list
+`canonical`. Ports run every case through their own functions and
 compare the outputs exactly.
 
 ## 10. Known approximations
@@ -845,6 +919,10 @@ compare the outputs exactly.
   yield (`Script running with cell ID N`, finished by a later `wait` call) gets no results either.
 - A Claude background command's notice carries its exit code but not its output: the run is decided by the exit code
   alone (and is unknown when the command was `masked`).
+- Factory Droid: the tool names come from public recordings, the input fields (`command`, `file_path`, `content`,
+  `old_str` / `new_str`, `edits`) from the recorded `Read`, `Edit`, `LS`, `Grep` and `Execute` inputs and from the shape
+  of Claude's tools (both spellings of the replacement pair are read); no result format beyond `is_error` is known, so
+  a failed command has no exit code and a background command reads as finished.
 - Not verified against real logs (none were read for them): Claude `BashOutput` / `TaskOutput` tags, omp's hashline,
   sloppy and patch shapes, Codex's `exec` custom tool with an object input, the exact wording of every runner across
   versions (the corpus notes the uncertain details per case). Codex code mode, Claude task notices and the background
@@ -863,6 +941,7 @@ The reference writes this appendix; do not edit it by hand.
 - **omp**: read `read`; search `grep`, `search`, `find`, `glob`, `ast_grep`, `lsp`; edit `edit`, `write`, `ast_edit`; command `bash`; delegate `task`; web `web_search`, `fetch`, `browser`.
 - **pi**: read `read`, `ls`; search `grep`, `find`; edit `edit`, `write`; command `bash`, `powershell`.
 - **openclaw**: read `read`, `ls`; edit `edit`, `write`, `apply_patch`; command `exec`, `bash`; delegate `sessions_spawn`, `sessions_send`; web `web_search`, `web_fetch`, `x_search`, `browser`.
+- **droid**: read `Read`, `LS`; search `Grep`, `Glob`; edit `Create`, `Edit`, `MultiEdit`; command `Execute`; delegate `Task`; web `WebSearch`, `FetchUrl`.
 
 ### A.2 Lists
 
@@ -955,6 +1034,10 @@ The reference writes this appendix; do not edit it by hand.
 - `GIT_VALUE`: `-C`, `-c`, `--git-dir`, `--work-tree`, `--namespace`, `--exec-path`, `--config-env`
 - `FIND_ACTIONS`: `-delete`, `-exec`, `-execdir`, `-ok`, `-okdir`, `-fprint`, `-fprintf`, `-fls`
 - `WRITE_REDIRS`: `>`, `>>`, `>|`, `&>`, `&>>`, `<>`
+- `GREP_PROGRAMS`: `grep`, `egrep`
+- `GREP_LONG_FLAGS`: `--ignore-case`, `--extended-regexp`, `--line-number`, `--word-regexp`, `--fixed-strings`, `--perl-regexp`, `--text`, `--no-messages`, `--no-filename`, `--with-filename`, `--only-matching`
+- `GREP_VALUE_OPTIONS`: `-e`, `-A`, `-B`, `-C`, `-m`, `--regexp`, `--after-context`, `--before-context`, `--context`, `--max-count`
+- `LIMITERS`: `head`, `tail`
 - `CLAUDE_ABORT`: `[Request interrupted by user`, `The user doesn't want to proceed with this tool use`, `The user doesn't want to take this action`, `Permission to use `, `Claude requested permissions to use`, `User rejected`, `The tool use was rejected`
 - `JS_REGEX_AFTER`: `return`, `typeof`, `instanceof`, `in`, `of`, `new`, `delete`, `void`, `throw`, `case`, `do`, `else`, `yield`, `await`
 - `COMPLETION_FRAMEWORKS`: `cargo`, `swiftpm`, `xcodebuild`, `gradle`, `maven`, `prettier`, `vite`
@@ -1043,6 +1126,8 @@ MAKE_FILTER_VAR    TESTS?|T|TEST_?ARGS|TEST_?FILTER|FILTER|RUN|ONLY|K|PKG|PACKAG
 PATCH_LINE         [ \t]*\*\*\* Begin Patch[ \t]*
 FD_TARGET          [0-9-]+
 PIPEFAIL_FLAG      -[A-Za-z]*o
+STATUS_REF         \$\?|\$\{\?\}|\$\{PIPESTATUS\[([0-9]+)\]\}|\$PIPESTATUS
+STATUS_VALUE       -?[0-9]+
 CLAUDE_EXIT        Exit code (-?[0-9]+)
 CLAUDE_TIMEOUT     Command timed out after .*
 CLAUDE_BACKGROUND  Command running in background with ID: ?([A-Za-z0-9_:-]+(?:\.[A-Za-z0-9_:-]+)*).*
