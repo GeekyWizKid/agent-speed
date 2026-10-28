@@ -145,6 +145,9 @@ enum ResultReading {
             return text
         case .codex:
             return codexStatus(result).body
+        case .droid:
+            guard let block = result?.object else { return [] }
+            return blocksText(block["content"]).lfNormalized()
         case .omp, .pi, .openclaw:
             guard let message = result?.object else { return [] }
             var lines = blocksText(message["content"]).lfNormalized().split(byte: Byte.lf)

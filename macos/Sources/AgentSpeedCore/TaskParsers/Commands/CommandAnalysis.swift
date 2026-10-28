@@ -2,8 +2,8 @@ import Foundation
 
 /// `command_info` and `shell_kind` over a parsed command (TASK-PARSERS 3.7, 3.9).
 enum CommandAnalysis {
-    static func info(_ command: ShellCommand, cwd: String?) -> TaskCommandInfo {
-        let segments = command.segments
+    /// The class of every segment and the chosen one: the first with the highest class rank (3.7).
+    static func choose(_ segments: [ShellSegment], cwd: String?) -> ([Classification], Int?, Classification) {
         var bestIndex: Int?
         var best = Classification.other
         var classes: [Classification] = []
@@ -16,20 +16,28 @@ enum CommandAnalysis {
                 best = result
             }
         }
+        return (classes, bestIndex, best)
+    }
+
+    static func info(_ command: ShellCommand, cwd: String?) -> TaskCommandInfo {
+        let segments = command.segments
+        let (classes, bestIndex, best) = choose(segments, cwd: cwd)
         var kept = zip(segments, classes).filter { $0.1.commandClass != .other }.map { tokens($0.0) }
         if kept.isEmpty { kept = segments.filter { !$0.isNeutral }.map(tokens) }
         if kept.isEmpty { kept = segments.filter { !$0.words.isEmpty }.map(tokens) }
         let key = TaskText.sha16(Bytes.joined(kept.map { Bytes.joined($0, separator: [0x1F]) }, separator: [0x1E]))
         guard let bestIndex else {
             return TaskCommandInfo(commandClass: .other, suite: nil, targeted: false, key: key, masked: false,
-                                   background: segments.contains { $0.background })
+                                   background: segments.contains { $0.background }, errorFilter: false)
         }
         let chosen = segments[bestIndex]
         let later = segments[(bestIndex + 1)...]
         let masked = !later.isEmpty && ((chosen.opAfter == .pipe && !command.pipefail)
             || later.contains { [.semicolon, .or, .background].contains($0.opBefore) })
+        let errorFilter = (best.commandClass == .build || best.commandClass == .check)
+            && MaskedRuns.isErrorFilter(segments, chosen: bestIndex)
         return TaskCommandInfo(commandClass: best.commandClass, suite: best.suite, targeted: best.targeted, key: key,
-                               masked: masked, background: chosen.background)
+                               masked: masked, background: chosen.background, errorFilter: errorFilter)
     }
 
     private static let cosmetic = TaskText.words([

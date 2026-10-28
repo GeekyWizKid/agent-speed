@@ -31,15 +31,18 @@ public struct TaskCommandInfo: Equatable, Hashable, Sendable {
     public var key: String
     public var masked: Bool
     public var background: Bool
+    /// Class build or check, and the chosen segment's output goes only through a grep for error lines (3.10).
+    public var errorFilter: Bool
 
     public init(commandClass: TaskCommandClass, suite: String?, targeted: Bool, key: String, masked: Bool,
-                background: Bool) {
+                background: Bool, errorFilter: Bool) {
         self.commandClass = commandClass
         self.suite = suite
         self.targeted = targeted
         self.key = key
         self.masked = masked
         self.background = background
+        self.errorFilter = errorFilter
     }
 }
 
@@ -55,6 +58,31 @@ public struct TaskOutcome: Equatable, Hashable, Sendable {
         self.failed = failed
         self.t = t
     }
+}
+
+/// The status a masked command shows in its own output (TASK-PARSERS 3.10). A nil `exitCode` means the pipeline's
+/// own code is kept.
+public struct TaskMaskedStatus: Equatable, Hashable, Sendable {
+    public var exitCode: Int64?
+    public var failed: Bool
+}
+
+/// `failures` (TASK-PARSERS 5): fingerprints of the distinct failures and the counts the output states.
+public struct TaskFailures: Equatable, Hashable, Sendable {
+    /// Sorted distinct 16-hex digests, at most 256 (the smallest).
+    public var fingerprints: [String]
+    /// nil: unknown, never zero.
+    public var failedCount: Int64?
+    public var passedCount: Int64?
+    public var framework: String?
+}
+
+/// One changed region of an edit (TASK-PARSERS 6): digests of the file, the old lines and the new lines.
+public struct TaskEditHunk: Equatable, Hashable, Sendable {
+    public var file: String
+    /// nil for a whole-file write or a deletion.
+    public var old: String?
+    public var new: String
 }
 
 /// A Claude background-task notice that reports an exit code (TASK-PARSERS 4.3).

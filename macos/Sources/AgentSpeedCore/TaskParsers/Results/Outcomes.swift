@@ -55,15 +55,29 @@ enum Outcomes {
                 state = .aborted
             }
             failed = exitCode.map { $0 != 0 } ?? (message["isError"] == .bool(true))
+        case .droid?:
+            guard let block = result?.object else { return TaskOutcome(exitCode: nil, failed: nil, t: t) }
+            failed = block["is_error"] == .bool(true)
         case nil:
             return TaskOutcome(exitCode: nil, failed: nil, t: t)
         }
-        if tool != nil, state == .done {
-            let (background, masked) = shellCallState(source, tool: tool, input: input, cwd: cwd)
-            if background {
+        if tool != nil, state == .done, let family = TaskFamily(source),
+           let text = TaskInput.commandText(family, tool: tool, input: input) {
+            let command = ShellCommand(text, cwd: cwd)
+            let info = CommandAnalysis.info(command, cwd: cwd)
+            let args = TaskInput.object(input) ?? [:]
+            let flagged = (family == .claude && args["run_in_background"] == .bool(true))
+                || (family == .openclaw && args["background"] == .bool(true))
+            if flagged || info.background {
                 state = .running
-            } else if masked {
-                failed = nil
+            } else if info.masked {
+                let output = ResultReading.resultText(family, result)
+                if let shown = MaskedRuns.status(command, info: info, output: output, cwd: cwd) {
+                    failed = shown.failed
+                    if shown.exitCode != nil || shown.failed { exitCode = shown.exitCode }
+                } else {
+                    failed = nil
+                }
             }
         }
         if state != .done {
@@ -71,18 +85,6 @@ enum Outcomes {
             if state == .running || state == .aborted { exitCode = nil }
         }
         return TaskOutcome(exitCode: exitCode, failed: failed, t: t)
-    }
-
-    /// (background, masked) of a shell call: the input's own background flag or the command's (4.2).
-    private static func shellCallState(_ source: SourceKind, tool: String?, input: JSONValue?,
-                                       cwd: String?) -> (Bool, Bool) {
-        guard let family = TaskFamily(source),
-              let text = TaskInput.commandText(family, tool: tool, input: input) else { return (false, false) }
-        let args = TaskInput.object(input) ?? [:]
-        let flagged = (family == .claude && args["run_in_background"] == .bool(true))
-            || (family == .openclaw && args["background"] == .bool(true))
-        let info = CommandAnalysis.info(ShellCommand(text, cwd: cwd), cwd: cwd)
-        return (flagged || info.background, info.masked)
     }
 
     static func continuation(_ source: SourceKind, tool: String?, input: JSONValue?) -> String? {

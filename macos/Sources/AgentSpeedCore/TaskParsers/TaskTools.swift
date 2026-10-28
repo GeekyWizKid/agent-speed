@@ -2,7 +2,7 @@ import Foundation
 
 /// The sources that record tool calls (TASK-PARSERS 1, *Sources*) and their tool tables (2, A.1).
 enum TaskFamily: Sendable {
-    case claude, codex, omp, pi, openclaw
+    case claude, codex, omp, pi, openclaw, droid
 
     init?(_ source: SourceKind) {
         switch source {
@@ -11,6 +11,7 @@ enum TaskFamily: Sendable {
         case .omp: self = .omp
         case .pi: self = .pi
         case .openclaw: self = .openclaw
+        case .droid: self = .droid
         default: return nil
         }
     }
@@ -65,6 +66,14 @@ enum TaskFamily: Sendable {
                 .command: ["exec", "bash"],
                 .delegate: ["sessions_spawn", "sessions_send"],
                 .web: ["web_search", "web_fetch", "x_search", "browser"],
+            ],
+            .droid: [
+                .read: ["Read", "LS"],
+                .search: ["Grep", "Glob"],
+                .edit: ["Create", "Edit", "MultiEdit"],
+                .command: ["Execute"],
+                .delegate: ["Task"],
+                .web: ["WebSearch", "FetchUrl"],
             ],
         ]
         return tables.mapValues { table in
