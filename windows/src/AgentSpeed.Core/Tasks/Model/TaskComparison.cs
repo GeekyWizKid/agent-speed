@@ -9,8 +9,14 @@ namespace AgentSpeed.Core.Tasks;
 public record TaskAggregate
 {
     public TaskAggregate(int tasks, int scoredTasks, double? medianScore, double? lowerQuartile, double? upperQuartile, int[] histogram,
-        double? successRate, double? stallRate, double? fixFailureRate, double? recoverAttempts, double? timeToFirstPassMs)
+        TaskNumerators numerators, double? successRate, double? stallRate, double? fixFailureRate, double? recoverAttempts,
+        double? timeToFirstPassMs)
     {
+        Successes = numerators.Successes;
+        Stalls = numerators.Stalls;
+        FixFailures = numerators.FixFailures;
+        FixAttempts = numerators.FixAttempts;
+        Recovered = numerators.Recovered;
         Tasks = tasks;
         ScoredTasks = scoredTasks;
         MedianScore = medianScore;
@@ -42,6 +48,21 @@ public record TaskAggregate
     /// <summary>Ten counts: bins <c>[0, 10)</c> … <c>[80, 90)</c> and <c>[90, 100]</c>.</summary>
     public int[] Histogram { get; }
 
+    /// <summary>Scored records that ended <c>passing</c>: the numerator of <see cref="SuccessRate"/>.</summary>
+    public long Successes { get; }
+
+    /// <summary>Records with a stall: the numerator of <see cref="StallRate"/>.</summary>
+    public long Stalls { get; }
+
+    /// <summary>Σ fix failures: the numerator of <see cref="FixFailureRate"/>.</summary>
+    public long FixFailures { get; }
+
+    /// <summary>Σ fix attempts: the denominator of <see cref="FixFailureRate"/>.</summary>
+    public long FixAttempts { get; }
+
+    /// <summary>Σ recovered episodes: the denominator of <see cref="RecoverAttempts"/>.</summary>
+    public long Recovered { get; }
+
     /// <summary><c>success</c> records ÷ scored tasks.</summary>
     public double? SuccessRate { get; }
 
@@ -57,6 +78,9 @@ public record TaskAggregate
     /// <summary>The median of <c>firstPassMs − startMs</c> over records with a pass.</summary>
     public double? TimeToFirstPassMs { get; }
 }
+
+/// <summary>The counts behind a comparison row's rates (METRICS 6.11 <i>Comparison</i>).</summary>
+public readonly record struct TaskNumerators(long Successes, long Stalls, long FixFailures, long FixAttempts, long Recovered);
 
 /// <summary>One source's row (<c>bySource</c>).</summary>
 public sealed record TaskSourceRow : TaskAggregate
@@ -255,6 +279,7 @@ public static class TaskComparison
             Quantile(scores, 0.25),
             Quantile(scores, 0.75),
             Histogram(scores),
+            new TaskNumerators(successes, stalled, fixFailures, fixAttempts, recovered),
             scores.Count > 0 ? (double)successes / scores.Count : null,
             records.Count > 0 ? (double)stalled / records.Count : null,
             fixAttempts > 0 ? (double)fixFailures / fixAttempts : null,

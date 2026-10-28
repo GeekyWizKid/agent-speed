@@ -326,6 +326,11 @@ internal static class TaskDumpJson
         }
 
         w.WriteEndArray();
+        w.WriteNumber("successes", a.Successes);
+        w.WriteNumber("stalls", a.Stalls);
+        w.WriteNumber("fixFailures", a.FixFailures);
+        w.WriteNumber("fixAttempts", a.FixAttempts);
+        w.WriteNumber("recovered", a.Recovered);
         WriteNullable(w, "successRate", a.SuccessRate);
         WriteNullable(w, "stallRate", a.StallRate);
         WriteNullable(w, "fixFailureRate", a.FixFailureRate);
