@@ -1210,17 +1210,17 @@ see as folders.
 
 #### Roots and discovery
 
-- **Home** (section 2): `$HERMES_HOME` when it is set, not blank and, after a leading `~` is replaced by the home
-  folder, an absolute path; else macOS
-  `~/.hermes`, Windows `%LOCALAPPDATA%\hermes` (`%USERPROFILE%\AppData\Local\hermes` without `LOCALAPPDATA`). Hermes
-  points `$HERMES_HOME` at a profile when it runs one, so a value that is the default home or lies inside it means the
+- **Home** (section 2): `$HERMES_HOME` (trimmed) when it is not empty and, after a leading `~` is replaced by the
+  home folder, an absolute path; else macOS `~/.hermes`, Windows `%LOCALAPPDATA%\hermes`
+  (`%USERPROFILE%\AppData\Local\hermes` without `LOCALAPPDATA`). Hermes points `$HERMES_HOME` at a profile when it
+  runs one, so a value that is the default home or lies inside it (compared case-insensitively on Windows) means the
   default home, a value whose parent folder is named `profiles` means that parent's parent, and any other value is a
-  home of its own. The data-folder suffix of desktop channel builds (`$HERMES_DATA_DIR_SUFFIX`, baked into their bundle)
-  is not used.
+  home of its own. The data-folder suffix of desktop channel builds (`$HERMES_DATA_DIR_SUFFIX`, baked into their
+  bundle) is not used.
 - **Log folders**: `<home>/logs` (the default profile), then `<home>/profiles/<name>/logs` for every folder `<name>`
-  of `<home>/profiles` that does not start with `.`, in ordinal order. Folders that do not exist are skipped; a path
-  listed twice is read once. The user setting names a Hermes home (a folder that has a `logs` folder: that home's log
-  folders as above) or one log folder (any other folder), and replaces the automatic home.
+  of `<home>/profiles` (not a symlink) that does not start with `.`, in ordinal order. Folders that do not exist are
+  skipped; a path listed twice is read once. The user setting names a Hermes home (a folder that has a `logs` folder:
+  that home's log folders as above) or one log folder (any other folder), and replaces the automatic home.
 - **Files**: regular files (never symlinks) directly in a log folder named exactly `agent.log` or `agent.log.<n>`
   (`<n>` one or more ASCII digits): the live log and its rotated copies. Nothing else is read: `errors.log` repeats
   the warnings, `gateway.log` and `gui.log` exclude the agent loop, `install.log`, lock files and compressed copies do
@@ -1238,14 +1238,15 @@ YYYY-MM-DD HH:MM:SS,mmm LEVEL[ [<session id>]] <logger>: <message>
 ```
 
 a 23-character timestamp (ASCII digits, the calendar and clock ranges of 3.1 with years 1970–9999; anything else
-is not a record line), a space, a level (`DEBUG`, `INFO`,
-`WARNING`, `ERROR`, `CRITICAL`), an optional session tag, a space, the logger name, `: ` and the message. Hermes writes
-the tag ` [<id>]` when the writing thread has a session context. For the loggers below, the text after the level is
+is not a record line), a space, a level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`), an optional session tag, a
+space, the logger name, `: ` and the message. Hermes writes the tag ` [<id>]` when the writing thread has a session
+context. For the loggers below, the text after the level is
 either ` <logger>: <message>` (no session; the id is empty) or ` [<id>] <logger>: <message>`, where `<id>` is the
 non-empty text up to the first occurrence of `] <logger>: `. Every other line (other loggers and messages, the
 continuation lines of multi-line messages, foreign text) is ignored and is not malformed.
 
-Only four kinds of record line are read:
+Only four kinds of record line are read (in the patterns of this section `.` matches any character, line separators
+such as U+2028 included):
 
 | Kind | Logger, level | Message |
 | --- | --- | --- |
@@ -1275,8 +1276,9 @@ The message must match, as a whole:
 ```
 
 (N, model, provider, in, out, total, latency, cache read, cache write). A message that starts with `API call #` and
-does not match is counted as malformed and otherwise ignored. Hermes appends ` id=…` and ` upstream=…` (which may
-contain spaces) and, for a response without usage, ` usage=unavailable`; these are not read.
+does not match is counted as a malformed line of the log set and otherwise ignored. Hermes appends ` id=…` and
+` upstream=…` (which may contain spaces) and, for a response without usage, ` usage=unavailable`; these are not
+read.
 
 1. `key = "hermes:" + <session id> + ":" + N + ":" + <the 23-character timestamp text>` (N as written). The local
    timestamp text keeps the key independent of the time zone; the session id, N and the time together identify one
@@ -1286,9 +1288,9 @@ contain spaces) and, for a response without usage, ` usage=unavailable`; these a
 2. When `in` or `out` is `?` (the provider returned no usage), or input and output below are both 0 (ACP-backed
    providers report zeros), there is no response.
 3. Otherwise emit a response: `endMs` = the line's time; `startMs = endMs − d`, where `d` = latency × 1000 computed
-   exactly from its decimal digits and truncated to whole milliseconds, when latency does not start with `-`, else
-   `startMs = null` (a wall-clock step); `final = true`; `model` = the model group (empty → null); `provider` = the
-   provider group (empty or `unknown` → null); tokens:
+   exactly from its decimal digits and truncated to whole milliseconds (both saturated as in 3.6), when latency does
+   not start with `-`, else `startMs = null` (a wall-clock step); `final = true`; `model` = the model group (empty →
+   null); `provider` = the provider group (empty or `unknown` → null); tokens:
 
    | Field | Value |
    | --- | --- |
@@ -1529,6 +1531,8 @@ Parent links (`parentId`, an agent id or null):
 - WorkBuddy (both sources): as Claude — a file at `<slug>/<session>/subagents/<name>.jsonl` has the parent
   `<slug>/<session>.jsonl` when that file is a tracked agent of the same source. Nested sub-agents are stored flat
   under the main session, so they attach to it.
+- Hermes Agent: none. Its log does not link a sub-agent session (platform `subagent`, 4.15) to its parent, so
+  sub-agents are roots of their own.
 - Self references and cycles resolve to null.
 
 List:

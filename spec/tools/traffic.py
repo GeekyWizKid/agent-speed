@@ -23,8 +23,12 @@ GAP_MS = 15_000
 FORGET_AFTER = 3
 MAX_BYTES_PER_SECOND = 12_500_000_000
 SCRIPT_HOSTS = {"node", "nodejs", "bun", "deno"}
+# Python hosts (METRICS 10.5): python, pythonw, python3, python3.14, … compared case-insensitively (macOS `Python`).
+PYTHON_HOST = re.compile(r"python(?:w|[0-9][0-9.]*)?")
+HERMES_MARKERS = ("hermes_bootstrap", "hermes_cli", "acp_adapter")
+HERMES_SCRIPTS = {"hermes", "hermes-agent", "hermes-acp"}
 SOURCES = ("codex", "claudeCode", "claudeDesktop", "deepseek", "opencode", "gemini", "omp", "antigravity", "workbuddy",
-           "workbuddyAi", "zcode", "kimi", "grokBuild", "pi")
+           "workbuddyAi", "zcode", "kimi", "grokBuild", "pi", "hermes")
 
 
 # ---------------------------------------------------------------------------------------------------- formatting
@@ -147,6 +151,20 @@ def _script_args(env: Env, proc: dict) -> str:
     return " ".join(env.norm(a) if ("/" in a or "\\" in a) else a for a in (proc.get("args") or [])[1:])
 
 
+def _is_hermes(env: Env, proc: dict) -> bool:
+    """A Python host running Hermes Agent: a launcher bootstrap, `-m hermes_cli.main`, or a console script."""
+    exe_name = env.name(proc.get("exe")).lower()
+    exe_name = exe_name[:-4] if exe_name.endswith(".exe") else exe_name
+    if PYTHON_HOST.fullmatch(exe_name) is None:
+        return False
+    for arg in (proc.get("args") or [])[1:]:
+        if any(marker in arg for marker in HERMES_MARKERS):
+            return True
+        if env.name(arg) in HERMES_SCRIPTS:
+            return True
+    return False
+
+
 def match_source(env: Env, proc: dict, ancestors: list[dict]) -> str | None:
     """The source whose agent-process row (METRICS 10.5) matches, or None."""
     exe = proc.get("exe") or ""
@@ -189,6 +207,8 @@ def match_source(env: Env, proc: dict, ancestors: list[dict]) -> str | None:
         return "grokBuild"
     if name == "pi" or "/@earendil-works/pi-coding-agent/" in script or "/@mariozechner/pi-coding-agent/" in script:
         return "pi"
+    if _is_hermes(env, proc):
+        return "hermes"
     edition = WORKBUDDY_APPS[env.platform].get(proc.get("bundle") if env.platform == "macos" else name)
     if edition and any(WORKBUDDY_CLI in env.norm(a) for a in args[1:]):
         return edition
