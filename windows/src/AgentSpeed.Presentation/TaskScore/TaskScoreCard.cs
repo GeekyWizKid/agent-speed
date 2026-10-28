@@ -223,9 +223,8 @@ public sealed record TaskScoreCard(
         var dimensions = DimensionRows(score, state, points, loc);
         var predictions = PredictionCells(score, loc);
         var signals = SignalLines(subject, loc);
-        // The chip's text already names an unproven state, so the score words leave out its wrap: "智力 9，尚未驗證", once.
         var scoreWords = shown is { } value
-            ? loc.Format("a11y.task.score", TaskScoreText.Words(value, TaskState.Passing, score.Form, subject.TopCount, loc), chip.Text)
+            ? loc.Format("a11y.task.score", TaskScoreText.Words(value, state, score.Form, subject.TopCount, loc), chip.Text)
             : loc["intel.none"];
 
         var description = new List<string> { scoreWords, TaskScoreText.Plain(status) };
