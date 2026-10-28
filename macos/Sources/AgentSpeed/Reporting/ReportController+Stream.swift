@@ -1,22 +1,31 @@
 import AgentSpeedCore
 import Foundation
 
-/// Live reporting over WebSocket (METRICS 11.9, DESIGN 11 item 2b), chosen per service by the user: every snapshot,
-/// every wake-up the stream scheduler asks for and every event of the current connection drive the stream session;
-/// it connects, builds, signs and writes reports and asks for the reactions of REPORTING 8.3. Nothing of this runs
-/// while HTTP is chosen, and HTTP is never used instead.
+/// Live reporting over WebSocket (METRICS 11.9, DESIGN 11 item 2b), the default transport: every snapshot, every
+/// wake-up the stream scheduler asks for and every event of the current connection drive the stream session; it
+/// connects, builds, signs and writes reports and asks for the reactions of REPORTING 8.3. Nothing of this runs while
+/// HTTP is effective — chosen, or WebSocket chosen on a service without the capability — and a stop of this transport
+/// never falls back to HTTP.
 extension ReportController: ReportStreamSessionDelegate {
     /// Quitting waits this long after the leaving connection closed, so its close frame goes out.
     static let closeFrameGrace: TimeInterval = 0.15
 
     // MARK: - The user's side
 
-    /// Applies at once: the old transport stops without a leaving report (its unanswered reports are dropped) and a
-    /// new run starts on the new one.
+    /// The user's choice, kept per service. It applies at once when it changes the effective transport; WebSocket
+    /// chosen on a service without the capability leaves the HTTP run going.
     func setTransport(_ transport: ReportTransportKind) {
         guard let service = selectedService, transport != self.transport else { return }
-        endRun()
+        let effective = effectiveTransport
         updatePreferences { $0.setTransport(transport, for: service.origin) }
+        if effectiveTransport != effective { transportChanged() }
+    }
+
+    /// A change of the effective transport (METRICS 11.9) — the user's choice, or a stored or refreshed document that
+    /// adds or drops the capability: the old transport stops without a leaving report (its unanswered reports are
+    /// dropped) and a new run starts on the new one.
+    func transportChanged() {
+        endRun()
         retryReason = nil
         rateLimitedUntil = nil
         lastDeliveryAt = nil
@@ -57,7 +66,7 @@ extension ReportController: ReportStreamSessionDelegate {
     }
 
     func startStreamIfNeeded(_ sample: ReportSample) {
-        guard stream == nil, transport == .websocket, preferences.enabled, monitorRunning, signer != nil,
+        guard stream == nil, effectiveTransport == .websocket, preferences.enabled, monitorRunning, signer != nil,
               let identity, identity.isRegistered, let document = identity.discovery else { return }
         let scheduler = ReportStreamScheduler(
             settings: document.websocket, heartbeatSeconds: document.limits.heartbeatSeconds,
@@ -98,9 +107,9 @@ extension ReportController: ReportStreamSessionDelegate {
 
     // MARK: - Discovery
 
-    /// A refreshed document reaches the session: settings for the next connection, or none.
-    func streamDiscovery(_ document: ReportDiscovery?) {
-        guard let stream, let document else { return }
+    /// A refreshed document that keeps the capability reaches the session: settings for the next connection.
+    func streamDiscovery(_ document: ReportDiscovery) {
+        guard let stream, document.websocket != nil else { return }
         stream.session.update(heartbeatSeconds: document.limits.heartbeatSeconds)
         stream.session.settingsChanged(document.websocket)
     }

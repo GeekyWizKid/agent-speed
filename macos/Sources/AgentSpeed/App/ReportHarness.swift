@@ -106,6 +106,11 @@ enum ReportHarness {
 
         busy = true
         await check("reports delivered while busy", within: 20) { report.lastDeliveryAt != nil && report.mode == .active }
+        if report.discovery?.websocket == nil {
+            check("WebSocket chosen by default, the service lacks it: reports go over HTTP",
+                  report.transport == .websocket && report.effectiveTransport == .http && report.run != nil
+                      && report.stream == nil)
+        }
         let firstDelivery = report.lastDeliveryAt
         await check("a second active report", within: 8) { report.lastDeliveryAt != firstDelivery }
 
@@ -294,10 +299,10 @@ private final class CountingReportTransport: ReportTransport, @unchecked Sendabl
 
     private func bump() { lock.withLock { calls += 1 } }
 
-    func get(_ url: URL, etag: String?, userAgent: String, maxBytes: Int, timeout: TimeInterval)
+    func get(_ url: URL, userAgent: String, maxBytes: Int, timeout: TimeInterval)
         async throws(ReportTransportError) -> ReportHTTPResponse {
         bump()
-        return try await base.get(url, etag: etag, userAgent: userAgent, maxBytes: maxBytes, timeout: timeout)
+        return try await base.get(url, userAgent: userAgent, maxBytes: maxBytes, timeout: timeout)
     }
 
     func send(_ request: ReportRequest, maxBytes: Int, timeout: TimeInterval)

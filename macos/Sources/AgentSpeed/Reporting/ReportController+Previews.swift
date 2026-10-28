@@ -12,7 +12,8 @@ extension ReportController {
         /// Accepted, but the document needs the consent sheet (REPORTING 3.3).
         case review
         /// WebSocket chosen (DESIGN 11, item 2b): streaming with the stats line; a service that throttles it; one
-        /// without the capability; reconnecting after a failure; replaced by another connection (Try Again).
+        /// without the capability, which reports over HTTP meanwhile; reconnecting after a failure; replaced by another
+        /// connection (Try Again). The other states of the example service have HTTP chosen.
         case streaming, streamThrottled, streamUnsupported, streamReconnecting, streamReplaced
     }
 
@@ -57,7 +58,7 @@ extension ReportController {
         case _ where streaming: Self.discovery(websocket: #"{"path":"/v1/reports/ws","subprotocol":"agent-speed-report.v1"}"#)
         default: Self.previewDiscovery
         }
-        if streaming { preferences.webSocketServices = [Self.previewService.origin] }
+        if !streaming { preferences.setTransport(.http, for: Self.previewService.origin) }
         let deviceId = "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b"
         if settingUp.contains(state) {
             preferences.enabled = true
@@ -85,15 +86,16 @@ extension ReportController {
         inviteJustAccepted = state == .inviteDone
         registrationFailure = nil
         renameState = .idle
-        let delivering: Set<PreviewState> = [.reporting, .streaming, .streamThrottled, .streamReconnecting, .streamReplaced]
+        let delivering: Set<PreviewState> = [
+            .reporting, .streaming, .streamThrottled, .streamUnsupported, .streamReconnecting, .streamReplaced,
+        ]
         lastDeliveryAt = delivering.contains(state) ? now.addingTimeInterval(state == .streamReconnecting ? -42 : -1) : nil
         rank = state == .reporting || state == .streaming ? 12 : nil
-        mode = delivering.contains(state) || state == .streamUnsupported ? .active : .idle
+        mode = delivering.contains(state) ? .active : .idle
         rateLimitedUntil = nil
         retryReason = nil
         streamState = switch state {
         case .streaming, .streamThrottled: ReportStreamState(open: true)
-        case .streamUnsupported: ReportStreamState(open: false, available: false)
         case .streamReconnecting: ReportStreamState(open: false, failing: true)
         case .streamReplaced: ReportStreamState(open: false, stop: .replaced)
         default: nil

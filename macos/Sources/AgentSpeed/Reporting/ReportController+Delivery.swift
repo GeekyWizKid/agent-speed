@@ -44,11 +44,17 @@ extension ReportController {
         return !isDiscoveryStale
     }
 
+    /// Picks the transport by the effective one (METRICS 11.9); a run left on the other one is replaced first.
     func tick() {
+        let effective = effectiveTransport
+        if (run != nil && effective == .websocket) || (stream != nil && effective == .http) {
+            transportChanged()
+            return
+        }
         let sample = lastSample
         let now = ReportClock.monotonicMs
         previewWindow?.observe(sample)
-        if transport == .websocket || stream != nil {
+        if effective == .websocket {
             streamTick(sample, now: now, wake: false)
             return
         }
@@ -92,7 +98,7 @@ extension ReportController {
     // MARK: - Runs
 
     func startRunIfNeeded(_ sample: ReportSample) {
-        guard run == nil, transport == .http, preferences.enabled, monitorRunning, signer != nil, let identity, identity.isRegistered,
+        guard run == nil, effectiveTransport == .http, preferences.enabled, monitorRunning, signer != nil, let identity, identity.isRegistered,
               let document = identity.discovery else { return }
         run = ReportRun(
             origin: identity.id,

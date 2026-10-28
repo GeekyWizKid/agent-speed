@@ -33,7 +33,8 @@ struct ReportStatusSection: View {
                         if let rank = report.rank, report.isOn {
                             Footnote(l10n("report.status.rank", rank))
                         }
-                        if report.transport == .websocket, report.isOn, let stats = report.streamStats, stats.isShown {
+                        if report.effectiveTransport == .websocket, report.isOn, let stats = report.streamStats,
+                           stats.isShown {
                             ReportStreamStatsLine(model: model, stats: stats)
                                 .padding(.top, 1)
                                 .transition(model.accessibility.reduceMotion ? .identity : .opacity)
@@ -70,7 +71,9 @@ struct ReportStatusSection: View {
     /// Every WebSocket counter, for VoiceOver (sighted users get it as the stats line's tooltip).
     private var streamCounters: String? {
         let report = model.report
-        guard report.transport == .websocket, report.isOn, let stats = report.streamStats, stats.isShown else { return nil }
+        guard report.effectiveTransport == .websocket, report.isOn, let stats = report.streamStats, stats.isShown else {
+            return nil
+        }
         return stats.tooltip(model.l10n)
     }
 

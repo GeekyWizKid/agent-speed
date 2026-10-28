@@ -5,30 +5,26 @@ import SwiftUI
 struct ReportStreamState: Equatable {
     var open: Bool
     var stop: ReportStreamScheduler.Stop?
-    var available: Bool
     /// A connection failed since the last stable one.
     var failing: Bool
 
     init(_ scheduler: ReportStreamScheduler) {
         open = scheduler.connection == .open
         stop = scheduler.stop
-        available = scheduler.available
         failing = scheduler.failures > 0
     }
 
-    init(open: Bool, stop: ReportStreamScheduler.Stop? = nil, available: Bool = true, failing: Bool = false) {
+    init(open: Bool, stop: ReportStreamScheduler.Stop? = nil, failing: Bool = false) {
         self.open = open
         self.stop = stop
-        self.available = available
         self.failing = failing
     }
 }
 
 /// The status lines only the WebSocket transport has (DESIGN 11, Status). A connected socket alone is never one of
-/// them: only an acknowledged report counts as reporting.
+/// them: only an acknowledged report counts as reporting. A service without the capability has none: reports go over
+/// HTTP then and the line is HTTP's.
 enum ReportStreamIssue: Equatable {
-    /// Amber: the document lacks a valid WebSocket capability; nothing is sent, HTTP is never used instead.
-    case unsupported
     /// Amber, with the last acknowledged report's time.
     case reconnecting(last: Date?)
     /// Red, with *Try Again*.
@@ -45,13 +41,8 @@ enum ReportStreamIssue: Equatable {
         case .clientState: self = .clientState
         case .some: return nil
         case nil:
-            if !state.available {
-                self = .unsupported
-            } else if state.failing, !state.open {
-                self = .reconnecting(last: lastDelivery)
-            } else {
-                return nil
-            }
+            guard state.failing, !state.open else { return nil }
+            self = .reconnecting(last: lastDelivery)
         }
     }
 
@@ -71,7 +62,7 @@ enum ReportStreamIssue: Equatable {
     /// A stop: the user has to act. Shown ahead of waits and the activity.
     var isStop: Bool {
         switch self {
-        case .unsupported, .reconnecting: false
+        case .reconnecting: false
         case .mismatch, .replaced, .incompatible, .nonce, .clientState: true
         }
     }
@@ -80,7 +71,6 @@ enum ReportStreamIssue: Equatable {
 
     var key: String {
         switch self {
-        case .unsupported: "report.status.wsUnsupported"
         case .reconnecting(let last): last == nil ? "report.status.wsReconnectingNever" : "report.status.wsReconnecting"
         case .mismatch: "report.status.wsMismatch"
         case .replaced: "report.status.wsReplaced"
@@ -91,7 +81,7 @@ enum ReportStreamIssue: Equatable {
     }
 }
 
-/// The line under the status while WebSocket is chosen (DESIGN 11, Status): latency p50 and p95 (METRICS 11.9,
+/// The line under the status while WebSocket is effective (DESIGN 11, Status): latency p50 and p95 (METRICS 11.9,
 /// Latency), delivered and not delivered counts, and every counter for its tooltip.
 struct ReportStreamStats: Equatable {
     var counters: ReportStreamScheduler.Counters
