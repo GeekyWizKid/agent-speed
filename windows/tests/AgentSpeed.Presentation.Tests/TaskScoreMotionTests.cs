@@ -146,6 +146,12 @@ public class TaskScoreMotionTests
         ticker.Set(40, 3, reduceMotion: false);
         Assert.Equal(60, ticker.Outgoing(3.05));
         Assert.Null(ticker.Outgoing(3.3));
+
+        // A reopened card shows its number as it is, settling whatever was moving.
+        ticker.Set(90, 4, reduceMotion: false);
+        ticker.Set(90, 4.1, reduceMotion: false, animate: false);
+        Assert.False(ticker.IsAnimating(4.1));
+        Assert.Equal(90, ticker.Shown(4.1));
     }
 
     [Fact]

@@ -156,19 +156,22 @@ public sealed class TaskScoreTicker(TaskScoreSurface surface)
 
     public int? Target => _change.To;
 
-    /// <summary>Takes a new shown value at <paramref name="now"/> seconds; the first value (or <paramref name="animate"/> false) shows at once.</summary>
+    /// <summary>
+    /// Takes a new shown value at <paramref name="now"/> seconds. The first value shows at once; so does any value with
+    /// <paramref name="animate"/> false, which also settles a change in progress.
+    /// </summary>
     public void Set(int? value, double now, bool reduceMotion, bool animate = true)
     {
-        if (_initialised && value == _change.To)
-        {
-            return;
-        }
-
         if (!_initialised || !animate)
         {
             _initialised = true;
             _change = TaskScoreChange.Still(value);
             _start = now;
+            return;
+        }
+
+        if (value == _change.To)
+        {
             return;
         }
 
