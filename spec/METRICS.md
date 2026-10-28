@@ -2031,6 +2031,15 @@ at `nowMs` (form, score, state, dimensions, facts, predictions with the source's
 expectations. Ports read the files with their own parsers and composer and must match every value (numbers within
 10⁻⁹, calibration within 10⁻⁶).
 
+**Dumps** (parity on real logs). `reference.py --dump-today` ends with one `task` row per seeded agent of a scored
+source — `agentId`, `source`, `phase` (after staleness), `lastLineMs`, `parentId`, `taskStartMs`, `form`, `score`,
+`shown`, `state`, the dimensions and facts of `task_result`, `predictions` (the prior coefficients: the dump analyses no
+history) and the model flags — and one `taskSets` row (the agents list, the all-sources set, one set per scored source
+with listed agents, the board groups), evaluated at `--now MS` or the capture time (`summary.nowMs`).
+`reference.py --dump-tasks` prints a `record` row per task record of every log read whole (Codex archives included),
+a `calibration` row per source and a `comparison` row (`--first` / `--last`, default every day; `--source`; `--utc`).
+`spec/tools/compare_dumps.py` compares these rows whenever both dumps have them, skipping agents still being written.
+
 #### Runs, checks and edits
 
 **Weights.** `w = 0` for `other` (todo lists, plans, questions to the user: neither evidence nor waste), `w = 2` for a
