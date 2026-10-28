@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
@@ -12,9 +13,10 @@ using AgentSpeed.Theme;
 namespace AgentSpeed.TaskScore;
 
 /// <summary>What a score card is shown for: the card, the panel or board it sits beside and the row's top, in screen pixels.</summary>
+/// <param name="CardKey">The agent the card is for: a new agent under the same row crossfades rather than counts.</param>
 /// <param name="Anchor">The dashboard flyout's or the board's frame.</param>
 /// <param name="RowTop">The row's top (the hero: the dial's), which the card's top is level with.</param>
-internal sealed record TaskCardRequest(TaskScoreCard Card, RECT Anchor, int RowTop, TaskCardHost Host);
+internal sealed record TaskCardRequest(TaskScoreCard Card, object CardKey, RECT Anchor, int RowTop, TaskCardHost Host);
 
 /// <summary>
 /// The score card's window (DESIGN 12, <i>Window</i>): 300 DIP wide and as tall as its content, in the flyout style of
@@ -24,8 +26,10 @@ internal sealed record TaskCardRequest(TaskScoreCard Card, RECT Anchor, int RowT
 /// </summary>
 internal sealed class ScoreCardWindow : Window
 {
-    private const double ShadowMargin = 14;
     private const double HideSeconds = 0.1;
+
+    /// <summary>Room for the shadow (blur 24, 6 DIP down) around the card, so it is never cut.</summary>
+    private static readonly Thickness ShadowMargin = new(24, 20, 24, 32);
 
     private readonly Border _card;
     private readonly Grid _stack = new();
@@ -35,6 +39,7 @@ internal sealed class ScoreCardWindow : Window
     private TaskCardRequest? _request;
     private TaskCardAppearance _appearance;
     private TaskCardSpot? _spot;
+    private int _compact;
 
     public ScoreCardWindow()
     {
@@ -63,7 +68,7 @@ internal sealed class ScoreCardWindow : Window
             CornerRadius = new CornerRadius(8),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(ScoreCardView.CardPadding - 1),
-            Margin = new Thickness(ShadowMargin),
+            Margin = ShadowMargin,
             Child = _stack,
             RenderTransform = _slide,
             Effect = new DropShadowEffect { BlurRadius = 24, ShadowDepth = 6, Direction = 270, Opacity = 0.2, Color = Colors.Black },
@@ -76,30 +81,39 @@ internal sealed class ScoreCardWindow : Window
     }
 
     /// <summary>Carries out <paramref name="action"/> for <paramref name="request"/>; <see cref="TaskCardAction.None"/> updates the open card in place.</summary>
-    public void Present(TaskCardAction action, TaskCardRequest request, TaskCardAppearance appearance)
+    public void Present(TaskCardAction action, TaskCardRequest request, TaskCardAppearance appearance, XmlLanguage language)
     {
         ArgumentNullException.ThrowIfNull(request);
         var restyle = appearance != _appearance || !IsVisible;
+        var sameAgent = Equals(_request?.CardKey, request.CardKey);
         _appearance = appearance;
         _request = request;
+        if (!Equals(Language, language))
+        {
+            Language = language;
+        }
+
         if (restyle)
         {
             Paint();
         }
 
+        if (action == TaskCardAction.None && !sameAgent)
+        {
+            action = TaskCardAction.Switch;
+        }
+
         switch (action)
         {
-            case TaskCardAction.Show:
-                _back.Visibility = Visibility.Collapsed;
-                _front.Apply(request.Card, appearance, sameRow: false);
-                Appear();
-                break;
             case TaskCardAction.Switch when IsVisible:
                 (_front, _back) = (_back, _front);
+                SetCompact(0);
                 _front.Apply(request.Card, appearance, sameRow: false);
                 Crossfade();
                 break;
-            case TaskCardAction.Switch:
+            case TaskCardAction.Show or TaskCardAction.Switch:
+                _back.Visibility = Visibility.Collapsed;
+                SetCompact(0);
                 _front.Apply(request.Card, appearance, sameRow: false);
                 Appear();
                 break;
@@ -125,7 +139,7 @@ internal sealed class ScoreCardWindow : Window
             return;
         }
 
-        var fade = new DoubleAnimation(0, Duration(HideSeconds)) { FillBehavior = FillBehavior.Stop };
+        var fade = new DoubleAnimation { To = 0, Duration = Duration(HideSeconds), FillBehavior = FillBehavior.Stop };
         fade.Completed += (_, _) =>
         {
             if (_request is null)
@@ -181,7 +195,7 @@ internal sealed class ScoreCardWindow : Window
 
         Reposition();
         var fade = _appearance.ReduceMotion ? 0.15 : TaskCardPlacement.FadeSeconds;
-        _card.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Duration(fade)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
+        _card.BeginAnimation(OpacityProperty, new DoubleAnimation { To = 1, Duration = Duration(fade), EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
         _slide.BeginAnimation(TranslateTransform.XProperty, null);
         _slide.X = 0;
         if (!_appearance.ReduceMotion && _spot is { } spot)
@@ -194,13 +208,12 @@ internal sealed class ScoreCardWindow : Window
     /// <summary>The old card fades out over the new one, which fades in, in 0.12 s; the window moves to the new row at once.</summary>
     private void Crossfade()
     {
-        _card.BeginAnimation(OpacityProperty, null);
-        _card.Opacity = 1;
+        _card.BeginAnimation(OpacityProperty, new DoubleAnimation { To = 1, Duration = Duration(TaskCardPlacement.SwitchSeconds) });
         _front.Visibility = Visibility.Visible;
         _back.Visibility = Visibility.Visible;
         var duration = Duration(TaskCardPlacement.SwitchSeconds);
         var outgoing = _back;
-        var fadeOut = new DoubleAnimation(1, 0, duration);
+        var fadeOut = new DoubleAnimation { To = 0, Duration = duration };
         fadeOut.Completed += (_, _) =>
         {
             if (!ReferenceEquals(outgoing, _front))
@@ -209,7 +222,7 @@ internal sealed class ScoreCardWindow : Window
             }
         };
         outgoing.BeginAnimation(OpacityProperty, fadeOut);
-        _front.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration));
+        _front.BeginAnimation(OpacityProperty, new DoubleAnimation { To = 1, Duration = duration });
         Panel.SetZIndex(_front, 1);
         Panel.SetZIndex(_back, 0);
     }
@@ -231,11 +244,28 @@ internal sealed class ScoreCardWindow : Window
         var scale = monitor?.Scale ?? 1;
         var work = monitor?.WorkArea ?? new RECT(0, 0, 10000, 10000);
         RectD Dip(RECT r) => new(r.Left / scale, r.Top / scale, r.Width / scale, r.Height / scale);
-        var cardHeight = Math.Max(0, ActualHeight - 2 * ShadowMargin);
-        var spot = TaskCardPlacement.Place(request.Host, Dip(request.Anchor), request.RowTop / scale, cardHeight, Dip(work));
+        var visible = Dip(work);
+        var cardHeight = Math.Max(0, ActualHeight - ShadowMargin.Top - ShadowMargin.Bottom);
+
+        // A card taller than the screen drops the dimensions' meanings, then the footnote (both stay in the row's spoken text).
+        if (cardHeight > visible.Height - 2 * TaskCardPlacement.Inset && _compact < MaxCompact)
+        {
+            SetCompact(_compact + 1);
+        }
+
+        var spot = TaskCardPlacement.Place(request.Host, Dip(request.Anchor), request.RowTop / scale, cardHeight, visible);
         _spot = spot;
-        var x = (int)Math.Round((spot.X - ShadowMargin) * scale);
-        var y = (int)Math.Round((spot.Y - ShadowMargin) * scale);
+        var x = (int)Math.Round((spot.X - ShadowMargin.Left) * scale);
+        var y = (int)Math.Round((spot.Y - ShadowMargin.Top) * scale);
         User32.SetWindowPos(hwnd, HWND.TOPMOST, x, y, 0, 0, SWP.NOSIZE | SWP.NOACTIVATE);
+    }
+
+    private const int MaxCompact = 2;
+
+    private void SetCompact(int level)
+    {
+        _compact = level;
+        _front.Compact = level;
+        _back.Compact = level;
     }
 }

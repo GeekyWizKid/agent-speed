@@ -62,6 +62,12 @@ internal abstract class ScoreBarBase : FrameworkElement
     /// <summary>The bars are drawn twins of the card's numbers, which carry the words.</summary>
     protected override AutomationPeer? OnCreateAutomationPeer() => null;
 
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        InvalidateVisual();
+    }
+
     protected void DrawTrack(DrawingContext dc, Rect rect, double radius)
     {
         if (Track is not { } track)
@@ -141,10 +147,19 @@ internal sealed class ScoreBar : ScoreBarBase
         var fill = Math.Clamp(row.Fill, 0, 1);
         if (Math.Abs(fill - _to) > 1e-6)
         {
-            _from = animate && !reduceMotion && IsLoaded ? Current(now) : fill;
+            if (animate && !reduceMotion && IsLoaded)
+            {
+                _from = Current(now);
+                _start = now;
+                StartFrames();
+            }
+            else
+            {
+                _from = fill;
+                _start = double.NegativeInfinity;
+            }
+
             _to = fill;
-            _start = now;
-            StartFrames();
         }
 
         _ghost = Math.Clamp(row.Ghost, 0, 1);
@@ -186,10 +201,11 @@ internal sealed class ScoreBar : ScoreBarBase
         }
     }
 
-    protected override bool Moving(double now) => !_reduceMotion && now - _start < EaseSeconds;
+    protected override bool Moving(double now) => !_reduceMotion && !double.IsNegativeInfinity(_start) && now - _start < EaseSeconds;
 
-    private double Current(double now) =>
-        _reduceMotion ? _to : Easing.Lerp(_from, _to, Easing.OutCubic((now - _start) / EaseSeconds));
+    private double Current(double now) => _reduceMotion || double.IsNegativeInfinity(_start)
+        ? _to
+        : Easing.Lerp(_from, _to, Easing.OutCubic((now - _start) / EaseSeconds));
 }
 
 /// <summary>

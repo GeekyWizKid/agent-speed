@@ -160,6 +160,13 @@ internal sealed class ScoreNumber : FrameworkElement
 
     protected override AutomationPeer OnCreateAutomationPeer() => new NumberPeer(this);
 
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
+
     protected override Size MeasureOverride(Size availableSize)
     {
         var now = Now;
@@ -208,7 +215,8 @@ internal sealed class ScoreNumber : FrameworkElement
         {
             var underline = TaskProofMark.Underline(FontSize, number.WidthIncludingTrailingWhitespace, VisualTreeHelper.GetDpi(this).PixelsPerDip,
                 highContrast: HighContrast);
-            ProofMarkDrawing.Underline(dc, underline, 0, baseline, brush ?? Brushes.Gray, mark * incomingOpacity);
+            var dots = HighContrast ? SystemColors.WindowTextBrush : brush ?? Brushes.Gray;
+            ProofMarkDrawing.Underline(dc, underline, 0, baseline, dots, mark * incomingOpacity);
         }
 
         if (!string.IsNullOrEmpty(Suffix))
@@ -246,29 +254,40 @@ internal sealed class ScoreNumber : FrameworkElement
             return;
         }
 
-        _markFrom = MarkOpacity(now);
+        if (IsLoaded && IsVisible && !ReduceMotion)
+        {
+            _markFrom = MarkOpacity(now);
+            _markStart = now;
+        }
+        else
+        {
+            _markFrom = target;
+            _markStart = double.NegativeInfinity;
+        }
+
         _markTo = target;
-        _markStart = IsLoaded && IsVisible && !ReduceMotion ? now : double.NegativeInfinity;
         InvalidateVisual();
         StartFramesIfMoving();
     }
 
     private void OnToneChanged(TaskNumberTone old)
     {
-        _toneFrom = old;
-        _toneStart = IsLoaded && IsVisible ? Now : double.NegativeInfinity;
+        // The color crossfade is an opacity change, kept with Reduce Motion; an unseen element changes at once.
+        var animate = IsLoaded && IsVisible;
+        _toneFrom = animate ? old : Tone;
+        _toneStart = animate ? Now : double.NegativeInfinity;
         InvalidateMeasure();
         InvalidateVisual();
         StartFramesIfMoving();
     }
 
-    private double MarkOpacity(double now)
-    {
-        var t = Easing.Clamp01((now - _markStart) / TaskProofMark.FadeSeconds);
-        return Easing.Lerp(_markFrom, _markTo, t);
-    }
+    /// <summary>Linear progress of a fade that started at <paramref name="start"/>; one that never started is done.</summary>
+    private static double Progress(double now, double start, double seconds) =>
+        double.IsNegativeInfinity(start) ? 1 : Easing.Clamp01((now - start) / seconds);
 
-    private double ToneProgress(double now) => Easing.Clamp01((now - _toneStart) / TaskScoreMotion.FormSeconds);
+    private double MarkOpacity(double now) => Easing.Lerp(_markFrom, _markTo, Progress(now, _markStart, TaskProofMark.FadeSeconds));
+
+    private double ToneProgress(double now) => Progress(now, _toneStart, TaskScoreMotion.FormSeconds);
 
     /// <summary>The <c>–</c> of none reads in medium weight, a number in semibold.</summary>
     private FontWeight NumberWeight(double now) => _ticker.Shown(now) is null ? FontWeights.Medium : FontWeights.SemiBold;
@@ -298,9 +317,18 @@ internal sealed class ScoreNumber : FrameworkElement
         _ => NoneBrush,
     };
 
-    private FormattedText Format(string text, double size, Brush? brush, FontWeight weight) =>
-        new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(FontFamily, FontStyles.Normal, weight, FontStretches.Normal),
-            size, brush ?? Brushes.Gray, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+    /// <summary>The number's line is as tall as its size (the prototype's <c>line-height: 1</c>); the suffix keeps its own.</summary>
+    private FormattedText Format(string text, double size, Brush? brush, FontWeight weight)
+    {
+        var formatted = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            new Typeface(FontFamily, FontStyles.Normal, weight, FontStretches.Normal), size, brush ?? Brushes.Gray, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        if (size == FontSize)
+        {
+            formatted.LineHeight = size;
+        }
+
+        return formatted;
+    }
 
     private void StartFramesIfMoving()
     {
@@ -323,7 +351,7 @@ internal sealed class ScoreNumber : FrameworkElement
     }
 
     private bool Moving(double now) =>
-        _ticker.IsAnimating(now) || ToneProgress(now) < 1 || (now - _markStart) < TaskProofMark.FadeSeconds;
+        _ticker.IsAnimating(now) || ToneProgress(now) < 1 || Progress(now, _markStart, TaskProofMark.FadeSeconds) < 1;
 
     private void OnFrame(object? sender, EventArgs e)
     {

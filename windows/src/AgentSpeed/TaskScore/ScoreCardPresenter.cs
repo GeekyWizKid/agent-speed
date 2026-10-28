@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Windows.Threading;
 using AgentSpeed.Presentation.TaskScore;
+using AgentSpeed.Theme;
 
 namespace AgentSpeed.TaskScore;
 
@@ -8,6 +9,8 @@ namespace AgentSpeed.TaskScore;
 /// Runs one score card window for a surface (the dashboard, or all boards): <see cref="TaskCardHover"/>'s timing on a
 /// dispatcher timer, the rows' card requests, and an update on every engine tick while a card is open. Rows call
 /// <see cref="Hover"/>, <see cref="Leave"/>, <see cref="ShowNow"/> (Space), <see cref="Focus"/> and <see cref="Hide"/> (Esc).
+/// A key names a row (the row element, or a board's row slot), never the agent in it: rows are reused as agents re-sort,
+/// and the request's <see cref="TaskCardRequest.CardKey"/> tells agents apart.
 /// </summary>
 internal sealed class ScoreCardPresenter : IDisposable
 {
@@ -16,14 +19,17 @@ internal sealed class ScoreCardPresenter : IDisposable
     private readonly TaskCardHover _hover = new();
     private readonly DispatcherTimer _timer;
     private readonly Func<TaskCardAppearance> _appearance;
+    private readonly Func<string> _language;
     private readonly Dictionary<object, Func<TaskCardRequest?>> _requests = new();
     private ScoreCardWindow? _window;
     private bool _disposed;
 
     /// <param name="appearance">The current appearance, read whenever the card is drawn.</param>
-    public ScoreCardPresenter(Dispatcher dispatcher, Func<TaskCardAppearance> appearance)
+    /// <param name="languageCode">The app's language, for the card window's line breaking and fonts.</param>
+    public ScoreCardPresenter(Dispatcher dispatcher, Func<TaskCardAppearance> appearance, Func<string> languageCode)
     {
         _appearance = appearance ?? throw new ArgumentNullException(nameof(appearance));
+        _language = languageCode ?? throw new ArgumentNullException(nameof(languageCode));
         _timer = new DispatcherTimer(DispatcherPriority.Input, dispatcher);
         _timer.Tick += (_, _) => Run(_hover.Tick(Now));
     }
@@ -132,7 +138,7 @@ internal sealed class ScoreCardPresenter : IDisposable
         }
 
         _window ??= new ScoreCardWindow();
-        _window.Present(action, request, _appearance());
+        _window.Present(action, request, _appearance(), AppFonts.XmlLanguageFor(_language()));
     }
 
     private void Schedule()

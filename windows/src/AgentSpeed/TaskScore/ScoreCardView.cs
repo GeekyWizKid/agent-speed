@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
@@ -56,6 +57,8 @@ internal sealed class ScoreCardView : StackPanel
     private readonly TextBlock _footnote = Text(10.5, FontWeights.Normal, wrap: true);
 
     private TaskCardAppearance _appearance;
+    private TaskScoreCard? _card;
+    private int _compact;
 
     public ScoreCardView()
     {
@@ -81,7 +84,7 @@ internal sealed class ScoreCardView : StackPanel
         _number.SetResourceReference(ScoreNumber.FontFamilyProperty, AppFonts.DisplayFontKey);
         _eyebrow.Margin = new Thickness(0, 0, 0, 2);
         _status.Margin = new Thickness(0, 6, 0, 0);
-        _status.MaxHeight = 2 * 17;
+        _status.MaxHeight = 2 * 17 + 1;
         _status.LineHeight = 17;
         _status.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
         _status.TextTrimming = TextTrimming.CharacterEllipsis;
@@ -124,6 +127,7 @@ internal sealed class ScoreCardView : StackPanel
     {
         ArgumentNullException.ThrowIfNull(card);
         _appearance = appearance;
+        _card = card;
 
         _dot.Fill = appearance.HighContrast ? SystemColors.WindowTextBrush : HeatPalette.SourceColor(card.Source).ToBrush();
         Set(_project, card.Project, Role.Primary);
@@ -149,8 +153,38 @@ internal sealed class ScoreCardView : StackPanel
         ApplySignals(card);
         ApplyFacts(card);
         Set(_footnote, card.Footnote, Role.Caption);
-        _footnote.Visibility = card.IsUnsupported ? Visibility.Collapsed : Visibility.Visible;
+        _footnote.Visibility = card.IsUnsupported || _compact >= 2 ? Visibility.Collapsed : Visibility.Visible;
     }
+
+    /// <summary>
+    /// How much a card taller than the screen leaves out: 1 drops the dimensions' meanings, 2 the footnote too. Both stay in
+    /// the row's spoken text.
+    /// </summary>
+    public int Compact
+    {
+        get => _compact;
+        set
+        {
+            if (value == _compact)
+            {
+                return;
+            }
+
+            _compact = value;
+            foreach (var row in _rows)
+            {
+                row.ShowMeaning(value < 1);
+            }
+
+            _footnote.Visibility = _card is { IsUnsupported: false } && value < 2 ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>
+    /// The card window shows what the row already says: the row carries the card's text as its help text, so the card
+    /// is one element named with it, without children (no glyphs or drawn bars to step through).
+    /// </summary>
+    protected override AutomationPeer OnCreateAutomationPeer() => new CardPeer(this);
 
     private enum Role
     {
@@ -434,6 +468,8 @@ internal sealed class ScoreCardView : StackPanel
             Children.Add(_meaning);
         }
 
+        public void ShowMeaning(bool shown) => _meaning.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+
         public void Apply(TaskDimensionRow row, ScoreCardView card, bool animate)
         {
             card.Set(_label, row.Label, Role.Primary);
@@ -491,7 +527,19 @@ internal sealed class ScoreCardView : StackPanel
             card.Set(_percent, cell.Percent, Role.Primary);
             card.Set(_label, cell.Label, Role.Secondary);
             card.Set(_flag, cell.Flag, Role.Tertiary);
-            ToolTip = cell.Flag;
         }
+    }
+
+    private sealed class CardPeer(ScoreCardView owner) : FrameworkElementAutomationPeer(owner)
+    {
+        protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Group;
+
+        protected override string GetClassNameCore() => nameof(ScoreCardView);
+
+        protected override string GetNameCore() => ((ScoreCardView)Owner)._card?.Project ?? string.Empty;
+
+        protected override string GetHelpTextCore() => ((ScoreCardView)Owner)._card?.FullDescription ?? string.Empty;
+
+        protected override List<AutomationPeer> GetChildrenCore() => [];
     }
 }

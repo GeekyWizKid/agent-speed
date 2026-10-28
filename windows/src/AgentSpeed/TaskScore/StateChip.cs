@@ -61,6 +61,13 @@ internal sealed class StateChip : FrameworkElement
 
     protected override AutomationPeer OnCreateAutomationPeer() => new ChipPeer(this);
 
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
+
     protected override Size MeasureOverride(Size availableSize)
     {
         if (_chip is not { } chip)
@@ -142,7 +149,7 @@ internal sealed class StateChip : FrameworkElement
     private static Rect Inset(Rect rect, double by) => new(rect.X + by, rect.Y + by, Math.Max(0, rect.Width - 2 * by), Math.Max(0, rect.Height - 2 * by));
 
     private FormattedText Label(string text, Brush brush) =>
-        new(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(FontFamily, FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal),
+        new(text, TaskCardText.Culture(this), FlowDirection.LeftToRight, new Typeface(FontFamily, FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal),
             TextSize, brush, PixelsPerDip);
 
     private sealed class ChipPeer(StateChip owner) : FrameworkElementAutomationPeer(owner)
