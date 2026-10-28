@@ -190,4 +190,7 @@ internal sealed class TrackedFile
 
     /// <summary>Changed while a recent read was still within its rate limit (Antigravity, METRICS 5.4); read on the next poll.</summary>
     public bool Dirty { get; set; }
+
+    /// <summary>Its position among the files seeding read (startup order); null when seeding did not read it.</summary>
+    public long? SeedOrder { get; set; }
 }

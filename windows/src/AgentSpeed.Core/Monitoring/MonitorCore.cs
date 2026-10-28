@@ -59,6 +59,7 @@ internal sealed partial class MonitorCore : IDisposable
     private bool _partialHistory;
     private long? _observedAtMs;
     private bool _keepEveryTask;
+    private long _seededFiles;
 
     public MonitorCore(
         MonitorConfiguration configuration,
@@ -931,6 +932,7 @@ internal sealed partial class MonitorCore : IDisposable
                     continue;
                 }
 
+                current.File.SeedOrder ??= ++_seededFiles;
                 filesRead++;
                 bytesRead += prepared.Result.BytesRead;
                 doneBytes += Math.Max(0, current.ExpectedLength - current.StartOffset);
@@ -1215,7 +1217,6 @@ internal sealed partial class MonitorCore : IDisposable
     private static string? DisplayProject(TranscriptParser parser) =>
         parser is AntigravityParser ? AntigravityPaths.StoreNameOf(parser.AgentId) : null;
 
-    /// <summary>Re-resolves parent links over the engine's agents after any of them changed (METRICS 6.7).</summary>
     /// <summary>
     /// Keep every task's events instead of each agent's current task (the probe's dumps evaluate at any instant); set
     /// before seeding.
@@ -1233,9 +1234,13 @@ internal sealed partial class MonitorCore : IDisposable
         }
     }
 
-    /// <summary>The agents of the sources with a task score (METRICS 6.9), with their composers.</summary>
+    /// <summary>
+    /// The transcripts of the sources with a task score (METRICS 6.9) that seeding read, in startup order, with their
+    /// composers: the seeded agents of <c>--dump-today</c>. Files seeding started at the end of are left out, and so are
+    /// OpenClaw windows, which the dump reads whole per database like the reference.
+    /// </summary>
     internal IEnumerable<TranscriptParser> TaskAgents =>
-        _files.Values.Select(f => f.Parser).Concat(_openClaw?.Parsers ?? []).Where(p => p.Tasks is not null);
+        _files.Values.Where(f => f.SeedOrder is not null && f.Parser.Tasks is not null).OrderBy(f => f.SeedOrder).Select(f => f.Parser);
 
     /// <summary>An agent's parent link (METRICS 6.7) as last resolved; null for none.</summary>
     internal string? ParentOf(string agentId)
@@ -1255,6 +1260,7 @@ internal sealed partial class MonitorCore : IDisposable
         return tracked;
     }
 
+    /// <summary>Re-resolves parent links over the engine's agents after any of them changed (METRICS 6.7).</summary>
     private void ResolveParents()
     {
         if (!_linksChanged)
