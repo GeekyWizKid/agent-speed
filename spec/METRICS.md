@@ -2163,20 +2163,23 @@ A response whose `endMs` is before `0001-01-03T00:00:00Z` or after `9999-12-29T2
 get there, 3.1, 3.6) has no date, since in some time zone it would fall outside the years 0001–9999: it is left out of
 daily history and has no cost (it counts as unpriced, 9.3, 9.6), while it still counts in the live totals.
 
-Incremental cache: for each file keep its identity (path, size, modification time; for an Antigravity database also the
-size and modification time of its `-wal`), the 64-bit FNV-1a hashes of the response keys it owns, and its per-day
-contributions. On launch and periodically (every 10 minutes and at midnight), unchanged files reuse their contributions;
-new or changed files are re-parsed completely, skipping keys owned by any other file (ownership follows startup order);
-files that no longer exist keep their contributions. Hermes Agent logs (4.15) are cached by file identity instead of
-path: a rotation renames a log without changing it, so it keeps its contributions and keys under its new name, and the
-oldest log, which rotation deletes, keeps its contributions like any deleted file. A Factory Droid session's identity
-adds its sidecar's size and modification time and, for a session with a `parent`, those of the parent's sidecar, whose
-counters it subtracts (4.16); the history rule of 4.16 makes its contributions a function of these files alone. Daily
-totals are the sums over files. The history store is versioned: a parser change bumps the version and triggers a full
-recomputation that keeps previously stored days for which no logs exist any more (analysis version 7: the unpriced facts
-of 9.10; 6: the Codex ordinal rule of 3.5). Adding a source needs no new version: no earlier build read its files, so
-the first analysis finds them as new files (Factory Droid, 4.16, and the `custom` step of 9.2, which in practice only
-its ids reach). "Clear history" (settings) deletes the store and recomputes from the current logs.
+Incremental cache: for each file keep its identity (path, size, modification time; for an Antigravity database also
+the size and modification time of its `-wal`), the 64-bit FNV-1a hashes of the
+response keys it owns, and its per-day contributions. On launch and periodically (every 10 minutes and at midnight),
+unchanged files reuse their contributions; new or changed files are re-parsed completely, skipping keys owned by any
+other file (ownership follows startup order); files that no longer exist keep their contributions. Hermes Agent
+logs (4.15) are cached by file identity instead of path: a rotation renames a log without changing it, so it keeps its
+contributions and keys under its new name, and the oldest log, which rotation deletes, keeps its contributions like any
+deleted file. Daily totals are the sums over files. The history store is versioned: a parser change bumps the version
+and triggers a full recomputation that keeps previously stored days for which no logs exist any more (analysis version
+7: the unpriced facts of 9.10; 6: the Codex ordinal rule of 3.5). "Clear history" (settings) deletes
+the store and recomputes from the current logs.
+
+Factory Droid (4.16): a session's identity adds its sidecar's size and modification time and, for a session with a
+`parent`, those of the parent's sidecar, whose counters it subtracts; the history rule of 4.16 makes its contributions
+a function of these files alone. Adding the source needs no new analysis version: no earlier build read its files, so
+the first analysis finds them as new files (this covers the `custom` step of 9.2 too, which in practice only Droid's
+ids reach).
 
 Cost (9.7): every row also has `costMicroUsd` and `unpricedRequests`, every model `costMicroUsd` and
 `unpricedRequests`, and every date a `priceVersion`. The cost feature bumps the store version; days kept from an
