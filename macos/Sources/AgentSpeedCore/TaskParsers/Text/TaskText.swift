@@ -223,18 +223,14 @@ extension Array where Element == UInt8 {
 enum TaskText {
     /// `sha16`: the first 16 lowercase hex digits of SHA-256 over the UTF-8 bytes (TASK-PARSERS 1, *Digests*).
     static func sha16(_ bytes: Bytes) -> String {
-        let digest = SHA256.hash(data: bytes)
-        var out = ""
-        out.reserveCapacity(16)
         let digits = Array("0123456789abcdef".utf8)
         var hex = Bytes()
         hex.reserveCapacity(16)
-        for byte in digest.prefix(8) {
+        for byte in SHA256.hash(data: bytes).prefix(8) {
             hex.append(digits[Int(byte >> 4)])
             hex.append(digits[Int(byte & 0x0F)])
         }
-        out = String(decoding: hex, as: UTF8.self)
-        return out
+        return String(decoding: hex, as: UTF8.self)
     }
 
     static func sha16(_ text: String) -> String { sha16(Bytes(utf8: text)) }

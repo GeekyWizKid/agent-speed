@@ -3,8 +3,8 @@ import Foundation
 /// A regular expression of the subset TASK-PARSERS 1 allows (*Patterns*), matched over UTF-8 with Python `re`
 /// semantics: backtracking, leftmost-first alternation, greedy and lazy quantifiers, `.` matching any scalar but LF,
 /// negated classes matching any other scalar (LF included), one-character lookarounds and Python's `$` (the end, or
-/// before a final LF). Patterns are written verbatim from Appendix A and compiled once; matching never allocates
-/// unless groups are read.
+/// before a final LF). Patterns are written verbatim from Appendix A and compiled once. A match is tried only when the
+/// text holds a possible first byte and the pattern's required literals; the machine runs in temporary memory.
 struct Pattern: Sendable {
     let source: String
     let groupCount: Int
