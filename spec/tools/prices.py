@@ -140,8 +140,9 @@ def round_micro(pico):
 
 
 class Resolution:
-    def __init__(self, kind, entry=None, candidate=None, reason=None, fast=False):
+    def __init__(self, kind, entry=None, candidate=None, reason=None, fast=False, rule=None):
         self.kind, self.entry, self.candidate, self.reason, self.fast = kind, entry, candidate, reason, fast
+        self.rule = rule
 
     @property
     def label(self):
@@ -172,16 +173,22 @@ class Index:
                 return Resolution("unknown", None, key, "no fast-mode price")
             return Resolution("priced", m, key, fast=fast)
         if key in self.unknown_exact:
-            return Resolution("unknown", None, key, self.unknown_exact[key]["reason"])
+            rule = self.unknown_exact[key]
+            return Resolution("unknown", None, key, rule["reason"], rule=rule)
         for u in self.unknown_prefix:
             if key.startswith(u["value"]):
-                return Resolution("unknown", None, key, u["reason"])
+                return Resolution("unknown", None, key, u["reason"], rule=u)
         return None
+
+    @staticmethod
+    def exact_key(model):
+        """The `exact` step key of 9.2: brackets removed, whitespace collapsed, trimmed, lowercased."""
+        return re.sub(r"\s+", " ", BRACKETS.sub(" ", model)).strip().lower()
 
     def candidates(self, model):
         """The normalization steps of METRICS 9.2, in order; each yields (step, key, fast)."""
         n = self.norm
-        k = re.sub(r"\s+", " ", BRACKETS.sub(" ", model)).strip().lower()
+        k = self.exact_key(model)
         yield "exact", k, False
         if "/" in k:
             k = k.rsplit("/", 1)[1]
@@ -253,6 +260,25 @@ class Index:
             if hit is not None:
                 return hit
         return Resolution("unknown", None, None, "not in table")
+
+    def diagnose(self, model, provider=None, fast=False):
+        """Why a response with these facts has no price under this table (METRICS 9.10), or None when it is priced
+        or free: {reason, canonical, rule}. `reason` is noModel, notInTable, noFastPrice or unpriceable;
+        `canonical` is the key the resolver stopped at (None for noModel); `rule` the table's `unknown` entry."""
+        res = self.resolve(model, provider)
+        if res.kind == "free":
+            return None
+        if res.kind == "priced":
+            if (res.fast or fast is True) and "fast" not in res.entry:
+                return dict(reason="noFastPrice", canonical=res.candidate, rule=None)
+            return None
+        if res.reason == "no model":
+            return dict(reason="noModel", canonical=None, rule=None)
+        if res.reason == "not in table":
+            return dict(reason="notInTable", canonical=self.exact_key(model) or None, rule=None)
+        if res.reason == "no fast-mode price":
+            return dict(reason="noFastPrice", canonical=res.candidate, rule=None)
+        return dict(reason="unpriceable", canonical=res.candidate, rule=res.rule)
 
     def price(self, r):
         """Integer micro-USD of one normalized response, or None when its price is unknown (METRICS 9.3)."""

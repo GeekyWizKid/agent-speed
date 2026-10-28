@@ -36,8 +36,8 @@ final class HistoryDatabase {
         try self.init(path: path, migrating: true)
     }
 
-    /// Without `migrating`, a store of an older schema keeps its version and only gets `meta` and `day_traffic`;
-    /// a new store always gets the full schema. A newer store throws before anything is changed.
+    /// Without `migrating`, a store of an older schema keeps its version and only gets `meta`, `day_traffic` and
+    /// `contribution_unpriced`; a new store always gets the full schema. A newer store throws before anything is changed.
     private init(path: String, migrating: Bool) throws {
         self.path = path
         if path != ":memory:" {
@@ -55,6 +55,7 @@ final class HistoryDatabase {
             try connection.execute(Self.metaTableSQL)
         }
         try connection.execute(Self.trafficTableSQL)
+        try connection.execute(Self.unpricedTableSQL)
         if migrating || version == 0 { try connection.execute(Self.modeTableSQL) }
     }
 
@@ -240,6 +241,7 @@ final class HistoryDatabase {
                 cost: Self.cost(row, 8))
         }
         try loadModes(into: &entries, paths: paths)
+        try loadUnpriced(into: &entries, paths: paths)
         return entries
     }
 
@@ -314,8 +316,10 @@ final class HistoryDatabase {
                 clearModels.bind(1, id)
                 try clearModels.run()
                 try deleteModes(fileId: id)
+                try deleteUnpriced(fileId: id)
                 for (key, day) in entry.days {
                     try saveModes(day.modes.values.sorted { $0.id < $1.id }, fileId: id, day: key.day, source: key.source)
+                    try saveUnpriced(day.unpricedFacts, fileId: id, day: key.day, source: key.source, version: entry.version)
                     insertDay.bind(1, id)
                     insertDay.bind(2, key.day)
                     insertDay.bind(3, key.source.rawValue)

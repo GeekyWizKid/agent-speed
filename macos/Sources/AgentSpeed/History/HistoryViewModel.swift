@@ -47,11 +47,12 @@ final class HistoryViewModel {
             usage: store.days, source: nil, rangeKind: .days30, customRange: nil, sort: HistorySort(), today: today, l10n: l10n,
             money: HistoryMoney(cost), costOptions: HistoryCostOptions(marked: cost.settings.subscriptionSources,
                                                                         includeSubscriptions: include),
-            traffic: Self.historyTraffic(traffic, settings: cost.settings)
+            traffic: Self.historyTraffic(traffic, settings: cost.settings), prices: cost.prices.book.current
         )
         dataLoop = ObservationLoop { [weak self] in
             guard let self else { return }
             _ = self.store.days
+            _ = self.cost.prices.table
             _ = self.l10n.language
             _ = HistoryMoney(self.cost)
             _ = self.cost.settings.subscriptionSources
@@ -150,7 +151,7 @@ final class HistoryViewModel {
         let next = HistoryContent.build(
             usage: store.days, source: source, rangeKind: rangeKind, customRange: customRange, sort: sort,
             today: today, l10n: l10n, money: HistoryMoney(cost), costOptions: options,
-            traffic: Self.historyTraffic(traffic, settings: cost.settings)
+            traffic: Self.historyTraffic(traffic, settings: cost.settings), prices: cost.prices.book.current
         )
         if next != content { content = next }
     }

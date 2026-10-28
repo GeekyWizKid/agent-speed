@@ -131,16 +131,7 @@ enum HistoryPreviews {
             }
         }
         if only?.contains("unpriced-popover") ?? true {
-            for (language, currency) in [(LanguagePreference.zhHant, "TWD"), (.en, "USD")] {
-                let viewModel = prepare(Case(name: "unpriced-popover", range: .days90, language: language, currency: currency), model: model)
-                for dark in [false, true] {
-                    PreviewSnapshot.writeHosted(
-                        UnpricedModelsList(models: viewModel.content.unpricedModels, l10n: model.l10n).appEnvironment(model),
-                        dark: dark,
-                        to: directory.appendingPathComponent("history-unpriced-popover-\(language.rawValue)-\(dark ? "dark" : "light").png")
-                    )
-                }
-            }
+            renderUnpricedPopovers(model: model, into: directory)
         }
         if only?.contains("popover") ?? true {
             let viewModel = prepare(Case(name: "popover", range: .custom, custom: (40, 12)), model: model)
@@ -164,8 +155,83 @@ enum HistoryPreviews {
         model.history.publish(state: .notLoaded, days: [])
     }
 
+    /// The unknown-prices popover (DESIGN 9) over facts like this Mac's and the Windows box's: router aliases and an
+    /// internal model (no public price), a model the table lacks, a Fast request without a Fast price, a response
+    /// without a model, a long lookup key, more than 20 rows in one group and requests priced now; in every language
+    /// and both appearances, with the copy button's states.
+    private static func renderUnpricedPopovers(model: AppModel, into directory: URL) {
+        let languages: [(LanguagePreference, String)] = [(.zhHant, "TWD"), (.zhHans, "CNY"), (.en, "USD"), (.ja, "JPY")]
+        for (language, currency) in languages {
+            let viewModel = prepare(Case(name: "unpriced-popover", range: .days90, language: language, currency: currency), model: model,
+                                    unpriced: true)
+            let view = viewModel.content.unpriced
+            let states: [(String, CopyDiagnosticsButton.Outcome?)] = [("", nil), ("-copied", .copied), ("-failed", .failed)]
+            for dark in [false, true] {
+                for (suffix, state) in states {
+                    PreviewSnapshot.writeHosted(
+                        UnpricedPopover(view: view, l10n: model.l10n, copyState: state).appEnvironment(model),
+                        dark: dark,
+                        to: directory.appendingPathComponent(
+                            "history-unpriced-popover-\(language.rawValue)\(suffix)-\(dark ? "dark" : "light").png")
+                    )
+                }
+            }
+            if language == .zhHant || language == .en {
+                for dark in [false, true] {
+                    PreviewSnapshot.writeHosted(
+                        UnpricedPopover(view: view, l10n: model.l10n, unboundedGroups: true).appEnvironment(model),
+                        dark: dark,
+                        to: directory.appendingPathComponent("history-unpriced-popover-\(language.rawValue)-all-\(dark ? "dark" : "light").png")
+                    )
+                }
+            }
+            if language == .zhHant {
+                let text = UnpricedText.render(view, app: .current(version: AppInfo.version))
+                try? text.write(to: directory.appendingPathComponent("history-unpriced-copied.txt"), atomically: true, encoding: .utf8)
+                renderWindow(viewModel: viewModel, model: model, size: HistoryWindowController.minimumSize, dark: false,
+                             to: directory.appendingPathComponent("history-unpriced-window-light.png"))
+            }
+        }
+    }
+
+    /// Recent days carry the facts of the popover preview; their costs count them as unpriced.
+    static func withUnpricedFacts(_ days: [DailyUsage], today: DayKey) -> [DailyUsage] {
+        func fact(_ model: String, _ provider: String?, fast: Bool = false, _ requests: Int) -> UnpricedFact {
+            UnpricedFact(key: UnpricedFactKey(model: model, provider: provider, fast: fast), requests: requests)
+        }
+        let aliases = ["ab", "f1097c63", "7", "routed-1", "routed-2", "q4", "zz", "k", "mini", "b2", "c3", "d4", "e5"]
+        // Per source, the facts of its most recent days before today, one list per day.
+        var pending: [SourceKind: [[UnpricedFact]]] = [
+            .codex: [
+                aliases.enumerated().map { fact("neko-model-\($1)", "neko-route", 70 - $0 * 4) }
+                    + [fact("codex-auto-review", "openai", 27), fact("mimo-v2.5-pro", "custom", 115)],
+                [fact("", "openai", 4), fact("gpt-6.1-sol-preview", "openai", 9), fact("o9-research", "azure", 3),
+                 fact("my-proxy/sonnet", "custom", 6), fact("internal-eval", "openai", 2), fact("glm-5.3-air", "zhipu", 5),
+                 fact("qwen3.6-plus-0915", "dashscope", 8), fact("mimo-v2.5-flash", "custom", 12)],
+            ],
+            .claudeCode: [[fact("claude-sonnet-5-5", nil, fast: true, 12)]],
+            .workbuddyAi: [[fact("Accounts/Fireworks/Models/Qwen3-Coder-480B-A35B-Instruct-Preview-Long-Context-2026", nil, 3),
+                            fact("Kimi-K3-Thinking-Turbo", "custom", 2)]],
+            .antigravity: [[fact("gemini-3.1-pro", nil, 6)]],
+        ]
+        var result = days
+        for index in result.indices.reversed() {
+            let day = result[index]
+            guard let key = DayKey(day.day), key < today, day.cost != nil, let facts = pending[day.source]?.first else { continue }
+            pending[day.source]?.removeFirst()
+            let added = facts.reduce(0) { $0 + $1.requests }
+            var tally: [UnpricedFactKey: Int] = [:]
+            for fact in day.unpriced.facts + facts { tally[fact.key, default: 0] += fact.requests }
+            result[index].totals.requests += added
+            result[index].cost?.unpricedRequests += added
+            result[index].unpriced = UnpricedReading(requests: day.unpriced.requests + added, facts: UnpricedFact.list(tally),
+                                                     derived: day.unpriced.derived)
+        }
+        return result
+    }
+
     /// Fills the store and builds a view model in the case's state.
-    static func prepare(_ item: Case, model: AppModel) -> HistoryViewModel {
+    static func prepare(_ item: Case, model: AppModel, unpriced: Bool = false) -> HistoryViewModel {
         let calendar = HistoryDates.calendar
         let now = Date()
         let all = PreviewHistory.days(endingAt: now, count: 160, calendar: calendar)
@@ -177,7 +243,8 @@ enum HistoryPreviews {
         case .recent(let count):
             all.filter { DayKey($0.day).map { $0 >= DayKey(now, calendar: calendar).adding(days: -count) } ?? false }
         }
-        let days = stored.filter { $0.source != item.tokenless && !item.disabled.contains($0.source) }
+        let kept = stored.filter { $0.source != item.tokenless && !item.disabled.contains($0.source) }
+        let days = unpriced ? withUnpricedFacts(kept, today: DayKey(now, calendar: calendar)) : kept
         model.settings.enabledSources = Set(SourceKind.allCases).subtracting(item.disabled)
         let state: HistoryState = switch item.state {
         case .ready: .ready(updatedAt: now.addingTimeInterval(-240))

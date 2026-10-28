@@ -86,8 +86,8 @@ struct HistoryContent: Equatable, Sendable {
     /// Money in the display currency and how costs count (DESIGN 9).
     var money: HistoryMoney
     var costOptions: HistoryCostOptions
-    /// Models with unknown prices in the range (`history.unpricedNotice`).
-    var unpricedModels: [UnpricedModel] = []
+    /// Why the range's unpriced requests have no price, with the current table (`history.unpricedNotice`, METRICS 9.10).
+    var unpriced: UnpricedView = .empty
     /// The first day traffic was recorded, when the range starts before it (`history.traffic.since`).
     var trafficSince: DayKey?
     /// The range has token usage, and agent traffic, of the selection (DESIGN 10, Traffic without token usage).
@@ -100,7 +100,7 @@ struct HistoryContent: Equatable, Sendable {
     var showsOnlyTraffic: Bool { !hasTokenUsage && hasAgentTraffic }
 
     /// Requests of the range whose model has no known price.
-    var unpricedRequests: Int { unpricedModels.reduce(0) { $0 + $1.requests } }
+    var unpricedRequests: Int { unpriced.unpriced }
 
     /// The range's displayed traffic (DESIGN 10: the traffic chart's header); nil when nothing of it was recorded.
     var trafficTotal: TrafficBytes? {
@@ -128,6 +128,7 @@ struct HistoryContent: Equatable, Sendable {
         money: HistoryMoney = .usd,
         costOptions: HistoryCostOptions = HistoryCostOptions(),
         traffic: HistoryTraffic = .none,
+        prices: PriceTable = PriceBook.bundled,
         now: Date = Date()
     ) -> HistoryContent {
         // Recorded agent traffic is history too (DESIGN 10): its days count for the bounds, the rows and the picker.
@@ -181,7 +182,8 @@ struct HistoryContent: Equatable, Sendable {
             rows: HistoryTable.sort(days, by: effectiveSort),
             money: money,
             costOptions: costOptions,
-            unpricedModels: HistoryAggregator.unpricedModels(usage, source: source, range: range, excluded: excluded),
+            unpriced: HistoryAggregator.unpriced(usage, source: source, rangeKind: rangeKind, range: range, excluded: excluded,
+                                                 table: prices),
             trafficSince: traffic.since.flatMap { $0 > range.start && $0 <= range.end ? $0 : nil },
             hasTokenUsage: !tokenDays.isEmpty,
             hasAgentTraffic: trafficDays.contains(where: range.contains)
@@ -201,7 +203,7 @@ struct HistoryContent: Equatable, Sendable {
         return HistoryContent(
             today: today, source: source, rangeKind: rangeKind, range: range, dataBounds: dataBounds,
             pickerSources: pickerSources, days: days, cards: cards, chart: chart, breakdown: breakdown, columns: columns, sort: sort,
-            rows: HistoryTable.sort(days, by: sort), money: money, costOptions: costOptions, unpricedModels: unpricedModels,
+            rows: HistoryTable.sort(days, by: sort), money: money, costOptions: costOptions, unpriced: unpriced,
             trafficSince: trafficSince, hasTokenUsage: hasTokenUsage, hasAgentTraffic: hasAgentTraffic
         )
     }

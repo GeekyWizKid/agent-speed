@@ -99,7 +99,8 @@ enum SnapshotBuilder {
                 todayCost: output.todayCostBySource[kind] ?? .zero,
                 unpricedModels: unpricedModels(output.todayCostByModel[kind]),
                 configuredModes: info?.configuredModes ?? .empty,
-                intelligence: output.sourceIntelligence[kind] ?? .zero
+                intelligence: output.sourceIntelligence[kind] ?? .zero,
+                unpricedFacts: output.todayUnpricedFacts[kind] ?? []
             )
         }
         return SpeedSnapshot(

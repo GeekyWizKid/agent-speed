@@ -6,7 +6,7 @@ import Foundation
 @MainActor
 enum HistoryLogicChecks {
     static func run(l10n: Localizer, into directory: URL) {
-        var results = ExecutionModeLogicChecks.run(l10n: l10n)
+        var results = ExecutionModeLogicChecks.run(l10n: l10n) + UnpricedLogicChecks.run(l10n: l10n)
         func check(_ name: String, _ condition: Bool) { results.append((name, condition)) }
 
         // Day arithmetic.
@@ -248,8 +248,9 @@ enum HistoryLogicChecks {
               HistoryTable.cell(day("2026-10-21", costDays)!, .cost, today: today, money: .usd, l10n) == "≥$2.25"
               && HistoryTable.cell(day("2026-10-19", costDays)!, .cost, today: today, money: .usd, l10n) == "–"
               && HistoryTable.cell(day("2026-10-18", excludedDays)!, .cost, today: today, money: .usd, l10n) == l10n("cost.subscription.tag"))
-        check("cost: unknown models listed for the notice", costContent.unpricedModels.map(\.model) == ["m"]
-              && costContent.unpricedRequests == 2)
+        check("cost: the notice explains the stored unpriced requests (derived from the per-model counts)",
+              costContent.unpriced.groups.map(\.source) == [.codex] && costContent.unpricedRequests == 2
+              && costContent.unpriced.groups.first?.derived == 2 && costContent.unpriced.groups.first?.rows.first?.key.model == "m")
         check("cost: model cost text", HistoryText.modelCost(ModelCost(cost: CostTally(), requests: 3), money: .usd, l10n) == l10n("cost.free")
               && HistoryText.modelCost(ModelCost(cost: nil, requests: 3), money: .usd, l10n) == l10n("cost.unknown")
               && HistoryText.modelCost(ModelCost(cost: nil, requests: 0), money: .usd, l10n) == l10n("cost.subscription.tag")

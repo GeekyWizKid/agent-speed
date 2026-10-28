@@ -2347,9 +2347,40 @@ The unit is `cost.unitPerSecond` (`%@/s` with the symbol: `US$/s`, `¥/s`). Wher
   tokens everywhere but add nothing to cost cards, bars or the column; in the source picker they carry the tag
   `cost.subscription.tag`. Selecting such a source directly shows its API-equivalent cost (the card title then reads
   `history.summary.costApi`).
-- **Unknown prices**: when the range has unpriced responses, the footer's left side adds `history.unpricedNotice`
-  with a `history.unpricedNotice.show` link; its popover lists the models (name, requests, source dot) with
-  `history.unpricedModels.hint`.
+- **Unknown prices** (METRICS 9.10): when the view has unpriced responses, the footer's left side adds
+  `history.unpricedNotice` (Σ `unpriced` of the view) with a `history.unpricedNotice.show` link. Its popover (macOS: a
+  SwiftUI popover, arrow up; Windows: the flyout-styled `Popup` above the notice, as before; pt = DIP) explains every
+  request of that count for the window's current source, range and subscription choice, and offers them as text.
+  380 pt wide, 16 pt padding; the groups scroll when the content would exceed 440 pt, header and footer stay put.
+  Top to bottom:
+  1. **Header**: `cost.unknown` (13 pt semibold) with the count trailing (13 pt, secondary, tabular).
+  2. **Source groups**, one per source that has rows, in the order of 9.10: a 7 pt source dot, the source name
+     (12 pt semibold) and the Σ requests of its rows trailing (12 pt, secondary, tabular); 12 pt above every group but
+     the first. Up to 20 rows per group, then `history.unpricedModels.more` (the number of further rows and their
+     requests; 11 pt, tertiary; the copied text has all).
+  3. **Rows**, 7 pt apart, inset 14 pt (aligned with the source name), two lines:
+     - the model (12.5 pt medium, middle truncation, selectable; empty → `cost.noModelName` in secondary italic) and,
+       trailing, its requests (12 pt, secondary, tabular, full number);
+     - 11 pt secondary: the **reason chip** — `cost.reason.<reason>` at 10.5 pt medium in a capsule (horizontal padding
+       5 pt, vertical 1 pt, the label colour at 9 % fill and 0.5 pt stroke at 16 %; the same neutral look for every
+       reason: an unknown price is a gap, not an error) — then, joined by ` · `, `history.unpricedModels.via` with the
+       provider when there is one, `speed.value.fast` with one bolt glyph (as in 4b, item 3b) when the facts were
+       Fast, and `history.unpricedModels.lookup` with the canonical key when it differs from the model. The line
+       truncates at the tail; its tooltip holds the whole line plus `history.unpricedModels.seen` (the first and last
+       day, one date when equal, in the locale's short date format). The chip's own tooltip is
+       `cost.reason.<reason>.hint`, followed for `unpriceable` by the table's rule text (English, as published).
+  4. **Priced now**: when `pricedNow` > 0, `history.unpricedModels.pricedNow` (11.5 pt, secondary) under the groups
+     (alone when every request of the count is priced now).
+  5. **Footer**, under a divider: `history.unpricedModels.hint` (11.5 pt, secondary), then a row with the
+     `history.unpricedModels.copy` button (small bordered; SF Symbol `doc.on.doc` / Fluent `Copy` glyph) and, beside
+     it, `history.unpricedModels.copyHint` (11 pt, tertiary, wraps). The button copies the text of METRICS 9.10 for the
+     same view to the clipboard as plain text; it then shows a checkmark and `history.unpricedModels.copied` for
+     1.6 s (0.15 s crossfade; Reduce Motion: instant), keeping its width so nothing shifts. A clipboard error (Windows
+     can report one while another app holds the clipboard; retry once after 100 ms) shows
+     `history.unpricedModels.copyFailed` the same way, with the warning glyph.
+  The popover follows the window live: a new range, source, subscription choice, finished analysis or price table
+  recomputes it (rows that the current table now prices move to `pricedNow`); the scroll position stays. Esc or a
+  click outside closes it and focus returns to the link.
 - **Frozen days**: the cost card's tooltip says `history.costFrozen`; a day's cost never changes when prices change
   (METRICS 9.7).
 - **Rate note**: for a non-USD currency the footer's right side starts with `rates.historyNote` (以 2026/10/22 的匯率換算)
@@ -2373,8 +2404,12 @@ A new pane between 特效 and 資料來源, the platform's grouped form like the
    table is current), `prices.lastSync` (relative time, `prices.never` before the first sync), the `prices.autoSync`
    switch with `prices.autoSync.hint`, a `prices.check` button with inline result (`prices.checking`,
    `prices.upToDate`, `prices.updatedTo`, `prices.failed`, `prices.newerSchema`), and a `prices.viewSource` link that
-   opens the table on GitHub. When today has unpriced models, `prices.unknownToday` lists them (selectable text, so
-   the user can report them).
+   opens the table on GitHub. When today has unpriced responses, `prices.unknownToday` lists them (selectable text, so
+   the user can report them) from the live view of METRICS 9.10 over every enabled source: one
+   `prices.unknownToday.item` per distinct model and reason (`neko-model-7（無公開價格）`; an empty model reads
+   `cost.noModelName`), ordered by requests descending, then the model's UTF-8 bytes, joined by `list.separator`. The
+   whole line's tooltip adds each reason's `cost.reason.<reason>.hint` once; details and the copyable text live in the
+   History window.
 
 **About**: the privacy text becomes `privacy.statement`; a **Network** group (`settings.network`) holds the master
 switch with `settings.network.hint`, followed by the update controls of UPDATES 4. With the switch off the update,
@@ -2390,6 +2425,13 @@ price and rate controls are disabled and show `settings.network.offHint`.
 - Every amount reads with the currency's name (`12.34 美元`); `≥` reads as `a11y.orb.costAtLeast`, `–` as
   `cost.unknown`. Nothing relies on color.
 - The currency list is a standard list with a search field; each row reads `code, name`.
+- Unknown-prices popover: the header and each source group are headings (VoiceOver header trait; UI Automation
+  heading level 2 and 3); a group reads `source name, history.unpricedDay`. Each row is one element: label = the model
+  (or `cost.noModelName`), value = the reason label, provider (`history.unpricedModels.via`), `speed.value.fast` when
+  Fast, the lookup key, `history.table.requests` with the full number and the days seen; help = the reason's hint.
+  The copy button is reachable with Tab and Enter/Space; its result is announced once (`history.unpricedModels.copied`
+  or `.copyFailed`: VoiceOver announcement, UI Automation notification) without moving focus. Nothing relies on
+  colour: the chip is text.
 
 ## 10. Network traffic
 

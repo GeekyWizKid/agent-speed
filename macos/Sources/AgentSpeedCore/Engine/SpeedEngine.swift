@@ -164,6 +164,10 @@ struct SpeedEngine: Sendable {
             todayCost: ledger?.cost ?? .zero,
             todayCostBySource: ledger?.costBySource ?? [:],
             todayCostByModel: ledger?.costByModel ?? [:],
+            todayUnpricedFacts: (ledger?.unpricedFacts ?? [:]).compactMapValues { tally in
+                let facts = UnpricedFact.list(tally)
+                return facts.isEmpty ? nil : facts
+            },
             peakToday: peak,
             peakTodayAtMs: peak.output > 0 ? peakAt : nil,
             subsetPeaks: subsetPeaks,
