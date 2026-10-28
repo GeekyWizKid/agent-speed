@@ -10,7 +10,10 @@ final class HistoryAnalyzer {
     /// Bumped whenever a parser change alters results; stored files of other versions are analysed again.
     /// 2: per-model measured output and time (METRICS 8). 3: cost (METRICS 9.7). 5: reasoning effort and speed.
     /// 6: the copied prefix of paginated Codex sub-agents (METRICS 3.5). 7: the unpriced facts (METRICS 9.10).
-    static let analysisVersion: Int64 = 7
+    /// 8: the task records (METRICS 6.11).
+    static let analysisVersion: Int64 = 8
+    /// A file whose last task was still open is analysed again once it has been quiet this long (METRICS 6.11 *Writes*).
+    static let openTaskQuietMs: Int64 = 30 * 60_000
     /// The current price table version of the last complete run; when it changes, files with unpriced responses are
     /// analysed again (METRICS 9.7).
     static let priceVersionKey = "priceTableVersion"
@@ -27,6 +30,8 @@ final class HistoryAnalyzer {
         var workers: Int = HistoryAnalyzer.defaultWorkers
         /// Contributions are written in batches at least this often.
         var saveIntervalMs: Int64 = 1500
+        /// The analysis time (`analysisMs` of the task records); nil: the run's start. Tests pin it.
+        var nowMs: Int64?
 
         init(timeZone: TimeZone = .current) {
             self.timeZone = timeZone
@@ -71,6 +76,13 @@ final class HistoryAnalyzer {
     /// The parent sidecar each Factory Droid session last found unreadable, carried from one analysis to the next
     /// (METRICS 4.16 Own counters); a relaunch starts without it.
     private var droidUnreadableParents: [String: DroidPaths.Signature] = [:]
+    /// Files analysed again for an open task, with the identity they had: each is retried once per change and launch.
+    private var openTaskRetries: [String: Int64] = [:]
+    /// Task records were written since the calibration was last computed.
+    private var tasksChanged = true
+    /// Bumped whenever task records are written.
+    private(set) var taskVersion = 0
+    private var calibration: [SourceKind: TaskModels] = [:]
 
     init(database: HistoryDatabase, pricing: PriceBook = PriceBook()) throws {
         self.database = database
@@ -125,6 +137,10 @@ final class HistoryAnalyzer {
         var keys: [String]
         var identity: (rows: Int64, modified: Int64)
         var previous: HistoryDatabase.Entry?
+        /// Its task lines with the model and effort after each (METRICS 6.9); composed in `run`, where the dedupe set
+        /// knows the windows read before it.
+        var taskLines: [(line: TaskLine, model: String?, effort: String?)] = []
+        var lastLineMs: Int64?
     }
 
     private struct PlannedOpenClawDatabase {
@@ -161,6 +177,7 @@ final class HistoryAnalyzer {
     /// sessions; after a price table change also those with unpriced responses. Cheap when nothing changed.
     private func plan(configuration: MonitorConfiguration, options: Options, zoneChanged: Bool, repricing: Bool) throws -> Plan {
         var plan = Plan()
+        let nowMs = options.nowMs ?? Clock.milliseconds(Date())
         var seen: Set<String> = []
         for (family, root) in Self.roots(configuration) {
             guard TranscriptDiscovery.isAvailable(root: root) else { continue }
@@ -177,7 +194,8 @@ final class HistoryAnalyzer {
                 let modified = droidIdentity?.modified ?? stat.modifiedNs
                 if let previous, !zoneChanged, previous.version == options.analysisVersion,
                    previous.family == family.rawValue, previous.size == size, previous.modified == modified,
-                   !(repricing && previous.hasUnpriced) {
+                   !(repricing && previous.hasUnpriced),
+                   !reopensTask(path, previous, modifiedMs: modified / 1_000_000, nowMs: nowMs) {
                     continue
                 }
                 plan.files.append(PlannedFile(path: path, family: family, root: root, stat: stat, previous: previous,
@@ -200,6 +218,14 @@ final class HistoryAnalyzer {
             planHermes(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing, into: &plan)
         }
         return plan
+    }
+
+    /// A file whose records include an incomplete task, quiet for 30 minutes, is analysed again once (METRICS 6.11).
+    private func reopensTask(_ path: String, _ previous: HistoryDatabase.Entry, modifiedMs: Int64, nowMs: Int64) -> Bool {
+        guard previous.hasOpenTask, nowMs - modifiedMs >= Self.openTaskQuietMs,
+              openTaskRetries[path] != previous.modified else { return false }
+        openTaskRetries[path] = previous.modified
+        return true
     }
 
     /// Hermes Agent's log files (METRICS 4.15, 8): per log folder in startup order, each stored under its identity
@@ -237,13 +263,19 @@ final class HistoryAnalyzer {
         var seen: Set<String> = []
         let paths = configuration.resolvedOpenclawRoots.flatMap(OpenClawHome.databases(in:)).filter { seen.insert($0).inserted }
         let reprices = repricing && entries.values.contains { $0.family == Self.openclawFamily && $0.hasUnpriced }
+        let nowMs = options.nowMs ?? Clock.milliseconds(Date())
         for path in OpenClawSource.startupOrder(paths) {
             guard let stat = FileStat.lstat(path), stat.isRegularFile else { continue }
             plan.discovered += 1
             let wal = FileStat.lstat(path + "-wal")
             let identity = [path, "\(stat.identity.device):\(stat.identity.inode)", "\(stat.size):\(stat.modifiedNs)",
                             wal.map { "\($0.size):\($0.modifiedNs)" } ?? "-", "v\(options.analysisVersion)"].joined(separator: "|")
-            if !zoneChanged, !reprices, try database.meta(Self.openclawMetaPrefix + path) == identity { continue }
+            let prefix = path + "#"
+            let openTask = entries.contains { key, entry in
+                key.hasPrefix(prefix) && entry.hasOpenTask && nowMs - entry.modified >= Self.openTaskQuietMs
+                    && openTaskRetries[key] != entry.modified
+            }
+            if !zoneChanged, !reprices, !openTask, try database.meta(Self.openclawMetaPrefix + path) == identity { continue }
             var planned = PlannedOpenClawDatabase(path: path, identity: identity)
             let source: OpenClawDatabase
             do {
@@ -263,7 +295,8 @@ final class HistoryAnalyzer {
                         let rows = try source.maxSeq(session: window.sessionId) ?? 0
                         let previous = entries[agentId]
                         if let previous, !zoneChanged, previous.version == options.analysisVersion, previous.size == rows,
-                           previous.modified == window.activityMs, !(repricing && previous.hasUnpriced) {
+                           previous.modified == window.activityMs, !(repricing && previous.hasUnpriced),
+                           !reopensTask(agentId, previous, modifiedMs: window.activityMs, nowMs: nowMs) {
                             continue
                         }
                         // The window's own dedupe set orders its keys; ownership across windows is decided in `run`.
@@ -271,17 +304,24 @@ final class HistoryAnalyzer {
                         var parser = OpenClawParser(agentId: agentId, fileID: 0, window: window)
                         var latest: [String: ResponseRecord] = [:]
                         var order: [String] = []
+                        var tasks = TaskLineReader(source: .openclaw)
+                        tasks?.mirrorWindow = window.mirrorsTurns
+                        var taskLines: [(line: TaskLine, model: String?, effort: String?)] = []
                         try source.rows(session: window.sessionId, after: .min, maxLineBytes: FileTailer.defaultMaxLineBytes,
-                                        readsTools: false) { row in
+                                        readsTools: false, tasks: &tasks) { row in
                             guard let entry = row.entry else { return }
                             parser.consume(entry, deduper: &local) { upsert in
                                 if latest[upsert.record.key] == nil { order.append(upsert.record.key) }
                                 latest[upsert.record.key] = upsert.record
                             }
+                            guard case .line = row.task else { return }
+                            let effort = parser.state.modes.attribution(for: .effort)
+                            taskLines.append((row.task, parser.state.model, effort.isUnknown ? nil : effort.mode))
                         }
                         planned.windows.append(PlannedOpenClawWindow(
                             agentId: agentId, records: order.compactMap { latest[$0] }, keys: order,
-                            identity: (rows, window.activityMs), previous: previous))
+                            identity: (rows, window.activityMs), previous: previous, taskLines: taskLines,
+                            lastLineMs: parser.state.lastLineMs))
                     }
                 }
             } catch {
@@ -395,16 +435,21 @@ final class HistoryAnalyzer {
         try database.loadKeys(excluding: replaced, into: &deduper)
         var labeler = DayLabeler(timeZone: options.timeZone)
         var pending: [(path: String, entry: HistoryDatabase.Entry, keys: [UInt64])] = []
+        var pendingTasks: [String: [TaskRecord]] = [:]
         var lastSave = DispatchTime.now().uptimeNanoseconds
+        let analysisMs = options.nowMs ?? Clock.milliseconds(Date())
 
         func flush(force: Bool) throws {
             let now = DispatchTime.now().uptimeNanoseconds
             guard !pending.isEmpty, force || Int64(now - lastSave) / 1_000_000 >= options.saveIntervalMs else { return }
-            let ids = try database.save(pending)
+            let ids = try database.save(pending, taskRecords: pendingTasks)
             for (path, id) in ids { entries[path]?.id = id }
             try saveBindings()
             pending.removeAll(keepingCapacity: true)
+            pendingTasks.removeAll(keepingCapacity: true)
             lastSave = now
+            tasksChanged = true
+            taskVersion += 1
         }
 
         if !plan.files.isEmpty {
@@ -431,22 +476,30 @@ final class HistoryAnalyzer {
                     continue
                 }
                 // Parsers bridge paths through NSString; drain those per file on this long-running thread.
-                let (days, keys, unknown) = autoreleasepool { () -> ([UsageKey: DayAggregate], [UInt64], Bool) in
+                let (days, keys, unknown, tasks) = autoreleasepool {
+                    () -> ([UsageKey: DayAggregate], [UInt64], Bool, [TaskRecord]?) in
                     var parser = TranscriptParser(
-                        family: file.family, agentId: file.path, fileID: FileID(truncatingIfNeeded: index), root: file.root)
+                        family: file.family, agentId: file.path, fileID: FileID(truncatingIfNeeded: index), root: file.root,
+                        tasks: .history)
                     if file.family == .droid { parser.droidUnreadableParent = droidUnreadableParents[file.path] }
                     var latest: [String: ResponseRecord] = [:]
-                    parser.consume(output.lines, deduper: &deduper) { latest[$0.record.key] = $0.record }
+                    parser.consume(output.lines, taskLines: output.tasks, deduper: &deduper) { latest[$0.record.key] = $0.record }
                     // Factory Droid's history rule: the whole transcript, then one sidecar read (METRICS 4.16).
                     _ = parser.finishReadCycle { latest[$0.record.key] = $0.record }
                     if file.family == .droid {
                         droidUnreadableParents[file.path] = parser.droidUnreadableParent
-                        if parser.droidOwnCountersUnknown { return ([:], deduper.finishFile(), true) }
+                        if parser.droidOwnCountersUnknown { return ([:], deduper.finishFile(), true, nil) }
                     }
                     parser.finishHistory { latest[$0.record.key] = $0.record }
                     let days = DayAggregate.contributions(
                         of: latest.values, source: parser.state.source, labeler: &labeler, pricing: pricing)
-                    return (days, deduper.finishFile(), false)
+                    // The task records of the file read whole (METRICS 6.11 *Task records*).
+                    let tasks = parser.tasks.map {
+                        TaskTranscriptReading.records(of: $0, agentId: file.path, source: parser.state.source,
+                                                      lastLineMs: parser.state.lastLineMs, analysisMs: analysisMs,
+                                                      timeZone: options.timeZone)
+                    }
+                    return (days, deduper.finishFile(), false, tasks)
                 }
                 if unknown {
                     // A Factory Droid session whose parent sidecar could not be read: not stored, so the next analysis
@@ -456,7 +509,7 @@ final class HistoryAnalyzer {
                 }
                 let stat = file.family == .grokBuild ? file.family.stat(file.path) ?? output.read.stat ?? file.stat
                     : output.read.stat ?? file.stat
-                let entry = HistoryDatabase.Entry(
+                var entry = HistoryDatabase.Entry(
                     id: file.previous?.id,
                     family: file.family.rawValue,
                     size: file.droidIdentity?.size ?? stat.size,
@@ -464,8 +517,10 @@ final class HistoryAnalyzer {
                     version: options.analysisVersion,
                     days: days
                 )
+                entry.hasOpenTask = tasks?.contains { !$0.complete } ?? false
                 entries[file.path] = entry
                 pending.append((file.path, entry, keys))
+                if let tasks { pendingTasks[file.path] = tasks }
                 report.filesAnalyzed += 1
                 report.bytesAnalyzed += stat.size
                 try flush(force: false)
@@ -538,14 +593,26 @@ final class HistoryAnalyzer {
                     if isCancelled() { report.cancelled = true; break }
                     let fileID = windowID
                     windowID &+= 1
+                    // Before the window claims its keys: an assistant entry another window owns is a duplicate (6.9).
+                    var composer = TaskComposer(source: .openclaw, keepsEveryTask: true)
+                    for (line, model, effort) in window.taskLines {
+                        if let t = composer.feed(line, isDuplicate: { deduper.isOwnedByOtherFile($0, for: fileID) }) {
+                            composer.note(t: t, model: model, effort: effort)
+                        }
+                    }
+                    let tasks = TaskTranscriptReading.records(of: composer, agentId: window.agentId, source: .openclaw,
+                                                              lastLineMs: window.lastLineMs, analysisMs: analysisMs,
+                                                              timeZone: options.timeZone)
                     let records = window.records.filter { deduper.claim($0.key, for: fileID) != .otherFile }
                     let keys = deduper.finishFile()
-                    let entry = HistoryDatabase.Entry(
+                    var entry = HistoryDatabase.Entry(
                         id: window.previous?.id, family: Self.openclawFamily, size: window.identity.rows,
                         modified: window.identity.modified, version: options.analysisVersion,
                         days: DayAggregate.contributions(of: records, source: .openclaw, labeler: &labeler, pricing: pricing))
+                    entry.hasOpenTask = tasks.contains { !$0.complete }
                     entries[window.agentId] = entry
                     pending.append((window.agentId, entry, keys))
+                    pendingTasks[window.agentId] = tasks
                     report.sessionsAnalyzed += 1
                     state.filesDone += 1
                     try flush(force: false)
@@ -634,6 +701,22 @@ final class HistoryAnalyzer {
     }
 
     // MARK: - Results
+
+    // MARK: - Task records (METRICS 6.11)
+
+    /// Each scored source's prediction coefficients, from the stored records; computed again only after records were
+    /// written (in memory, never stored).
+    func taskCalibration() throws -> [SourceKind: TaskModels] {
+        guard tasksChanged else { return calibration }
+        calibration = try database.taskCalibration()
+        tasksChanged = false
+        return calibration
+    }
+
+    /// The complete records of the enabled sources, without their feature rows: the comparison's input.
+    func comparisonRecords(sources: Set<SourceKind>) throws -> [TaskRecord] {
+        try database.taskRecords(rows: false, completeOnly: true).filter { sources.contains($0.source) }
+    }
 
     /// Daily totals: sums over files, for the given sources, sorted by day then source. Each contribution's
     /// unpriced facts are read on their own and then summed (METRICS 9.10 *Reading*).

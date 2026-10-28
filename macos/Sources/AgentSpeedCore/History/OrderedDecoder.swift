@@ -18,6 +18,8 @@ final class OrderedDecoder: @unchecked Sendable {
     struct Output: Sendable {
         var lines: DecodedLines
         var read: FileTailer.ReadResult
+        /// The task lines of a scored source's file (METRICS 6.9), one per line; empty otherwise.
+        var tasks: [TaskLine] = []
     }
 
     private let jobs: [Job]
@@ -91,9 +93,10 @@ final class OrderedDecoder: @unchecked Sendable {
         while let index = claim() {
             let job = jobs[index]
             var reader = TranscriptReader(path: job.path, start: .beginning)
-            let (lines, read) = TranscriptDecoder.decode(job.family, reader: &reader)
+            var tasks = job.family.sources.first.flatMap { TaskLineReader(source: $0) }
+            let output = TranscriptDecoder.decode(job.family, reader: &reader, tasks: &tasks)
             condition.lock()
-            if !cancelled { results[index] = Output(lines: lines, read: read) }
+            if !cancelled { results[index] = Output(lines: output.lines, read: output.read, tasks: output.tasks) }
             condition.broadcast()
             condition.unlock()
         }
