@@ -912,6 +912,37 @@ cost_cases = [
     cost_case("a model added by a newer table has no price in the older one", "v1", "mimo-v2.6-pro",
               tk(10_000, 6000, 3000, 0, 400), None, provider="custom"),
 ]
+# Real prices of spec/assets/prices.json, pinned to an instant: a later price change adds a period and keeps them valid.
+BUNDLED_AT = "2026-10-28T12:00Z"
+
+
+def bundled_case(name, model, tokens, pico_usd, tier=None, fast=False):
+    case = cost_case(name, None, model, tokens, pico_usd, tier)
+    del case["table"]
+    case["at"] = BUNDLED_AT
+    if fast:
+        case["fast"] = True
+    return case
+
+
+bundled_cost_cases = [
+    bundled_case("GPT-6.1 Terra at exactly 272 000 input tokens keeps its base prices", "gpt-6.1-terra",
+                 tk(272_000, 200_010, 20_000, 0, 4000),
+                 pico((51_990, 1), (200_010, 0.05), (20_000, 1.25), (4000, 5))),
+    bundled_case("one more input token prices the whole GPT-6.1 Terra response at the long-context rates",
+                 "gpt-6.1-terra", tk(272_001, 200_010, 20_000, 0, 4000),
+                 pico((51_991, 2), (200_010, 0.1), (20_000, 2.5), (4000, 7.5)), tier=0),
+    bundled_case("a routed GPT-6.1 Terra id bills cache reads and cache writes apart", "openai/gpt-6.1-terra",
+                 tk(10_000, 6000, 1000, 0, 500), pico((3000, 1), (6000, 0.05), (1000, 1.25), (500, 5))),
+    bundled_case("GPT-6.1 Terra fast mode at exactly 272 000 input tokens", "gpt-6.1-terra",
+                 tk(272_000, 200_010, 20_000, 0, 4000),
+                 pico((51_990, 2), (200_010, 0.1), (20_000, 2.5), (4000, 10)), fast=True),
+    bundled_case("a -fast GPT-6.1 Terra id above 272 000 input tokens uses the long-context fast prices",
+                 "gpt-6.1-terra-fast", tk(272_001, 200_010, 20_000, 0, 4000),
+                 pico((51_991, 4), (200_010, 0.2), (20_000, 5), (4000, 15)), tier=0),
+    bundled_case("GPT-5.6 Terra keeps its own prices", "gpt-5.6-terra", tk(10_000, 6000, 1000, 0, 500),
+                 pico((3000, 2), (6000, 0.2), (1000, 2.5), (500, 12))),
+]
 day_cases = [
     {"name": "a bound day keeps its table", "bindings": {"2026-10-20": 1}, "date": "2026-10-20",
      "model": "claude-opus-5-5", "tokens": tk(1000, 0, 0, 0, 100), "version": 1,
@@ -992,9 +1023,12 @@ with open(os.path.join(ROOT, "price-cases.json"), "w", encoding="utf-8") as f:
                            "`resolve.expect` adds ` fast` when the id itself selects fast mode. Tokens are "
                            "normalized usage (METRICS 3.2). `days` (9.7): all tables "
                            "loaded, the highest version current, `bindings` stored; `version` is the date's binding "
-                           "afterwards.",
+                           "afterwards. `bundled.cost`: cost cases against spec/assets/prices.json, the real table "
+                           "every build bundles; each has an `at`, so a later price change (a new period) keeps it "
+                           "valid.",
                "tables": {"v1": "prices/v1.json", "v2": "prices/v2.json"},
-               "resolve": resolve_cases, "cost": cost_cases, "days": day_cases}, f, indent=2, ensure_ascii=False)
+               "resolve": resolve_cases, "cost": cost_cases, "days": day_cases,
+               "bundled": {"cost": bundled_cost_cases}}, f, indent=2, ensure_ascii=False)
     f.write("\n")
 
 # --- Money formatting and exchange rates (DESIGN 9, NETWORK 4) ------------------

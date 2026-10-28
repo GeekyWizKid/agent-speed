@@ -1,5 +1,5 @@
 {
-  "_comment": "METRICS 9.2-9.3 against the fixture tables in `tables` (paths relative to this folder). `resolve.expect` is a model id, `free` or `unknown`. `cost.expect`: exact pico-USD, the rounded micro-USD (null = unknown price) and the index of the tier used (null = the base prices); `at` (UTC, YYYY-MM-DD or YYYY-MM-DDTHH:MMZ) is the response's endMs for periods and off-peak rules (absent = none applies); `fast` marks a fast-mode response. `resolve.expect` adds ` fast` when the id itself selects fast mode. Tokens are normalized usage (METRICS 3.2). `days` (9.7): all tables loaded, the highest version current, `bindings` stored; `version` is the date's binding afterwards.",
+  "_comment": "METRICS 9.2-9.3 against the fixture tables in `tables` (paths relative to this folder). `resolve.expect` is a model id, `free` or `unknown`. `cost.expect`: exact pico-USD, the rounded micro-USD (null = unknown price) and the index of the tier used (null = the base prices); `at` (UTC, YYYY-MM-DD or YYYY-MM-DDTHH:MMZ) is the response's endMs for periods and off-peak rules (absent = none applies); `fast` marks a fast-mode response. `resolve.expect` adds ` fast` when the id itself selects fast mode. Tokens are normalized usage (METRICS 3.2). `days` (9.7): all tables loaded, the highest version current, `bindings` stored; `version` is the date's binding afterwards. `bundled.cost`: cost cases against spec/assets/prices.json, the real table every build bundles; each has an `at`, so a later price change (a new period) keeps it valid.",
   "tables": {
     "v1": "prices/v1.json",
     "v2": "prices/v2.json"
@@ -952,5 +952,118 @@
       "version": 2,
       "costMicroUsd": null
     }
-  ]
+  ],
+  "bundled": {
+    "cost": [
+      {
+        "name": "GPT-6.1 Terra at exactly 272 000 input tokens keeps its base prices",
+        "model": "gpt-6.1-terra",
+        "tokens": {
+          "input": 272000,
+          "cachedInput": 200010,
+          "cacheWriteInput": 20000,
+          "cacheWrite1hInput": 0,
+          "output": 4000,
+          "reasoning": 0
+        },
+        "expect": {
+          "costPicoUsd": 106990500000,
+          "costMicroUsd": 106991,
+          "tier": null
+        },
+        "at": "2026-10-28T12:00Z"
+      },
+      {
+        "name": "one more input token prices the whole GPT-6.1 Terra response at the long-context rates",
+        "model": "gpt-6.1-terra",
+        "tokens": {
+          "input": 272001,
+          "cachedInput": 200010,
+          "cacheWriteInput": 20000,
+          "cacheWrite1hInput": 0,
+          "output": 4000,
+          "reasoning": 0
+        },
+        "expect": {
+          "costPicoUsd": 203983000000,
+          "costMicroUsd": 203983,
+          "tier": 0
+        },
+        "at": "2026-10-28T12:00Z"
+      },
+      {
+        "name": "a routed GPT-6.1 Terra id bills cache reads and cache writes apart",
+        "model": "openai/gpt-6.1-terra",
+        "tokens": {
+          "input": 10000,
+          "cachedInput": 6000,
+          "cacheWriteInput": 1000,
+          "cacheWrite1hInput": 0,
+          "output": 500,
+          "reasoning": 0
+        },
+        "expect": {
+          "costPicoUsd": 7050000000,
+          "costMicroUsd": 7050,
+          "tier": null
+        },
+        "at": "2026-10-28T12:00Z"
+      },
+      {
+        "name": "GPT-6.1 Terra fast mode at exactly 272 000 input tokens",
+        "model": "gpt-6.1-terra",
+        "tokens": {
+          "input": 272000,
+          "cachedInput": 200010,
+          "cacheWriteInput": 20000,
+          "cacheWrite1hInput": 0,
+          "output": 4000,
+          "reasoning": 0
+        },
+        "expect": {
+          "costPicoUsd": 213981000000,
+          "costMicroUsd": 213981,
+          "tier": null
+        },
+        "at": "2026-10-28T12:00Z",
+        "fast": true
+      },
+      {
+        "name": "a -fast GPT-6.1 Terra id above 272 000 input tokens uses the long-context fast prices",
+        "model": "gpt-6.1-terra-fast",
+        "tokens": {
+          "input": 272001,
+          "cachedInput": 200010,
+          "cacheWriteInput": 20000,
+          "cacheWrite1hInput": 0,
+          "output": 4000,
+          "reasoning": 0
+        },
+        "expect": {
+          "costPicoUsd": 407966000000,
+          "costMicroUsd": 407966,
+          "tier": 0
+        },
+        "at": "2026-10-28T12:00Z"
+      },
+      {
+        "name": "GPT-5.6 Terra keeps its own prices",
+        "model": "gpt-5.6-terra",
+        "tokens": {
+          "input": 10000,
+          "cachedInput": 6000,
+          "cacheWriteInput": 1000,
+          "cacheWrite1hInput": 0,
+          "output": 500,
+          "reasoning": 0
+        },
+        "expect": {
+          "costPicoUsd": 15700000000,
+          "costMicroUsd": 15700,
+          "tier": null
+        },
+        "at": "2026-10-28T12:00Z"
+      }
+    ]
+  }
 }
