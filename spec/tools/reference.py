@@ -21,6 +21,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import sys
 import tempfile
 import time
@@ -1678,7 +1679,11 @@ HERMES_CALL = re.compile(r"API call #([0-9]+): model=(.*?) provider=([^ ]*) in=(
 HERMES_LOG_PREFIX = re.compile(r"\[[^\]]*\] *")
 HERMES_FAILED = ("API call failed after ", "Non-retryable client error: ")
 HERMES_LOGGERS = ("agent.turn_context", "agent.conversation_loop")
-INT64_MAX = 2 ** 63 - 1
+HERMES_CONFIG_MAX = 1 << 20
+HERMES_MODEL_HEADER = re.compile(r"(?:model|\"model\"|'model')[ \t]*:(?:[ \t]+(?:#.*)?)?")
+HERMES_RUNTIME_KEY = re.compile(r"(?:openai_runtime|\"openai_runtime\"|'openai_runtime')[ \t]*:(|[ \t].*)")
+HERMES_CODEX_VALUE = re.compile(r"[ \t]+(?:\"[ \t]*codex_app_server[ \t]*\"|'[ \t]*codex_app_server[ \t]*'|codex_app_server)"
+                                r"(?:[ \t]+#.*)?[ \t]*", re.I | re.A)
 
 
 def hermes_home(env=None, platform=None, home=None):
@@ -1734,6 +1739,43 @@ def discover_hermes(folder):
     return [os.path.join(folder, name) for name in sorted(os.listdir(folder))
             if HERMES_FILE.fullmatch(name) and os.path.isfile(os.path.join(folder, name))
             and not os.path.islink(os.path.join(folder, name))]
+
+
+def hermes_config_path(folder, platform=None):
+    """The `config.yaml` of a log folder's profile (METRICS 4.15 Codex runtime): none unless the folder is `logs`."""
+    folder = os.path.normpath(folder)
+    name = os.path.basename(folder)
+    if (name.lower() if (platform or sys.platform) == "win32" else name) != "logs":
+        return None
+    return os.path.join(os.path.dirname(folder), "config.yaml")
+
+
+def hermes_codex_runtime(text):
+    """Whether config.yaml text selects the Codex runtime: the last `openai_runtime` key line of a top-level `model`
+    block decides (METRICS 4.15 Codex runtime). A tolerant line reader, not a YAML parser."""
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    codex, in_model, indent = False, False, None
+    for line in text.split("\n"):
+        if line.endswith("\r"):
+            line = line[:-1]
+        rest = line.lstrip(" \t")
+        if not rest or rest.startswith("#"):
+            continue
+        body = line.lstrip(" ")
+        depth = len(line) - len(body)
+        if depth == 0:
+            in_model, indent = HERMES_MODEL_HEADER.fullmatch(line) is not None, None
+            continue
+        if not in_model:
+            continue
+        if indent is None:
+            indent = depth
+        if depth == indent:
+            key = HERMES_RUNTIME_KEY.fullmatch(body)
+            if key:
+                codex = HERMES_CODEX_VALUE.fullmatch(key.group(1)) is not None
+    return codex
 
 
 def hermes_lines(path, start_offset=0, max_lines=None):
@@ -1797,6 +1839,42 @@ class HermesSet:
         self.folder, self.tz = folder, tz
         self.agents = OrderedDict()
         self.malformed = 0
+        self.codex_runtime = False
+        self.config_sig = None
+
+    def check_config(self):
+        """Re-reads the profile's config.yaml when its modification time or size changed (METRICS 4.15)."""
+        path = hermes_config_path(self.folder)
+        try:
+            st = os.stat(path) if path else None
+        except (FileNotFoundError, NotADirectoryError):
+            st = None
+        except OSError:
+            return
+        if st is None or not stat.S_ISREG(st.st_mode):
+            self.config_sig = None
+            self.set_codex_runtime(False)
+            return
+        sig = (st.st_mtime_ns, st.st_size)
+        if sig == self.config_sig:
+            return
+        data = b""
+        if st.st_size <= HERMES_CONFIG_MAX:
+            try:
+                with open(path, "rb") as f:
+                    data = f.read(HERMES_CONFIG_MAX + 1)
+            except OSError:
+                return
+        self.config_sig = sig
+        self.set_codex_runtime(len(data) <= HERMES_CONFIG_MAX
+                               and hermes_codex_runtime(data.decode("utf-8", errors="replace")))
+
+    def set_codex_runtime(self, on):
+        if on and not self.codex_runtime:
+            for state in self.agents.values():
+                if state.phase == "generating":
+                    state.phase, state.in_flight = "idle", None
+        self.codex_runtime = on
 
     def agent(self, sid, ts):
         state = self.agents.get(sid)
@@ -1837,7 +1915,7 @@ class HermesSet:
             return
         if kind == "turn":
             state = self.agent(sid, ts)
-            state.phase, state.in_flight = "generating", ts
+            state.phase, state.in_flight = ("idle", None) if self.codex_runtime else ("generating", ts)
             if turn.group(1):
                 state.model = turn.group(1)
             state.is_subagent = turn.group(2) == "subagent"
@@ -1889,6 +1967,7 @@ def hermes_sets(folders, dedupe, tz=None, since_ms=None):
     sets = []
     for folder in OrderedDict.fromkeys(folders):
         hs = HermesSet(folder, tz)
+        hs.check_config()
         for path in hermes_files(folder, since_ms):
             hs.feed(path, dedupe)
         sets.append(hs)
@@ -1903,6 +1982,7 @@ class HermesTail:
         self.offsets = {}
 
     def read(self, dedupe):
+        self.set.check_config()
         timed = []
         for path in discover_hermes(self.set.folder):
             st = os.stat(path)
@@ -2948,8 +3028,8 @@ def hermes_agent_view(state):
 
 
 def check_hermes(root, hm, dedupe):
-    """METRICS 4.15 on spec/fixtures/hermes: discovery, the log sets in `hermes.order`, traces, wall times, homes
-    and a scripted rotation."""
+    """METRICS 4.15 on spec/fixtures/hermes: discovery, the log sets in `hermes.order`, traces, wall times, homes,
+    a scripted rotation, config.yaml texts and a scripted Codex runtime switch."""
     failures = []
     tz = ZoneInfo(hm["timeZone"])
     home = os.path.join(root, hm["home"])
@@ -2960,7 +3040,10 @@ def check_hermes(root, hm, dedupe):
     sets = OrderedDict()
     for rel in hm["order"]:
         folder = os.path.dirname(os.path.join(root, rel))
-        sets.setdefault(folder, HermesSet(folder, tz)).feed(os.path.join(root, rel), dedupe)
+        if folder not in sets:
+            sets[folder] = HermesSet(folder, tz)
+            sets[folder].check_config()
+        sets[folder].feed(os.path.join(root, rel), dedupe)
     for rel_folder, exp in hm["sets"].items():
         hs = sets.get(os.path.join(root, rel_folder))
         if hs is None:
@@ -2982,7 +3065,10 @@ def check_hermes(root, hm, dedupe):
         trace_dedupe, trace_sets = Deduper(), {}
         for rel in hm["order"]:
             folder = os.path.dirname(os.path.join(root, rel))
-            hs = trace_sets.setdefault(folder, HermesSet(folder, tz))
+            if folder not in trace_sets:
+                trace_sets[folder] = HermesSet(folder, tz)
+                trace_sets[folder].check_config()
+            hs = trace_sets[folder]
             if rel == t["file"]:
                 hs.feed(os.path.join(root, rel), trace_dedupe, max_lines=t["afterLine"])
                 break
@@ -3004,6 +3090,59 @@ def check_hermes(root, hm, dedupe):
             failures.append("hermes home %r %s: expected %r got %r" % (case["env"], case["platform"],
                                                                        case["expected"], got))
     failures += check_hermes_rotation(hm["rotation"])
+    for case in hm["runtimeConfigs"]:
+        got = hermes_codex_runtime(case["text"])
+        if got != case["codexRuntime"]:
+            failures.append("hermes config.yaml %r: codexRuntime expected %r got %r" % (case["name"],
+                                                                                      case["codexRuntime"], got))
+    failures += check_hermes_codex_runtime(hm["codexRuntime"])
+    return failures
+
+
+def check_hermes_codex_runtime(scenario):
+    """Replays `hermes.codexRuntime` in a scratch Hermes home (METRICS 4.15 Codex runtime)."""
+    failures = []
+    tz = ZoneInfo(scenario["timeZone"])
+    with tempfile.TemporaryDirectory() as tmp:
+        home = os.path.join(tmp, "home")
+        tails = OrderedDict()
+        for rel in scenario["logFolders"]:
+            os.makedirs(os.path.join(home, *rel.split("/")))
+            tails[rel] = HermesTail(os.path.join(home, *rel.split("/")), tz)
+        dedupe = Deduper()
+        for number, step in enumerate(scenario["steps"], start=1):
+            path = os.path.join(home, *(step.get("append") or step.get("write") or step.get("remove") or "").split("/"))
+            if "append" in step:
+                with open(path, "ab") as fh:
+                    fh.write("".join(line + "\n" for line in step["lines"]).encode("utf-8"))
+                os.utime(path, (step["mtime"] / 1000, step["mtime"] / 1000))
+            elif "write" in step:
+                data = step["text"].encode("utf-8")
+                data += b"#" * (step.get("size", len(data)) - len(data))
+                with open(path, "wb") as fh:
+                    fh.write(data)
+                os.utime(path, (step["mtime"] / 1000, step["mtime"] / 1000))
+            elif "remove" in step:
+                os.remove(path)
+            else:
+                for tail in tails.values():
+                    tail.read(dedupe)
+                keys = [k for tail in tails.values() for st in tail.set.agents.values() for k in st.responses]
+                if sorted(keys) != sorted(step["responseKeys"]):
+                    failures.append("hermes codex runtime step %d: keys expected %r got %r" % (
+                        number, step["responseKeys"], keys))
+                for rel, want in step["sets"].items():
+                    hs = tails[rel].set
+                    if hs.codex_runtime != want["codexRuntime"]:
+                        failures.append("hermes codex runtime step %d %s: codexRuntime expected %r got %r" % (
+                            number, rel, want["codexRuntime"], hs.codex_runtime))
+                    for sid, agent_want in want["agents"].items():
+                        st = hs.agents.get(sid)
+                        got = dict(phase=st.phase, inFlightStartMs=st.in_flight, lastLineMs=st.last_line,
+                                   model=st.model) if st else None
+                        if got is None or any(got[k] != v for k, v in agent_want.items()):
+                            failures.append("hermes codex runtime step %d %s#%s: expected %r got %r" % (
+                                number, rel, sid, agent_want, got))
     return failures
 
 

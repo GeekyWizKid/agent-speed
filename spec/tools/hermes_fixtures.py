@@ -8,7 +8,8 @@ rotated files, and the profile `work` has its own `logs/agent.log`. Lines are la
 (`%(asctime)s %(levelname)s%(session_tag)s %(name)s: %(message)s`), with wall times of a process in
 America/Los_Angeles (PDT, UTC-7 on 2026-10-20). The returned expectations have the parser-expected.json shape of the
 `hermes` block: `order`, `mtimes`, `discover`, `sets` (per log folder: malformed lines and one agent per session id),
-`traces`, `wallTimes`, `homes` and a scripted `rotation`. Expected values are written by hand from METRICS 4.15,
+`traces`, `wallTimes`, `homes`, a scripted `rotation`, `runtimeConfigs` (config.yaml texts and whether they select
+the Codex runtime) and a scripted `codexRuntime`. Expected values are written by hand from METRICS 4.15,
 independently of reference.py: every UTC time below is the local time plus seven hours, worked out by hand.
 """
 import json
@@ -254,7 +255,13 @@ def write_fixtures(out_dir):
                     "environment. `rotation` replays a log folder with real renames: `append` writes `lines` (each "
                     "followed by a newline) or raw `text` to a file and sets its modification time, `rename` and "
                     "`delete` change files, `read` reads every file of the folder from the offset its identity "
-                    "reached and checks every response key emitted so far and the listed agents.",
+                    "reached and checks every response key emitted so far and the listed agents. `runtimeConfigs` "
+                    "give config.yaml texts and whether they select the Codex runtime. `codexRuntime` replays a "
+                    "Hermes home (folder `home`, with the profile `p`): `write` sets a file's text (`size`: padded "
+                    "with `#` to that many bytes) and modification time, `remove` deletes it, `append` works like "
+                    "the rotation's, and `read` checks the config.yaml of every log folder, then reads its new "
+                    "lines, and checks each listed log folder's switch, every response key emitted so far and the "
+                    "listed agents.",
         "home": "hermes/home",
         "timeZone": ZONE,
         "discover": sorted([log0, log1, log2, work]),
@@ -268,6 +275,8 @@ def write_fixtures(out_dir):
         "wallTimes": wall_times(),
         "homes": homes(),
         "rotation": rotation(),
+        "runtimeConfigs": runtime_configs(),
+        "codexRuntime": codex_runtime(),
     }
 
 
@@ -363,6 +372,134 @@ def rotation():
             {"append": "agent.log", "text": "\n", "mtime": ms("13:00:12.100")},
             {"read": True, "responseKeys": [k1, k2, k3],
              "agents": {"R": state("generating", ms("13:00:12.000"), ms("13:00:12.000"))}},
+        ],
+    }
+
+
+def runtime_configs():
+    """config.yaml texts and whether they select the Codex runtime (METRICS 4.15 Codex runtime)."""
+    def case(name, text, codex):
+        return {"name": name, "text": text, "codexRuntime": codex}
+
+    return [
+        case("block as Hermes writes it", "model:\n  default: gpt-5.5\n  provider: openai-codex\n"
+             "  openai_runtime: codex_app_server\n", True),
+        case("auto", "model:\n  openai_runtime: auto\n", False),
+        case("upper case and a comment", "model:\n  openai_runtime: CODEX_APP_SERVER  # via /codex-runtime\n", True),
+        case("double quotes with spaces inside", "model:\n  openai_runtime: \" codex_app_server \"\n", True),
+        case("single quotes, four spaces", "model:\n    openai_runtime: 'codex_app_server'\n", True),
+        case("quoted value and a comment", "model:\n  openai_runtime: \"codex_app_server\" # on\n", True),
+        case("quoted value and more text", "model:\n  openai_runtime: \"codex_app_server\" x\n", False),
+        case("BOM, CRLF, comments and blank lines", "\ufeff# Hermes\r\nmodel:   # main model\r\n\r\n"
+             "  # runtime below\r\n  default: gpt-5.5\r\n\t\r\n\t# tab comment\r\n"
+             "  openai_runtime: codex_app_server\r\n", True),
+        case("quoted keys", "\"model\":\n  'openai_runtime': codex_app_server\n", True),
+        case("spaces before the colons", "model :\n  openai_runtime : codex_app_server\n", True),
+        case("a tab after the colon", "model:\n  openai_runtime:\tcodex_app_server\n", True),
+        case("no space after the colon", "model:\n  openai_runtime:codex_app_server\n", False),
+        case("a hash without a space is part of the value", "model:\n  openai_runtime: codex_app_server#on\n", False),
+        case("empty value", "model:\n  openai_runtime:\n", False),
+        case("a comment as the value", "model:\n  openai_runtime: # codex_app_server\n", False),
+        case("YAML 1.1 boolean", "model:\n  openai_runtime: on\n", False),
+        case("environment reference", "model:\n  openai_runtime: ${HERMES_RUNTIME}\n", False),
+        case("block scalar", "model:\n  openai_runtime: >-\n    codex_app_server\n", False),
+        case("nested deeper", "model:\n  providers:\n    openai_runtime: codex_app_server\n", False),
+        case("first child sets the indentation", "model:\n    default: gpt-5.5\n  openai_runtime: codex_app_server\n",
+             False),
+        case("list item", "model:\n  - openai_runtime: codex_app_server\n", False),
+        case("tab indentation", "model:\n\topenai_runtime: codex_app_server\n", False),
+        case("another section", "fallback_model:\n  openai_runtime: codex_app_server\nmodel:\n  default: gpt-5.5\n",
+             False),
+        case("the block ends at a top-level key", "model:\n  default: gpt-5.5\nagent:\n"
+             "  openai_runtime: codex_app_server\n", False),
+        case("root level", "openai_runtime: codex_app_server\nmodel:\n  default: gpt-5.5\n", False),
+        case("scalar model", "model: gpt-5.5\n  openai_runtime: codex_app_server\n", False),
+        case("flow mapping", "model: {openai_runtime: codex_app_server}\n", False),
+        case("the last key line wins", "model:\n  openai_runtime: codex_app_server\n  openai_runtime: auto\n", False),
+        case("the last block wins", "model:\n  openai_runtime: auto\nmodel:\n  openai_runtime: codex_app_server\n",
+             True),
+        case("document markers", "---\nmodel:\n  openai_runtime: codex_app_server\n...\n", True),
+        case("no final newline", "model:\n  openai_runtime: codex_app_server", True),
+        case("empty file", "", False),
+    ]
+
+
+def codex_runtime():
+    """A Hermes home whose config.yaml switches the Codex runtime on and off while the reader runs (METRICS 4.15)."""
+    logs, plogs = "logs/agent.log", "profiles/p/logs/agent.log"
+    codex = "model:\n  default: gpt-5.5\n  provider: openai-codex\n  openai_runtime: codex_app_server\n"
+    c_turn1 = turn("07:00:00,000", "C", "gpt-5.5", "openai-codex", "cli", 0, "build the parser")
+    p_turn1 = turn("07:00:01,000", "P", "gpt-5.5", "openai-codex", "tui", 0, "hello")
+    c_turn2 = turn("07:00:30,000", "C", "gpt-5.5-codex", "openai-codex", "cli", 2, "now the tests")
+    f_turn = turn("07:01:00,000", "F", "claude-sonnet-5-5", "anthropic", "cli", 0, "review")
+    f_call = call("07:01:03,000", "F", 1, "claude-sonnet-5-5", "anthropic", "in=1000 out=50 total=1050 latency=2.5s")
+    f_end = ended("07:01:03,020", "F", "claude-sonnet-5-5")
+    c_turn3 = turn("07:02:00,000", "C", "gpt-5.5", "openai-codex", "cli", 4, "back to Hermes")
+    p_turn2 = turn("07:03:00,000", "P", "gpt-5.5", "openai-codex", "tui", 2, "again")
+    c_turn4 = turn("07:04:00,000", "C", "gpt-5.5", "openai-codex", "cli", 6, "one more")
+    kf = key("F", 1, "07:01:03,000")
+
+    def state(phase, in_flight, last, model=None):
+        out = {"phase": phase, "inFlightStartMs": in_flight, "lastLineMs": last}
+        if model:
+            out["model"] = model
+        return out
+
+    def read(keys, **sets):
+        return {"read": True, "responseKeys": keys, "sets": sets}
+
+    def logset(codex_on, **agents):
+        return {"codexRuntime": codex_on, "agents": agents}
+
+    return {
+        "timeZone": ZONE,
+        "logFolders": ["logs", "profiles/p/logs"],
+        "steps": [
+            # 1. No config.yaml: Hermes's own runtime.
+            {"append": logs, "lines": [c_turn1], "mtime": ms("14:00:00.100")},
+            {"append": plogs, "lines": [p_turn1], "mtime": ms("14:00:01.100")},
+            read([], logs=logset(False, C=state("generating", ms("14:00:00.000"), ms("14:00:00.000"))),
+                 **{"profiles/p/logs": logset(False, P=state("generating", ms("14:00:01.000"), ms("14:00:01.000")))}),
+            # 2. The default profile switches to the Codex runtime: its generating agents become idle; the profile p
+            #    has no config.yaml of its own and keeps Hermes's runtime.
+            {"write": "config.yaml", "text": codex, "mtime": ms("14:00:10.000")},
+            read([], logs=logset(True, C=state("idle", None, ms("14:00:00.000"))),
+                 **{"profiles/p/logs": logset(False, P=state("generating", ms("14:00:01.000"), ms("14:00:01.000")))}),
+            # 3. A Codex-runtime turn: only its start line; model and lastLineMs follow it, the phase stays idle.
+            {"append": logs, "lines": [c_turn2], "mtime": ms("14:00:30.100")},
+            read([], logs=logset(True, C=state("idle", None, ms("14:00:30.000"), "gpt-5.5-codex"))),
+            # 4. A turn Hermes still runs itself (another provider): its response counts, its phase stays idle.
+            {"append": logs, "lines": [f_turn, f_call], "mtime": ms("14:01:03.100")},
+            read([kf], logs=logset(True, F=state("idle", None, ms("14:01:03.000")))),
+            {"append": logs, "lines": [f_end], "mtime": ms("14:01:03.200")},
+            read([kf], logs=logset(True, F=state("idle", None, ms("14:01:03.020")))),
+            # 5. Back to auto: no phase changes until the next turn start.
+            {"write": "config.yaml", "text": "model:\n  default: gpt-5.5\n  openai_runtime: auto\n",
+             "mtime": ms("14:01:30.000")},
+            read([kf], logs=logset(False, C=state("idle", None, ms("14:00:30.000")))),
+            {"append": logs, "lines": [c_turn3], "mtime": ms("14:02:00.100")},
+            read([kf], logs=logset(False, C=state("generating", ms("14:02:00.000"), ms("14:02:00.000")))),
+            # 6. A hand edit with a BOM, CRLF and a quoted value turns it on again.
+            {"write": "config.yaml", "text": "\ufeffmodel:\r\n  openai_runtime: \"Codex_App_Server\"\r\n",
+             "mtime": ms("14:02:10.000")},
+            read([kf], logs=logset(True, C=state("idle", None, ms("14:02:00.000")))),
+            # 7. The profile p: a nested key does not count; its own block does.
+            {"write": "profiles/p/config.yaml", "text": "model:\n  providers:\n    openai_runtime: codex_app_server\n",
+             "mtime": ms("14:02:20.000")},
+            read([kf], **{"profiles/p/logs": logset(False, P=state("generating", ms("14:00:01.000"),
+                                                                   ms("14:00:01.000")))}),
+            {"write": "profiles/p/config.yaml", "text": codex, "mtime": ms("14:02:30.000")},
+            {"append": plogs, "lines": [p_turn2], "mtime": ms("14:03:00.100")},
+            read([kf], **{"profiles/p/logs": logset(True, P=state("idle", None, ms("14:03:00.000")))}),
+            # 8. config.yaml removed: Hermes's runtime again.
+            {"remove": "config.yaml"},
+            {"append": logs, "lines": [c_turn4], "mtime": ms("14:04:00.100")},
+            read([kf], logs=logset(False, C=state("generating", ms("14:04:00.000"), ms("14:04:00.000")))),
+            # 9. Exactly 1 MiB is read; one byte more is not (the switch is off).
+            {"write": "config.yaml", "text": codex, "size": 1048576, "mtime": ms("14:04:10.000")},
+            read([kf], logs=logset(True, C=state("idle", None, ms("14:04:00.000")))),
+            {"write": "config.yaml", "text": codex, "size": 1048577, "mtime": ms("14:04:20.000")},
+            read([kf], logs=logset(False, C=state("idle", None, ms("14:04:00.000")))),
         ],
     }
 

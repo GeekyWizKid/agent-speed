@@ -4805,7 +4805,7 @@
     ]
   },
   "hermes": {
-    "_comment": "Hermes Agent (METRICS 4.15). `home` plays the Hermes home; `discover` lists the log files of its log folders. Feed the files of `order` (modification times `mtimes`) to one parser state per log folder, with wall times in `timeZone`, and the shared dedupe set; `sets` gives, per log folder, its malformed API-call lines and one agent per session id (the empty id is the agent of lines without a session tag; agent id = absolute folder path + '#' + id), in the order agents first appear. `traces` give one session's phase after feeding a file up to and including physical line `afterLine`, after the files before it in `order`. `wallTimes` convert a record line's timestamp in a zone (null: not a record line). `homes` resolve the Hermes home from an environment. `rotation` replays a log folder with real renames: `append` writes `lines` (each followed by a newline) or raw `text` to a file and sets its modification time, `rename` and `delete` change files, `read` reads every file of the folder from the offset its identity reached and checks every response key emitted so far and the listed agents.",
+    "_comment": "Hermes Agent (METRICS 4.15). `home` plays the Hermes home; `discover` lists the log files of its log folders. Feed the files of `order` (modification times `mtimes`) to one parser state per log folder, with wall times in `timeZone`, and the shared dedupe set; `sets` gives, per log folder, its malformed API-call lines and one agent per session id (the empty id is the agent of lines without a session tag; agent id = absolute folder path + '#' + id), in the order agents first appear. `traces` give one session's phase after feeding a file up to and including physical line `afterLine`, after the files before it in `order`. `wallTimes` convert a record line's timestamp in a zone (null: not a record line). `homes` resolve the Hermes home from an environment. `rotation` replays a log folder with real renames: `append` writes `lines` (each followed by a newline) or raw `text` to a file and sets its modification time, `rename` and `delete` change files, `read` reads every file of the folder from the offset its identity reached and checks every response key emitted so far and the listed agents. `runtimeConfigs` give config.yaml texts and whether they select the Codex runtime. `codexRuntime` replays a Hermes home (folder `home`, with the profile `p`): `write` sets a file's text (`size`: padded with `#` to that many bytes) and modification time, `remove` deletes it, `append` works like the rotation's, and `read` checks the config.yaml of every log folder, then reads its new lines, and checks each listed log folder's switch, every response key emitted so far and the listed agents.",
     "home": "hermes/home",
     "timeZone": "America/Los_Angeles",
     "discover": [
@@ -5545,6 +5545,523 @@
               "phase": "generating",
               "inFlightStartMs": 1792501212000,
               "lastLineMs": 1792501212000
+            }
+          }
+        }
+      ]
+    },
+    "runtimeConfigs": [
+      {
+        "name": "block as Hermes writes it",
+        "text": "model:\n  default: gpt-5.5\n  provider: openai-codex\n  openai_runtime: codex_app_server\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "auto",
+        "text": "model:\n  openai_runtime: auto\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "upper case and a comment",
+        "text": "model:\n  openai_runtime: CODEX_APP_SERVER  # via /codex-runtime\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "double quotes with spaces inside",
+        "text": "model:\n  openai_runtime: \" codex_app_server \"\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "single quotes, four spaces",
+        "text": "model:\n    openai_runtime: 'codex_app_server'\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "quoted value and a comment",
+        "text": "model:\n  openai_runtime: \"codex_app_server\" # on\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "quoted value and more text",
+        "text": "model:\n  openai_runtime: \"codex_app_server\" x\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "BOM, CRLF, comments and blank lines",
+        "text": "﻿# Hermes\r\nmodel:   # main model\r\n\r\n  # runtime below\r\n  default: gpt-5.5\r\n\t\r\n\t# tab comment\r\n  openai_runtime: codex_app_server\r\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "quoted keys",
+        "text": "\"model\":\n  'openai_runtime': codex_app_server\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "spaces before the colons",
+        "text": "model :\n  openai_runtime : codex_app_server\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "a tab after the colon",
+        "text": "model:\n  openai_runtime:\tcodex_app_server\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "no space after the colon",
+        "text": "model:\n  openai_runtime:codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "a hash without a space is part of the value",
+        "text": "model:\n  openai_runtime: codex_app_server#on\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "empty value",
+        "text": "model:\n  openai_runtime:\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "a comment as the value",
+        "text": "model:\n  openai_runtime: # codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "YAML 1.1 boolean",
+        "text": "model:\n  openai_runtime: on\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "environment reference",
+        "text": "model:\n  openai_runtime: ${HERMES_RUNTIME}\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "block scalar",
+        "text": "model:\n  openai_runtime: >-\n    codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "nested deeper",
+        "text": "model:\n  providers:\n    openai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "first child sets the indentation",
+        "text": "model:\n    default: gpt-5.5\n  openai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "list item",
+        "text": "model:\n  - openai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "tab indentation",
+        "text": "model:\n\topenai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "another section",
+        "text": "fallback_model:\n  openai_runtime: codex_app_server\nmodel:\n  default: gpt-5.5\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "the block ends at a top-level key",
+        "text": "model:\n  default: gpt-5.5\nagent:\n  openai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "root level",
+        "text": "openai_runtime: codex_app_server\nmodel:\n  default: gpt-5.5\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "scalar model",
+        "text": "model: gpt-5.5\n  openai_runtime: codex_app_server\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "flow mapping",
+        "text": "model: {openai_runtime: codex_app_server}\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "the last key line wins",
+        "text": "model:\n  openai_runtime: codex_app_server\n  openai_runtime: auto\n",
+        "codexRuntime": false
+      },
+      {
+        "name": "the last block wins",
+        "text": "model:\n  openai_runtime: auto\nmodel:\n  openai_runtime: codex_app_server\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "document markers",
+        "text": "---\nmodel:\n  openai_runtime: codex_app_server\n...\n",
+        "codexRuntime": true
+      },
+      {
+        "name": "no final newline",
+        "text": "model:\n  openai_runtime: codex_app_server",
+        "codexRuntime": true
+      },
+      {
+        "name": "empty file",
+        "text": "",
+        "codexRuntime": false
+      }
+    ],
+    "codexRuntime": {
+      "timeZone": "America/Los_Angeles",
+      "logFolders": [
+        "logs",
+        "profiles/p/logs"
+      ],
+      "steps": [
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:00:00,000 INFO [C] agent.turn_context: conversation turn: session=C model=gpt-5.5 provider=openai-codex platform=cli history=0 msg='build the parser'"
+          ],
+          "mtime": 1792504800100
+        },
+        {
+          "append": "profiles/p/logs/agent.log",
+          "lines": [
+            "2026-10-20 07:00:01,000 INFO [P] agent.turn_context: conversation turn: session=P model=gpt-5.5 provider=openai-codex platform=tui history=0 msg='hello'"
+          ],
+          "mtime": 1792504801100
+        },
+        {
+          "read": true,
+          "responseKeys": [],
+          "sets": {
+            "logs": {
+              "codexRuntime": false,
+              "agents": {
+                "C": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792504800000,
+                  "lastLineMs": 1792504800000
+                }
+              }
+            },
+            "profiles/p/logs": {
+              "codexRuntime": false,
+              "agents": {
+                "P": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792504801000,
+                  "lastLineMs": 1792504801000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "config.yaml",
+          "text": "model:\n  default: gpt-5.5\n  provider: openai-codex\n  openai_runtime: codex_app_server\n",
+          "mtime": 1792504810000
+        },
+        {
+          "read": true,
+          "responseKeys": [],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504800000
+                }
+              }
+            },
+            "profiles/p/logs": {
+              "codexRuntime": false,
+              "agents": {
+                "P": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792504801000,
+                  "lastLineMs": 1792504801000
+                }
+              }
+            }
+          }
+        },
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:00:30,000 INFO [C] agent.turn_context: conversation turn: session=C model=gpt-5.5-codex provider=openai-codex platform=cli history=2 msg='now the tests'"
+          ],
+          "mtime": 1792504830100
+        },
+        {
+          "read": true,
+          "responseKeys": [],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504830000,
+                  "model": "gpt-5.5-codex"
+                }
+              }
+            }
+          }
+        },
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:01:00,000 INFO [F] agent.turn_context: conversation turn: session=F model=claude-sonnet-5-5 provider=anthropic platform=cli history=0 msg='review'",
+            "2026-10-20 07:01:03,000 INFO [F] agent.conversation_loop: API call #1: model=claude-sonnet-5-5 provider=anthropic in=1000 out=50 total=1050 latency=2.5s"
+          ],
+          "mtime": 1792504863100
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "F": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504863000
+                }
+              }
+            }
+          }
+        },
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:01:03,020 INFO [F] agent.conversation_loop: Turn ended: reason=text_response(finish_reason=stop) model=claude-sonnet-5-5 api_calls=1/90 budget=1/90 tool_turns=0 last_msg_role=assistant response_len=42 session=F"
+          ],
+          "mtime": 1792504863200
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "F": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504863020
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "config.yaml",
+          "text": "model:\n  default: gpt-5.5\n  openai_runtime: auto\n",
+          "mtime": 1792504890000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": false,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504830000
+                }
+              }
+            }
+          }
+        },
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:02:00,000 INFO [C] agent.turn_context: conversation turn: session=C model=gpt-5.5 provider=openai-codex platform=cli history=4 msg='back to Hermes'"
+          ],
+          "mtime": 1792504920100
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": false,
+              "agents": {
+                "C": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792504920000,
+                  "lastLineMs": 1792504920000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "config.yaml",
+          "text": "﻿model:\r\n  openai_runtime: \"Codex_App_Server\"\r\n",
+          "mtime": 1792504930000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504920000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "profiles/p/config.yaml",
+          "text": "model:\n  providers:\n    openai_runtime: codex_app_server\n",
+          "mtime": 1792504940000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "profiles/p/logs": {
+              "codexRuntime": false,
+              "agents": {
+                "P": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792504801000,
+                  "lastLineMs": 1792504801000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "profiles/p/config.yaml",
+          "text": "model:\n  default: gpt-5.5\n  provider: openai-codex\n  openai_runtime: codex_app_server\n",
+          "mtime": 1792504950000
+        },
+        {
+          "append": "profiles/p/logs/agent.log",
+          "lines": [
+            "2026-10-20 07:03:00,000 INFO [P] agent.turn_context: conversation turn: session=P model=gpt-5.5 provider=openai-codex platform=tui history=2 msg='again'"
+          ],
+          "mtime": 1792504980100
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "profiles/p/logs": {
+              "codexRuntime": true,
+              "agents": {
+                "P": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792504980000
+                }
+              }
+            }
+          }
+        },
+        {
+          "remove": "config.yaml"
+        },
+        {
+          "append": "logs/agent.log",
+          "lines": [
+            "2026-10-20 07:04:00,000 INFO [C] agent.turn_context: conversation turn: session=C model=gpt-5.5 provider=openai-codex platform=cli history=6 msg='one more'"
+          ],
+          "mtime": 1792505040100
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": false,
+              "agents": {
+                "C": {
+                  "phase": "generating",
+                  "inFlightStartMs": 1792505040000,
+                  "lastLineMs": 1792505040000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "config.yaml",
+          "text": "model:\n  default: gpt-5.5\n  provider: openai-codex\n  openai_runtime: codex_app_server\n",
+          "size": 1048576,
+          "mtime": 1792505050000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": true,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792505040000
+                }
+              }
+            }
+          }
+        },
+        {
+          "write": "config.yaml",
+          "text": "model:\n  default: gpt-5.5\n  provider: openai-codex\n  openai_runtime: codex_app_server\n",
+          "size": 1048577,
+          "mtime": 1792505060000
+        },
+        {
+          "read": true,
+          "responseKeys": [
+            "hermes:F:1:2026-10-20 07:01:03,000"
+          ],
+          "sets": {
+            "logs": {
+              "codexRuntime": false,
+              "agents": {
+                "C": {
+                  "phase": "idle",
+                  "inFlightStartMs": null,
+                  "lastLineMs": 1792505040000
+                }
+              }
             }
           }
         }

@@ -89,12 +89,13 @@ That line is the source (METRICS 4.15). Everything else Hermes stores about usag
   reasoning, cost, `api_call_count`), `cwd`, `parent_session_id`, `source`; `session_model_usage` is cumulative per
   session, model, billing route and task, with `first_seen` / `last_seen`. Messages carry no usage. No per-request
   usage or timing. Hermes defers its structural maintenance (VACUUM, generation swaps) while any foreign process holds
-  the database or its WAL (`hermes_state_holders.py`), so Agent Speed does not open it.
+  the database or its WAL (`hermes_state_holders.py`), so Agent Speed never opens it, not even read-only (user
+  decision, 2026-10-28): no project names and no sub-agent parents.
 - **Effort**: `agent.reasoning_effort` (config) and `/reasoning` choose it; the log mentions it only when a fallback or
   model switch re-resolves it. No per-request record: no effort rule.
 - **Double counting**: Hermes's model calls exist only here. Turns run by the Codex app-server runtime
   (`model.openai_runtime: codex_app_server`, providers `openai` / `openai-codex`) are Codex's own (its rollouts under
-  `CODEX_HOME`, default `~/.codex`) and write no API-call line. ACP-backed providers (`copilot-acp`, `kiro-acp`,
+  `CODEX_HOME`, default `~/.codex`) and write no API-call line; see "Codex runtime switch" below. ACP-backed providers (`copilot-acp`, `kiro-acp`,
   `grok-acp`, `cursor-acp`, …) report zero usage to Hermes (`in=0 out=0`), so their agents' own logs remain the only
   count. `hermes setup` can import Claude Code, Codex and OpenClaw sessions into `state.db`; that never writes
   API-call lines. Hermes run as an ACP agent (`hermes-acp`) by an editor or by OpenClaw logs its own calls here.
@@ -108,6 +109,42 @@ That line is the source (METRICS 4.15). Everything else Hermes stores about usag
   Linux; the executable stays the Python interpreter. Hermes recognizes its own processes the same way
   (`hermes_state_holders.py`: executables `hermes`, `hermes-agent`, `hermes-acp`; Python modules `hermes_cli.main`,
   `acp_adapter`; scripts `hermes_cli/main.py`, `run_agent.py`).
+
+## Codex runtime switch (`config.yaml`)
+
+User decision (2026-10-28): read only the runtime key of Hermes's `config.yaml`; when it selects the Codex runtime,
+the Hermes rows show no `generating` phase and no in-flight estimate, and Codex's own rollouts count the requests.
+
+- **Key and values**: `model.openai_runtime`. `codex_app_server` selects the runtime; `auto` (the documented default)
+  and anything else keep Hermes's runtime. Hermes reads it as `str(value or "").strip().lower()` and treats unknown
+  values as `auto` (`get_current_runtime`); the overlay that applies it does the same comparison
+  (`_maybe_apply_codex_app_server_runtime`). The `/codex-runtime` command accepts `on`/`codex`/`enable` and
+  `off`/`default`/`disable`/`hermes` as synonyms but always persists `codex_app_server` or `auto`. YAML 1.1 booleans
+  (`on`, `yes`) load as `True` and therefore mean `auto`. Only `model.openai_runtime` counts: the root-level key is not
+  moved under `model` (`_normalize_root_model_keys` moves only `provider`, `base_url`, `context_length`).
+- **Scope of the runtime**: applied once after provider resolution, only to `openai`, `openai-codex` and named custom
+  providers that Codex knows; other providers keep Hermes's runtime even when the key is set. A Codex failure can
+  activate a fallback provider that re-runs the same turn on Hermes's loop (which then logs its API calls and its turn
+  end). A changed value applies from the next session ("Effective on next session — current cached agent keeps the
+  prior runtime"). With the runtime active, `resolve_runtime_provider` logs one INFO line
+  `model.openai_runtime=codex_app_server overrides the … runtime` per resolution, not per session or turn, so it is not
+  used.
+- **File**: `<HERMES_HOME>/config.yaml` (`get_config_path`, both in `hermes_constants.py` and `hermes_cli/config.py`);
+  the config backend routes every read of a home's `config.yaml` to `FileBackend`, which opens it with
+  `encoding="utf-8-sig"` and parses it with `hermes_yaml.safe_load` (ruamel, YAML 1.1, duplicate keys rejected). Each
+  profile is a home of its own (`<root>/profiles/<name>/config.yaml`, next to its `logs/`); a profile does not inherit
+  the default profile's file. Same layout on macOS (`~/.hermes`) and Windows (`%LOCALAPPDATA%\hermes`). Hermes writes
+  it by atomic replacement with ruamel's round-trip dumper (block style, two-space indent), which keeps comments.
+- **How Hermes loads it**: `load_config` deep-merges the file onto `DEFAULT_CONFIG`, expands `${VAR}` references, then
+  overlays the managed scope (`$HERMES_MANAGED_DIR`, else `/etc/hermes`, when that folder exists: its `config.yaml`
+  wins per leaf). Loads are cached by the file's stat signature. A file that does not parse is replaced by the last
+  good configuration of the process, else the newest good backup in `backups/config/`, else the defaults.
+  `HERMES_IGNORE_USER_CONFIG=1` ignores the file. Agent Speed reproduces none of this: it reads the one key with a
+  tolerant line reader (METRICS 4.15 Codex runtime), so flow-style YAML (the JSON form some of Hermes's own evals
+  write), `${VAR}` values, the managed overlay and the last-good fallback are approximations.
+- **Where the Codex turns count**: the app-server subprocess gets Hermes's environment minus its secrets and no
+  `CODEX_HOME` of its own ("codex's home is shared"), so its rollouts land in the Codex home Agent Speed already reads
+  when Hermes runs with the same `CODEX_HOME`.
 
 ## Evidence
 
@@ -137,6 +174,16 @@ That line is the source (METRICS 4.15). Everything else Hermes stores about usag
 | Sub-agents: `platform="subagent"`, own id, `parent_session_id`, worker thread | `tools/delegate_tool.py` 290–305; `tools/delegate_tool_child_run.py` 895–917 |
 | Side questions record usage without a turn | `agent/side_question_request.py` 1–12, 171–186 |
 | Codex app-server runtime: usage to `state.db` only, no line, no turn end | `agent/codex_runtime.py` 149–215; `agent/conversation_loop.py` 1707–1709; `hermes_cli/runtime_provider.py` 134, 340–349 |
+| `model.openai_runtime`: values, trim + lowercase, unknown → `auto`, `/codex-runtime` synonyms and persistence | `hermes_cli/codex_runtime_switch.py` 13–18, 55–63, 77–85; `website/docs/user-guide/features/codex-app-server-runtime.md` 214, 228–232 |
+| Runtime applied once after resolution, eligible providers, INFO line | `hermes_cli/runtime_provider.py` 339–350, 1025–1034, 1056–1057, 1073–1082 |
+| Changed runtime effective on the next session | `hermes_cli/codex_runtime_switch.py` 190–200 |
+| Codex failure → fallback turn on Hermes's loop | `agent/conversation_loop.py` 1589–1604 |
+| `config.yaml` path per home, `utf-8-sig`, YAML loader | `hermes_constants.py` 1269–1271; `hermes_cli/config.py` 432–434; `hermes_cli/config_backend.py` 1–16, 82–86, 103–104, 146–157; `utils.py` 609–611; `hermes_yaml.py` 1–38 |
+| Load pipeline: defaults merge, last-good fallback, managed overlay, cache by stat | `hermes_cli/config.py` 159–183, 2142–2217, 2247–2332 |
+| Managed scope `/etc/hermes`, `$HERMES_MANAGED_DIR` | `hermes_cli/managed_scope.py` 31, 45–59, 107–109 |
+| Only `provider`, `base_url`, `context_length` move from the root to `model` | `hermes_cli/config.py` 1642–1665 |
+| YAML 1.1 booleans (`on`, `off`, `yes`) in config reads | `utils.py` 515–519 |
+| Codex subprocess shares the Codex home (no `CODEX_HOME` override) | `agent/codex_runtime.py` 653–663; `agent/transports/codex_app_server.py` 90–109 |
 | ACP providers report zero usage | `agent/acp_client.py` 388 |
 | MoA folds advisor usage into the line; provider `moa` | `agent/turn_usage.py` 48–70, 101–106, 224–231 |
 | `state.db` tables and counters | `hermes_state_common.py` 289, 461–501; `hermes_state_usage.py` 1–70 |

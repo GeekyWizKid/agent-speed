@@ -1335,9 +1335,10 @@ one "file" per database for discovery statistics.
 
 Hermes Agent (`NousResearch/hermes-agent`, MIT; Python, the AI agent, not the JavaScript engine of the same name) runs
 as a CLI and TUI, a desktop app, a messaging gateway, cron jobs and an ACP agent. It keeps no transcript with usage:
-its sessions database (`state.db`) has only cumulative per-session counters, and Agent Speed never opens it (a foreign
-reader defers Hermes's database maintenance). The source is Hermes's log, `logs/agent.log`, which has one line per
-model API call of the agent loop with that call's tokens and duration, tagged with the session id. Evidence:
+its sessions database (`state.db`) has only cumulative per-session counters, and Agent Speed never opens it, not even
+read-only (a foreign reader defers Hermes's database maintenance). The source is Hermes's log, `logs/agent.log`, which
+has one line per model API call of the agent loop with that call's tokens and duration, tagged with the session id;
+besides the logs only one key of each profile's `config.yaml` is read (Codex runtime, below). Evidence:
 `spec/research/hermes.md`; fixtures: `spec/tools/hermes_fixtures.py` (`spec/fixtures/hermes`). Out of scope: Hermes on
 another computer (remote gateways, SSH backends), inside WSL, and homes inside containers that this computer does not
 see as folders.
@@ -1356,9 +1357,10 @@ see as folders.
   skipped; a path listed twice is read once. The user setting names a Hermes home (a folder that has a `logs` folder:
   that home's log folders as above) or one log folder (any other folder), and replaces the automatic home.
 - **Files**: regular files (never symlinks) directly in a log folder named exactly `agent.log` or `agent.log.<n>`
-  (`<n>` one or more ASCII digits): the live log and its rotated copies. Nothing else is read: `errors.log` repeats
+  (`<n>` one or more ASCII digits): the live log and its rotated copies. No other log is read: `errors.log` repeats
   the warnings, `gateway.log` and `gui.log` exclude the agent loop, `install.log`, lock files and compressed copies do
-  not match.
+  not match. Outside the log folders only `config.yaml` is read (Codex runtime, below); `state.db`, `sessions/`,
+  `.env` and `auth.json` are never opened.
 - **Log sets**: each log folder is one *log set* with one parser state, shared by its files, in which every session
   id is one agent: agent id = the log folder's absolute path + `#` + the session id (empty for lines without one).
 
@@ -1451,7 +1453,7 @@ from its first record line of the four kinds.
 | Line | Action |
 | --- | --- |
 | any of the four kinds | `lastLineMs` = the latest line time of the agent |
-| turn start | phase `generating`, `inFlightStartMs = ts`; `model` = the model group when not empty; `isSubagent` = the platform group is `subagent` |
+| turn start | phase `generating`, `inFlightStartMs = ts` (while the Codex runtime switch is on: `idle`, null; below); `model` = the model group when not empty; `isSubagent` = the platform group is `subagent` |
 | API call (accepted, also without usage) | `model` = its model when not empty; when phase is `generating`, `inFlightStartMs = ts` (the next request, or the turn's end, follows) |
 | turn end, turn failed | phase `idle` |
 
@@ -1463,6 +1465,58 @@ from its first record line of the four kinds.
   (`delegate_task` children run with platform `subagent`); `parentId` is null, since the log does not link a child to
   its parent.
 - Effort and speed facts (EXECUTION-MODES): none; the log records neither.
+
+#### Codex runtime
+
+Hermes can hand whole turns to Codex (`codex app-server`, Codex's own agent loop, started by Hermes with Hermes's
+environment, so its rollouts land in the Codex home `$CODEX_HOME`, else `~/.codex`, and count under `codex`, 4.2). Such
+a turn writes its turn-start line but no API-call line and no end line, so without this rule its agent would stay
+`generating`, with an in-flight estimate (6.3) overlapping the Codex agent's, until the 300-second staleness rule.
+Hermes selects this runtime with the key `model.openai_runtime` of the profile's `config.yaml`: `codex_app_server`
+selects it; `auto` (the default), an empty or missing value and any other value keep Hermes's own runtime (Hermes
+trims and lowercases the value; the `/codex-runtime` command writes `codex_app_server` or `auto`). Each log set has a
+*Codex runtime switch*, read from that one key and nothing else of the file:
+
+- **File**: `config.yaml` in the parent folder of the log folder, when the log folder is named `logs` (compared
+  case-insensitively on Windows): `<home>/config.yaml` for `<home>/logs`, `<home>/profiles/<name>/config.yaml` for that
+  profile's logs (macOS `~/.hermes/config.yaml`, Windows `%LOCALAPPDATA%\hermes\config.yaml`). Every profile has its
+  own file and does not inherit the default profile's. A log folder with another name (a user setting) has no file
+  and its switch is off. The administrator overlay `/etc/hermes/config.yaml` (`$HERMES_MANAGED_DIR`) is not read.
+- **When**: before a log set's startup backlog is read, and at every rediscovery (section 5, every 10 seconds) before
+  that set's new lines are read, the file's status is checked (a symbolic link is followed, as Hermes follows it). The
+  file is read only when it is a regular file whose modification time or size differs from those of the last
+  successful read (startup always reads it).
+  - Missing, or not a regular file: the switch is off.
+  - Larger than 1 MiB (1 048 576 bytes, at the check or while reading): the switch is off.
+  - Any other failure (no permission, a sharing violation, an I/O error): the switch keeps its value and the next
+    check reads the file again.
+  - Windows: the file is opened with read, write and delete sharing and closed right after reading, so Hermes can
+    replace it (it writes `config.yaml` by atomic replacement).
+- **Reading**: the bytes are decoded as UTF-8 (an invalid sequence reads as U+FFFD; one leading U+FEFF is removed, as
+  Hermes reads `utf-8-sig`) and split at `\n` with one trailing `\r` removed. This is a tolerant line reader for the
+  block layout Hermes writes and hand edits of it, not a YAML parser:
+  1. A line that is empty or starts with `#` after its leading spaces and tabs is blank or a comment and is skipped
+     everywhere.
+  2. The *indentation* of every other line is its number of leading U+0020 spaces (a line that starts with a tab
+     has indentation 0). A line with indentation 0 ends the current `model` block, and opens a new one when it
+     matches `^(model|"model"|'model')[ \t]*:([ \t]+(#.*)?)?$` (the key alone, optionally followed by a comment).
+  3. In a `model` block, its first line sets the block's indentation `n` (> 0); only its lines with indentation
+     exactly `n` are keys of `model` (deeper lines are not). A key line whose text after the `n` spaces matches
+     `^(openai_runtime|"openai_runtime"|'openai_runtime')[ \t]*:(|[ \t].*)$` sets the switch: on when the group after
+     the colon matches
+     `^[ \t]+("[ \t]*codex_app_server[ \t]*"|'[ \t]*codex_app_server[ \t]*'|codex_app_server)([ \t]+#.*)?[ \t]*$`,
+     with `codex_app_server` compared ASCII case-insensitively; off for every other value (empty, `auto`, `on`,
+     `${VAR}`, a block scalar, a comment).
+  4. The last such key line of the file decides; with none the switch is off. No other line changes it: keys of other
+     sections, the root-level `openai_runtime`, flow mappings (`model: {openai_runtime: …}`) and list items are not
+     recognized.
+- **Effect** (per log set, while its switch is on): a turn-start line updates `lastLineMs`, `model` and `isSubagent`
+  as usual but sets phase `idle` and `inFlightStartMs = null` instead of `generating`. When a check turns the switch
+  on, every agent of the log set in phase `generating` becomes `idle` with `inFlightStartMs = null`; turning it off
+  changes no phase (the next turn start does). API-call, turn-end and turn-failed lines are handled as before, so a
+  turn Hermes still runs itself (a fallback provider after a Codex failure, or a provider the Codex runtime does not
+  apply to) counts its responses but shows no `generating` phase and no in-flight estimate. Responses, totals and daily
+  history do not depend on the switch.
 
 #### Reading and rotation
 
@@ -1486,10 +1540,16 @@ from its first record line of the four kinds.
   line carries Hermes's normalized output, as Hermes bills it).
 - Tool runs show as `generating`, and the in-flight estimate (6.3) runs during them; the first request of a turn is in
   flight from the turn start.
-- Turns that end without an end line stay `generating` until the staleness rule (300 s): turns of the opt-in Codex
-  app-server runtime (`model.openai_runtime: codex_app_server`), whose model calls are Codex's own (counted under
-  `codex` from its rollouts; Hermes writes no API-call line for them), so the Hermes agent's in-flight estimate can
-  overlap the Codex agent's; preflight-compression timeouts; killed processes.
+- Turns that end without an end line stay `generating` until the staleness rule (300 s): preflight-compression
+  timeouts, killed processes, and Codex-runtime turns that the switch does not see (below).
+- The Codex runtime switch follows the file, not each turn. Hermes applies a changed value from the next session ("the
+  current cached agent keeps the prior runtime"), Agent Speed at its next check for every session of the profile.
+  Hermes applies the runtime only to the providers `openai` and `openai-codex` and to named custom providers that
+  Codex knows; with the switch on, turns of other providers count their responses but show no `generating` phase.
+  The switch does not see the `/etc/hermes` overlay, `$HERMES_IGNORE_USER_CONFIG`, a hand-written
+  `model.api_mode: codex_app_server`, flow-style or `${VAR}` values, or the last good configuration Hermes keeps
+  using while its file does not parse (duplicate keys, tab indentation). Codex-runtime turns count under `codex` only
+  when Hermes's `CODEX_HOME` is a Codex root Agent Speed reads (section 2).
 - A side question counts for the session of the thread that ran it (another session, or the empty id).
 - Context compression gives a session a new id inside a turn; Hermes keeps logging the rest of the turn under the old
   id, and the next turn appears as a new agent.
@@ -1503,9 +1563,10 @@ from its first record line of the four kinds.
 - A log written in another time zone (a container with `TZ=UTC` writing into this computer's Hermes home) is
   misplaced by the difference.
 - Derived from the Hermes source (main `9b904dcc22c2`, after v0.22.5; evidence in `spec/research/hermes.md`); not yet
-  verified against real logs. Verification target: per session, the sums of `input` and `output` equal `state.db`'s
-  `sessions` counters (`input_tokens + cache_read_tokens + cache_write_tokens`, `output_tokens`) for sessions without
-  Codex-runtime turns, and each response's `endMs − startMs` equals Hermes's own `latency`.
+  verified against real logs. Verification target (checked by hand, outside the app): per session, the sums of
+  `input` and `output` equal `state.db`'s `sessions` counters (`input_tokens + cache_read_tokens +
+  cache_write_tokens`, `output_tokens`) for sessions without Codex-runtime turns, and each response's
+  `endMs − startMs` equals Hermes's own `latency`.
 
 ## 5. Reading files
 
