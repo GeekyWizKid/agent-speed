@@ -708,6 +708,7 @@ internal sealed partial class MonitorCore : IDisposable
             LiveCost = frame.SourceLiveCost[index],
             TodayCost = frame.SourceTodayCost[index],
             UnpricedModels = frame.SourceUnpricedModels[index],
+            UnpricedFacts = frame.SourceUnpricedFacts[index],
             Intelligence = frame.SourceIntelligence[index],
             TodayModes = frame.TodayModes.Where(m => m.Source == status.Kind).ToArray(),
         };

@@ -233,7 +233,7 @@ internal sealed partial class HistoryWindow : Window
         Table.SetRows(_model.Rows, _model.Today, loc, money, _model.ShowsTraffic);
         if (!_model.HasUnpriced && UnpricedFlyout.IsOpen)
         {
-            // The models were priced meanwhile: the list (and its link) is gone.
+            // The requests were priced meanwhile: the popover (and its link) is gone.
             UnpricedFlyout.IsOpen = false;
         }
         UpdateHeader();
@@ -332,18 +332,14 @@ internal sealed partial class HistoryWindow : Window
             return;
         }
 
+        UnpricedContent.ReduceMotion = ReduceMotion;
         UnpricedFlyout.IsOpen = true;
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (UnpricedList.Items.Count > 0 && UnpricedList.ItemContainerGenerator.ContainerFromIndex(0) is ListBoxItem first)
-            {
-                first.Focus();
-            }
-        }, System.Windows.Threading.DispatcherPriority.Input);
+        Dispatcher.BeginInvoke(UnpricedContent.FocusFirst, System.Windows.Threading.DispatcherPriority.Input);
     }
 
     private void OnUnpricedClosed(object? sender, EventArgs e)
     {
+        UnpricedContent.Reset();
         if (IsActive && !IsKeyboardFocusWithin && UnpricedButton.IsVisible)
         {
             UnpricedButton.Focus();

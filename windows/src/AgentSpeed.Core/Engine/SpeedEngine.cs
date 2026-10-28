@@ -273,11 +273,13 @@ internal sealed class SpeedEngine
         var sourceToday = new TokenTotals[SourceCount];
         var sourceTodayCost = new CostTally[SourceCount];
         var sourceUnpriced = new IReadOnlyList<string>[SourceCount];
+        var sourceUnpricedFacts = new IReadOnlyList<Unpriced.UnpricedCount>[SourceCount];
         for (var i = 0; i < SourceCount; i++)
         {
             sourceToday[i] = _today.ForSource((SourceKind)i);
             sourceTodayCost[i] = _today.CostForSource((SourceKind)i);
             sourceUnpriced[i] = sourceTodayCost[i].UnpricedRequests > 0 ? _today.UnpricedModels((SourceKind)i) : [];
+            sourceUnpricedFacts[i] = sourceTodayCost[i].UnpricedRequests > 0 ? _today.UnpricedFacts((SourceKind)i) : [];
         }
 
         return new EngineFrame(
@@ -305,6 +307,7 @@ internal sealed class SpeedEngine
             TodayModes = _today.Modes,
             SourceTodayCost = sourceTodayCost,
             SourceUnpricedModels = sourceUnpriced,
+            SourceUnpricedFacts = sourceUnpricedFacts,
             SourceIntelligence = intelligence,
             Report = ReportFacts(nowMs),
         };

@@ -1,3 +1,4 @@
+using System.Globalization;
 using AgentSpeed.Core;
 using AgentSpeed.Core.Monitoring;
 using AgentSpeed.Core.Pricing;
@@ -8,6 +9,7 @@ internal enum ProbeMode
 {
     DumpToday,
     DumpHistory,
+    DumpUnpriced,
     Watch,
     SyncPrices,
     SyncRates,
@@ -50,9 +52,25 @@ internal sealed record ProbeOptions(
     string? OpenClawRoot = null)
 {
     public const string Usage =
-        "usage: AgentSpeed.Probe (--dump-today [--since UNIXMS] | --dump-history [--utc] [--store PATH] | --watch N | --sync-prices DIR | --sync-rates DIR CURRENCY) [--prices PATH] " +
+        "usage: AgentSpeed.Probe (--dump-today [--since UNIXMS] | --dump-history [--utc] [--history-store PATH] | " +
+        "--dump-unpriced [--days N | --first YYYY-MM-DD --last YYYY-MM-DD | --live] [--source ID] [--history-store PATH] | " +
+        "--watch N | --sync-prices DIR | --sync-rates DIR CURRENCY) [--prices PATH] " +
         "[--codex PATH] [--claude PATH] [--dsh PATH] [--opencode PATH] [--gemini PATH]... [--omp PATH]... [--antigravity PATH]... " +
         "[--workbuddy PATH] [--workbuddy-ai PATH] [--zcode PATH] [--kimi PATH] [--grok-build PATH] [--pi PATH] [--openclaw PATH]";
+
+    /// <summary><c>--days N</c> of <c>--dump-unpriced</c>: the last N local days, today included.</summary>
+    public int? Days { get; init; }
+
+    /// <summary><c>--first</c> / <c>--last</c> of <c>--dump-unpriced</c>: a custom range of local dates.</summary>
+    public string? First { get; init; }
+
+    public string? Last { get; init; }
+
+    /// <summary><c>--live</c> of <c>--dump-unpriced</c>: today's engine responses instead of the history.</summary>
+    public bool Live { get; init; }
+
+    /// <summary><c>--source ID</c> of <c>--dump-unpriced</c>: one source (METRICS 1).</summary>
+    public SourceKind? Source { get; init; }
 
     public MonitorConfiguration Configuration => new(
         new HashSet<SourceKind>(Enum.GetValues<SourceKind>()),
@@ -128,6 +146,9 @@ internal sealed record ProbeOptions(
         string? codex = null, claude = null, dsh = null, opencode = null, store = null, prices = null, sync = null, currency = null;
         string? workBuddy = null, workBuddyAi = null, zcode = null, kimi = null, grokBuild = null, pi = null, openClaw = null;
         long? since = null;
+        int? days = null;
+        string? first = null, last = null, sourceId = null;
+        var live = false;
         var gemini = new List<string>();
         var omp = new List<string>();
         var antigravity = new List<string>();
@@ -140,6 +161,25 @@ internal sealed record ProbeOptions(
                     break;
                 case "--dump-history":
                     mode = ProbeMode.DumpHistory;
+                    break;
+                case "--dump-unpriced":
+                    mode = ProbeMode.DumpUnpriced;
+                    break;
+                case "--days" when i + 1 < args.Length && int.TryParse(args[i + 1], NumberStyles.None, CultureInfo.InvariantCulture, out var count):
+                    days = count;
+                    i++;
+                    break;
+                case "--first" when i + 1 < args.Length:
+                    first = args[++i];
+                    break;
+                case "--last" when i + 1 < args.Length:
+                    last = args[++i];
+                    break;
+                case "--live":
+                    live = true;
+                    break;
+                case "--source" when i + 1 < args.Length:
+                    sourceId = args[++i];
                     break;
                 case "--utc":
                     utc = true;
@@ -191,7 +231,7 @@ internal sealed record ProbeOptions(
                 case "--openclaw" when i + 1 < args.Length:
                     openClaw = args[++i];
                     break;
-                case "--store" when i + 1 < args.Length:
+                case "--store" or "--history-store" when i + 1 < args.Length:
                     store = args[++i];
                     break;
                 case "--prices" when i + 1 < args.Length:
@@ -218,12 +258,65 @@ internal sealed record ProbeOptions(
 
         if (mode is null)
         {
-            error = "missing --dump-today, --dump-history, --watch N, --sync-prices DIR or --sync-rates DIR CURRENCY";
+            error = "missing --dump-today, --dump-history, --dump-unpriced, --watch N, --sync-prices DIR or --sync-rates DIR CURRENCY";
+            return null;
+        }
+
+        SourceKind? source = null;
+        if (mode == ProbeMode.DumpUnpriced && UnpricedRangeError(days, first, last, live, sourceId, out source) is { } rangeError)
+        {
+            error = rangeError;
             return null;
         }
 
         return new ProbeOptions(
             mode.Value, seconds, codex, claude, dsh, opencode, gemini, utc, store, since, omp, antigravity, prices, sync, currency,
-            workBuddy, workBuddyAi, zcode, kimi, grokBuild, pi, openClaw);
+            workBuddy, workBuddyAi, zcode, kimi, grokBuild, pi, openClaw)
+        {
+            Days = days,
+            First = first,
+            Last = last,
+            Live = live,
+            Source = source,
+        };
     }
+
+    /// <summary>The checks of <c>reference.py --dump-unpriced</c>.</summary>
+    private static string? UnpricedRangeError(int? days, string? first, string? last, bool live, string? sourceId, out SourceKind? source)
+    {
+        source = null;
+        if (days is not null && (days < 1 || first is not null || last is not null))
+        {
+            return "--days takes a positive number and excludes --first/--last";
+        }
+
+        if ((first is not null && !IsDate(first)) || (last is not null && !IsDate(last)))
+        {
+            return "dates are YYYY-MM-DD";
+        }
+
+        if ((first is null) != (last is null) || (first is not null && string.CompareOrdinal(first, last) > 0))
+        {
+            return "--first and --last go together, first <= last";
+        }
+
+        if (live && (days is not null || first is not null))
+        {
+            return "--live takes no range: it is today's engine data";
+        }
+
+        if (sourceId is not null)
+        {
+            source = Enum.GetValues<SourceKind>().Cast<SourceKind?>().FirstOrDefault(k => JsonLine.SourceName(k!.Value) == sourceId);
+            if (source is null)
+            {
+                return "--source takes a source id: " + string.Join(", ", Enum.GetValues<SourceKind>().Select(JsonLine.SourceName));
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsDate(string text) =>
+        text.Length == 10 && DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
 }

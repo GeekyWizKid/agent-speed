@@ -51,6 +51,9 @@ internal sealed record EngineFrame(
     /// <summary>Each source's models with unpriced responses today, most unpriced first, then by name.</summary>
     public IReadOnlyList<string>[] SourceUnpricedModels { get; init; } = [];
 
+    /// <summary>Each source's unpriced facts of today (METRICS 9.10 <i>Live</i>), indexed by <see cref="SourceKind"/>.</summary>
+    public IReadOnlyList<Unpriced.UnpricedCount>[] SourceUnpricedFacts { get; init; } = [];
+
     /// <summary>The live intelligence sums of each source (METRICS 6.9), indexed by <see cref="SourceKind"/>.</summary>
     public Intelligence.IntelligenceSums[] SourceIntelligence { get; init; } = [];
 

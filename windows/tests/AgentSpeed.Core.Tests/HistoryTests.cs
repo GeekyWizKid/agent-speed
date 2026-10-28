@@ -278,6 +278,13 @@ internal static class HistoryJson
             ["priceVersion"] = day.PriceVersion,
             ["agents"] = day.Agents,
             ["models"] = models,
+            ["unpriced"] = new JsonArray([.. day.Unpriced.Facts.Select(f => (JsonNode)new JsonObject
+            {
+                ["model"] = f.Fact.Model,
+                ["provider"] = f.Fact.Provider,
+                ["fast"] = f.Fact.Fast,
+                ["requests"] = f.Requests,
+            })]),
         };
     }
 }

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Threading;
+using AgentSpeed.App;
 using AgentSpeed.Core;
 using AgentSpeed.Modes;
 using AgentSpeed.Presentation.Cost;
@@ -46,6 +47,9 @@ internal sealed class HistoryController : IDisposable
     /// <summary>Observed network traffic by day (METRICS 10.9), shown with the traffic metric; set by the app.</summary>
     public Core.Traffic.TrafficHub? Traffic { get; set; }
 
+    /// <summary>The price book shared with the engine and the history: its current table gives unpriced requests their reasons.</summary>
+    public Core.Pricing.PriceBook? Prices { get; set; }
+
     /// <summary>The open window's content, for the developer capture.</summary>
     public FrameworkElement? CaptureContent => _window?.Content as FrameworkElement;
 
@@ -64,7 +68,8 @@ internal sealed class HistoryController : IDisposable
         if (_window is null || _model is null)
         {
             var model = new HistoryViewModel(_hub, _loc, _cost, _dispatcher, SaveIncludeSubscriptions, Traffic,
-                () => _settings.Current.Traffic.IncludeTools, () => _settings.Current.EnabledSourceSet());
+                () => _settings.Current.Traffic.IncludeTools, () => _settings.Current.EnabledSourceSet(),
+                () => Prices?.Current ?? Core.Pricing.PriceBook.Bundled, AppPaths.Version);
             model.SetSource(source);
             model.RememberModeKind(_settings.Current.HistoryModeKind, kind => _settings.Update(s => s with { HistoryModeKind = kind }));
             var window = new HistoryWindow(model, Appearance)

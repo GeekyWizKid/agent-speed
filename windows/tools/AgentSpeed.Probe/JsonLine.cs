@@ -143,6 +143,9 @@ internal sealed class ProbeOutput : IDisposable
         _writer.Write('\n');
     }
 
+    /// <summary>Text as is, its own line ends included.</summary>
+    public void Write(string text) => _writer.Write(text);
+
     public void Flush() => _writer.Flush();
 
     public void Dispose() => _writer.Dispose();
