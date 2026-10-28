@@ -46,6 +46,8 @@ BEDROCK_VERSION = re.compile(r"-v\d+(?::\d+)?$")
 VERTEX_DATE = re.compile(r"@(\d{8})$")
 VERTEX_TAG = re.compile(r"@[^@/]*$")
 BRACKETS = re.compile(r"\[[^\]]*\]")
+CUSTOM_PREFIX = "custom:"  # Factory Droid's ids of the user's own models: custom:<name>-<n> (METRICS 4.16)
+CUSTOM_INDEX = re.compile(r"-[0-9]+$")
 LANGUAGES = ("zh-Hant", "zh-Hans", "en", "ja")
 
 
@@ -190,6 +192,9 @@ class Index:
         n = self.norm
         k = self.exact_key(model)
         yield "exact", k, False
+        if k.startswith(CUSTOM_PREFIX):
+            k = CUSTOM_INDEX.sub("", k[len(CUSTOM_PREFIX):]).strip(" -")
+            yield "custom", k, False
         if "/" in k:
             k = k.rsplit("/", 1)[1]
             yield "route", k, False

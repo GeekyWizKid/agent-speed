@@ -8,13 +8,15 @@ shared fixtures in `spec/fixtures/`.
 
 | Term | Meaning |
 | --- | --- |
-| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build), `pi` (Pi Coding Agent), `openclaw` (OpenClaw), `hermes` (Hermes Agent, Nous Research). This is the append-only *source order*. |
-| Agent | One transcript file. Agent id = absolute file path. Sub-agents have their own files and are separate agents. (OpenCode: one per session row, 4.5; Antigravity: one per conversation database, 4.8; OpenClaw: one per transcript window, 4.14; Hermes Agent: one per session id of a log folder, 4.15.) |
+| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build), `pi` (Pi Coding Agent), `openclaw` (OpenClaw), `hermes` (Hermes Agent, Nous Research), `droid` (Factory Droid). This is the append-only *source order*. |
+| Agent | One transcript file. Agent id = absolute file path. Sub-agents have their own files and are separate agents. (OpenCode: one per session row, 4.5; Antigravity: one per conversation database, 4.8; OpenClaw: one per transcript window, 4.14; Hermes Agent: one per session id of a log folder, 4.15; Factory Droid: one per session transcript with its settings file, 4.16.) |
 | Response | One model API call that produced a usage record. |
 | Phase | `generating` (a request is in flight), `tools` (model finished, waiting for tool results), `idle` |
 
 Parsers normally emit one record per response. A native Grok model batch is one record with `requestCount` underlying
 responses (4.12); the speed engine still processes its normalized tokens and duration with the same equations.
+Factory Droid records no usage per response: its responses are the calls its transcript times, with tokens allocated
+from cumulative session counters (4.16).
 
 ## 2. Locations
 
@@ -35,6 +37,7 @@ responses (4.12); the speed engine still processes its normalized tokens and dur
 | Pi (Pi Coding Agent: TUI, `-p`, RPC) | `<agent dir>/sessions` with `<agent dir>` = `$PI_CODING_AGENT_DIR`, else `~/.pi/agent`; plus Pi's own custom session folder when one is set: `sessionDir` of `<agent dir>/settings.json` and `$PI_CODING_AGENT_SESSION_DIR` (4.13) | user setting (one folder; replaces every automatic root) |
 | OpenClaw (a Gateway on this computer, 2026.8.1+) | the agent databases `<state>/agents/<agentId>/agent/openclaw-agent.sqlite` of every state folder: `$OPENCLAW_STATE_DIR`, else `<base>/.openclaw` and every named-profile folder `<base>/.openclaw-<profile>`, with `<base>` = `$OPENCLAW_HOME`, else `~` (4.14) | user setting (a state folder, an agent folder or a database; replaces every automatic root) |
 | Hermes Agent (CLI, TUI, desktop app, messaging gateway, cron, ACP) | the log folders of the Hermes home: `<home>/logs` and `<home>/profiles/<name>/logs`, with `<home>` from `$HERMES_HOME` (4.15), else macOS `~/.hermes`, Windows `%LOCALAPPDATA%\hermes` | user setting (a Hermes home or one `logs` folder; replaces the automatic home) |
+| Factory Droid (CLI `droid`, interactive and `droid exec`; Factory Desktop) | `~/.factory/sessions`; no environment variable (4.16) | user setting (the `.factory` folder or its `sessions` folder) |
 
 `~` is `HOME` on macOS and `%USERPROFILE%` on Windows. Claude Code and Claude Desktop share one root; each file is
 assigned to a source by its `entrypoint` field (section 4.1). Ordinary Claude Desktop chat conversations are not stored
@@ -43,13 +46,14 @@ locally and are out of scope.
 Discovery: recursive enumeration of `*.jsonl` (Codex also `*.jsonl.zst`, 5.3; DeepSeek: `session.v<N>.jsonl.zstd` or `session.v<N>.jsonl`; Gemini CLI:
 fixed depths, see 4.6; omp and Pi: see 4.7 and 4.13; Antigravity: conversation databases, see 4.8; WorkBuddy: fixed
 depths, see 4.9; OpenClaw: agent databases, see 4.14; Hermes Agent: `agent.log` and its rotated files, see
-4.15),
+4.15; Factory Droid: one or two levels below the root, each transcript with its settings file, see 4.16),
 maximum depth 6, never follow symlinks, at most 20 000 files per root.
 A source is *detected* when its root (Antigravity: any store; WorkBuddy: the data folder) exists or it has data today;
 what an undetected source shows is DESIGN 2b (unavailable sources), 4 and 5.
 The app never writes inside these folders.
-For ZCode, Kimi Code CLI, Grok Build and Hermes Agent, the source's session count includes today's main sessions only;
-subagents remain visible in the agent tree and ordinary forks remain separate sessions, as with WorkBuddy.
+For ZCode, Kimi Code CLI, Grok Build, Hermes Agent and Factory Droid, the source's session count includes today's main
+sessions only; subagents remain visible in the agent tree and ordinary forks remain separate sessions, as with
+WorkBuddy.
 For OpenClaw, a source is detected when a state folder (or the folder of the setting) exists; its session count is the
 number of transcript windows that are not sub-agents (4.14).
 
@@ -103,6 +107,7 @@ OpenCode: `data.model.providerID`. omp: `message.provider` (assistant) or the en
 Pi: `message.provider` (assistant) or the entry's `provider` (`usage` entries).
 OpenClaw: `message.provider` (assistant).
 Hermes Agent: the `provider=` field of the API-call line (4.15; `unknown` counts as null).
+Factory Droid: `custom` for a model id that starts with `custom:` (the user's own model, 4.16).
 WorkBuddy: `custom` for a model of the user's own provider (`custom:` / `custom-local:` ids, 4.9). Every other
 source: null. Empty strings count as null.
 
@@ -131,7 +136,7 @@ lines of the same key in the same file are merged (4.1, 4.4). Codex: every repea
 ### 3.5 Copied history
 For Codex, once `session_meta` has been read, any later line whose timestamp is earlier than `fileCreatedMs - 2000`
 is copied history (forks and sub-agents copy their parent's records): ignore it completely (no totals, no speed, no
-state change). For Claude, copied history is removed by deduplication (3.4).
+state change). For Claude and Factory Droid (4.16), copied history is removed by deduplication (3.4).
 
 A paginated Codex sub-agent (multi-agent v2: `history_mode == "paginated"`) starts with a copy of its parent's records
 written with fresh timestamps, so the timestamp rule misses them. Every line of such a rollout carries a top-level
@@ -1568,6 +1573,217 @@ trims and lowercases the value; the `/codex-runtime` command writes `codex_app_s
   cache_write_tokens`, `output_tokens`) for sessions without Codex-runtime turns, and each response's
   `endMs − startMs` equals Hermes's own `latency`.
 
+### 4.16 Factory Droid
+
+Factory Droid is the coding agent of Factory AI (closed source): the CLI `droid`, interactive and `droid exec`, and the
+Factory Desktop app, which runs the same agent and writes the same files. Each session has a transcript, which times
+every model call but records no usage, and next to it a settings file (*sidecar*) whose cumulative counters droid
+rewrites as the session runs. So the calls, their timing, model and effort come from the transcript, and their tokens
+from the growth of the counters, *allocated* to the calls written since (below). Evidence: `spec/research/droid.md`
+(issue #33, checked on droid 0.250.0; public recordings of droid on Linux and Windows and of Factory Desktop in
+third-party test data); fixtures: `spec/tools/droid_fixtures.py` (`spec/fixtures/droid`). Out of scope: sessions of
+droid before 0.123, which kept no counters (they count nothing), cloud sessions without local files, droid inside WSL.
+
+#### Roots and discovery
+
+- **Root** (section 2): `~/.factory/sessions`. Factory documents no environment variable for this folder.
+  `FACTORY_HOME_OVERRIDE`, which third parties found in the binary and read in two different ways, is not used; a moved
+  folder is chosen in the user setting.
+- **User setting**: one folder. When it contains a folder named `sessions` (compared case-insensitively on Windows)
+  it is the Factory folder and that `sessions` folder is the root; otherwise the folder itself is the root. It replaces
+  the automatic root.
+- **Sessions**: regular files (never symlinks) whose name ends in `.jsonl` and does not start with `.`, directly in the
+  root (older droid versions) or in a folder directly in it (the working directory with its separators replaced by `-`,
+  such as `-Users-dev-projects-forge` or `-C-Users-dev-halo`; not a symlink, name not starting with `.`); nothing
+  deeper. The *session id* is the file name without `.jsonl` (droid names the file after `session_start.id`). The
+  sidecar is the regular file `<session id>.settings.json` in the same folder. Nothing else is opened: not
+  `<session id>.settings.json.bak` (the previous copy droid keeps), index and cache files, or anything outside the
+  root — `~/.factory/settings.json` holds the user's API keys in plain text.
+
+#### Transcript lines
+
+Lines follow section 4 (malformed and long lines). A line's time `ts` is its `timestamp` (3.1); the phase starts
+`idle`.
+
+| Line | Action |
+| --- | --- |
+| first `type == "session_start"` | `project` = basename of `cwd` (split on `/` and `\`), `cwdPath` = `cwd`. `parent` and `callingSessionId` are kept when they are *session ids* (strings matching `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`, so no other file name can be formed from them); any other value counts as absent. `isSubagent` = `callingSessionId` is present. Later `session_start` lines are ignored. |
+| `type == "message"` with a `ts`, `message.role == "user"` | `message.visibility == "user_only"` (notices and hook records, shown to the user and never sent to the model): only `lastLineMs`. Otherwise (no `visibility`: the user's text or tool results; `llm_only`: the context droid adds to each turn): `pendingStartMs = ts`, phase `generating` (`inFlightStartMs = ts`). |
+| `type == "message"` with a `ts`, `message.role == "assistant"` | a call (below) |
+| `type == "compaction_state"` with a `ts` (a summary of the conversation so far) | the input weight starts over here (Allocation); when the phase is `generating`: `pendingStartMs = ts` and `inFlightStartMs = ts` (the summary call ended, the next request follows) |
+| `type == "agent_turn_outcome"` (written without a timestamp) | phase `idle`, `pendingStartMs = null` |
+| anything else (`todo_state`, other types and roles) | only `lastLineMs` |
+
+`lastLineMs` = the latest `ts` of any line, including assistant messages ignored by deduplication.
+
+**Calls.** An assistant message with a `ts` whose `id` is a non-empty string is a call with the key
+`"droid:" + id`, unless that key is owned by another file (3.4: forks copy their parent's messages with their ids and
+timestamps) or was already seen in this file (a repeated line changes nothing). The file claims the key and the call
+becomes an *open* response:
+
+- `startMs = pendingStartMs` (may be null), `endMs = ts`, `final = true`, one request. In the recordings each
+  assistant message is one model call, written when it ends, and the user line before it (a prompt, the turn's context
+  or tool results) is written just before the request is sent, so the interval is the call's end-to-end time (3.3).
+- `model` = `message.modelId` when it is a string that is not blank (trimmed), else the session model (Sidecar) as it is
+  when the call's tokens are allocated. Custom ids (`custom:<name>-<n>`, the user's own models) stay as written; 9.2
+  prices them by `<name>`.
+- `provider` = `custom` when the model starts with `custom:` (ASCII case-insensitive), else null. The sidecar's
+  `providerLock` names an API dialect (`anthropic`, `openai`, `generic-chat-completion-api`), not a provider, and is
+  not used.
+- Its two weights (Allocation) and its effort fact (EXECUTION-MODES).
+
+Then `pendingStartMs = null`; phase `tools` when `message.content` is an array with a block whose `type` is
+`tool_use`, else `idle`. The agent's `model` is the latest call's `modelId`, else (no call yet, or the latest call has
+none) the session model. An open response is emitted (4.4) when tokens are allocated to it.
+
+#### Sidecar
+
+- **Reading**: the whole file, which must be a regular file (a symlink is not followed) of at most 1 MiB, valid UTF-8
+  (one leading U+FEFF is removed) and a JSON object (3.6); otherwise it is *unreadable* and changes nothing (droid may
+  be replacing it; the next read cycle tries again). A readable sidecar sets the session model, and it has *counters*
+  when its `tokenUsage` is an object. On Windows it is opened with read, write and delete sharing and closed right
+  after reading (droid replaces it and keeps a `.bak`).
+- **Counters**: `inputTokens`, `cacheCreationTokens`, `cacheReadTokens`, `outputTokens` and `thinkingTokens` of
+  `tokenUsage`, each a token value of 3.2 (missing → 0). Not used: `factoryCredits` (Factory's billing unit, not
+  tokens), `inclusiveTokenUsage` and `childInclusiveTokenUsageBySessionId` (they add the session's sub-agents, which
+  count in their own files), `lastCallTokenUsage`, and `assistantActiveTimeMs` (the summed wall time of whole turns,
+  tool runs included — 75.4 s for a recorded 75.2 s turn — so it cannot time calls).
+- **Session model**: `effectiveFactoryRouterModel.modelId` when it is a string that is not blank (the model Factory's
+  router chose when `model` is `auto`), else `model` when it is a string that is not blank and not `auto` (ASCII
+  case-insensitive); trimmed; else null.
+- **Own counters**: a session with a `parent` (a fork, or a successor started by droid 0.226's `/compress` or by
+  `/handoff`) starts from its parent's counters: a recorded `/compress` successor began at its parent's 60/37
+  input/output tokens, while its `assistantActiveTimeMs` started over; forks are assumed alike. Its own counters are,
+  field by field, `max(0, counter − parent counter)`. The parent's counters come from the sidecar
+  `<parent>.settings.json` in the same folder, read by the rules above whether or not the parent's transcript exists:
+  no such file, or a readable one without counters, gives 0. One that exists but is unreadable (droid may be replacing
+  it) leaves the own counters *unknown*: the session's sidecar read changes nothing in that read cycle, exactly as when
+  the session's own sidecar is unreadable, and the next read cycle tries again. The session remembers the signature of
+  that parent sidecar (size, modification time and identity: macOS device and inode, Windows volume serial number and
+  file index); when a later attempt finds it unreadable with the same signature, the file is not being rewritten and
+  will not mend, so it gives 0 from then on (a readable parent sidecar clears the memory). Every other session's own
+  counters are its counters. Then own `thinkingTokens` = `min(thinkingTokens, outputTokens)` of the own counters.
+- **Tokens** of a call, from its shares of the own counters:
+
+  | Field | Value |
+  | --- | --- |
+  | `input` | `inputTokens + cacheCreationTokens + cacheReadTokens` (droid's `inputTokens` excludes the cache: in the issue's sample cache reads exceed it fivefold) |
+  | `cachedInput` | `cacheReadTokens` |
+  | `cacheWriteInput` | `cacheCreationTokens` |
+  | `output` | `outputTokens` (includes reasoning) |
+  | `reasoning` | `thinkingTokens` (a breakdown of `outputTokens`, often estimated by droid) |
+  | `cacheWrite1hInput` | 0 |
+
+  So `total = input + output` counts cache reads and writes as input and reasoning inside output, like every source.
+
+#### Allocation
+
+Each call has two weights, taken from the bytes of the transcript:
+
+- `wOut` = the length in bytes of its line (without the `\n`; a `\r` before it counts), at most 8 388 608: it follows
+  what the call wrote (text, thinking, tool input).
+- `wIn` = 65 536 + the number of bytes from the start of the latest `compaction_state` line before it (none: from the
+  offset where reading started, 0 for a file read from the start) to the start of its own line, at most 8 388 608: it
+  follows the context the call was sent — the conversation since the last summary, plus 64 KiB standing in for
+  droid's system prompt and tool schemas, which the transcript does not hold.
+
+*Allocating* a vector `D` of the five counters to calls `c_1 … c_n` (in file order): for each field — `inputTokens`,
+`cacheCreationTokens` and `cacheReadTokens` by `wIn`, `outputTokens` and `thinkingTokens` by `wOut` — with
+`W = Σ w_i`, call `i` gets `⌊D_f · w_i / W⌋`, and the units left over go one each to the calls with the largest
+remainders `D_f · w_i mod W`, ties to the earlier call (largest-remainder rounding in exact integers: `D_f ≤ 10^12`
+and `w_i ≤ 2^23`, so every product fits in 64 bits).
+
+**State** per session: `H`, the own counters already accounted (a high-water mark, all 0 at first), `P`, growth not
+yet allocated (0), and the open calls.
+
+**Read cycle.** Whenever a session is read — its startup read, appended transcript lines, a changed sidecar — the parser
+(1) feeds the new transcript lines; (2) reads the sidecar when it is new, its size, modification time or identity
+changed, or its last read found it unreadable or the own counters unknown, and when it has counters and the own counters
+are known adds `max(0, own_f − H_f)` to `P_f` and sets `H_f = max(H_f, own_f)`, for each field; (3) when `P` is not zero
+and calls are open, allocates `P` to the open calls, emits them, and sets `P = 0` (no call is open any more).
+
+- One call per rewrite: the call gets exactly its own tokens, whichever of the two files droid writes first (a rewrite
+  read before its call's line waits in `P`). Calls that share a rewrite (a late read, a sidecar written once per turn)
+  split it by their weights.
+- Growth while no call is open (a session title, a compaction summary, a retry) waits in `P` for the next call.
+- Lower counters (a restored `.bak`, a recount) add nothing: `H` keeps the highest value, so growth counts again only
+  above it. A sidecar without counters (missing, unreadable, droid before 0.123) or with unknown own counters adds
+  nothing. A new session is a new file with its own state.
+- A transcript that shrinks or changes identity resets the session (section 5): `H`, `P` and the open calls start
+  over, and its lines are read again (the same keys update their responses, 4.4).
+
+**Startup and history.** A session read from the start (at startup within the window of section 5, when discovered while
+running, and in the history analysis) feeds its whole transcript before its first sidecar read, so its own counters are
+allocated over all its calls at once — the *history rule*. A session whose transcript starts at its end (older than the
+startup window) has no open calls and takes `H` from its sidecar at that moment, without adding to `P` (no sidecar or no
+counters: `H` stays 0): only later growth counts. When the sidecar is unreadable or its own counters are unknown at that
+moment, `H` is taken the same way at the first later read cycle that reads it with known own counters (or finds no
+sidecar, or one without counters). In the history analysis a session whose own counters are unknown contributes nothing
+to that analysis and its result is not stored (its stored contributions and identity stay, section 8), so the next
+analysis tries again; the remembered parent signature carries over to that analysis (in memory: a relaunch starts
+without it). After the history rule the history analysis (8) emits what is left in `P` (own counters but no call, for
+example every call failed before writing a message) as one response with the key `"droid:" + session id + ":session"`,
+`startMs = null`, `endMs = lastLineMs` (nothing when `lastLineMs` is null), the session model and `P`'s tokens; the live
+parser keeps such growth in `P`.
+
+**Live and history.** Both count the same calls (keys, times, models, effort) and, once `P` is empty and the counters
+never went down, the same total per session. They can differ in how a session's tokens are split between its calls:
+live gives each rewrite's growth to the calls it covers, history spreads the final counters by weight. So per-model
+rows (a session that switched models), price tiers (chosen by each response's input), a day's measured speed, and the
+day split of a session that Agent Speed watched across midnight can differ between the dashboard and the history row of
+the same day (9.6) until the next launch seeds the session by the history rule.
+
+#### Agents and phase
+
+- One agent per transcript; agent id = its absolute path.
+- Sub-agents: droid runs Task-tool workers as sessions of their own in the same folder, with `callingSessionId` (and
+  `callingToolUseId`) in their `session_start`; their usage is in their own sidecar and in the parent's
+  `inclusiveTokenUsage`, which is not read. Parent: 6.7. Forks and successors (`parent`) are independent root agents
+  whose inherited counters are removed above.
+- The phase follows the table: a call is in flight from the user line or summary that preceded it, `tools` lasts from
+  a call that asked for tools until their results are written, and `idle` follows a call without tools and a turn
+  outcome. The sidecar never changes the phase.
+- Effort (EXECUTION-MODES): each call's `reasoningEffort`; no speed facts.
+- Work signals (6.10) do not cover Factory Droid. Its transcript records tool calls in Anthropic's shape (`tool_use`
+  blocks in assistant messages, `tool_result` blocks in the next user message), which are not read here.
+- Settings (DESIGN 5) count today's main sessions: session files whose `lastLineMs` is today and whose session is not a
+  sub-agent.
+
+#### Reading
+
+- Startup order and window (section 5) use the newer of the transcript's and the sidecar's modification times, as 5.4
+  does for a database and its WAL.
+- Change detection: the file watcher, the 1-second fallback and rediscovery also check each tracked session's sidecar;
+  a sidecar change starts a read cycle. The sidecar is never tailed: each read takes the whole file.
+
+#### Known approximations
+
+- Per-call tokens are exact only when a sidecar rewrite covers one call; otherwise, and always in history, they are
+  estimated by weights (bytes, not tokens). Session totals, request counts, call times, models and efforts are not
+  affected.
+- When droid rewrites the sidecar is not documented. If it does so only when a turn ends, the turn's calls get their
+  tokens together at its end: their measured speeds are weighted estimates, and those that ended more than 120 s
+  earlier are not reported (11.4) and raise no `responseCompleted` (6.4); in-flight estimates (6.3) cover the turn
+  meanwhile.
+- Usage without a call message (session titles, compaction summaries, retries, which droid counts since 0.247) is added
+  to the next call; after a session's last call it counts in history only.
+- Inherited counters were recorded once (a droid 0.226 `/compress` successor); that forks and `/handoff` successors
+  inherit the same way is assumed. Since droid 0.196 the user stays in the original session after a fork, so a parent
+  that keeps working lowers its fork's own counters by its later usage (at least to 0); a parent whose files were
+  deleted is not subtracted, so its inherited part counts twice.
+- `inputTokens` without cache reads is verified on recordings with the user's own OpenAI-compatible key and on the
+  issue's sample, not on Factory-routed models; that `outputTokens` includes reasoning follows one reader's analysis of
+  droid's provider adapters. Factory changed what the counters count (0.168: successful turns only; 0.247: every
+  billed attempt); they are used as written.
+- Factory credits are not used; cost is API-equivalent (9) by the model each call names.
+- A fork's copies of its parent's messages are removed by deduplication only when the parent is read first (startup
+  order); otherwise the fork owns them at the parent's times and the parent loses them: totals stay right, the day
+  split moves.
+- Derived from the issue, Factory's documentation and changelog, and public recordings and code of third-party readers
+  (evidence in `spec/research/droid.md`); not yet verified against a running droid. Verification target (by hand): for
+  a session watched live, the sums of its responses' fields equal its sidecar's own counters, and each response's
+  `endMs − startMs` equals the gap between its assistant message and the user line before it.
+
 ## 5. Reading files
 
 - Startup reading order (it decides which file owns a duplicated key): files sorted by modification time ascending,
@@ -1588,7 +1804,8 @@ trims and lowercases the value; the `/codex-runtime` command writes `codex_app_s
   skips the bytes before the first newline it reads only when the byte just before its start offset is not a newline
   (so a complete line appended later is never dropped). The 256 MiB tail rule always skips to the next newline.
 - If a file shrinks or its identity changes, reset its offset and its parser state (keep the global dedupe set).
-  Hermes Agent logs follow a renamed file instead and share one parser state per log folder (4.15).
+  Hermes Agent logs follow a renamed file instead and share one parser state per log folder (4.15). A Factory Droid
+  sidecar is read whole after the transcript's new lines; its changes never reset the session (4.16).
 - Reading never blocks the UI thread. Steady-state CPU target: < 1% on an idle machine.
 
 Responses produced while reading the startup backlog are *seeded*: they count toward totals, peaks and agent speed
@@ -1734,6 +1951,9 @@ Parent links (`parentId`, an agent id or null):
   under the main session, so they attach to it.
 - Hermes Agent: none. Its log does not link a sub-agent session (platform `subagent`, 4.15) to its parent, so
   sub-agents are roots of their own.
+- Factory Droid: a session whose `session_start` has a `callingSessionId` (a Task-tool worker, 4.16) has the parent
+  `<folder>/<callingSessionId>.jsonl` (its own folder) when that file is a tracked agent. `parent` (forks and
+  successors) is not a parent link.
 - Self references and cycles resolve to null.
 
 List:
@@ -1936,7 +2156,8 @@ plain text, prompts or content.
 
 Scope: every discovered file of every enabled source with no date filter and no file-count limit (Codex `.jsonl.zst`,
 all Gemini roots with legacy `.json`, every omp root including profiles, every Antigravity conversation database
-of every store, both WorkBuddy roots and the rotated logs of every Hermes Agent profile included), plus Codex `archived_sessions` (the sibling of the sessions root) and the whole OpenCode
+of every store, both WorkBuddy roots, the rotated logs of every Hermes Agent profile and every Factory Droid session
+with its sidecar included), plus Codex `archived_sessions` (the sibling of the sessions root) and the whole OpenCode
 database. Parsing uses exactly the rules of section 4 (same state machines, dedupe, copied-history rules) over whole
 files and complete database reads, in startup order (5; an Antigravity database's time is the newer of its `.db` and
 `-wal`, 5.4).
@@ -1964,6 +2185,13 @@ deleted file. Daily totals are the sums over files. The history store is version
 and triggers a full recomputation that keeps previously stored days for which no logs exist any more (analysis version
 7: the unpriced facts of 9.10; 6: the Codex ordinal rule of 3.5). "Clear history" (settings) deletes
 the store and recomputes from the current logs.
+
+Factory Droid (4.16): a session's identity adds its sidecar's size and modification time and, for a session with a
+`parent`, those of the parent's sidecar, whose counters it subtracts; the history rule of 4.16 makes its contributions a
+function of these files alone; a session whose parent sidecar is unreadable is not stored by that analysis and is
+analysed again by the next one (4.16 *Own counters*). Adding the source needs no new analysis version: no earlier build
+read its files, so the first analysis finds them as new files (this covers the `custom` step of 9.2 too, which in
+practice only Droid's ids reach).
 
 Cost (9.7): every row also has `costMicroUsd` and `unpricedRequests`, every model `costMicroUsd` and
 `unpricedRequests`, and every date a `priceVersion`. The cost feature bumps the store version; days kept from an
@@ -2047,6 +2275,7 @@ everything these rules do not reach needs an explicit alias.
    | Step | Key | Example |
    | --- | --- | --- |
    | exact | remove every `[…]` group, collapse whitespace, trim, lowercase | `claude-opus-5-5[1m]`, `Claude-Opus-5-5` → `claude-opus-5-5` |
+   | custom | a key starting with `custom:` (Factory Droid's ids of the user's own models, `custom:<name>-<n>`, 4.16) loses that prefix, then a trailing `-` followed by one or more digits (droid's index), then spaces and `-` at both ends (left by a removed `[…]` group) | `custom:GPT-5.5-[OpenAI-BYOK]-0` → `gpt-5.5`; `custom:Claude-Opus-5.5-Thinking-0` → `claude-opus-5.5-thinking` (→ `claude-opus-5-5` by the steps below) |
    | route | the part after the last `/` | `anthropic/claude-sonnet-4.5` → `claude-sonnet-4.5`; `models/gemini-2.5-pro` |
    | cloud | `<region>.` (from `bedrockRegions`) is removed when a `<vendor>.` (from `bedrockVendors`) follows; a leading `<vendor>.` is removed and then a trailing `-v<N>` or `-v<N>:<M>`; a trailing `@YYYYMMDD` becomes `-YYYYMMDD`, any other trailing `@…` is removed | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` → `claude-sonnet-4-5-20250929`; `claude-opus-5-5@default` → `claude-opus-5-5` |
    | free | the key ends with an entry of `freeSuffixes` (and is longer) → **free**, no lookup | `deepseek-v4.1-flash-free`, `…:free` |
@@ -2141,7 +2370,8 @@ Engine cases with `liveCost` in `spec/fixtures/engine-cases.json` give responses
 - `today.costMicroUsd`: Σ `costMicroUsd` of today's responses with a known cost, as recorded (unfinalized ones
   included, so it is a lower bound like `output`).
 - `today.unpricedRequests`: today's responses without a known price.
-- Both per source, and per model for breakdowns. The dashboard's today cost equals the history's row for today.
+- Both per source, and per model for breakdowns. The dashboard's today cost equals the history's row for today
+  (Factory Droid: up to the split of a session's tokens between its calls, 4.16).
 - `today.unpricedFacts`: per source, the unpriced facts of today's responses (9.10 *Live*), for Settings → Cost.
 
 ### 9.7 Day binding and history
@@ -2203,6 +2433,9 @@ and no historical rates are needed. The UI states the rate date (DESIGN 9). Roun
 - Models behind a user's own proxy or router are priced by the model name the agent logged; opaque names stay unknown.
 - WorkBuddy bills in credits, which are not used; calls through its routing slots stay unpriced unless the stream names
   the model it chose (4.9).
+- Factory Droid's Factory credits are not used either. Its per-call tokens are allocated from session counters (4.16),
+  so the tier a call is priced in can differ from the provider's bill; the user's own models price only when their
+  name, after the `custom` step of 9.2, is a model id or alias of the table.
 
 ### 9.10 Unpriced diagnostics
 
@@ -2531,6 +2764,7 @@ desktop app that runs its agent on its own executable, so its row needs the argu
 | `pi` | `name == pi` (release binaries), or a script host whose arguments contain `/@earendil-works/pi-coding-agent/` or `/@mariozechner/pi-coding-agent/` (npm, and the installers' `<agent dir>/install/releases/<version>/node_modules/…`, started by the `<agent dir>/bin/pi` launcher). |
 | `openclaw` | `name == openclaw` (standalone builds), or a script host whose arguments after the first contain `/openclaw.mjs` (the npm package's `bin`, which may respawn itself with the same script; git checkouts) or `/openclaw/dist/` (services started on `dist/entry.js` or `dist/entry.mjs` of the npm or pnpm package). The Gateway process sends OpenClaw's own model requests. The agents it starts for delegated turns match their own rows and count for their sources: Claude Code and Codex app servers, like their turns (4.14); Gemini CLI too, although its turns count under `openclaw`. The Windows Hub's Gateway runs inside WSL, outside the process table. Not verified with a running OpenClaw; the macOS app's bundled runtime is assumed to run the same `openclaw.mjs`. |
 | `hermes` | A Python host whose arguments after the first contain `hermes_bootstrap`, `hermes_cli` or `acp_adapter` (Hermes's launchers run `python -I -c "…import hermes_bootstrap…"`; the desktop app, the TUI's local gateway and the gateway services run `-m hermes_cli.main` or the same bootstrap; source checkouts `hermes_cli/main.py`), or one with an argument whose file name without `.exe` is `hermes`, `hermes-agent` or `hermes-acp` (pip and uv console scripts `bin/hermes`, `Scripts\hermes.exe`, and Hermes's Windows launcher `.hermes\bin\hermes.exe`, which runs Python on its own path). The Python process sends Hermes's model requests; a launcher process sends nothing and is not a row, since `hermes` is also the name of the Hermes JavaScript engine's command-line tool. Not verified with a running Hermes. |
+| `droid` | `name == droid`: droid is one native executable (built with Bun), installed as `~/.local/bin/droid` (the install script), `%USERPROFILE%\bin\droid.exe` (the PowerShell installer), by the Homebrew cask `droid`, or as the npm package `droid`'s platform binary (`@factory/cli-<os>-<arch>[-baseline]/bin/droid`; on Windows a Node shim, which is not a row and sends nothing, starts `droid.exe`). The interactive CLI starts a second `droid` (`droid exec --input-format stream-jsonrpc …`), which counts as part of it; Factory Desktop runs `droid daemon` and `droid exec` children from its bundle (Windows `…\resources\bin\droid.exe`), and the app's own processes are app processes like the other desktop apps'. From the installers, the Homebrew cask, the npm package and Factory's issue reports; not verified with a running droid. |
 
 The desktop apps' own processes are **not** agent processes, nor are their Electron or Tauri helpers: macOS
 `/Applications/{Claude,ChatGPT,Codex,OpenCode,Antigravity}.app/Contents/MacOS/<name>`; Windows executables directly in
@@ -2591,7 +2825,7 @@ parent's process). Each tick, for every root agent process `P` of source `s` wit
 `cwdPath` is new parser metadata (section 4): the full working directory the transcript names — Claude: the latest
 `cwd`; Codex: `session_meta`/`turn_context` `cwd`; dsh: header `cwd`; OpenCode: `session_v2.directory`; Gemini CLI: the
 `.project_root` content; omp: header `cwd`; Antigravity: the decoded path of the first workspace URI; WorkBuddy: the
-latest `cwd`; Pi and OpenClaw: header `cwd`. Null when absent.
+latest `cwd`; Pi and OpenClaw: header `cwd`; Factory Droid: `session_start.cwd`. Null when absent.
 It is metadata only (no effect on tokens or history).
 
 Typical outcomes: one Claude Code session per terminal → exact; several Claude Desktop Code sessions (one CLI process

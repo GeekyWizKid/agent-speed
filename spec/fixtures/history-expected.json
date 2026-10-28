@@ -163,6 +163,50 @@
     },
     {
       "date": "2026-10-20",
+      "source": "droid",
+      "requests": 10,
+      "input": 304319,
+      "cachedInput": 235209,
+      "cacheWriteInput": 35532,
+      "output": 5656,
+      "reasoning": 1823,
+      "measuredOutput": 5656,
+      "measuredMs": 40388,
+      "unfinalized": 0,
+      "costMicroUsd": 556920,
+      "unpricedRequests": 0,
+      "priceVersion": 1,
+      "agents": 6,
+      "models": {
+        "claude-opus-5-5": {
+          "requests": 5,
+          "output": 4236,
+          "measuredOutput": 4236,
+          "measuredMs": 23168,
+          "costMicroUsd": 519345,
+          "unpricedRequests": 0
+        },
+        "custom:GPT-5.5-[OpenAI-BYOK]-0": {
+          "requests": 3,
+          "output": 720,
+          "measuredOutput": 720,
+          "measuredMs": 7975,
+          "costMicroUsd": 16700,
+          "unpricedRequests": 0
+        },
+        "gpt-5.5": {
+          "requests": 2,
+          "output": 700,
+          "measuredOutput": 700,
+          "measuredMs": 9245,
+          "costMicroUsd": 20875,
+          "unpricedRequests": 0
+        }
+      },
+      "unpriced": []
+    },
+    {
+      "date": "2026-10-20",
       "source": "gemini",
       "requests": 9,
       "input": 93996,
@@ -608,6 +652,42 @@
           "requests": 1
         }
       ]
+    },
+    {
+      "date": "2026-10-21",
+      "source": "droid",
+      "requests": 4,
+      "input": 256612,
+      "cachedInput": 220808,
+      "cacheWriteInput": 6979,
+      "output": 2721,
+      "reasoning": 472,
+      "measuredOutput": 2721,
+      "measuredMs": 14000,
+      "unfinalized": 0,
+      "costMicroUsd": 273756,
+      "unpricedRequests": 0,
+      "priceVersion": 2,
+      "agents": 2,
+      "models": {
+        "claude-opus-5-5": {
+          "requests": 3,
+          "output": 1925,
+          "measuredOutput": 1925,
+          "measuredMs": 9500,
+          "costMicroUsd": 216210,
+          "unpricedRequests": 0
+        },
+        "claude-sonnet-4-5-20250929": {
+          "requests": 1,
+          "output": 796,
+          "measuredOutput": 796,
+          "measuredMs": 4500,
+          "costMicroUsd": 57546,
+          "unpricedRequests": 0
+        }
+      },
+      "unpriced": []
     },
     {
       "date": "2026-10-21",

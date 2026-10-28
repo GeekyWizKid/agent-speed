@@ -5,6 +5,7 @@
   python3 spec/tools/reference.py --dump-today [--codex PATH] [--claude PATH] [--dsh PATH] [--gemini PATH]
                                               [--omp PATH] [--pi PATH] [--antigravity PATH] [--workbuddy PATH]
                                               [--workbuddy-ai PATH] [--openclaw PATH] [--hermes PATH]
+                                              [--droid PATH]
   python3 spec/tools/reference.py --dump-history [--utc] [--prices PATH] [...]
   python3 spec/tools/reference.py --write-history-fixture
   python3 spec/tools/reference.py --dump-unpriced [--days N | --first YYYY-MM-DD --last YYYY-MM-DD | --live]
@@ -232,6 +233,24 @@ class FileState:
         self.oc_delegated = False
         self.oc_mirror_window = False
         if source == "openclaw":
+            self.source_decided = True
+        # factory droid (METRICS 4.16): parent links, open calls, the counters' high-water mark and unallocated growth
+        self.droid_parent = None
+        self.droid_calling = None
+        self.droid_open = []
+        self.droid_seen = set()
+        self.droid_mark = {f: 0 for f in ("inputTokens", "cacheCreationTokens", "cacheReadTokens", "outputTokens",
+                                          "thinkingTokens")}
+        self.droid_growth = dict(self.droid_mark)
+        self.droid_signature = None
+        self.droid_parent_bad = None  # signature of the parent sidecar the last attempt found unreadable
+        self.droid_unknown = False
+        self.droid_baseline = False
+        self.droid_model = None
+        self.droid_call_model = None
+        self.droid_compaction = None
+        self.droid_read_from = 0
+        if source == "droid":
             self.source_decided = True
         # workbuddy
         self.cwd = None
@@ -634,6 +653,8 @@ def zst_stream_lines(path):
 def process_file(state, dedupe, start_offset=0, max_lines=None):
     if state.source == "gemini" and state.path.endswith(".json"):
         return gemini_legacy(state, dedupe)
+    if state.source == "droid":
+        return droid_read(state, dedupe, start_offset, max_lines)
     handler = {"codex": codex_line, "deepseek": dsh_event, "gemini": gemini_record, "omp": omp_line, "pi": pi_line,
                "workbuddy": workbuddy_line, "workbuddyAi": workbuddy_line}.get(state.source, claude_line)
     if state.source in ("omp", "pi") and start_offset > 0:
@@ -684,6 +705,10 @@ def resolve_parents(states):
         elif s.source == "gemini":
             chats = os.sep.join(re.split(r"[\\/]", s.path)[:-2])
             parent = gemini_mains.get((chats, s.parent_session)) if s.parent_session else None
+        elif s.source == "droid":
+            candidate = os.path.join(os.path.dirname(s.path), s.droid_calling + ".jsonl") if s.droid_calling else None
+            tracked = candidate in by_path and by_path[candidate].source == "droid"
+            parent = candidate if tracked else None
         elif s.source in ("omp", "pi"):
             candidate = os.path.dirname(s.path) + ".jsonl"
             tracked = candidate in by_path and by_path[candidate].source == s.source
@@ -2008,6 +2033,346 @@ class HermesTail:
         self.offsets = offsets
 
 
+# ----------------------------------------------------------------------------- Factory Droid (METRICS 4.16)
+DROID_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
+DROID_CUSTOM = re.compile(r"custom:", re.IGNORECASE | re.ASCII)
+DROID_SIDECAR_MAX = 1 << 20
+DROID_WEIGHT_MAX = 8_388_608
+DROID_CONTEXT_BASE = 65_536
+DROID_FIELDS = ("inputTokens", "cacheCreationTokens", "cacheReadTokens", "outputTokens", "thinkingTokens")
+DROID_INPUT_FIELDS = ("inputTokens", "cacheCreationTokens", "cacheReadTokens")
+
+
+def droid_root(home=None, setting=None):
+    """The sessions root (METRICS 4.16): ~/.factory/sessions, or the user setting (a .factory folder or the root)."""
+    if setting:
+        nested = os.path.join(setting, "sessions")
+        return nested if os.path.isdir(nested) and not os.path.islink(nested) else setting
+    return os.path.join(home or os.path.expanduser("~"), ".factory", "sessions")
+
+
+def droid_sidecar_path(path):
+    return path[:-len(".jsonl")] + ".settings.json"
+
+
+def droid_mtime(path):
+    """A session's time for the startup order: the newer of its transcript and its sidecar (METRICS 4.16)."""
+    side = droid_sidecar_path(path)
+    times = [os.path.getmtime(path)]
+    if os.path.isfile(side) and not os.path.islink(side):
+        times.append(os.path.getmtime(side))
+    return max(times)
+
+
+def discover_droid(root, limit=20_000):
+    """`*.jsonl` directly in the root or in a folder directly in it; no symlinks, nothing starting with `.`."""
+    found = []
+    if not os.path.isdir(root):
+        return found
+
+    def sessions_in(folder):
+        for name in sorted(os.listdir(folder)):
+            path = os.path.join(folder, name)
+            if name.endswith(".jsonl") and not name.startswith(".") and os.path.isfile(path) \
+                    and not os.path.islink(path):
+                yield path
+
+    found += list(sessions_in(root))
+    for name in sorted(os.listdir(root)):
+        folder = os.path.join(root, name)
+        if not name.startswith(".") and os.path.isdir(folder) and not os.path.islink(folder):
+            found += list(sessions_in(folder))
+    found.sort(key=droid_mtime, reverse=True)
+    return found[:limit]
+
+
+def droid_id(value):
+    return value if isinstance(value, str) and DROID_ID.fullmatch(value) else None
+
+
+def droid_read_sidecar(path):
+    """(readable, counters, session model) of a sidecar; counters is None without a `tokenUsage` object."""
+    try:
+        st = os.lstat(path)
+        if not stat.S_ISREG(st.st_mode) or st.st_size > DROID_SIDECAR_MAX:
+            return False, None, None
+        with open(path, "rb") as f:
+            data = f.read(DROID_SIDECAR_MAX + 1)
+        if len(data) > DROID_SIDECAR_MAX:
+            return False, None, None
+        text = data.decode("utf-8")
+        obj = loads(text[1:] if text.startswith("﻿") else text)
+    except (OSError, ValueError, RecursionError):
+        return False, None, None
+    if not isinstance(obj, dict):
+        return False, None, None
+    router = obj.get("effectiveFactoryRouterModel")
+    routed = router.get("modelId") if isinstance(router, dict) else None
+    chosen = obj.get("model")
+    if isinstance(routed, str) and routed.strip():
+        model = routed.strip()
+    elif isinstance(chosen, str) and chosen.strip() and chosen.strip().lower() != "auto":
+        model = chosen.strip()
+    else:
+        model = None
+    usage = obj.get("tokenUsage")
+    counters = {f: num(usage.get(f)) for f in DROID_FIELDS} if isinstance(usage, dict) else None
+    return True, counters, model
+
+
+def droid_signature(path):
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return None
+    return st.st_size, st.st_mtime_ns, st.st_dev, st.st_ino
+
+
+def droid_parent_counters(state):
+    """The parent's counters for the own counters (METRICS 4.16), or None while they are unknown: a parent sidecar that
+    exists but is unreadable, unless an earlier attempt found it unreadable with the same signature (then 0)."""
+    zero = dict.fromkeys(DROID_FIELDS, 0)
+    if not state.droid_parent:
+        return zero
+    path = os.path.join(os.path.dirname(state.path), state.droid_parent + ".settings.json")
+    signature = droid_signature(path)
+    if signature is None:
+        state.droid_parent_bad = None
+        return zero
+    readable, counters, _ = droid_read_sidecar(path)
+    if readable:
+        state.droid_parent_bad = None
+        return counters or zero
+    if signature == state.droid_parent_bad:
+        return zero
+    state.droid_parent_bad = signature
+    return None
+
+
+def droid_own(state, counters):
+    """Own counters: a session with a `parent` starts from that session's counters (METRICS 4.16); None if unknown."""
+    parent = droid_parent_counters(state)
+    if parent is None:
+        return None
+    own = {f: max(0, counters[f] - parent[f]) for f in DROID_FIELDS}
+    own["thinkingTokens"] = min(own["thinkingTokens"], own["outputTokens"])
+    return own
+
+
+def droid_line(state, obj, dedupe, offset, length):
+    kind = obj.get("type")
+    if kind == "session_start":
+        if not state.header_seen:
+            state.header_seen = True
+            state.cwd = obj.get("cwd") if isinstance(obj.get("cwd"), str) else None
+            state.project = basename(state.cwd)
+            state.droid_parent = droid_id(obj.get("parent"))
+            state.droid_calling = droid_id(obj.get("callingSessionId"))
+            state.is_subagent = state.droid_calling is not None
+        return
+    if kind == "agent_turn_outcome":
+        state.phase, state.in_flight, state.pending = "idle", None, None
+        return
+    ts = parse_ts(obj.get("timestamp"))
+    if ts is None:
+        return
+    state.last_line = ts if state.last_line is None else max(state.last_line, ts)
+    msg = obj.get("message") if isinstance(obj.get("message"), dict) else None
+    if kind == "message" and msg is not None and msg.get("role") == "user":
+        if msg.get("visibility") != "user_only":
+            state.pending, state.phase, state.in_flight = ts, "generating", ts
+    elif kind == "message" and msg is not None and msg.get("role") == "assistant":
+        droid_call(state, obj, msg, ts, dedupe, offset, length)
+    elif kind == "compaction_state":
+        state.droid_compaction = offset
+        if state.phase == "generating":
+            state.pending, state.in_flight = ts, ts
+
+
+def droid_call(state, obj, msg, ts, dedupe, offset, length):
+    mid = obj.get("id")
+    if not isinstance(mid, str) or not mid:
+        return
+    key = "droid:" + mid
+    if key in state.droid_seen or dedupe.owner(key) not in (None, state.path):
+        return
+    dedupe.claim(key, state.path)
+    state.droid_seen.add(key)
+    model_id = msg.get("modelId").strip() if isinstance(msg.get("modelId"), str) and msg["modelId"].strip() else None
+    effort = msg.get("reasoningEffort")
+    state.facts = [f for f in state.facts if f["kind"] != "effort"]
+    if isinstance(effort, str):
+        state.facts = modes.put(state.facts, modes.normalize("effort", effort, None, "recorded", "request"))
+    start = state.droid_compaction if state.droid_compaction is not None else state.droid_read_from
+    state.droid_open.append(dict(key=key, start=state.pending, end=ts, model_id=model_id, facts=list(state.facts),
+                                 w_in=min(DROID_CONTEXT_BASE + offset - start, DROID_WEIGHT_MAX),
+                                 w_out=min(length, DROID_WEIGHT_MAX)))
+    state.droid_call_model = model_id
+    state.model = model_id or state.droid_model
+    content = msg.get("content") if isinstance(msg.get("content"), list) else []
+    tools = any(isinstance(b, dict) and b.get("type") == "tool_use" for b in content)
+    state.pending, state.phase, state.in_flight = None, ("tools" if tools else "idle"), None
+
+
+def droid_shares(total, weights):
+    """Largest-remainder rounding in exact integers, ties to the earlier call (METRICS 4.16 Allocation)."""
+    whole = sum(weights)
+    shares = [total * w // whole for w in weights]
+    left = total - sum(shares)
+    for i in sorted(range(len(weights)), key=lambda i: (-(total * weights[i] % whole), i))[:left]:
+        shares[i] += 1
+    return shares
+
+
+def droid_tokens(share):
+    return dict(input=cap(share["inputTokens"] + share["cacheCreationTokens"] + share["cacheReadTokens"]),
+                cachedInput=share["cacheReadTokens"], cacheWriteInput=share["cacheCreationTokens"],
+                output=share["outputTokens"], reasoning=share["thinkingTokens"])
+
+
+def droid_emit(state, key, start, end, share, model_id, facts):
+    model = model_id or state.droid_model
+    provider = "custom" if model and DROID_CUSTOM.match(model) else None
+    emit(state, key, start, end, droid_tokens(share), model, provider=provider)
+    state.response_facts[key] = facts
+
+
+def droid_allocate(state):
+    """Step 3 of a read cycle: the growth waiting in P goes to the open calls."""
+    if not state.droid_open or not any(state.droid_growth.values()):
+        return
+    calls, shares = state.droid_open, [{} for _ in state.droid_open]
+    for f in DROID_FIELDS:
+        weights = [c["w_in"] if f in DROID_INPUT_FIELDS else c["w_out"] for c in calls]
+        for share, value in zip(shares, droid_shares(state.droid_growth[f], weights)):
+            share[f] = value
+    for call, share in zip(calls, shares):
+        droid_emit(state, call["key"], call["start"], call["end"], share, call["model_id"], call["facts"])
+    state.droid_open = []
+    state.droid_growth = dict.fromkeys(DROID_FIELDS, 0)
+
+
+def droid_sidecar(state):
+    """Step 2 of a read cycle. While `droid_baseline` is set (a transcript that started at its end) the first read
+    whose own counters are known only sets H. An unreadable sidecar, or unknown parent counters, changes nothing and
+    is tried again at the next read cycle (`droid_unknown` marks the latter for the history analysis)."""
+    path = droid_sidecar_path(state.path)
+    signature = droid_signature(path)
+    state.droid_unknown = False
+    if signature is None:
+        state.droid_baseline = False
+        return
+    if signature == state.droid_signature:
+        return
+    readable, counters, model = droid_read_sidecar(path)
+    if not readable:
+        state.droid_signature = None
+        return
+    own = droid_own(state, counters) if counters is not None else None
+    if counters is not None and own is None:
+        state.droid_signature, state.droid_unknown = None, True
+        return
+    state.droid_signature = signature
+    state.droid_model = model
+    state.model = state.droid_call_model or state.droid_model
+    baseline, state.droid_baseline = state.droid_baseline, False
+    if own is None:
+        return
+    for f in DROID_FIELDS:
+        if not baseline:
+            state.droid_growth[f] += max(0, own[f] - state.droid_mark[f])
+        state.droid_mark[f] = max(state.droid_mark[f], own[f])
+
+
+def droid_lines(path, start_offset=0, max_lines=None):
+    """(offset, raw line without `\n`) of every complete line from `start_offset`, and the offset after them."""
+    with open(path, "rb") as f:
+        f.seek(start_offset)
+        data = f.read()
+    pos = 0
+    if start_offset > 0:
+        with open(path, "rb") as f:
+            f.seek(start_offset - 1)
+            after_newline = f.read(1) == b"\n"
+        if not after_newline:
+            nl = data.find(b"\n")
+            pos = nl + 1 if nl >= 0 else len(data)
+    out, count = [], 0
+    while True:
+        nl = data.find(b"\n", pos)
+        if nl < 0:
+            break
+        count += 1
+        if max_lines is not None and count > max_lines:
+            break
+        out.append((start_offset + pos, data[pos:nl]))
+        pos = nl + 1
+    return out, start_offset + pos
+
+
+def droid_feed(state, dedupe, start_offset=0, max_lines=None):
+    """Step 1 of a read cycle: the transcript's new lines; returns the offset after the last complete line."""
+    lines, end = droid_lines(state.path, start_offset, max_lines)
+    for offset, raw in lines:
+        if len(raw) > MAX_LINE or not raw.strip():
+            continue
+        try:
+            obj = loads(raw)
+        except (ValueError, UnicodeDecodeError, RecursionError):
+            state.malformed += 1
+            continue
+        if not isinstance(obj, dict):
+            state.malformed += 1
+            continue
+        droid_line(state, obj, dedupe, offset, len(raw))
+    return end
+
+
+def droid_read(state, dedupe, start_offset=0, max_lines=None):
+    """A session read from `start_offset` as one read cycle (METRICS 4.16): the history rule from offset 0."""
+    state.droid_read_from = start_offset
+    end = droid_feed(state, dedupe, start_offset, max_lines)
+    if max_lines is None:
+        droid_sidecar(state)
+        droid_allocate(state)
+    return end
+
+
+def droid_finish(state):
+    """History only: own counters left without a call become one response of the session (METRICS 4.16)."""
+    if not any(state.droid_growth.values()) or state.last_line is None:
+        return
+    sid = os.path.basename(state.path)[:-len(".jsonl")]
+    droid_emit(state, "droid:%s:session" % sid, None, state.last_line, state.droid_growth, None, [])
+    state.droid_growth = dict.fromkeys(DROID_FIELDS, 0)
+
+
+class DroidTail:
+    """Live reading of one session (METRICS 4.16 Read cycle): appended lines, then the sidecar, then allocation."""
+
+    def __init__(self, path, dedupe, at_end=False):
+        self.path, self.dedupe = path, dedupe
+        self.state = FileState(path, "droid")
+        self.offset = os.path.getsize(path) if at_end else 0
+        self.identity = None
+        self.state.droid_read_from = self.offset
+        if at_end:
+            self.identity = droid_signature(path)[2:]
+            self.state.droid_baseline = True
+            droid_sidecar(self.state)
+
+    def read(self):
+        st = os.stat(self.path)
+        identity = (st.st_dev, st.st_ino)
+        if self.identity is not None and (identity != self.identity or st.st_size < self.offset):
+            self.state = FileState(self.path, "droid")
+            self.offset = 0
+        self.identity = identity
+        self.offset = droid_feed(self.state, self.dedupe, self.offset)
+        droid_sidecar(self.state)
+        droid_allocate(self.state)
+
+
 # ----------------------------------------------------------------------------- WorkBuddy (METRICS 4.9)
 
 WB_FOLDERS = OrderedDict([("workbuddy", ".workbuddy"), ("workbuddyAi", ".workbuddy-ai")])
@@ -2824,6 +3189,10 @@ def check_fixtures():
     hm = expected.get("hermes")
     if hm:
         failures += check_hermes(root, hm, dedupe)
+    dr = expected.get("droid")
+    if dr:
+        failures += check_droid(root, dr)
+        failures += check_traces(root, expected, dr["traces"])
     hist_path = os.path.join(root, "history-expected.json")
     if os.path.exists(hist_path):
         hist = json.load(open(hist_path, encoding="utf-8"))
@@ -2893,9 +3262,11 @@ def check_fixtures():
         print("\n".join(failures))
         sys.exit(1)
     print("reference implementation matches all fixtures (%d files, %d Antigravity databases, %d OpenClaw databases, "
-          "%d Hermes log files, %d engine cases, price cases, %d model attribution cases, unpriced %s)" % (
-        len(expected["order"]), len((ag or {}).get("order", [])), len((ocl or {}).get("dbOrder", [])),
-        len((hm or {}).get("order", [])), len(cases), len(attribution["cases"]), diagnostics.summary()))
+          "%d Hermes log files, %d Droid read cycles, %d engine cases, price cases, %d model attribution cases, "
+          "unpriced %s)" % (
+              len(expected["order"]), len((ag or {}).get("order", [])), len((ocl or {}).get("dbOrder", [])),
+              len((hm or {}).get("order", [])), sum("read" in st for st in (dr or {}).get("live", {}).get("steps", [])),
+              len(cases), len(attribution["cases"]), diagnostics.summary()))
 
 
 def report_model_id(index, model, provider=None):
@@ -3305,6 +3676,110 @@ def check_openclaw(root, oc, dedupe):
     return failures
 
 
+def check_droid(root, dr):
+    """METRICS 4.16 on spec/fixtures/droid: discovery, roots, sidecars, allocations and scripted read cycles."""
+    failures = []
+    rel = lambda path: os.path.relpath(path, root).replace(os.sep, "/")  # noqa: E731
+    found = sorted(rel(p) for p in discover_droid(fixture_droid_root(root)))
+    if found != dr["discover"]:
+        failures.append("droid discover: expected %r got %r" % (dr["discover"], found))
+    for case in dr["roots"]:
+        with tempfile.TemporaryDirectory() as tmp:
+            for folder in case["make"]:
+                os.makedirs(os.path.join(tmp, *folder.split("/")))
+            setting = os.path.join(tmp, *case["setting"].split("/")) if case["setting"] else None
+            got = os.path.relpath(droid_root(tmp, setting), tmp).replace(os.sep, "/")
+            if got != case["expected"]:
+                failures.append("droid root %r: expected %r got %r" % (case, case["expected"], got))
+    for case in dr["sidecars"]:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "x.settings.json")
+            data = case["text"].encode(case.get("encoding", "utf-8"))
+            with open(path, "wb") as fh:
+                fh.write(data + b" " * (case.get("size", len(data)) - len(data)))
+            readable, counters, model = droid_read_sidecar(path)
+            got = dict(readable=readable, counters=counters, model=model)
+            want = dict(readable=case["readable"], counters=case["counters"], model=case["model"])
+            if got != want:
+                failures.append("droid sidecar %r: expected %r got %r" % (case["name"], want, got))
+    for case in dr["allocations"]:
+        got = droid_shares(case["total"], case["weights"])
+        if got != case["shares"]:
+            failures.append("droid allocation %r: expected %r got %r" % (case["weights"], case["shares"], got))
+    failures += check_droid_live(dr["live"])
+    failures += check_droid_history(dr["history"])
+    return failures
+
+
+def check_droid_history(history):
+    """Replays `droid.history`: history analyses of a scratch home, the parent memory kept between them."""
+    failures = []
+    with tempfile.TemporaryDirectory() as tmp:
+        memory, none = {}, os.path.join(tmp, "none")
+        for n, step in enumerate(history["steps"], start=1):
+            if "write" in step:
+                path = os.path.join(tmp, *step["write"].split("/"))
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(step["text"])
+                os.utime(path, ns=(step["mtime"] * 1_000_000, step["mtime"] * 1_000_000))
+                continue
+            skipped, got = [], OrderedDict()
+            rows = collect_all(none, none, none, None, include_archived=False,
+                               droid_roots=[droid_root(tmp)], droid_memory=memory, droid_skipped=skipped)
+            for _, agent, r in rows:
+                got.setdefault(os.path.relpath(agent, tmp).replace(os.sep, "/"), []).append(r)
+            skipped = sorted(os.path.relpath(p, tmp).replace(os.sep, "/") for p in skipped)
+            if dict(got) != step["responses"] or skipped != step["skipped"]:
+                failures.append("droid history step %d: expected %r skipped %r, got %r skipped %r" % (
+                    n, step["responses"], step["skipped"], dict(got), skipped))
+    return failures
+
+
+def check_droid_live(live):
+    """Replays `droid.live` in a scratch home (METRICS 4.16 Read cycle)."""
+    failures = []
+    with tempfile.TemporaryDirectory() as tmp:
+        dedupe, tails, seen = Deduper(), {}, {}
+        for n, step in enumerate(live["steps"], start=1):
+            if "append" in step or "rewrite" in step:
+                path = os.path.join(tmp, *(step.get("append") or step["rewrite"]).split("/"))
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                data = "".join(json.dumps(line, ensure_ascii=False, separators=(",", ":")) + "\n"
+                               for line in step["lines"]).encode("utf-8")
+                if "append" in step:
+                    with open(path, "ab") as fh:
+                        fh.write(data)
+                else:
+                    with open(path + ".new", "wb") as fh:
+                        fh.write(data)
+                    os.replace(path + ".new", path)
+            elif "sidecar" in step:
+                path = droid_sidecar_path(os.path.join(tmp, *step["sidecar"].split("/")))
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(step["text"] if "text" in step else json.dumps(step["doc"], indent=2))
+                os.utime(path, ns=(step["mtime"] * 1_000_000, step["mtime"] * 1_000_000))
+            elif "open" in step:
+                path = os.path.join(tmp, *step["open"].split("/"))
+                tails[step["open"]] = DroidTail(path, dedupe, at_end=step["atEnd"])
+                seen[step["open"]] = OrderedDict()
+            elif "read" in step:
+                tail = tails[step["read"]]
+                tail.read()
+                for key, r in tail.state.responses.items():
+                    seen[step["read"]][key] = r
+                got = list(seen[step["read"]].values())
+                if got != step["responses"]:
+                    failures.append("droid live step %d: responses expected %r got %r" % (n, step["responses"], got))
+                if tail.state.droid_growth != step["pending"]:
+                    failures.append("droid live step %d: pending expected %r got %r" % (n, step["pending"],
+                                                                                       tail.state.droid_growth))
+                if "phase" in step and tail.state.phase != step["phase"]:
+                    failures.append("droid live step %d: phase expected %s got %s" % (n, step["phase"],
+                                                                                     tail.state.phase))
+    return failures
+
+
 def check_openclaw_roots():
     """State folders of METRICS 2 / 4.14 on a scratch home."""
     failures = []
@@ -3354,9 +3829,16 @@ def fixture_wb_roots(root):
     return workbuddy_roots(os.path.join(root, "workbuddy"))
 
 
+def fixture_droid_root(root):
+    """The fixture folder `droid` plays the home folder: its sessions root is droid/.factory/sessions."""
+    return droid_root(os.path.join(root, "droid"))
+
+
 def fixture_source(rel):
     if rel.startswith("openclaw/") and "/codex-home/sessions/" in rel:
         return "codex"
+    if rel.startswith("droid/"):
+        return "droid"
     for prefix, source in (("codex/", "codex"), ("dsh/", "deepseek"), ("gemini/", "gemini"), ("omp/", "omp"), ("pi/", "pi"),
                            ("workbuddy/.workbuddy/", "workbuddy"), ("workbuddy/.workbuddy-ai/", "workbuddyAi")):
         if rel.startswith(prefix):
@@ -3410,7 +3892,8 @@ def fixture_history(root, expected, config=HISTORY_PRICES):
                                          fixture_wb_roots(copy), pi_dirs=fixture_pi_roots(copy),
                                          openclaw_dbs=[db for r in fixture_openclaw_dirs(copy) for db in
                                                        discover_openclaw(r)],
-                                         hermes_dirs=fixture_hermes_dirs(copy), hermes_tz=hermes_zone(expected)),
+                                         hermes_dirs=fixture_hermes_dirs(copy), hermes_tz=hermes_zone(expected),
+                                         droid_roots=[fixture_droid_root(copy)]),
                              tz=timezone.utc, day_pricing=fixture_pricing(root, config))
 
 
@@ -3460,7 +3943,7 @@ def discover(root, limit=20_000, deepseek=False, codex=False):
 
 
 def startup_files(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
-                  limit=20_000, include_archived=False, pi_dirs=(), openclaw_dbs=(), codex_roots=None):
+                  limit=20_000, include_archived=False, pi_dirs=(), openclaw_dbs=(), codex_roots=None, droid_roots=()):
     """(time, path, source, root) of every discovered file and Antigravity or OpenClaw database, in startup order (5);
     the root (omp root or WorkBuddy `projects`) decides sub-agents by folder structure. `codex_roots` replaces the
     automatic Codex roots (the Codex setting); by default they are `codex_root` and the Codex homes OpenClaw keeps next
@@ -3482,19 +3965,21 @@ def startup_files(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=()
     files += [(p, "antigravity", None) for s in ag_stores for p in discover_antigravity(s, limit=limit)]
     files += [(p, s, r) for s, r in wb_roots for p in discover_workbuddy(r, limit=limit)]
     files += [(p, "openclaw", None) for p in OrderedDict.fromkeys(openclaw_dbs)]
-    timed = {(ag_mtime(p) if s in ("antigravity", "openclaw") else os.path.getmtime(p), p, s, r) for p, s, r in files}
+    files += [(p, "droid", None) for r in OrderedDict.fromkeys(droid_roots) for p in discover_droid(r, limit=limit)]
+    timed = {(ag_mtime(p) if s in ("antigravity", "openclaw") else droid_mtime(p) if s == "droid"
+              else os.path.getmtime(p), p, s, r) for p, s, r in files}
     return sorted(timed, key=lambda t: (t[0], t[1]))
 
 
 def today_rows(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
                table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(), openclaw_dbs=(),
-               codex_roots=None, hermes_dirs=()):
+               codex_roots=None, hermes_dirs=(), droid_roots=()):
     """Today's responses as the engine seeds them (the `--dump-today` rows), with files and bytes read."""
     index = pricing.Index(pricing.load(table))
     now = datetime.now().astimezone()
     today_start = int(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
     files = startup_files(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots, pi_dirs=pi_dirs,
-                          openclaw_dbs=openclaw_dbs, codex_roots=codex_roots)
+                          openclaw_dbs=openclaw_dbs, codex_roots=codex_roots, droid_roots=droid_roots)
     dedupe = Deduper()
     rows, read_files, read_bytes = [], 0, 0
     for mtime, path, source, root in files:
@@ -3559,11 +4044,11 @@ def today_rows(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
 
 def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
                table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(), openclaw_dbs=(),
-               codex_roots=None, hermes_dirs=()):
+               codex_roots=None, hermes_dirs=(), droid_roots=()):
     started = time.time()
     rows, read_files, read_bytes = today_rows(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores,
                                               wb_roots, table, zcode_root, kimi_root, grok_root, pi_dirs,
-                                              openclaw_dbs, codex_roots, hermes_dirs)
+                                              openclaw_dbs, codex_roots, hermes_dirs, droid_roots)
     for r in rows:
         print(json.dumps(r, ensure_ascii=False, separators=(",", ":")))
     counts = {}
@@ -3578,11 +4063,14 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
 
 def collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs=(), omp_dirs=(), ag_stores=(),
                 wb_roots=(), include_archived=True, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(),
-                openclaw_dbs=(), codex_roots=None, hermes_dirs=(), hermes_tz=None):
-    """Parses every log completely (METRICS 8) and returns all responses with their source and agent."""
+                openclaw_dbs=(), codex_roots=None, hermes_dirs=(), hermes_tz=None, droid_roots=(), droid_memory=None,
+                droid_skipped=None):
+    """Parses every log completely (METRICS 8) and returns all responses with their source and agent. A Droid session
+    whose parent counters are unknown is skipped (listed in `droid_skipped`); `droid_memory` keeps the signatures of
+    unreadable parent sidecars from one analysis to the next (METRICS 4.16 Own counters)."""
     files = startup_files(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots,
                           limit=10 ** 9, include_archived=include_archived, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
-                          codex_roots=codex_roots)
+                          codex_roots=codex_roots, droid_roots=droid_roots)
     dedupe = Deduper(limit=10 ** 9)
     out = []
     for _, path, source, root in files:
@@ -3595,7 +4083,17 @@ def collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs=(), 
                 continue
         else:
             state = FileState(path, source, root)
+            if source == "droid" and droid_memory is not None:
+                state.droid_parent_bad = droid_memory.get(path)
             process_file(state, dedupe)
+            if source == "droid":
+                if droid_memory is not None:
+                    droid_memory[path] = state.droid_parent_bad
+                if state.droid_unknown:
+                    if droid_skipped is not None:
+                        droid_skipped.append(path)
+                    continue
+                droid_finish(state)
         out += [(state.source, path, r) for r in state.responses.values()]
     if opencode_db and os.path.exists(opencode_db):
         for st in opencode_states(opencode_db, dedupe):
@@ -3704,6 +4202,8 @@ def main():
                         help="WorkBuddy AI data folder (~/.workbuddy-ai) or its projects folder")
     parser.add_argument("--openclaw", default=None,
                         help="OpenClaw state folder, agent folder or openclaw-agent.sqlite (replaces the automatic roots)")
+    parser.add_argument("--droid", default=None,
+                        help="Factory Droid .factory folder or its sessions folder (replaces the automatic root)")
     parser.add_argument("--write-history-fixture", action="store_true")
     parser.add_argument("--prices", default=pricing.TABLE, help="price table for --dump-history (METRICS 9)")
     parser.add_argument("--dump-unpriced", action="store_true", help="unpriced diagnostics text (METRICS 9.10)")
@@ -3736,6 +4236,7 @@ def main():
     grok_root = args.grok or os.path.join(os.environ.get("GROK_HOME") or os.path.join(home, ".grok"), "sessions")
     openclaw_dbs = [db for r in ([args.openclaw] if args.openclaw else openclaw_state_dirs()) for db in discover_openclaw(r)]
     codex_roots = [args.codex] if args.codex else None
+    droid_roots = [droid_root(setting=args.droid)] if args.droid else [droid_root(home)]
     if args.write_history_fixture:
         write_history_fixture()
         return
@@ -3754,13 +4255,15 @@ def main():
         if args.live:
             rows, _, _ = today_rows(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots,
                                     args.prices, zcode_root, kimi_root, grok_root, pi_dirs=pi_dirs,
-                                    openclaw_dbs=openclaw_dbs, codex_roots=codex_roots, hermes_dirs=hermes_dirs)
+                                    openclaw_dbs=openclaw_dbs, codex_roots=codex_roots, hermes_dirs=hermes_dirs,
+                                    droid_roots=droid_roots)
             parts = diagnostics.live_parts([(r["source"], r) for r in rows], first)
         else:
             parts = diagnostics.history_parts(daily_history(
                 collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs, omp_dirs, ag_stores, wb_roots,
                             zcode_root=zcode_root, kimi_root=kimi_root, grok_root=grok_root, pi_dirs=pi_dirs,
-                            openclaw_dbs=openclaw_dbs, codex_roots=codex_roots, hermes_dirs=hermes_dirs),
+                            openclaw_dbs=openclaw_dbs, codex_roots=codex_roots, hermes_dirs=hermes_dirs,
+                            droid_roots=droid_roots),
                 day_pricing=pricing.DayPricing([pricing.load(args.prices)])))
         dump_unpriced(parts, args.prices, view, first, last, args.source)
         return
@@ -3768,7 +4271,7 @@ def main():
         rows = daily_history(collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs, omp_dirs,
                                          ag_stores, wb_roots, zcode_root=zcode_root, kimi_root=kimi_root,
                                          grok_root=grok_root, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
-                                         codex_roots=codex_roots, hermes_dirs=hermes_dirs),
+                                         codex_roots=codex_roots, hermes_dirs=hermes_dirs, droid_roots=droid_roots),
                              tz=timezone.utc if args.utc else None,
                              day_pricing=pricing.DayPricing([pricing.load(args.prices)]))
         for row in rows:
@@ -3779,7 +4282,7 @@ def main():
     elif args.dump_today:
         dump_today(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots, args.prices,
                    zcode_root, kimi_root, grok_root, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs, codex_roots=codex_roots,
-                   hermes_dirs=hermes_dirs)
+                   hermes_dirs=hermes_dirs, droid_roots=droid_roots)
     else:
         parser.print_help()
 

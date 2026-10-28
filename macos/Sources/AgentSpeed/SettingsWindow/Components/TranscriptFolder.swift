@@ -6,7 +6,8 @@ import AppKit
 /// omp reads its default `sessions` root and one per named profile, Antigravity three stores, Pi its sessions root and
 /// its own custom session folder, OpenClaw every state folder (an override replaces all; OpenClaw's may also name an
 /// agent folder or one database), Hermes Agent the log folders of its home (an override names a home or one `logs`
-/// folder); each WorkBuddy edition reads the `projects` folder of its data folder, which the row names.
+/// folder); each WorkBuddy edition reads the `projects` folder of its data folder, which the row names, and Factory
+/// Droid the `sessions` folder of a chosen `.factory` folder, or the chosen folder itself.
 enum TranscriptFolder: CaseIterable {
     case codex
     case claude
@@ -23,6 +24,7 @@ enum TranscriptFolder: CaseIterable {
     case pi
     case openclaw
     case hermes
+    case droid
 
     /// Every default location, in reading order.
     var defaultURLs: [URL] {
@@ -42,6 +44,7 @@ enum TranscriptFolder: CaseIterable {
         case .pi: LiveMonitor.defaultPiRoots
         case .openclaw: LiveMonitor.defaultOpenclawRoots
         case .hermes: [LiveMonitor.defaultHermesHome]
+        case .droid: [LiveMonitor.defaultDroidRoot]
         }
     }
 
@@ -64,6 +67,7 @@ enum TranscriptFolder: CaseIterable {
         case .pi: "mac.settings.sources.choosePi"
         case .openclaw: "mac.settings.sources.chooseOpenClaw"
         case .hermes: "mac.settings.sources.chooseHermes"
+        case .droid: "mac.settings.sources.chooseDroid"
         }
     }
 
@@ -85,6 +89,7 @@ enum TranscriptFolder: CaseIterable {
         case .pi: "settings.sources.piHint"
         case .openclaw: "settings.sources.openclawHint"
         case .hermes: "settings.sources.hermesHint"
+        case .droid: "settings.sources.droidHint"
         }
     }
 
@@ -106,6 +111,7 @@ enum TranscriptFolder: CaseIterable {
         case .pi: settings.piRoot
         case .openclaw: settings.openclawRoot
         case .hermes: settings.hermesRoot
+        case .droid: settings.droidRoot
         }
     }
 
@@ -137,7 +143,7 @@ enum TranscriptFolder: CaseIterable {
         case .openclaw:
             let found = defaultURLs.filter(isReadable)
             return found.isEmpty ? [defaultURL] : found
-        case .codex, .claude, .dsh, .opencode, .gemini, .workbuddy, .workbuddyAi, .zcode, .kimi, .grokBuild, .hermes:
+        case .codex, .claude, .dsh, .opencode, .gemini, .workbuddy, .workbuddyAi, .zcode, .kimi, .grokBuild, .hermes, .droid:
             return defaultURLs
         }
     }
@@ -157,7 +163,7 @@ enum TranscriptFolder: CaseIterable {
 
     /// Stores a custom folder; nil clears the override. Choosing the (first) default location clears it too, except
     /// for omp, Antigravity and Pi, where one chosen folder is narrower than the automatic set. A WorkBuddy data folder and
-    /// its `projects` folder are the same location.
+    /// its `projects` folder are the same location, as are a `.factory` folder and its `sessions` folder.
     @MainActor
     func setURL(_ url: URL?, in settings: AppSettings) {
         let value = url.flatMap { replacesAutomaticSet || !isDefaultLocation($0) ? $0 : nil }
@@ -177,6 +183,7 @@ enum TranscriptFolder: CaseIterable {
         case .pi: settings.piRoot = value
         case .openclaw: settings.openclawRoot = value
         case .hermes: settings.hermesRoot = value
+        case .droid: settings.droidRoot = value
         }
     }
 
@@ -186,6 +193,8 @@ enum TranscriptFolder: CaseIterable {
         switch self {
         case .workbuddy, .workbuddyAi:
             Self.isSameFolder(LiveMonitor.workbuddyProjectsFolder(url), LiveMonitor.workbuddyProjectsFolder(defaultURL))
+        case .droid:
+            Self.isSameFolder(LiveMonitor.droidSessionsFolder(url), defaultURL)
         case .codex, .claude, .dsh, .opencode, .gemini, .omp, .antigravity, .zcode, .kimi, .grokBuild, .pi, .openclaw, .hermes:
             Self.isSameFolder(url, defaultURL)
         }

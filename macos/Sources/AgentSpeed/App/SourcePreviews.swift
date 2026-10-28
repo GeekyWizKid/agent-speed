@@ -40,8 +40,8 @@ enum SourcePreviews {
             return nil
         }
         let entries: [(OrbStyleKind, [SourceKind])] = [
-            (.liquid, [.hermes]), (.needle, [.openclaw]), (.led, [.pi]),
-            (.reactor, [.codex, .claudeCode, .openclaw, .hermes]), (.minimal, [.deepseek]),
+            (.liquid, [.droid]), (.needle, [.hermes]), (.led, [.openclaw]),
+            (.reactor, [.codex, .claudeCode, .hermes, .droid]), (.minimal, [.deepseek]),
         ]
         for (index, entry) in entries.enumerated() {
             let config = OrbConfig(id: UUID().uuidString, sources: .explicit(entry.1), style: entry.0, size: 148)

@@ -304,6 +304,66 @@
       "model": "mimo-v2.6-pro-fast",
       "provider": "custom",
       "expect": "unknown"
+    },
+    {
+      "table": "v2",
+      "model": "custom:GPT-5.5-[OpenAI-BYOK]-0",
+      "provider": "custom",
+      "expect": "gpt-5.5"
+    },
+    {
+      "table": "v2",
+      "model": "Custom:Claude-Opus-5.5-Thinking-0",
+      "provider": "custom",
+      "expect": "claude-opus-5-5"
+    },
+    {
+      "table": "v2",
+      "model": "custom:Claude-Opus-5.5-[Bedrock]-12",
+      "provider": "custom",
+      "expect": "claude-opus-5-5"
+    },
+    {
+      "table": "v2",
+      "model": "custom:Claude Opus 5.5-0",
+      "provider": "custom",
+      "expect": "unknown"
+    },
+    {
+      "table": "v2",
+      "model": "custom:claude-opus-5-5-fast-0",
+      "provider": "custom",
+      "expect": "claude-opus-5-5 fast"
+    },
+    {
+      "table": "v2",
+      "model": "custom:gpt-5.5",
+      "provider": "custom",
+      "expect": "gpt-5.5"
+    },
+    {
+      "table": "v2",
+      "model": "custom:superbased-0",
+      "provider": "custom",
+      "expect": "unknown"
+    },
+    {
+      "table": "v2",
+      "model": "custom:Kimi-K3-(free)-0",
+      "provider": "custom",
+      "expect": "unknown"
+    },
+    {
+      "table": "v2",
+      "model": "custom:-0",
+      "provider": "custom",
+      "expect": "unknown"
+    },
+    {
+      "table": "v2",
+      "model": "gpt-5.5-0",
+      "provider": null,
+      "expect": "unknown"
     }
   ],
   "cost": [

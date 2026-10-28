@@ -27,6 +27,9 @@ enum TranscriptNames: Sendable {
     case grokBuildSession
     /// `*.jsonl` in the root or any folder below it; names starting with `.` are skipped, files and folders (Pi).
     case piSession
+    /// `*.jsonl` not starting with `.`, directly in the root or in a folder directly in it that does not start with `.`
+    /// (Factory Droid).
+    case droidSession
 
     func matches(_ name: String) -> Bool {
         switch self {
@@ -38,7 +41,7 @@ enum TranscriptNames: Sendable {
             return name.hasSuffix(".jsonl") || name.hasSuffix(".jsonl.zst")
         case .geminiSession:
             return name.hasSuffix(".jsonl") || name.hasSuffix(".json")
-        case .ompSession, .workbuddySession, .piSession:
+        case .ompSession, .workbuddySession, .piSession, .droidSession:
             return name.hasSuffix(".jsonl") && !name.hasPrefix(".")
         case .antigravityDatabase:
             return Self.isConversationDatabase(name)
@@ -62,6 +65,7 @@ enum TranscriptNames: Sendable {
         case .workbuddySession: depth == 1 || depth == 3
         case .kimiSession: depth == 4
         case .grokBuildSession: depth == 2
+        case .droidSession: depth <= 1
         case .jsonl, .codexSession, .dshSession, .piSession: true
         }
     }
@@ -90,6 +94,8 @@ enum TranscriptNames: Sendable {
             return depth < 4 && (depth != 2 || name == "agents") && !name.hasPrefix(".")
         case .grokBuildSession:
             return depth < 2 && !name.hasPrefix(".")
+        case .droidSession:
+            return depth == 0 && !name.hasPrefix(".")
         case .jsonl, .codexSession, .dshSession:
             return true
         }
@@ -117,6 +123,8 @@ enum TranscriptNames: Sendable {
             return components.count == 3 && !components.contains { $0.hasPrefix(".") }
         case .piSession:
             return components.count <= TranscriptDiscovery.maxDepth + 1 && !components.contains { $0.hasPrefix(".") }
+        case .droidSession:
+            return components.count <= 2 && !components.contains { $0.hasPrefix(".") }
         case .jsonl, .codexSession, .dshSession:
             return components.count <= TranscriptDiscovery.maxDepth + 1
         }

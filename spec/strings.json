@@ -5016,6 +5016,12 @@
     "en": "Hermes Agent",
     "ja": "Hermes Agent"
   },
+  "source.droid": {
+    "zh-Hant": "Factory Droid",
+    "zh-Hans": "Factory Droid",
+    "en": "Factory Droid",
+    "ja": "Factory Droid"
+  },
   "settings.sources.zcodeHint": {
     "zh-Hant": "讀取 ZCode 的本機工作階段資料庫；可選擇資料目錄或包含 db.sqlite 的資料夾。",
     "zh-Hans": "读取 ZCode 的本地会话数据库；可选择数据目录或包含 db.sqlite 的文件夹。",
@@ -5051,6 +5057,12 @@
     "zh-Hans": "读取 Hermes Agent 的 logs/agent.log 中每次模型调用的记录，包括轮转后的旧文件和每个配置文件（profile），通常位于 ~/.hermes（Windows 为 %LOCALAPPDATA%\\hermes）。交给 Codex 运行时的对话轮次计入 Codex。",
     "en": "Reads the model-call records in Hermes Agent's logs/agent.log, including rotated files and every profile, usually under ~/.hermes (Windows: %LOCALAPPDATA%\\hermes). Turns Hermes hands to its Codex runtime count under Codex.",
     "ja": "Hermes Agent の logs/agent.log にあるモデル呼び出しの記録を読み取ります。ローテーション済みのファイルとすべてのプロファイルを含み、通常は ~/.hermes（Windows では %LOCALAPPDATA%\\hermes）にあります。Codex ランタイムに渡したターンは Codex に計上されます。"
+  },
+  "settings.sources.droidHint": {
+    "zh-Hant": "Factory Droid 的工作階段資料夾，通常是 ~/.factory/sessions（Windows 為 %USERPROFILE%\\.factory\\sessions），也可以選擇 .factory 資料夾。Token 用量取自每個工作階段旁的 .settings.json，Droid 寫入後才會出現；子 agent 各自計算。",
+    "zh-Hans": "Factory Droid 的会话文件夹，通常是 ~/.factory/sessions（Windows 为 %USERPROFILE%\\.factory\\sessions），也可以选择 .factory 文件夹。Token 用量取自每个会话旁的 .settings.json，Droid 写入后才会出现；子 agent 分别计算。",
+    "en": "Factory Droid's sessions folder, usually ~/.factory/sessions (Windows: %USERPROFILE%\\.factory\\sessions). You can also choose the .factory folder. Token usage comes from the .settings.json next to each session and appears once Droid saves it; sub-agents count on their own.",
+    "ja": "Factory Droid のセッションフォルダです。通常は ~/.factory/sessions（Windows では %USERPROFILE%\\.factory\\sessions）です。.factory フォルダも選べます。トークン使用量は各セッションの隣にある .settings.json から取得し、Droid が保存した時点で反映されます。サブ agent はそれぞれ個別に集計されます。"
   },
   "mode.label": {
     "zh-Hant": "執行模式",
