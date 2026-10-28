@@ -58,6 +58,46 @@ internal sealed class NeonBoardPainter : BoardStylePainter
 
     protected override bool HasValueLayer(in BoardRowContent row) => row.Lead && !row.Palette.HighContrast;
 
+    protected override BoardTextStyle ReadoutStyle(BoardScene scene, BoardReadoutFont font)
+    {
+        var spec = BoardGaugeSpec.For(BoardStyle.Neon, scene.Size);
+        return font switch
+        {
+            BoardReadoutFont.MainLabel => new(BoardFont.Ui, (float)spec.LabelSize, FontWeight.SemiBold, (float)spec.LabelTracking),
+            BoardReadoutFont.TableLabel or BoardReadoutFont.TabLabel => new(BoardFont.Ui, (float)spec.TableLabelSize, FontWeight.SemiBold, 0.06f),
+            BoardReadoutFont.Unit => new(BoardFont.Mono, (float)spec.UnitSize, FontWeight.SemiBold),
+            BoardReadoutFont.AtLeast => new(BoardFont.Ui, (float)(spec.TableSize * BoardGaugeSpec.AtLeastScale), FontWeight.Normal),
+            BoardReadoutFont.Tag => new(BoardFont.Ui, (float)(spec.TableSize * BoardGaugeSpec.TagScale), FontWeight.SemiBold),
+            BoardReadoutFont.GaugeMain => new(BoardFont.Mono, (float)spec.MainSize, FontWeight.Bold),
+            BoardReadoutFont.GaugeTable => new(BoardFont.Mono, (float)spec.TableSize, FontWeight.Bold),
+            BoardReadoutFont.IntelGroup or BoardReadoutFont.IntelGroupRest => new(BoardFont.Mono, 11, FontWeight.SemiBold),
+            BoardReadoutFont.IntelSub or BoardReadoutFont.IntelSubRest => new(BoardFont.Mono, 10, FontWeight.SemiBold),
+            BoardReadoutFont.Captions => new(BoardFont.Mono, 8.5f, FontWeight.SemiBold, 0.12f),
+            BoardReadoutFont.RowUnit => new(BoardFont.Mono, 8.5f, FontWeight.SemiBold),
+            BoardReadoutFont.RowAtLeast => new(BoardFont.Mono, 8.5f, FontWeight.SemiBold),
+            BoardReadoutFont.RowTag => new(BoardFont.Ui, 10, FontWeight.SemiBold),
+            _ => new(BoardFont.Mono, 10, FontWeight.SemiBold),
+        };
+    }
+
+    // On dark the lit digits carry the LED glow (智力: 4 pt and 12 pt; the table and the rows' 智力: 6 pt).
+    protected override (Rgba Color, (Rgba Color, float Radius)[] Glows)? Baked(BoardScene scene, BoardValueSet set)
+    {
+        if (!scene.Dark || scene.Palette.HighContrast)
+        {
+            return null;
+        }
+
+        var led = Rgba.FromHex("#EAF2FF");
+        var soft = new Rgba(140 / 255.0, 180 / 255.0, 1, 0.45);
+        return set switch
+        {
+            BoardValueSet.GaugeMain => (led, [(new Rgba(120 / 255.0, 160 / 255.0, 1, 0.40), 12f), (new Rgba(150 / 255.0, 190 / 255.0, 1, 0.75), 4f)]),
+            BoardValueSet.GaugeTable or BoardValueSet.IntelGroup or BoardValueSet.IntelSub => (led, [(soft, 6f)]),
+            _ => null,
+        };
+    }
+
     // The LED bar shows the heat and today's peak, not the history.
     protected override int HistoryKey(IReadOnlyList<double> history) => 0;
 
@@ -96,8 +136,16 @@ internal sealed class NeonBoardPainter : BoardStylePainter
             LeadTint(context, row, 0, height);
         }
 
+        if (row.Entry.TwoLine)
+        {
+            RankText(context, row, CenterOnBaseline(Rank, (float)BoardScene.FirstBaseline));
+            var first = DrawCapsule(context, row, RowCapsuleRight(row, width), 12, 16);
+            DrawTwoLines(context, row, Name, palette.Ink, Detail, palette.Ink3, 48, first - 8);
+            return;
+        }
+
         RankText(context, row, mid);
-        var right = DrawCapsule(context, row, width - 8, mid, 18);
+        var right = DrawCapsule(context, row, RowCapsuleRight(row, width), mid, 18);
         DrawName(context, row.Name, Name, palette.Ink, row.Detail, Detail, palette.Ink3, 48, right - 8, mid);
     }
 
@@ -106,7 +154,7 @@ internal sealed class NeonBoardPainter : BoardStylePainter
         var palette = row.Palette;
         var mid = height / 2;
         Elbow(context, 50, mid, palette.Line);
-        var right = DrawCapsule(context, row, width - 8, mid, 16);
+        var right = DrawCapsule(context, row, RowCapsuleRight(row, width), mid, 16);
         DrawName(context, row.Name, SubName, palette.Ink2, string.Empty, Detail, palette.Ink3, 60, right - 8, mid);
     }
 
@@ -133,9 +181,10 @@ internal sealed class NeonBoardPainter : BoardStylePainter
         var tone = glows ? HeroHeat(tick) : palette.Ink;
         var meta = (float)hero.MetaTop + 6;
         var x = 0f;
+        var limit = scene.Metrics.Gauge ? HeroLimit(scene, tick) : width;
         if (!string.IsNullOrEmpty(tick.Title))
         {
-            using var title = Text.Layout(tick.Title, Title, width / 2);
+            using var title = Text.Layout(tick.Title, Title, Math.Min(width / 2, limit));
             var top = BoardText.Top(title, meta);
             if (glows)
             {
@@ -143,11 +192,11 @@ internal sealed class NeonBoardPainter : BoardStylePainter
             }
 
             DrawLayout(context, title, 0, top, tone);
-            x = Math.Min(title.Metrics.WidthIncludingTrailingWhitespace, width / 2) + 8;
+            x = Math.Min(title.Metrics.WidthIncludingTrailingWhitespace, Math.Min(width / 2, limit)) + 8;
         }
 
         using var ink3 = BoardPaint.Brush(context, palette.Ink3);
-        Text.Draw(context, "· " + Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Counts, x, meta, ink3, width - x);
+        Text.Draw(context, "· " + Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Counts, x, meta, ink3, limit - x);
     }
 
     protected override void PaintUnit(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float x)

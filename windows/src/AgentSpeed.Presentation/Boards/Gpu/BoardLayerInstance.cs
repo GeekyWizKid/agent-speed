@@ -8,7 +8,9 @@ namespace AgentSpeed.Presentation.Boards.Gpu;
 /// <param name="Width">Width of the layer in points.</param>
 /// <param name="Height">Height of the layer in points.</param>
 /// <param name="MeterX">Where a top-rung effort meter starts inside the layer (points; the scene shimmers it), NaN when it has none.</param>
-public readonly record struct BoardLayerSlot(float U0, float V0, float U1, float V1, double Width, double Height, double MeterX = double.NaN);
+/// <param name="Baseline">A text layer's baseline from its top (points; the scene sets text on baselines), NaN when not given.</param>
+public readonly record struct BoardLayerSlot(float U0, float V0, float U1, float V1, double Width, double Height, double MeterX = double.NaN,
+    double Baseline = double.NaN);
 
 /// <summary>The cached layers a board's frame can composite (DESIGN 2c, Two layers): rasterized only when data changes.</summary>
 public interface IBoardLayers

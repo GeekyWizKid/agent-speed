@@ -220,7 +220,7 @@ public class BoardLiveMetricsTests
         Assert.True(partial.Cost.AtLeast);
         Assert.Equal(Zh.Format("a11y.orb.costAtLeast", "0.024"), partial.Cost.SpokenNumber);
         var unknown = texts.Hero(sums, new CostReading(0, 0, 707, CostTally.Zero, 0, [], [], CostState.NothingPriced));
-        Assert.Equal(("–", BoardMoneyState.Unknown, ""), (unknown.Cost.Number, unknown.Cost.State, unknown.Cost.Unit));
+        Assert.Equal(("–", BoardMoneyState.Unknown, false), (unknown.Cost.Number, unknown.Cost.State, unknown.Cost.HasUnit));
         var tag = texts.Hero(sums, new CostReading(0, 1, 0, CostTally.Zero, 0, [], [SourceKind.ClaudeCode], CostState.SubscriptionOnly));
         Assert.Equal((Zh["cost.subscription.tag"], BoardMoneyState.Tag), (tag.Cost.Number, tag.Cost.State));
         var zero = texts.Hero(new IntelligenceSums(300, 300 * 115, 0, 300), CostReading.Zero);

@@ -17,12 +17,13 @@ internal sealed class BoardRig : IDisposable
 {
     private double _nextTick = double.NegativeInfinity;
 
+    /// <param name="readouts">The live metrics switches (DESIGN 2c); every one on, as a new board has them, when null.</param>
     public BoardRig(BoardStyle style, BoardSize size, BoardSimScenario scenario, BoardEffectsPolicy policy, Localizer localizer, uint seed = 7,
-        bool dark = true)
+        bool dark = true, BoardReadouts? readouts = null)
     {
         Style = style;
         Size = size;
-        Feed = new BoardDemoFeed(scenario, seed) { Localizer = localizer };
+        Feed = new BoardDemoFeed(scenario, seed) { Localizer = localizer, Readouts = readouts ?? BoardReadouts.All };
         Frame = new BoardFrame(style, size, BoardPainters.Create(style, localizer), seed);
         Frame.Scene.Configure(style, size, policy);
         Frame.Scene.Dark = dark;

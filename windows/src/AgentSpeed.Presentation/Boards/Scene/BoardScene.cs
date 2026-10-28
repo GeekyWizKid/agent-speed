@@ -34,6 +34,20 @@ public sealed class BoardScene
     public const string FooterKey = "#footer";
     public const string BackdropKey = "#backdrop";
 
+    /// <summary>The captions line at the top of the ranking (智力 over the 智力 cells, tok/s over the values, timing's 間隔).</summary>
+    public const string CaptionsKey = "#caps";
+
+    /// <summary>A two-line row's cost unit, its <c>≥</c> and the subscription tag.</summary>
+    public const string RowUnitKey = "#rc.u";
+    public const string RowAtLeastKey = "#rc.ge";
+    public const string RowTagKey = "#rc.tag";
+
+    /// <summary>A switch change crossfades the hero (DESIGN 2c, Live metrics: Switches).</summary>
+    public const double SwitchSeconds = 0.2;
+
+    /// <summary>A two-line row's first baseline under its top; its second's (glass 32).</summary>
+    public const double FirstBaseline = 16;
+
     /// <summary>A rise of more than 8 % + 20 tok/s in one tick punches the number (DESIGN 2c Hero number).</summary>
     public const double PunchRatio = 0.08;
     public const double PunchFloor = 20;
@@ -43,8 +57,11 @@ public sealed class BoardScene
     private readonly List<BoardRowMotion> _order = [];
     private readonly BoardHeroNumber _number = new();
     private readonly BoardCallouts _callouts = new();
+    private readonly BoardGauge _gauge = new();
     private BoardTick? _tick;
     private BoardPalette? _palette;
+    private BoardGaugePalette? _gaugePalette;
+    private double _switchStart = double.NegativeInfinity;
     private double _lastFrame = double.NaN;
     private double _ambience;
     private double _punchStart = double.NegativeInfinity;
@@ -79,12 +96,25 @@ public sealed class BoardScene
         {
             _dark = value;
             _palette = null;
+            _gaugePalette = null;
             Effects.Dark = value;
         }
     }
 
     /// <summary>The style's colors in the current appearance and contrast.</summary>
     public BoardPalette Palette => _palette ??= BoardPalette.For(Style, _dark, Effects.Policy.HighContrast);
+
+    /// <summary>The sub-gauge's and the rows' live metrics colors.</summary>
+    public BoardGaugePalette GaugePalette => _gaugePalette ??= BoardGaugePalette.For(Style, Palette);
+
+    /// <summary>The live metrics switches the board is laid out for (from the latest tick).</summary>
+    public BoardReadouts Readouts { get; private set; } = BoardReadouts.None;
+
+    /// <summary>The hero's sub-gauge (layout B).</summary>
+    public BoardGauge Gauge => _gauge;
+
+    /// <summary>The rows' right-hand columns.</summary>
+    public BoardRowColumns Columns { get; private set; } = BoardRowColumns.For(BoardStyle.Glass, BoardSize.M, BoardReadouts.None);
 
     /// <summary>The number on display (its glyphs are composed every frame).</summary>
     public string NumberText => _number.Text;
@@ -106,11 +136,11 @@ public sealed class BoardScene
         var restyle = style != Style;
         Style = style;
         Size = size;
-        Metrics = BoardMetrics.For(style, size);
-        Hero = BoardHeroLayout.For(style, size);
+        Layout();
         Effects.Configure(style, size);
         Effects.Policy = policy;
         _palette = null;
+        _gaugePalette = null;
         HeroNumber = (Metrics.Pad, Metrics.HeroTop + Hero.NumberTop, Metrics.ValueSize * 2.8, Hero.NumberHeight);
         if (restyle)
         {
@@ -121,6 +151,13 @@ public sealed class BoardScene
         }
     }
 
+    private void Layout()
+    {
+        Metrics = BoardMetrics.For(Style, Size, Readouts);
+        Hero = BoardHeroLayout.For(Style, Size, Readouts);
+        Columns = BoardRowColumns.For(Style, Size, Readouts);
+    }
+
     /// <summary>Applies an engine tick: rows move to their plan places, enter or leave, values flash, events fire effects.</summary>
     public void Apply(BoardTick tick, double now)
     {
@@ -128,6 +165,16 @@ public sealed class BoardScene
         var previous = _tick;
         _tick = tick;
         var reduce = Effects.Policy.ReduceMotion;
+        if (tick.Readouts != Readouts)
+        {
+            // A switch change: the hero crossfades in 0.2 s, rows spring to their new places (Reduce Motion: the crossfade only).
+            Readouts = tick.Readouts;
+            Layout();
+            HeroNumber = (Metrics.Pad, Metrics.HeroTop + Hero.NumberTop, Metrics.ValueSize * 2.8, Hero.NumberHeight);
+            _switchStart = previous is null ? double.NegativeInfinity : now;
+        }
+
+        _gauge.Apply(tick, now, previous is not null, reduce);
         // Without frames (a hidden board) rows that left are dropped here, so nothing accumulates.
         Prune(now);
         foreach (var row in _order)
@@ -279,19 +326,23 @@ public sealed class BoardScene
             var top = m + metrics.ListTop + row.Y + row.EnterLift(now, reduce);
             var left = m + metrics.ListLeft;
             var height = RowHeight(row.Entry);
+            var twoLine = row.Entry.TwoLine;
             if (layers.TryGet(row.Key, out var body))
             {
                 list.AddLayer(BoardLayerInstance.Create(body, left, top, alpha, clip: clip));
                 if (pulses)
                 {
-                    BoardPulses.EmitShimmer(list, body, Style, left, top, height, alpha, now, BoardPulses.PhaseOf(row.Key), clip);
+                    // A two-line row's capsule sits in the first 16 pt band, 4 under its top.
+                    BoardPulses.EmitShimmer(list, body, Style, left, top, twoLine ? 24 : height, alpha, now, BoardPulses.PhaseOf(row.Key), clip);
                 }
             }
 
             if (BoardPulses.BadgeKey(row.Entry) is { } badgeKey && layers.TryGet(badgeKey, out var badge) &&
                 BoardPulses.Badge(row.Entry) is { } shown)
             {
-                BoardPulses.EmitBadge(list, badge, Style, row.Entry.Kind == BoardEntryKind.Sub, shown.Phase, left, top, height, alpha, now,
+                // Two-line rows: the badge on the first line (centred in its band, 1 pt up); timing's stripe spans both lines.
+                var badgeHeight = twoLine && Style != BoardStyle.Timing ? 22 : height;
+                BoardPulses.EmitBadge(list, badge, Style, row.Entry.Kind == BoardEntryKind.Sub, shown.Phase, left, top, badgeHeight, alpha, now,
                     BoardPulses.PhaseOf(row.Key), pulses, clip);
             }
 
@@ -302,19 +353,37 @@ public sealed class BoardScene
 
             if (row.Entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub)
             {
-                Value(list, layers, row, left + metrics.ListWidth, top, height, alpha, now, clip);
+                var baseline = Value(list, layers, row, left + metrics.ListWidth, top, height, alpha, now, clip);
+                Readout(list, layers, row, left + metrics.ListWidth, top, baseline, alpha, now, clip);
             }
 
             if (row.IntervalText.Length > 0 && Size != BoardSize.S)
             {
-                BoardValueGlyphs.Emit(list, layers, row.IntervalText, BoardValueSet.Interval, left + metrics.ListWidth - BoardValueGlyphs.IntervalRight,
-                    top + (height - 1) / 2, 0, palette.Ink3, alpha, clip);
+                var intervalRight = left + metrics.ListWidth - (metrics.IntelligenceColumn ? Columns.IntervalRight : BoardValueGlyphs.IntervalRight);
+                if (twoLine)
+                {
+                    BoardValueGlyphs.EmitOnBaseline(list, layers, row.IntervalText, BoardValueSet.Interval, intervalRight, 1, top + FirstBaseline, 0,
+                        palette.Ink3, 1, alpha, clip);
+                }
+                else
+                {
+                    BoardValueGlyphs.Emit(list, layers, row.IntervalText, BoardValueSet.Interval, intervalRight, top + (height - 1) / 2, 0, palette.Ink3,
+                        alpha, clip);
+                }
             }
+        }
+
+        if (metrics.IntelligenceColumn && layers.TryGet(CaptionsKey, out var captions))
+        {
+            list.AddLayer(BoardLayerInstance.Create(captions, m + metrics.ListLeft, m + metrics.ListTop, 1, clip: clip));
         }
 
         EmitRowCallouts(now, layers, list, clip);
         list.Clip = BoardClip.None;
+        var switchAlpha = SwitchAlpha(now);
+        list.AlphaScale = (float)switchAlpha;
         EmitHero(now, layers, list);
+        list.AlphaScale = 1;
         if (layers.TryGet(FooterKey, out var footer))
         {
             list.AddLayer(BoardLayerInstance.Create(footer, m + metrics.Pad, m + metrics.FooterTop, 1));
@@ -338,7 +407,8 @@ public sealed class BoardScene
         }
 
         var look = BoardNumberLook.For(Style);
-        if (now - _punchStart < PunchSeconds || _number.Rolling(now, look) || _callouts.Alive(now))
+        if (now - _punchStart < PunchSeconds || _number.Rolling(now, look) || _callouts.Alive(now) || now - _switchStart < SwitchSeconds ||
+            (Readouts.Hero && _gauge.Animating(now)))
         {
             return FrameClass.Fps60;
         }
@@ -357,11 +427,20 @@ public sealed class BoardScene
         return flashing ? FramePolicy.Max(demand, FrameClass.Fps30) : demand;
     }
 
-    /// <summary>A row's own height without the gap below it (glass and neon space group rows 2 pt apart).</summary>
+    /// <summary>
+    /// A row's own height without the gap below it (glass and neon space group rows 2 pt apart; two-line rows leave the gap out).
+    /// </summary>
     public double RowHeight(BoardEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        return entry.Kind == BoardEntryKind.Group && Style != BoardStyle.Timing ? entry.Height - 2 : entry.Height;
+        return entry.Kind == BoardEntryKind.Group && Style != BoardStyle.Timing && !entry.TwoLine ? entry.Height - 2 : entry.Height;
+    }
+
+    /// <summary>The hero's opacity while a switch change crossfades it.</summary>
+    public double SwitchAlpha(double now)
+    {
+        var t = (now - _switchStart) / SwitchSeconds;
+        return t is >= 0 and < 1 ? Easing.OutQuad(t) : 1;
     }
 
     /// <summary>The group row under a canvas point, for hover, tooltips and clicks.</summary>
@@ -396,6 +475,8 @@ public sealed class BoardScene
         }
 
         _number.Settle();
+        _gauge.Settle();
+        _switchStart = double.NegativeInfinity;
         _callouts.Clear();
         _punchStart = double.NegativeInfinity;
         _lastFrame = double.NaN;
@@ -448,6 +529,11 @@ public sealed class BoardScene
             {
                 list.AddLayer(BoardLayerInstance.Create(unit, x + width + Hero.UnitGap - BoardHeroLayout.UnitPad, y, 1));
             }
+        }
+
+        if (Readouts.Hero)
+        {
+            _gauge.Emit(list, layers, Style, Size, Readouts, Hero, GaugePalette, x, y, 1, now);
         }
 
         for (var i = 0; i < _callouts.Count; i++)
@@ -564,11 +650,13 @@ public sealed class BoardScene
             (neon ? 1 : 0.9) * fade * alpha));
     }
 
-    // A row's value from the value glyphs, in its color, its warm flash or its dim.
-    private void Value(BoardDrawList list, IBoardLayers layers, BoardRowMotion row, double right, double top, double height, double alpha, double now,
+    // A row's value from the value glyphs, in its color, its warm flash or its dim; returns its baseline (a two-line row's
+    // value sits on the first line's).
+    private double Value(BoardDrawList list, IBoardLayers layers, BoardRowMotion row, double right, double top, double height, double alpha, double now,
         RectBounds clip)
     {
         var sub = row.Entry.Kind == BoardEntryKind.Sub;
+        var set = sub ? BoardValueSet.Sub : BoardValueSet.Group;
         var color = BoardValueGlyphs.Color(Style, Palette, sub, row.Live, _tick?.Redline ?? HeatMath.DefaultRedline);
         var (tint, amount, dim) = Flash(row, now);
         if (amount > 0)
@@ -576,9 +664,93 @@ public sealed class BoardScene
             color = Rgba.Lerp(color, tint.WithAlpha(1), amount);
         }
 
+        if (row.Entry.TwoLine)
+        {
+            var first = top + FirstBaseline;
+            BoardValueGlyphs.EmitOnBaseline(list, layers, row.ValueText, set, right - BoardValueGlyphs.Inset(Style), 1, first,
+                BoardValueGlyphs.Tracking(Style, sub), color, 1, alpha * dim, clip);
+            return first;
+        }
+
         var center = top + (Style == BoardStyle.Timing && !sub ? (height - 1) / 2 : height / 2);
-        BoardValueGlyphs.Emit(list, layers, row.ValueText, sub ? BoardValueSet.Sub : BoardValueSet.Group, right - BoardValueGlyphs.Inset(Style), center,
+        BoardValueGlyphs.Emit(list, layers, row.ValueText, set, right - BoardValueGlyphs.Inset(Style), center,
             BoardValueGlyphs.Tracking(Style, sub), color, alpha * dim, clip);
+        return BoardValueGlyphs.TryGet('0', set, layers, out var zero) ? center - zero.Height / 2 + BoardValueGlyphs.Baseline(zero) : center + 4;
+    }
+
+    // A row's 智力 cell on the value's baseline (crossfading between its live and resting colors) and, on a two-line group row,
+    // its cost right-aligned on the value column's right edge on the second line.
+    private void Readout(BoardDrawList list, IBoardLayers layers, BoardRowMotion row, double right, double top, double baseline, double alpha, double now,
+        RectBounds clip)
+    {
+        if (row.Entry.Readout is not { } readout)
+        {
+            return;
+        }
+
+        var sub = row.Entry.Kind == BoardEntryKind.Sub;
+        var gauge = GaugePalette;
+        if (Metrics.IntelligenceColumn)
+        {
+            var x = right - Columns.IntelligenceRight;
+            var live = row.IntelLive(now);
+            var tracking = Style == BoardStyle.Glass ? 0 : -0.02 * (sub ? 10.5 : 11);
+            var baked = Style == BoardStyle.Neon && gauge.Glows;
+            if (live > 0.002)
+            {
+                BoardValueGlyphs.EmitOnBaseline(list, layers, readout.Intelligence, sub ? BoardValueSet.IntelSub : BoardValueSet.IntelGroup, x, 1, baseline,
+                    tracking, gauge.RowLive, baked ? 0 : 1, alpha * live * (baked ? gauge.RowLive.A : 1), clip);
+            }
+
+            if (live < 0.998)
+            {
+                BoardValueGlyphs.EmitOnBaseline(list, layers, readout.Intelligence, sub ? BoardValueSet.IntelSubRest : BoardValueSet.IntelGroupRest, x, 1,
+                    baseline, tracking, gauge.RowQuiet, 1, alpha * (1 - live), clip);
+            }
+        }
+
+        if (!row.Entry.TwoLine || readout.Cost is not { } cost)
+        {
+            return;
+        }
+
+        var second = top + (Style == BoardStyle.Glass ? 32 : 31);
+        var edge = right - Columns.ValueRight;
+        switch (cost.State)
+        {
+            case BoardMoneyState.Tag:
+                if (layers.TryGet(RowTagKey, out var tag))
+                {
+                    list.AddLayer(BoardLayerInstance.Create(tag, edge - tag.Width + BoardGauge.TextPad, second - BoardValueGlyphs.Baseline(tag),
+                        alpha * gauge.RowQuiet.A, gauge.RowQuiet.WithAlpha(1), 1, clip));
+                }
+
+                break;
+            case BoardMoneyState.Unknown:
+                BoardValueGlyphs.EmitOnBaseline(list, layers, cost.Number, BoardValueSet.RowCost, edge, 1, second, 0, gauge.RowQuiet, 1, alpha, clip);
+                break;
+            default:
+            {
+                var numberRight = edge;
+                if (layers.TryGet(RowUnitKey, out var unit))
+                {
+                    var unitWidth = unit.Width - 2 * BoardGauge.TextPad;
+                    list.AddLayer(BoardLayerInstance.Create(unit, edge - unitWidth - BoardGauge.TextPad, second - BoardValueGlyphs.Baseline(unit),
+                        alpha * gauge.RowQuiet.A, gauge.RowQuiet.WithAlpha(1), 1, clip));
+                    numberRight = edge - unitWidth - 3;
+                }
+
+                var width = BoardValueGlyphs.EmitOnBaseline(list, layers, cost.Number, BoardValueSet.RowCost, numberRight, 1, second, 0, gauge.RowCost, 1,
+                    alpha, clip);
+                if (cost.AtLeast && layers.TryGet(RowAtLeastKey, out var ge))
+                {
+                    list.AddLayer(BoardLayerInstance.Create(ge, numberRight - width - 1 - ge.Width + BoardGauge.TextPad, second - BoardValueGlyphs.Baseline(ge),
+                        alpha * gauge.RowQuiet.A, gauge.RowQuiet.WithAlpha(1), 1, clip));
+                }
+
+                break;
+            }
+        }
     }
 
     // The CSS punch: 1 → 1.06 at 35 % → 1 over 0.4 s.

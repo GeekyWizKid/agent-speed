@@ -14,7 +14,10 @@ namespace AgentSpeed.Presentation.Boards.Scene;
 /// </summary>
 public static class BoardPulses
 {
-    private static readonly string[] Keys = BuildKeys();
+    private static readonly string[] Keys = BuildKeys(string.Empty);
+
+    // Two-line group rows (DESIGN 2c, Live metrics): timing's stripe spans both lines (24 pt).
+    private static readonly string[] TallKeys = BuildKeys("2");
 
     /// <summary>
     /// The cached layer of a row's phase badge (timing: its team stripe), shared by rows of one source, kind and phase, so a row
@@ -29,7 +32,8 @@ public static class BoardPulses
         }
 
         var index = (((int)badge.Source * 3) + (int)badge.Phase) * 2 + (entry.Kind == BoardEntryKind.Sub ? 1 : 0);
-        return (uint)index < (uint)Keys.Length ? Keys[index] : null;
+        var keys = entry.TwoLine ? TallKeys : Keys;
+        return (uint)index < (uint)keys.Length ? keys[index] : null;
     }
 
     /// <summary>The phase and source a row's badge shows (a group shows generating while any member generates).</summary>
@@ -45,10 +49,10 @@ public static class BoardPulses
     }
 
     /// <summary>The badge layer's size in points: what it draws, centered, with room for its glow.</summary>
-    public static (double Width, double Height) BadgeSize(BoardStyle style, bool sub, AgentPhase phase) => style switch
+    public static (double Width, double Height) BadgeSize(BoardStyle style, bool sub, AgentPhase phase, bool tall = false) => style switch
     {
         BoardStyle.Neon => (44, 44),
-        BoardStyle.Timing => sub ? (20, 28) : (22, 36),
+        BoardStyle.Timing => sub ? (20, 28) : tall ? (22, 42) : (22, 36),
         _ => phase == AgentPhase.Generating ? (5, 5) : (12, 12),
     };
 
@@ -237,7 +241,7 @@ public static class BoardPulses
 
     private static double Fraction(double x) => x - Math.Floor(x);
 
-    private static string[] BuildKeys()
+    private static string[] BuildKeys(string variant)
     {
         var sources = Enum.GetValues<SourceKind>();
         var count = 0;
@@ -250,7 +254,7 @@ public static class BoardPulses
         for (var i = 0; i < keys.Length; i++)
         {
             var phase = (AgentPhase)(i / 2 % 3);
-            keys[i] = "#badge" + (i % 2 == 1 ? "s" : "g") + "gti"[(int)phase] + (i / 6).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            keys[i] = "#badge" + variant + (i % 2 == 1 ? "s" : "g") + "gti"[(int)phase] + (i / 6).ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         return keys;

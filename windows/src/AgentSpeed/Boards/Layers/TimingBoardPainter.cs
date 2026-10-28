@@ -57,9 +57,34 @@ internal sealed class TimingBoardPainter : BoardStylePainter
 
     protected override float ValueWidth(BoardSize size) => size == BoardSize.S ? 48 : 50;
 
+    // With the 智力 column the tower drops the capsule's word below L (meter and bolts stay; the word is in the tooltip).
     protected override BoardCapsuleLook CapsuleLook(BoardScene scene, bool sub) =>
-        new(4, 5, 4, 1, new BoardTextStyle(BoardFont.Mono, 10, FontWeight.Bold, 0.02f, true), false, 3, 0, scene.Size == BoardSize.S,
-            scene.Palette);
+        new(4, 5, 4, 1, new BoardTextStyle(BoardFont.Mono, 10, FontWeight.Bold, 0.02f, true), false, 3, 0,
+            scene.Size == BoardSize.S || (scene.Metrics.IntelligenceColumn && scene.Size != BoardSize.L), scene.Palette);
+
+    protected override BoardTextStyle ReadoutStyle(BoardScene scene, BoardReadoutFont font)
+    {
+        var spec = BoardGaugeSpec.For(BoardStyle.Timing, scene.Size);
+        return font switch
+        {
+            BoardReadoutFont.MainLabel or BoardReadoutFont.TableLabel or BoardReadoutFont.TabLabel =>
+                new(BoardFont.Ui, (float)spec.LabelSize, FontWeight.Bold, (float)spec.LabelTracking, true),
+            BoardReadoutFont.Unit => new(BoardFont.Mono, (float)spec.UnitSize, FontWeight.Bold, 0, true),
+            BoardReadoutFont.AtLeast => new(BoardFont.Ui, (float)(spec.TableSize * BoardGaugeSpec.AtLeastScale), FontWeight.Normal),
+            BoardReadoutFont.Tag => new(BoardFont.Ui, (float)(spec.TableSize * BoardGaugeSpec.TagScale), FontWeight.SemiBold),
+            BoardReadoutFont.GaugeMain => new(BoardFont.Mono, (float)spec.MainSize, FontWeight.ExtraBold),
+            BoardReadoutFont.GaugeTable => new(BoardFont.Mono, (float)spec.TableSize, FontWeight.ExtraBold),
+            BoardReadoutFont.IntelGroup => new(BoardFont.Mono, 11, FontWeight.Bold),
+            BoardReadoutFont.IntelSub => new(BoardFont.Mono, 10, FontWeight.Bold),
+            BoardReadoutFont.IntelGroupRest => new(BoardFont.Mono, 11, FontWeight.SemiBold),
+            BoardReadoutFont.IntelSubRest => new(BoardFont.Mono, 10, FontWeight.SemiBold),
+            BoardReadoutFont.Captions => new(BoardFont.Mono, 8.5f, FontWeight.Bold, 0.1f, true),
+            BoardReadoutFont.RowUnit => new(BoardFont.Mono, 8, FontWeight.Bold, 0, true),
+            BoardReadoutFont.RowAtLeast => new(BoardFont.Mono, 9.5f * 0.85f, FontWeight.Bold),
+            BoardReadoutFont.RowTag => new(BoardFont.Ui, 9.5f, FontWeight.SemiBold),
+            _ => new(BoardFont.Mono, 9.5f, FontWeight.Bold),
+        };
+    }
 
     protected override BoardTextStyle NumberStyle(BoardScene scene) => new(BoardFont.Mono, (float)scene.Metrics.ValueSize, FontWeight.ExtraBold);
 
@@ -90,7 +115,7 @@ internal sealed class TimingBoardPainter : BoardStylePainter
     protected override void PaintBadge(ID2D1DeviceContext context, BoardPalette palette, AgentPhase phase, Rgba source, bool sub, float width,
         float height)
     {
-        var (w, h, opacity) = sub ? (2f, 10f, 0.7) : (3f, 18f, 1.0);
+        var (w, h, opacity) = sub ? (2f, 10f, 0.7) : (3f, height > 40 ? 24f : 18f, 1.0);
         Stripe(context, source, (width - w) / 2, height / 2, w, h, opacity, !palette.HighContrast);
     }
 
@@ -100,19 +125,33 @@ internal sealed class TimingBoardPainter : BoardStylePainter
     {
         var palette = row.Palette;
         var mid = (height - 1) / 2;
+        var two = row.Entry.TwoLine;
         BoardPaint.FillRound(context, 0, height - 1, width, 1, 0, palette.Line);
-        PositionBlock(context, row.Entry.Rank.ToString(CultureInfo.InvariantCulture), row.Lead, palette, 4, mid);
+        // A two-line row's position block (26 tall) spans both lines.
+        PositionBlock(context, row.Entry.Rank.ToString(CultureInfo.InvariantCulture), row.Lead, palette, 4, mid, two ? 26 : 22);
         var compact = row.Compact;
-        var right = DrawCapsule(context, row, CapsuleRight(row, width), mid, CapsuleHeight);
-        DrawName(context, row.Name, Name, palette.Ink, row.Detail, Detail, palette.Ink3, 45, right - 7, mid);
+        var right = DrawCapsule(context, row, RowCapsuleRight(row, width), two ? 12 : mid, two ? 16 : CapsuleHeight);
+        if (two)
+        {
+            DrawTwoLines(context, row, Name, palette.Ink, Detail, palette.Ink3, 45, right - 7);
+        }
+        else
+        {
+            DrawName(context, row.Name, Name, palette.Ink, row.Detail, Detail, palette.Ink3, 45, right - 7, mid);
+        }
+
         if (compact || string.IsNullOrEmpty(row.Interval))
         {
             return;
         }
 
         // The leader's word; the scene composes the other rows' intervals from glyphs.
+        var scene = row.Scene;
+        var edge = scene.Metrics.IntelligenceColumn ? width - (float)(scene.Columns.IntervalRight - ValueWidth(scene.Size)) : width - 7;
+        var room = scene.Metrics.IntelligenceColumn ? (float)scene.Columns.Interval : 38;
         using var brush = BoardPaint.Brush(context, palette.HighContrast ? palette.Ink3 : Gold);
-        Text.Draw(context, row.Interval, LeaderGap, width - 7, mid, brush, 38, right: true);
+        Text.Draw(context, row.Interval, LeaderGap, edge, two ? CenterOnBaseline(LeaderGap, (float)BoardScene.FirstBaseline) : mid, brush, room,
+            right: true);
     }
 
     protected override void PaintSub(ID2D1DeviceContext context, in BoardRowContent row, float width, float height)
@@ -120,7 +159,7 @@ internal sealed class TimingBoardPainter : BoardStylePainter
         var palette = row.Palette;
         var mid = height / 2;
         BoardPaint.FillRound(context, 45, mid, 6, 1, 0, palette.Ink3.MultiplyAlpha(0.6));
-        var right = DrawCapsule(context, row, CapsuleRight(row, width), mid, CapsuleHeight);
+        var right = DrawCapsule(context, row, RowCapsuleRight(row, width), mid, CapsuleHeight);
         DrawName(context, row.Name, SubName, palette.Ink2, string.Empty, Detail, palette.Ink3, 55, right - 7, mid);
     }
 
@@ -134,7 +173,7 @@ internal sealed class TimingBoardPainter : BoardStylePainter
     {
         var palette = row.Palette;
         var group = row.Entry.Kind == BoardEntryKind.Group;
-        var mid = group ? (height - 1) / 2 : height / 2;
+        var mid = row.Entry.TwoLine ? 11.5f : group ? (height - 1) / 2 : height / 2;
         if (group)
         {
             BoardPaint.FillRound(context, Bleed, height - 1, width - Bleed, 1, 0, palette.Line);
@@ -145,8 +184,10 @@ internal sealed class TimingBoardPainter : BoardStylePainter
             return;
         }
 
-        // The fastest agent anywhere: a purple dot 9 pt before the value column, like a fastest lap.
-        var cx = width - 4 - (row.Compact ? 44 : 46) - 6;
+        // The fastest agent anywhere: a purple dot 9 pt before the value column, like a fastest lap; with the 智力 column it
+        // keeps to the gap before the value.
+        var scene = row.Scene;
+        var cx = scene.Metrics.IntelligenceColumn ? width - 4 - (float)scene.Columns.Value - 3.5f : width - 4 - (row.Compact ? 44 : 46) - 6;
         if (!palette.HighContrast)
         {
             BoardPaint.Glow(context, Purple, 8, c => Dot(c, cx, mid, 3, Rgba.White));
@@ -161,7 +202,7 @@ internal sealed class TimingBoardPainter : BoardStylePainter
     {
         var palette = scene.Palette;
         var hero = scene.Hero;
-        var limit = (float)hero.History.Left - 8;
+        var limit = HeroLimit(scene, tick);
         using var ink2 = BoardPaint.Brush(context, palette.Ink2);
         using var ink3 = BoardPaint.Brush(context, palette.Ink3);
 
@@ -180,8 +221,10 @@ internal sealed class TimingBoardPainter : BoardStylePainter
             x = pill + 7;
         }
 
-        // The meta line sits below the bars, so the counts may run under them (localized counts are longer than GEN · TOOL).
-        Text.Draw(context, Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Counts, x, meta + 8.5f, ink3, width - x);
+        // The meta line sits below the bars, so the counts may run under them (localized counts are longer than GEN · TOOL); beside
+        // the sub-gauge they end before it.
+        Text.Draw(context, Loc.Format("agents.context", tick.GeneratingCount, tick.ToolsCount), Counts, x, meta + 8.5f, ink3,
+            (scene.Metrics.Gauge ? limit : width) - x);
     }
 
     protected override void PaintUnit(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float x)
@@ -191,8 +234,41 @@ internal sealed class TimingBoardPainter : BoardStylePainter
         context.DrawTextLayout(new Vector2(x, NumberBaseline(scene) - unit.LineMetrics[0].Baseline), unit, ink3);
     }
 
-    protected override void PaintHistory(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, BoardBox box) =>
-        Bars(context, tick, box, scene.Size == BoardSize.S ? 20 : BoardHeroLayout.Bars, scene.Palette.HighContrast ? scene.Palette.Ink : HeroHeat(tick, 0.1));
+    protected override void PaintHistory(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, BoardBox box)
+    {
+        var color = scene.Palette.HighContrast ? scene.Palette.Ink : HeroHeat(tick, 0.1);
+        if (scene.Metrics.Gauge)
+        {
+            Strip(context, tick, box, color);
+            return;
+        }
+
+        Bars(context, tick, box, scene.Size == BoardSize.S ? 20 : BoardHeroLayout.Bars, color);
+    }
+
+    // Layout B's strip (DESIGN 2c, Live metrics: Hero): the 30 one-second bars, 3 wide, radius 1, the first at the left inset and the
+    // last ending at the right; max(1.5, value / max(10, the 30's maximum) × the strip's height) tall, the heat color at 85 %.
+    private static void Strip(ID2D1DeviceContext context, BoardTick tick, BoardBox box, Rgba color)
+    {
+        var history = tick.History;
+        var max = 10.0;
+        for (var i = Math.Max(0, history.Count - BoardHeroLayout.Bars); i < history.Count; i++)
+        {
+            max = Math.Max(max, history[i]);
+        }
+
+        using var brush = BoardPaint.Brush(context, color.MultiplyAlpha(0.85));
+        var bar = (float)BoardHeroLayout.BarWidth;
+        var step = ((float)box.Width - bar) / (BoardHeroLayout.Bars - 1);
+        for (var i = 0; i < BoardHeroLayout.Bars; i++)
+        {
+            var at = history.Count - BoardHeroLayout.Bars + i;
+            var value = at >= 0 ? history[at] : 0;
+            var h = (float)Math.Max(1.5, value / max * box.Height);
+            var left = (float)box.Left + i * step;
+            context.FillRoundedRectangle(new RoundedRectangle(new RawRectF(left, (float)box.Bottom - h, left + bar, (float)box.Bottom), 1, 1), brush);
+        }
+    }
 
     protected override void PaintFooter(ID2D1DeviceContext context, BoardScene scene, BoardTick tick, float width, float height)
     {
@@ -306,23 +382,23 @@ internal sealed class TimingBoardPainter : BoardStylePainter
         }
     }
 
-    private void PositionBlock(ID2D1DeviceContext context, string rank, bool lead, BoardPalette palette, float x, float mid)
+    private void PositionBlock(ID2D1DeviceContext context, string rank, bool lead, BoardPalette palette, float x, float mid, float height = 22)
     {
-        var top = mid - 11;
+        var top = mid - height / 2;
         Rgba ink;
         if (lead && !palette.HighContrast)
         {
-            BoardPaint.Glow(context, Gold.WithAlpha(0.35), 12, c => BoardPaint.FillRound(c, x, top, 24, 22, 5, Rgba.White));
-            using var fill = BoardPaint.Gradient(context, x, top, 24, 22, [(0, GoldLight), (0.45f, Gold), (1, GoldDeep)], 160);
-            context.FillRoundedRectangle(new RoundedRectangle(new RawRectF(x, top, x + 24, top + 22), 5, 5), fill);
+            BoardPaint.Glow(context, Gold.WithAlpha(0.35), 12, c => BoardPaint.FillRound(c, x, top, 24, height, 5, Rgba.White));
+            using var fill = BoardPaint.Gradient(context, x, top, 24, height, [(0, GoldLight), (0.45f, Gold), (1, GoldDeep)], 160);
+            context.FillRoundedRectangle(new RoundedRectangle(new RawRectF(x, top, x + 24, top + height), 5, 5), fill);
             ink = GoldInk;
         }
         else
         {
-            BoardPaint.FillRound(context, x, top, 24, 22, 5, palette.Block);
+            BoardPaint.FillRound(context, x, top, 24, height, 5, palette.Block);
             if (lead)
             {
-                BoardPaint.StrokeRound(context, x, top, 24, 22, 5, palette.Ink, 1);
+                BoardPaint.StrokeRound(context, x, top, 24, height, 5, palette.Ink, 1);
             }
 
             ink = palette.BlockInk;

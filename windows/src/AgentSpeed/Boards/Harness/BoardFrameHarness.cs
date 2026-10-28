@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using AgentSpeed.App;
+using AgentSpeed.Core;
 using AgentSpeed.Boards.Gpu;
 using AgentSpeed.Orb.Gpu;
 using AgentSpeed.Presentation.Boards;
@@ -24,7 +25,13 @@ namespace AgentSpeed.Boards.Harness;
 /// reference shot: 40 steps of the team story at rest, and a top-rung meter's shimmer midway) and <c>board-frames.txt</c> (instances, layers, texture, CPU and GPU
 /// time per frame), then exits. Deterministic (fixed seeds and steps); no window, so it runs next to the installed app.
 /// <c>AGENT_SPEED_BOARD_FRAMES_STYLES</c> limits the styles, <c>AGENT_SPEED_BOARD_FRAMES_THEMES</c> the appearances (dark,
-/// light), <c>AGENT_SPEED_BOARD_FRAMES_SCALE</c> sets the pixel scale (default 2).
+/// light), <c>AGENT_SPEED_BOARD_FRAMES_SCALE</c> sets the pixel scale (default 2), <c>AGENT_SPEED_BOARD_FRAMES_LANG</c> the language
+/// (default zh-Hant). Boards render with every live metric on, as a new board has them.
+/// <para>
+/// <c>AGENT_SPEED_BOARD_FRAMES_METRICS=1</c> renders the live metrics instead (DESIGN 2c, Live metrics): per style and appearance a
+/// sheet <c>metrics-STYLE-THEME.png</c> (rows S, M, L; columns <see cref="MetricsStates"/>) and each cell as
+/// <c>metrics-STYLE-SIZE-THEME-STATE.png</c>, after the team story's 40 ticks at rest, like the prototype's shots.
+/// </para>
 /// </summary>
 internal static class BoardFrameHarness
 {
@@ -59,6 +66,22 @@ internal static class BoardFrameHarness
         new("shimmer", BoardSimScenario.Team, 700, 4, Moment.Shimmer, new BoardEffectsPolicy(EffectsIntensity.Standard)),
     ];
 
+    /// <summary>
+    /// The live metrics states of the metrics sheets: every readout on with 思考 above zero; 思考 hidden at zero (no source reports
+    /// reasoning); quiet (nothing generating); every switch off (the board as before); 智力 off; 每列費用 off; every source a
+    /// subscription (the tag).
+    /// </summary>
+    private static readonly (string Name, BoardReadouts Readouts, bool NoReasoning, bool Quiet, bool Subscriptions)[] MetricsStates =
+    [
+        ("thinking", BoardReadouts.All, false, false, false),
+        ("hidden", BoardReadouts.All, true, false, false),
+        ("quiet", BoardReadouts.All, false, true, false),
+        ("off", BoardReadouts.None, false, false, false),
+        ("nointel", BoardReadouts.All with { Intelligence = false }, false, false, false),
+        ("norowcost", BoardReadouts.All with { RowCost = false }, false, false, false),
+        ("tag", BoardReadouts.All, false, false, true),
+    ];
+
     public static int Run(string directory)
     {
         Directory.CreateDirectory(directory);
@@ -75,11 +98,19 @@ internal static class BoardFrameHarness
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(BoardStyles.Parse).Distinct().ToArray();
         var themes = (Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_FRAMES_THEMES") ?? "dark,light")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct().ToArray();
-        var loc = new Localizer(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
+        var language = Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_FRAMES_LANG") is { } code && LanguageCodes.All.Contains(code)
+            ? code
+            : LanguageCodes.ZhHant;
+        var loc = new Localizer(Localizer.LoadEmbeddedTable(), language);
         var report = new System.Text.StringBuilder();
-        report.AppendLine(CultureInfo.InvariantCulture, $"adapter: {device.AdapterName}, scale {scale}");
+        report.AppendLine(CultureInfo.InvariantCulture, $"adapter: {device.AdapterName}, scale {scale}, language {language}");
         BoardGpuRenderer.Timer = new GpuTimer();
         using var target = new OffscreenTarget();
+        if (Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_FRAMES_METRICS") == "1")
+        {
+            return Metrics(directory, reportPath, device, target, styles, themes, scale, loc, report);
+        }
+
         foreach (var style in styles)
         {
             foreach (var theme in themes)
@@ -113,6 +144,86 @@ internal static class BoardFrameHarness
                 }
 
                 WriteSheet(rows, Path.Combine(directory, $"board-{BoardStyles.Key(style)}{(dark ? string.Empty : "-light")}.png"), dark);
+            }
+        }
+
+        File.WriteAllText(reportPath, report.ToString());
+        return 0;
+    }
+
+    // The live metrics sheets: each state after 40 ticks of the team story at rest (Reduce Motion: nothing moves), the thinking
+    // fold settled.
+    private static int Metrics(string directory, string reportPath, GpuDevice device, OffscreenTarget target, BoardStyle[] styles, string[] themes,
+        double scale, Localizer loc, System.Text.StringBuilder report)
+    {
+        foreach (var style in styles)
+        {
+            foreach (var theme in themes)
+            {
+                var dark = !string.Equals(theme, "light", StringComparison.OrdinalIgnoreCase);
+                var rows = new List<List<BitmapSource>>();
+                foreach (var size in BoardSizes.All)
+                {
+                    var row = new List<BitmapSource>();
+                    foreach (var state in MetricsStates)
+                    {
+                        using var rig = new BoardRig(style, size, BoardSimScenario.Team, new BoardEffectsPolicy(ReduceMotion: true), loc, dark: dark,
+                            readouts: state.Readouts);
+                        rig.Feed.Sim.NoReasoning = state.NoReasoning;
+                        if (state.Subscriptions)
+                        {
+                            rig.Feed.Billable = SourceSet.Empty;
+                        }
+
+                        var pixels = (int)Math.Round(rig.Scene.Canvas.Extent * scale);
+                        var now = Start;
+                        var frames = 0;
+                        while (rig.Ticks < 40 || now < Start + 19.95)
+                        {
+                            // The quiet state: every agent stops for the last 5 s (the 3 s window drains).
+                            rig.Feed.Sim.Quiet = state.Quiet && rig.Ticks >= 30;
+                            if (rig.Ticks < 40)
+                            {
+                                rig.Advance(now);
+                            }
+
+                            if (!rig.Frame.Build(device, now, scale))
+                            {
+                                report.AppendLine(CultureInfo.InvariantCulture, $"{BoardStyles.Key(style)} {theme} {BoardSizes.Key(size)} {state.Name}: the device failed");
+                                break;
+                            }
+
+                            frames++;
+                            now += Step;
+                        }
+
+                        byte[]? bytes = null;
+                        for (var i = 0; i < 2; i++)
+                        {
+                            bytes = target.Render(device, view => rig.Frame.Draw(device, view, pixels), pixels, pixels);
+                            device.Current.Context.Flush();
+                        }
+
+                        var tick = rig.LastTick;
+                        var gauge = tick?.Gauge;
+                        report.AppendLine(CultureInfo.InvariantCulture,
+                            $"{BoardStyles.Key(style)} {(dark ? "dark" : "light")} {BoardSizes.Key(size)} {state.Name}: readouts {state.Readouts.Bits}, intel {gauge?.Intelligence}, thinking {gauge?.Thinking} (hidden {tick?.ThinkingHidden}), cost {gauge?.Cost.Number} {gauge?.Cost.Unit} ({gauge?.Cost.State}), groups {tick?.Entries.Count(e => e.Kind == BoardEntryKind.Group)}, two-line {tick?.Entries.Any(e => e.TwoLine)}, {rig.Frame.List.Count} instances, {rig.Frame.List.LayerCount} layers, {frames} frames");
+                        if (bytes is null)
+                        {
+                            continue;
+                        }
+
+                        var bitmap = OffscreenTarget.ToBitmap(bytes, pixels, pixels);
+                        row.Add(bitmap);
+                        Save(bitmap, Path.Combine(directory,
+                            $"metrics-{BoardStyles.Key(style)}-{BoardSizes.Key(size)}-{(dark ? "dark" : "light")}-{state.Name}.png"));
+                    }
+
+                    rows.Add(row);
+                    File.WriteAllText(reportPath, report.ToString());
+                }
+
+                WriteSheet(rows, Path.Combine(directory, $"metrics-{BoardStyles.Key(style)}-{(dark ? "dark" : "light")}.png"), dark);
             }
         }
 

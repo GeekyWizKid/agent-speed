@@ -20,7 +20,7 @@ public enum BoardMoneyState
 
 /// <summary>A cost per second as a board shows it (section 9 rate form, METRICS 9.8 currency).</summary>
 /// <param name="Number">The digits, <c>0</c>, <c>–</c> or the subscription tag.</param>
-/// <param name="Unit"><c>cost.unitPerSecond</c> with the current symbol (<c>US$/s</c>); empty for <c>–</c> and the tag.</param>
+/// <param name="Unit"><c>cost.unitPerSecond</c> with the current symbol (<c>US$/s</c>); <c>–</c> and the tag do not draw it (<see cref="HasUnit"/>).</param>
 /// <param name="AtLeast">Part of the value has no known price: <c>≥</c> precedes it.</param>
 /// <param name="SpokenNumber">The number as accessibility reads it, wrapped in <c>a11y.orb.costAtLeast</c> when partial.</param>
 /// <param name="Currency">The currency's name (<c>currency.&lt;code&gt;</c>).</param>

@@ -120,11 +120,34 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
             }
 
             var glyphs = BoardValueGlyphs.Glyphs.Length;
-            for (var i = 0; i < BoardValueGlyphs.Sets(scene.Style) * glyphs && !full; i++)
+            var sets = Sets(scene);
+            for (var i = 0; i < sets.Count * glyphs && !full; i++)
             {
-                var set = (BoardValueSet)(i / glyphs);
+                var set = sets[i / glyphs];
                 full |= !Layer(BoardValueGlyphs.Keys(set)[i % glyphs],
                     new BoardLayerRequest(BoardLayerKind.ValueGlyph, scene, null, BoardValueGlyphs.Glyphs[i % glyphs], Set: set));
+            }
+
+            // The live metrics' text layers (DESIGN 2c, Live metrics); a painter describes none for switched-off readouts.
+            var metrics = scene.Metrics;
+            if (metrics.Gauge)
+            {
+                foreach (var part in BoardGauge.Parts)
+                {
+                    full |= !Layer(BoardGauge.KeyOf(part), new BoardLayerRequest(BoardLayerKind.GaugeText, scene, null, Part: part));
+                }
+            }
+
+            if (metrics.IntelligenceColumn)
+            {
+                full |= !Layer(BoardScene.CaptionsKey, new BoardLayerRequest(BoardLayerKind.Captions, scene, null));
+            }
+
+            if (metrics.TwoLineRows)
+            {
+                full |= !Layer(BoardScene.RowUnitKey, new BoardLayerRequest(BoardLayerKind.RowUnit, scene, null));
+                full |= !Layer(BoardScene.RowAtLeastKey, new BoardLayerRequest(BoardLayerKind.RowAtLeast, scene, null));
+                full |= !Layer(BoardScene.RowTagKey, new BoardLayerRequest(BoardLayerKind.RowTag, scene, null));
             }
 
             foreach (var callout in scene.Callouts)
@@ -181,12 +204,28 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
 
         var painter = Painter;
         start = System.Diagnostics.Stopwatch.GetTimestamp();
-        var drawn = _atlas.TryDraw(key, spec.Width, spec.Height, spec.Signature, context => painter.Paint(context, request, spec), spec.MeterX);
+        var drawn = _atlas.TryDraw(key, spec.Width, spec.Height, spec.Signature, context => painter.Paint(context, request, spec), spec.MeterX,
+            spec.Baseline);
         var spent = System.Diagnostics.Stopwatch.GetTimestamp() - start;
         _paintTicks += spent;
         _paintByKind[(int)request.Kind] += spent;
         _paintedByKind[(int)request.Kind]++;
         return drawn;
+    }
+
+    private IReadOnlyList<BoardValueSet> _sets = [];
+    private BoardMetrics? _setsFor;
+
+    // The glyph sets of the scene's style and switches, made again only when its metrics change.
+    private IReadOnlyList<BoardValueSet> Sets(BoardScene scene)
+    {
+        if (!ReferenceEquals(_setsFor, scene.Metrics))
+        {
+            _setsFor = scene.Metrics;
+            _sets = BoardValueGlyphs.SetsFor(scene.Style, scene.Metrics);
+        }
+
+        return _sets;
     }
 
     private static int WidthFor(BoardScene scene, double scale)

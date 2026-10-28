@@ -160,10 +160,13 @@ public sealed class BoardTexts
             spoken, CurrencyName);
     }
 
-    private BoardMoney Unknown() => new(CostDisplay.Dash, string.Empty, false, BoardMoneyState.Unknown, Localizer["cost.unknown"], CurrencyName);
+    // The unit stays known (the sub-gauge sizes its unit cell with it) though neither form draws it.
+    private BoardMoney Unknown() => new(CostDisplay.Dash, UnitText, false, BoardMoneyState.Unknown, Localizer["cost.unknown"], CurrencyName);
 
-    private BoardMoney Tag() => new(Localizer["cost.subscription.tag"], string.Empty, false, BoardMoneyState.Tag, Localizer["cost.subscription.tag"],
+    private BoardMoney Tag() => new(Localizer["cost.subscription.tag"], UnitText, false, BoardMoneyState.Tag, Localizer["cost.subscription.tag"],
         CurrencyName);
+
+    private string UnitText => Localizer.Format("cost.unitPerSecond", Cost?.Symbol ?? Usd.SymbolFor(Localizer.LanguageCode));
 
     private string CurrencyName => Cost?.CurrencyName ?? Localizer["currency." + Currency.UsdCode];
 
