@@ -54,6 +54,8 @@ final class BoardPresenter {
     private var tooltipGroup: String?
     /// The score card's window and timing, made on the first hover that needs them.
     private var cards: TaskScoreCardPresenter?
+    /// The card's window, closed with the board (AppKit keeps a window until it is closed).
+    private var cardPanel: TaskScoreCardPanel?
     private lazy var climbFrames = BoardClimbFrames(window: window.panel) { [weak self] in self?.climbFrame() }
     /// Lays the board out again when a sub-gauge cell narrows back with no new tick.
     private var wakeTimer: Timer?
@@ -91,6 +93,7 @@ final class BoardPresenter {
         wakeTimer?.invalidate()
         climbFrames.stop()
         cards?.dismiss()
+        cardPanel?.close()
         tooltip.close()
         window.close()
     }
@@ -291,7 +294,9 @@ final class BoardPresenter {
     private func cardPresenter() -> TaskScoreCardPresenter {
         if let cards { return cards }
         let accessibility = model.accessibility
-        let made = TaskScoreCardPresenter(display: TaskScoreCardPanel(l10n: model.l10n), delay: TaskScoreCardPresenter.boardDelay) {
+        let panel = TaskScoreCardPanel(l10n: model.l10n)
+        cardPanel = panel
+        let made = TaskScoreCardPresenter(display: panel, delay: TaskScoreCardPresenter.boardDelay) {
             (accessibility.reduceMotion, accessibility.reduceTransparency)
         }
         cards = made

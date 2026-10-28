@@ -117,6 +117,14 @@ final class TaskScoreCardPanel {
         }
     }
 
+    /// The surface that owned the card went away: AppKit keeps a window until it is closed.
+    func close() {
+        isShown = false
+        transition.cancel()
+        panel.alphaValue = 0
+        panel.close()
+    }
+
     var frame: CGRect { panel.frame }
 
     private func fittingSize() -> CGSize {

@@ -28,6 +28,7 @@ final class DashboardScoreCards {
     /// The panel closed: the card goes with it.
     func close() {
         presenter.dismiss()
+        panel.close()
         loop?.cancel()
         loop = nil
     }
