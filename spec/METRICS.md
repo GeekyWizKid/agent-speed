@@ -1820,7 +1820,7 @@ The latest task is the agent's **current task**. It stays current after the agen
 | Source | Prompt | Never a prompt |
 | --- | --- | --- |
 | Claude (both) | a `type == "user"` line classified *prompt* or *command* below; a *queued message* (below) | assistant lines, every other attachment, every other type |
-| Codex | `event_msg` with `payload.type == "user_message"`; its text is `payload.message` (a non-string counts as empty, so an images-only message is a prompt) | every other line: the `response_item` user message that repeats it, injected context (`developer` and `system` messages, `<environment_context>`, AGENTS.md), mailbox input (4.2), tool outputs |
+| Codex | a `response_item` with `payload.type == "message"` and `payload.role == "user"` whose content (a string, or its `input_text` and `text` blocks) has a non-blank text or an `input_image` block, unless the first text, with leading whitespace removed, starts with `<` and an ASCII letter or with `# AGENTS.md instructions`; its text is the string, or the text blocks that do not start (after leading whitespace) with `<`, joined with LF | injected user-role context (`<environment_context>`, `<heartbeat>`, `<subagent_notification>`, `<turn_aborted>`, the user's reply to the agent's question `<send_user_message_question_reply>`, AGENTS.md), `developer` and `system` messages, the `event_msg` `user_message` (older versions write it beside the item; the versions on this Mac since 2026-04 write none), mailbox input (4.2), tool outputs |
 | omp, Pi, OpenClaw | a `message` entry with `message.role == "user"` whose content is a non-blank string, or has a non-blank `text` block or an `image` block; its text is the string, or the `text` blocks joined with LF | `developer`, `toolResult`, `bashExecution` and the other roles; `compaction`, `branch_summary`, `custom_message` and every other entry |
 
 *Blank* and *trimmed* are as in 4.9. A Claude `type == "user"` line is classified by the first rule that matches:
@@ -1879,8 +1879,11 @@ entry is ASCII or CJK (after NFKC, which also maps full-width letters to ASCII),
 change no result and would differ between platforms. The text is compared in memory and never kept. Cases:
 `continuations`.
 
-A message the user sends while the agent works (steering: a Claude queued message, a Codex `user_message`) starts a
-new task unless it is in the list. A correction typed mid-task therefore splits the task: an approximation.
+A message the user sends while the agent works (steering: a Claude queued message, a Codex user message item) starts
+a new task unless it is in the list. A correction typed mid-task therefore splits the task: an approximation. The Codex
+rule was first written from format knowledge (the `event_msg` `user_message`) and changed after the end-to-end check
+on real logs (2026-10-28): no rollout on this Mac since 2026-04 has that event, so every Codex file read as one task;
+the item rule was checked against the same logs by counts and leading markers only.
 
 #### Event stream
 
@@ -1895,16 +1898,19 @@ outputs arrive here already parsed; their inputs are never kept.
 
 | Field | Value |
 | --- | --- |
-| `t` | the time of the line that holds the prompt or the call (Unix ms) |
+| `t` | the time of the line that holds the prompt or the call (Unix ms); a queued Claude message's own time (*Tasks*) |
 | `continuation` | *Continuation*, above |
-| `kind` | `action_kind(source, tool, input)`: `read`, `search`, `edit`, `command`, `delegate`, `web` or `other` |
+| `kind` | `action_kind(source, tool, input, cwd)`: `read`, `search`, `edit`, `command`, `delegate`, `web` or `other` |
 | `tool`, `digest` | as 6.10 |
-| `command` | `kind == "command"` only: `command_info(text)` = `{class: test, build, check or other, suite, targeted, key}` |
-| `outcome` | once the result is read: `outcome(source, result)` = `{exitCode, failed}` (`failed` true, false or null), and `t`, the time of the result line |
-| `failures` | with the outcome of a command: `failures(info, outputText)` = `{fingerprints, failedCount, passedCount, framework}` |
-| `hunks` | `kind == "edit"` only: `edit_hunks(source, tool, input)` = `[{file, old, new}]`, 16-hex digests; `old` is null for a whole-file write, whose `new` is the digest of the whole content |
+| `command` | `kind == "command"` with command text (TASK-PARSERS 3.1) only: the fields `class` (`test`, `build`, `check` or `other`), `suite`, `targeted` and `key` of `command_info(text, cwd)` |
+| `outcome` | once the result is read: `outcome(source, result, t, tool, input, cwd)` = `{exitCode, failed, t}` (`failed` true, false or null; `t` the time of the result line) |
+| `failures` | with the outcome of an action that has `command`: `failures(info, result_text(source, result), cwd, outcome.failed)` = `{fingerprints, failedCount, passedCount, framework}` |
+| `hunks` | `kind == "edit"` only: `edit_hunks(source, tool, input, cwd)` = `[{file, old, new}]`, 16-hex digests; `old` is null for a whole-file write, whose `new` is the digest of the whole content |
 
-- Results match their call by id as in 6.10; a result for an unknown call is ignored.
+`cwd` is the agent's working directory when the call's line was read (*Composing the stream*, below): every function of
+one action, also those applied when its result arrives, receives that same value.
+
+- Results match their call by id (*Composing the stream*); a result for an unknown call is ignored.
 - Seeded lines (5) add events, unlike the signals' action list (6.10), so the current task is rebuilt from the file
   after a relaunch. Copied lines (3.5, 4.7) and assistant lines ignored as duplicates (4.1 step 2, 4.7 step 2) add
   none.
@@ -1912,6 +1918,127 @@ outputs arrive here already parsed; their inputs are never kept.
   failures) whose `t` is after `nowMs` as not read yet. The live engine evaluates everything it has read; it may keep
   incremental state for each agent's current task instead of evaluating the task again, as long as every value equals
   these definitions.
+
+#### Composing the stream
+
+The *composer* turns one agent's lines into the event stream. It reads every line right after the source's parser (4)
+has read it and takes the parser's decisions as they are: a line the parser skips as copied history (3.5, 4.7) or for
+want of a usable time adds nothing, and an assistant line or entry the parser ignores because its key was first seen in
+another file (4.1 step 2, 4.7 step 2) is a **duplicate**. `spec/tools/task_events.py` implements it;
+`spec/fixtures/task-e2e-expected.json` checks it end to end (below).
+
+| Source | Line time `t` | `cwd` | Prompts | Calls | Results |
+| --- | --- | --- | --- | --- | --- |
+| Claude (both) | the line's `timestamp` (3.1); a line without one adds nothing | a non-blank string `cwd` of the line, taken before the line's own calls; the latest wins | `user` lines classified *prompt*, *command* or *command output*, and queued messages (*Tasks*) | blocks `tool_use` (`id`, `name`, `input`) of an `assistant` line that is not `<synthetic>` (4.1 step 1) and not a duplicate | blocks `tool_result` of a `user` line, by `tool_use_id`; the result is the block |
+| Codex | the envelope's `timestamp`; lines that 3.5 removes add nothing | the first `session_meta`'s `payload.cwd`, then every `turn_context`'s `payload.cwd` (non-blank strings) | `response_item` user messages (*Tasks*) | `response_item` / `function_call` (`call_id`, `name`, `arguments`) and `custom_tool_call` (`call_id`, `name`, `input`); a code-mode script gives its tool calls instead (below) | `response_item` / `function_call_output` and `custom_tool_call_output`, by `call_id`; the result is the payload |
+| omp, Pi, OpenClaw | the entry's `timestamp`; entries that 4.7 ignores (before the header, without a string `id` or a time, copied history) add nothing | the header's `cwd` (a non-blank string) | `message` entries of role `user` (*Tasks*) | blocks `toolCall` (`id`, `name`, `arguments`) of an assistant `message` that passes 4.7 step 1, is not a duplicate and, for OpenClaw, is not a mirror (4.14) | `message` entries of role `toolResult`, by `toolCallId`; the result is the message |
+
+*Non-blank* is as in 4.9; the `cwd` is passed to the parsers as stored (TASK-PARSERS normalises it).
+
+**Prompts.** Prompt, command and command-output lines and the assistant lines with their duplicate flag go through the
+withdrawal of *Tasks* in line order: a prompt or command adds its prompt event at once and is removed again when the
+first assistant line after it is a duplicate, or, for a command, when a command output comes first. The assistant lines
+that decide are, for Claude, every `assistant` line with a time except `<synthetic>` ones, and for omp, Pi and OpenClaw
+every assistant `message` that passes 4.7 step 1 (an OpenClaw mirror decides like any other). Codex has no withdrawal.
+
+**Calls.** A call needs a string id and a string tool name; an id the agent's file already had is a repeat and adds
+nothing (a Claude message's lines can repeat its blocks). The action takes the call line's `t` and `cwd`, and:
+
+- `kind` and `digest` (6.10: an object or array input hashes as the JSON text exactly as the line stores it, a string
+  input as its text, an absent or null input as empty text);
+- `command` when the kind is `command` and the tool has command text (TASK-PARSERS 3.1): `command_info(text, cwd)`'s
+  four fields; its `masked` and `background` stay in memory for the outcome. A shell command that only reads or searches
+  has kind `read` or `search` and no `command`; a shell call without readable text has kind `command` and no `command`;
+- `hunks` when the kind is `edit`.
+
+The call's input is held in memory until its result arrives, then released.
+
+**Codex code mode** (TASK-PARSERS 4.4). Recent Codex versions run most tools from a JavaScript cell: a
+`custom_tool_call` named `exec` whose script calls `tools.exec_command(…)`, `tools.write_stdin(…)`,
+`tools.apply_patch(…)` and so on (on this Mac, 84 760 such calls since 2026-07, against a few thousand direct ones).
+When `code_script(source, tool, input)` gives calls, the script adds no action of its own: each of its calls becomes an
+action in source order, with the script line's `t` and `cwd`, its own tool name and input, and the digest of its source
+text (in place of the 6.10 digest of the whole script). When the script's result arrives, the printing statements of
+a plain script take the items of `code_items(source, result)` in order — each item read as its call's result above —
+provided the counts match; every other call of the script gets no result. The 6.10 work
+signals keep one action per script (they never look inside the input).
+
+**Results.** A result belongs to the call with its id anywhere in the agent's stream (a result read after a new prompt
+still completes the earlier task's action). Only the first result of a call counts; later ones, and results whose id
+names no call, are ignored. The action's `outcome` is `outcome(source, result, t, tool, input, cwd)` with the result
+line's `t` and the call's tool, input and `cwd`. An action with `command` also gets
+`failures(info, result_text(source, result), cwd, outcome.failed)`, except while the result leaves a session running.
+
+**Sessions** (TASK-PARSERS 4.3). Codex's unified exec returns after about 10 seconds while a slow command keeps running,
+and the command's outcome arrives in the results of later `write_stdin` calls; a Claude background `Bash` ends with a
+task notice (`queued_command` in `task-notification` mode) that states its exit code, or is read with `BashOutput` /
+`TaskOutput` in older versions. Without stitching them back, a slow test suite would never count as a run, and Codex
+would score below Claude Code for the same work. The composer keeps, per agent, a map from session key to the action
+whose result left that session running:
+
+1. When a call that is not itself a continuation gets a result with `running_session(source, result) = K`, its action
+   keeps that result's outcome (state running: `exitCode` and `failed` null) and no `failures` yet, and K maps to the
+   action, its command's `masked` flag and its output so far (the result's `result_text`). A later such result for the
+   same K replaces the entry.
+2. A call with `continuation(source, tool, input) = K` is an action of its own (kind `other`, its own outcome). When
+   its result arrives and K is mapped, the result's `result_text` is appended to K's output (Codex parts concatenated
+   as they are, being slices of one stream; Claude parts joined with LF).
+   When that result's own outcome has a non-null `exitCode` and a non-null `failed` (finished with an exit code), the
+   mapped action's outcome becomes `{exitCode, failed, t}` of it — with `failed` null when the mapped command is
+   `masked`, since the exit code is then the pipeline's — its `failures` (when it has `command`) are computed over the
+   whole output, and K leaves the map.
+3. A Claude line for which `notification(source, line)` gives `{session: K, exitCode: N}`, when K is mapped, ends it
+   the same way with the outcome `{exitCode: N, failed: N ≠ 0, t}` (`failed` null when `masked`), `t` being
+   `attachment.timestamp` when it is a timestamp (3.1), else the line's; the notice carries no output, so the failures
+   are computed over the output held so far.
+4. A session that never reports an exit code leaves the action without a result (not a run, *Runs*). Its output is
+   held in memory only, until then.
+
+The stitched outcome keeps the action where the call was: a test started before an edit verifies the code before it,
+whenever it finishes. An evaluation at `nowMs` sees it from the continuation result's `t` on.
+
+**Reading from an offset, copies and sub-agents.**
+
+- Seeded lines are composed like live ones (6.4's `responseCompleted` and `newPeak` are a different thing and never
+  fire while seeding). A file read from an offset (5) composes from that offset, after the header that omp and Pi read
+  first (its `cwd` counts); its events before the first prompt form a task of their own (*Tasks*).
+- Copied history adds nothing: Codex lines that 3.5 removes, and omp, Pi and OpenClaw entries before `headerMs − 2000`.
+  Claude copies (forks, resumes) are found by deduplication: their assistant lines are duplicates (no actions, and the
+  prompt before them is withdrawn), and their tool results match no call. omp's byte copies of sub-agent transcripts are
+  duplicates the same way.
+- Every agent has its own stream: a Claude `subagents/*.jsonl` file, a Codex sub-agent rollout, an omp or Pi nested
+  file, an OpenClaw spawned window. The request its parent gave it is its first prompt (a Claude `user` line, a Codex
+  `user_message`, a user message of the Pi family); a request that arrives otherwise (a Codex mailbox message, 4.2)
+  leaves its first events to a task before the first prompt.
+- An OpenClaw delegated window's mirrors add no actions (the runtime that ran the turn records the tools in its own
+  log, scored there when Agent Speed reads it); its prompts still start tasks, so its value is none.
+
+**Model and effort.** After every line with a time that adds or could add something (above), the composer notes
+`(t, model, effort)`: the agent's model (4) and the mode of its current effort attribution (EXECUTION-MODES), null when
+unknown. 6.11 *Task records* takes the last note whose `t` is at most the task's `endMs`, in line order. A note equal
+to the previous kept one, with a `t` not earlier than its, may be dropped: the choice stays the same.
+
+**Privacy.** Held in memory only: a call's input until its result, a running session's output until its exit code, the
+`cwd`. Prompt texts are compared with the continuation list and dropped. The stream keeps what the table of *Event
+stream* lists.
+
+**End to end.** `spec/fixtures/tasks/` holds hand-written sessions of every scored source (`spec/tools/task_e2e_fixtures.py`
+writes them for `generate_fixtures.py`, with expectations written by hand) and `spec/fixtures/task-e2e-expected.json`
+the expected result of reading them in its `order` with one dedupe set (3.4): per agent its event stream, its value
+at `nowMs` (form, score, state, dimensions, facts, predictions with the source's coefficients) and its records (6.11,
+`analysisMs`), then the sets and board groups (*Values*), the calibration and the comparison. `reference.py
+--check-fixtures` checks it and `reference.py --write-task-fixture` regenerates it after checking the hand
+expectations. Ports read the files with their own parsers and composer and must match every value (numbers within
+10⁻⁹, calibration within 10⁻⁶).
+
+**Dumps** (parity on real logs). `reference.py --dump-today` ends with one `task` row per seeded agent of a scored
+source — `agentId`, `source`, `phase` (after staleness), `lastLineMs`, `parentId`, `taskStartMs`, `form`, `score`,
+`shown`, `state`, the dimensions and facts of `task_result`, `predictions` (the prior coefficients: the dump analyses no
+history) and the model flags — and one `taskSets` row (the agents list, the all-sources set, one set per scored source
+with listed agents, the board groups), evaluated at `--now MS` or the capture time (`summary.nowMs`).
+`reference.py --dump-tasks` prints a `record` row per task record of every log read whole (Codex archives included),
+a `calibration` row per source and a `comparison` row (`--first` / `--last`, default every day; `--source`; `--utc`).
+`spec/tools/compare_dumps.py` compares these rows whenever both dumps have them, skipping agents still being written.
 
 #### Runs, checks and edits
 
@@ -1923,7 +2050,9 @@ their number.
 
 - **fail** when `outcome.failed` is true or `failures.failedCount > 0` (an exit code 0 with reported failures, such as
   `cargo test | tail`, still fails);
-- **pass** otherwise, when `outcome.failed` is false, or when `failedCount == 0` and `passedCount > 0`;
+- **pass** otherwise, when `outcome.failed` is false, or when `failedCount == 0` and `passedCount` is not 0 (a
+  summary that reports no failure: tests that passed, or a checker or build, which counts no passes — unless it says
+  that nothing ran);
 - otherwise (no outcome yet, or `failed` null — backgrounded, interrupted or still running, TASK-PARSERS — without
   counts) it is not a run, only a counted action.
 
@@ -2151,9 +2280,10 @@ line is parsed. An assistant line or entry ignored because its key was first see
 step 2) adds no actions, and its results match nothing.
 
 **Task fields.** For the task score, each action also carries what the functions of `spec/TASK-PARSERS.md` derive while
-the call and its result are parsed: `kind` (`action_kind`), for a command `command` (`command_info`), with the result
-`outcome` (`outcome`) and for a command `failures` (`failures`, over the result's output text), for an edit `hunks`
-(`edit_hunks`) — the event stream of 6.9. They are computed in memory from the call's input and the result's output
+the call and its result are parsed, with the agent's working directory: `kind` (`action_kind`), for a command `command`
+(`command_info`), with the result `outcome` (`outcome`) and for a command `failures` (`failures`, over the result's
+output text), for an edit `hunks` (`edit_hunks`) — the event stream of 6.9, composed as 6.9 *Composing the stream*
+says (including the late outcomes of commands that outlive their call). They are computed in memory from the call's input and the result's output
 (6.9 *Privacy*); only the fields listed there are kept. The signals below use only `tool`, `digest`, times and
 `failed` from the table above; `outcome.failed` refines the same fact for the score (null for a command that did not
 finish).

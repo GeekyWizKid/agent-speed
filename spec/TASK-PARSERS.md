@@ -12,6 +12,8 @@ outputs listed here are kept (section 7).
 | `outcome(source, result, t, tool, input, cwd)` | `{exitCode, failed, t}` (4.2) |
 | `result_text(source, result)` | the output text that `failures` reads (4.1) |
 | `continuation(source, tool, input)`, `running_session(source, result)` | a session key or null (4.3) |
+| `notification(source, line)` | `{session, exitCode}` of a Claude background-task notice, or null (4.3) |
+| `code_script(source, tool, input)`, `code_items(source, result)` | a Codex code-mode script's tool calls and printing statements, and its printed results (4.4) |
 | `failures(info, outputText, cwd, failed)` | `{fingerprints, failedCount, passedCount, framework}` (5) |
 | `edit_hunks(source, tool, input, cwd)` | `[{file, old, new}]` (6) |
 
@@ -478,13 +480,82 @@ Codex's unified exec returns after `yield_time_ms` (10 s by default) while the c
 - `continuation(source, tool, input)`: Codex `write_stdin` with an integer `session_id` → `codex:<id>`; Claude
   `BashOutput` / `TaskOutput` with a non-empty string `bash_id`, `shell_id` or `task_id` (in that order) →
   `claude:<id>`. Otherwise null.
+- `notification(source, line)`: Claude Code reports the end of a background command not through a tool call but with a
+  line of type `attachment` whose `attachment.type` is `queued_command`, `attachment.commandMode` is
+  `task-notification` and `attachment.prompt` is a string (checked against real logs, counts and markers only,
+  2026-10-28). Its text, LF-normalised, holds `<task-id>…</task-id>` (*search* `NOTIFY_TASK`) and a summary (*search*
+  `NOTIFY_SUMMARY`); when the summary, trimmed, matches `NOTIFY_EXIT` (`Background command "…" completed (exit code
+  N)` or `… failed with exit code N`) the result is `{session: "claude:<task id>", exitCode: N}`. A stopped command,
+  an agent or monitor task, any other mode and a notice without a task id give null. The task id is the id of
+  `CLAUDE_BACKGROUND`, which excludes the period that ends that sentence (`… with ID: bk3x9a. Output is being written
+  to: …`).
 
-The event layer (METRICS 6.9 *Event stream*) keeps, for the current task only, a map from session key to the command
-action whose result left it running. A result of a continuation call whose session is in the map appends its
-`result_text` to that action's output (in order); when its own `outcome` is in state `done` with an exit code, that
-outcome (with its `t`) becomes the original action's outcome, `failures` is computed over the accumulated output, and
-the key leaves the map. The continuation call itself stays kind `other`. Only digests, counts and the session key are
-held; the accumulated text is released once the outcome is set, and is bounded like any output (5.1).
+The event layer (METRICS 6.9 *Composing the stream*, *Sessions*) keeps, per agent, a map from session key to the action
+whose result left that session running (a call that is not itself a continuation): the action keeps that result's
+outcome (state `running`) and gets no `failures` yet. A result of a continuation call whose session is in the map
+appends its `result_text` to that action's output (Codex parts are slices of one output stream and are concatenated
+as they are; Claude parts are joined with LF); when its own `outcome` has a non-null
+`exitCode` and a non-null `failed` (state `done` with an exit code), that outcome (with its `t`) becomes the original
+action's outcome — with `failed` null when the original command is `masked` (3.7) — `failures` is computed over the
+accumulated output with the original command's `info` and `cwd`, and the key leaves the map. The continuation call
+itself stays kind `other`, with its own outcome. A result that leaves the same session running again replaces the
+entry. Only digests, counts and the session key are kept; the accumulated text is held in memory only until the
+outcome is set, and `failures` applies its budget (5.1) to the whole of it. The live engine may drop the entries of
+tasks other than the agent's current one: nothing shows them, and the history analysis reads whole files.
+
+### 4.4 Codex code mode
+
+Recent Codex versions (on this Mac, every rollout since 2026-07) let the model run a JavaScript cell instead of calling
+tools one by one: a `custom_tool_call` named `exec` whose input is the script, such as
+`text(await tools.exec_command({cmd: "cargo test", yield_time_ms: 10000}));`, and whose output lists a header item
+`Script completed` / `Wall time … seconds` / `Output:` and then one `input_text` item per `text(…)` printed. The tools a
+script calls are the actions (METRICS 6.9 *Composing the stream*); the script itself is none. Verified against real
+logs through counts and structural skeletons only (2026-10-28).
+
+`code_script(source, tool, input)`: for Codex `exec` with a string input that is not a JSON object (1), the script is
+read as below; a script that cannot be tokenised, or that calls no tool, gives null (and the call keeps the rule of
+3.1). Otherwise `{calls, plain, prints}`:
+
+- **Tokens.** Whitespace (space, tab, CR, LF, FF, VT), `//` and `/* */` comments are skipped. A string is `'…'` or
+  `"…"` (a raw line break ends it unterminated: the script cannot be tokenised); a template is `` `…` ``, whose
+  `${…}` parts are tokenised recursively up to their closing brace and make its value unknown. Escapes in both: `\n`
+  `\r` `\t` `\b` `\f` `\v`, `\0` not followed by a digit, `\xHH`, `\uHHHH` (surrogate pairs combine; a lone
+  surrogate is U+FFFD), `\u{H…}` up to U+10FFFF, a backslash before a line break (CR LF, LF, CR, U+2028, U+2029) is
+  removed with it, and any other escaped character stands for itself. A template's raw CR LF and CR are LF. A `/`
+  starts a regular expression (up to an unescaped `/` outside `[…]`, then letters, digits, `_` and `$`; a line break
+  first makes it a plain `/`) unless the previous token is a number, string, regular expression, `)`, `]`, `}` or an
+  identifier other than the keywords `JS_REGEX_AFTER`. An identifier is `[A-Za-z_$][A-Za-z0-9_$]*`; a number token is
+  `JS_NUMBER_TOKEN`, valued only when it matches `JS_NUMBER` (an integer, else a double). Any other character is a
+  one-character punctuator.
+- **Calls.** Every `tools` `.` NAME `(` … `)` whose `tools` does not follow a `.`, the closing parenthesis found by
+  bracket depth over `(` `[` `{` and `)` `]` `}`, is a call in source order: `tool` = NAME, `digest` = `sha16` of the
+  script text from `tools` through that `)`, and `input` = its single argument when that is a literal (else null; no
+  argument → null). Literals: a string with a known value, a valued number (with an optional leading `-`), `true`,
+  `false`, `null`, an array of literals, and an object whose keys are identifiers, strings or integers — a member whose
+  value is not a literal (a variable, an expression, a template with `${…}`, a shorthand or a spread) is left out, and
+  a repeated key keeps its last value.
+- **Plain.** The script is *plain* when its tokens are only `;` and these statements, read in order, each CALL being
+  `await` followed by a call above:
+  - `const`, `let` or `var` NAME `=` CALL — binds NAME to the call; `const`, `let` or `var` NAME `=` LITERAL — binds
+    NAME to the literal, which the arguments of later calls may use in place of a literal (a name bound again keeps
+    its latest binding);
+  - CALL alone;
+  - *printing*: `text ( CALL )`, `text ( NAME )` with NAME bound to a call — mode `result`; `text ( ( CALL ) .
+    output )`, `text ( NAME . output )` — mode `output`.
+
+  `prints` lists the printing statements in order as `[call index, mode]` (empty when the script is not plain). In a
+  plain script the calls' inputs are read with the bindings made before them; otherwise without any binding.
+
+`code_items(source, result)`: the Codex output value (4.1 step 1) as an array whose first item has a string `text`
+whose first line, LF-normalised, is `Script completed`: the texts of the other items, LF-normalised (null for an item
+without a string `text`); anything else (a failed or still running script, a string output) gives null.
+
+The event layer matches the printing statements of a plain script with the items in order — the k-th statement with
+the k-th item — only when `code_items` is not null and has exactly as many items as `prints`; a call printed more than
+once takes its first item. The item is the call's Codex result, a string read like an output value: in mode `result`
+usually a leading JSON object with `exit_code` or `session_id` (4.1 step 3); in mode `output` the command's output
+alone, so the run is left to its counts (5). Every other call of a script gets no result. Through `session_id` results
+and `write_stdin` calls, scripts take part in 4.3 like direct calls.
 
 ## 5. `failures`
 
@@ -617,6 +688,13 @@ null; last keeps the last), in order of first appearance.
 - Else, when some has an error-family summary: `failedCount` = their sum, `passedCount` = null.
 - Else, when there are failures: `failedCount` = the number of distinct canonical strings (5.7), `passedCount` =
   null — a compiler that prints no total still yields a count, so a masked `swift build | tail` with errors fails.
+- Else, when a line, trimmed, fully matches a *completion marker* — `COMPLETE_CARGO` (`Finished … target(s) in …`),
+  `COMPLETE_SWIFTPM` (`Build complete!`), `COMPLETE_XCODEBUILD` (`** BUILD SUCCEEDED **` and the other actions),
+  `COMPLETE_GRADLE` (`BUILD SUCCESSFUL`), `COMPLETE_MAVEN` (`[INFO] BUILD SUCCESS`), `COMPLETE_PRETTIER`, `COMPLETE_VITE`
+  (`✓ built in …`), tried in that order on each line: `failedCount` = 0, `passedCount` = null, and `framework` = the
+  marker's name in `COMPLETION_FRAMEWORKS`, from the first such line in output order. These tools print the line only
+  when they finish without errors, so a build piped through `tail` still reads as passed (real logs: nine in ten
+  Claude Code build and check commands end in a pipe, which hides the exit code).
 - Else both are null.
 
 `framework` = among the chosen frameworks, the first (in order of appearance) with a non-zero failed count, else the
@@ -624,7 +702,7 @@ first with a non-zero passed count, else the first; with no summary, the framewo
 order; else null.
 
 These counts fit METRICS 6.9: a run fails when `failed` is true or `failedCount > 0`, and passes when `failed` is false
-or `failedCount == 0` with `passedCount > 0`. A retried flaky failure that the summary still counts (Gradle's
+or `failedCount == 0` with a `passedCount` that is not 0 (null for checkers and builds, which count no passes). A retried flaky failure that the summary still counts (Gradle's
 test-retry: `12 tests completed, 1 failed` with `BUILD SUCCESSFUL`) is a failure, as the tool states it.
 
 ### 5.5 Deviations from the corpus authors' reading
@@ -729,9 +807,11 @@ names from the fixed vocabulary, 16-hex digests, counts, exit codes and times le
 ## 8. Notes for the event layer
 
 - `kind`, `command`, `outcome`, `failures` and `hunks` of METRICS 6.9 are `action_kind`, `command_info` (its four
-  contract fields), `outcome`, `failures(info, result_text(…), cwd, outcome.failed)` and `edit_hunks`.
-- `command_info` and `failures` apply to actions of kind `command`; a `read` or `search` shell command has no
-  `command` field.
+  contract fields), `outcome`, `failures(info, result_text(…), cwd, outcome.failed)` and `edit_hunks`. METRICS 6.9
+  *Composing the stream* says which lines give calls and results per source, and passes every function of one action
+  the agent's `cwd` at the call's line (METRICS 4 `cwdPath`).
+- `command_info` and `failures` apply to actions of kind `command` with command text (3.1); a `read` or `search` shell
+  command has no `command` field, and neither has a shell call without readable text.
 - An edit whose outcome has `failed` true (Claude `<tool_use_error>`, a rejected patch) did not apply; METRICS 6.9
   already treats it as not effective.
 - Continuations (4.3) attach late outcomes to the original command.
@@ -741,7 +821,8 @@ names from the fixed vocabulary, 16-hex digests, counts, exit codes and times le
 `python3 spec/tools/task_parsers.py` checks every case of `spec/fixtures/task-parser-cases.json` and Appendix A;
 `--write` regenerates both after checking the hand expectations of the corpus (the digests there are computed with
 `hashlib` from hand-normalised text, independently of the reference). Each case has `group` (`actionKind`, `command`,
-`outcome`, `resultText`, `session`, `failures`, `edits`), its inputs and `expect`. `command` cases also expect
+`outcome`, `resultText`, `session`, `notification`, `codeScript`, `codeItems`, `failures`, `edits`), its inputs and
+`expect`. `command` cases also expect
 `masked` and `background`; `failures` cases list `canonical`. Ports run every case through their own functions and
 compare the outputs exactly.
 
@@ -759,9 +840,15 @@ compare the outputs exactly.
 - Fingerprints of compiler errors drop line numbers, so two identical messages in one file count once.
 - A Codex command whose own output starts with a JSON object holding a string `output` is read as Codex's JSON
   form (4.1).
-- Not verified against real logs (none were read): Claude `BashOutput` / `TaskOutput` tags, omp's hashline, sloppy
-  and patch shapes, Codex's `exec` custom tool input, the exact wording of every runner across versions (the corpus
-  notes the uncertain details per case).
+- Codex code mode (4.4): a script that is not plain (`Promise.all`, loops, variables between calls; about a fifth of
+  scripts on this Mac) gives its calls no results, so their commands are not runs; a script still running after its
+  yield (`Script running with cell ID N`, finished by a later `wait` call) gets no results either.
+- A Claude background command's notice carries its exit code but not its output: the run is decided by the exit code
+  alone (and is unknown when the command was `masked`).
+- Not verified against real logs (none were read for them): Claude `BashOutput` / `TaskOutput` tags, omp's hashline,
+  sloppy and patch shapes, Codex's `exec` custom tool with an object input, the exact wording of every runner across
+  versions (the corpus notes the uncertain details per case). Codex code mode, Claude task notices and the background
+  id were checked against real logs by counts and markers only (2026-10-28, METRICS 6.9 *Composing the stream*).
 
 ## Appendix A — tables, lists and patterns
 
@@ -869,6 +956,8 @@ The reference writes this appendix; do not edit it by hand.
 - `FIND_ACTIONS`: `-delete`, `-exec`, `-execdir`, `-ok`, `-okdir`, `-fprint`, `-fprintf`, `-fls`
 - `WRITE_REDIRS`: `>`, `>>`, `>|`, `&>`, `&>>`, `<>`
 - `CLAUDE_ABORT`: `[Request interrupted by user`, `The user doesn't want to proceed with this tool use`, `The user doesn't want to take this action`, `Permission to use `, `Claude requested permissions to use`, `User rejected`, `The tool use was rejected`
+- `JS_REGEX_AFTER`: `return`, `typeof`, `instanceof`, `in`, `of`, `new`, `delete`, `void`, `throw`, `case`, `do`, `else`, `yield`, `await`
+- `COMPLETION_FRAMEWORKS`: `cargo`, `swiftpm`, `xcodebuild`, `gradle`, `maven`, `prettier`, `vite`
 
 ### A.3 Table-driven programs
 
@@ -956,7 +1045,7 @@ FD_TARGET          [0-9-]+
 PIPEFAIL_FLAG      -[A-Za-z]*o
 CLAUDE_EXIT        Exit code (-?[0-9]+)
 CLAUDE_TIMEOUT     Command timed out after .*
-CLAUDE_BACKGROUND  Command running in background with ID: ?([A-Za-z0-9_.:-]+).*
+CLAUDE_BACKGROUND  Command running in background with ID: ?([A-Za-z0-9_:-]+(?:\.[A-Za-z0-9_:-]+)*).*
 CODEX_EXIT         Exit code: (-?[0-9]+)
 CODEX_EXITED       Process exited with code (-?[0-9]+)
 CODEX_RUNNING      Process running with session ID ([0-9]+)
@@ -968,6 +1057,14 @@ PI_ABORT           (Command aborted.*|Command was terminated.*|Operation aborted
 PI_RUNNING         Command still running \(session .*
 BASHOUTPUT_STATUS  <status>([a-z_]+)</status>
 BASHOUTPUT_EXIT    <exit_code>(-?[0-9]+)</exit_code>
+NOTIFY_TASK        <task-id>([^<]+)</task-id>
+NOTIFY_SUMMARY     <summary>([^\n]*?)</summary>
+NOTIFY_EXIT        Background command [^\n]*(?:\(exit code (-?[0-9]+)\)|with exit code (-?[0-9]+))
+JS_NUMBER_TOKEN    [0-9](?:[0-9A-Za-z_.]|(?<=[eE])[+-])*
+JS_NUMBER          [0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?
+JS_HEX2            [0-9A-Fa-f]{2}
+JS_HEX4            [0-9A-Fa-f]{4}
+JS_CODEPOINT       \{([0-9A-Fa-f]{1,6})\}
 ANSI_OSC           \x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?
 ANSI_CSI           \x1b\[[0-?]*[ -/]*[@-~]
 ANSI_FE            \x1b[@-Z\\-_]
@@ -1133,6 +1230,13 @@ MAKE_NOISE         g?make(?:\[[0-9]+\])?: \*\*\* .*|g?make(?:\[[0-9]+\])?: (?:En
 GENERIC_FILE       (.+?\.[A-Za-z0-9]+):([0-9]+)(?::([0-9]+))?:? (?:fatal )?error(?:\[([^\]]+)\])?:? (.+)
 GENERIC_PREFIX     (?:error|ERROR|Error|fatal|FATAL)(?:\[([^\]]+)\])?: (.+)
 GENERIC_EXCEPTION  (?:Uncaught )?([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception)): (.*)
+COMPLETE_CARGO     Finished .* target\(s\) in .+
+COMPLETE_SWIFTPM   Build complete!(?: \(.*\))?
+COMPLETE_XCODEBUILD \*\* [A-Z]+(?: [A-Z]+)* SUCCEEDED \*\*(?: \[.*\])?
+COMPLETE_GRADLE    BUILD SUCCESSFUL(?: in .+)?
+COMPLETE_MAVEN     \[INFO\] BUILD SUCCESS
+COMPLETE_PRETTIER  All matched files use Prettier code style!
+COMPLETE_VITE      \u2713 built in [0-9]+(?:\.[0-9]+)?(?:ms|s)
 PATCH_HEADER       \*\*\* (Add File|Delete File|Update File|Move to): (.+)
 HASHLINE_HEADER    \[(.+)#([0-9A-Za-z]{4})\]
 HASHLINE_INSERT    PUT (?:<[0-9]+|>[0-9]+\*?|>\$):

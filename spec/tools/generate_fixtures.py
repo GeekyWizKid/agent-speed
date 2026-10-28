@@ -18,6 +18,7 @@ import hermes_fixtures  # noqa: E402
 import omp_fixtures  # noqa: E402
 import openclaw_fixtures  # noqa: E402
 import pi_fixtures  # noqa: E402
+import task_e2e_fixtures  # noqa: E402
 import workbuddy_fixtures  # noqa: E402
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures"))
@@ -682,6 +683,10 @@ mtimes.update(openclaw["mtimes"])
 hermes = hermes_fixtures.write_fixtures(ROOT)
 assert min(hermes["mtimes"].values()) > max(mtimes.values())
 mtimes.update(hermes["mtimes"])
+
+# --- Task score end to end (METRICS 6.9): its own tree, spec/fixtures/tasks ------------
+# Its expectations are task-e2e-expected.json, written by reference.py --write-task-fixture.
+task_e2e_fixtures.write(ROOT)
 
 with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the "

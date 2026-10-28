@@ -534,7 +534,136 @@ SESSIONS = [
      codex("Exit code: 0\nWall time: 0.2 seconds\nOutput:\nProcess running with session ID 7\n"), None, None),
     ("codex-meta-exit-session", "codex", "exec", '{"cmd":"true"}',
      codex('{"output":"","metadata":{"exit_code":0},"session_id":4}'), None, None),
+    ("claude-background-output-note", "claudeCode", "Bash", {"command": "cargo test", "run_in_background": True},
+     claude("Command running in background with ID: bk3x9a. Output is being written to: /tmp/claude/tasks/bk3x9a"
+            ".output"), None, "claude:bk3x9a"),
+    ("claude-background-dotted-id", "claudeCode", "Bash", {"command": "make", "run_in_background": True},
+     claude("Command running in background with ID: job.7."), None, "claude:job.7"),
 ]
+
+
+# Claude background-task notices (4.3): queued_command attachments in task-notification mode.
+def notice(prompt, mode="task-notification", kind="queued_command"):
+    return {"type": "attachment", "timestamp": "2026-10-28T10:00:00.000Z",
+            "attachment": {"type": kind, "commandMode": mode, "prompt": prompt}}
+
+
+def notice_text(summary, status="completed", task="bk3x9a"):
+    return ("<task-notification>\n<task-id>%s</task-id>\n<tool-use-id>toolu_01</tool-use-id>\n<output-file>"
+            "/tmp/claude/tasks/%s.output</output-file>\n<status>%s</status>\n<summary>%s</summary>\n"
+            "</task-notification>" % (task, task, status, summary))
+
+
+NOTIFICATIONS = [
+    ("completed", notice(notice_text('Background command "Run the tests" completed (exit code 0)')),
+     {"session": "claude:bk3x9a", "exitCode": 0}),
+    ("failed", notice(notice_text('Background command "Build (release)" failed with exit code 101', "failed")),
+     {"session": "claude:bk3x9a", "exitCode": 101}),
+    ("stopped", notice(notice_text('Background command "Serve" was stopped', "killed")), None),
+    ("agent", notice(notice_text('Agent "Review the queue" completed')), None),
+    ("monitor", notice("<task-notification>\n<task-id>m1</task-id>\n<summary>Monitor \"logs\": line</summary>\n"
+                       "<event>x</event>\n</task-notification>"), None),
+    ("other-mode", notice(notice_text('Background command "x" completed (exit code 0)'), mode="prompt"), None),
+    ("no-task-id", notice("<summary>Background command \"x\" completed (exit code 0)</summary>"), None),
+    ("crlf", notice(notice_text('Background command "x" completed (exit code 2)').replace("\n", "\r\n")),
+     {"session": "claude:bk3x9a", "exitCode": 2}),
+]
+
+
+def notifications():
+    return [{"id": "notice-" + n, "group": "notification", "source": "claudeCode", "line": line, "want": want}
+            for n, line, want in NOTIFICATIONS]
+
+
+# Codex code mode (4.4): `exec` scripts that call tools.
+def script_call(tool, source, value):
+    return {"tool": tool, "input": value, "digest": sha16(source)}
+
+
+def script(calls, prints=None):
+    return {"calls": calls, "plain": prints is not None, "prints": prints or []}
+
+
+SCRIPTS = [
+    ("one-print", 'text(await tools.exec_command({cmd: "cargo test", yield_time_ms: 10000}));',
+     script([script_call("exec_command", 'tools.exec_command({cmd: "cargo test", yield_time_ms: 10000})',
+                         {"cmd": "cargo test", "yield_time_ms": 10000})], [[0, "result"]])),
+    ("sequence", "text(await tools.write_stdin({session_id: 7, chars: '', max_output_tokens: 4000}));\n"
+                 "await tools.apply_patch(`*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch`)\n"
+                 "text(await tools.exec_command({'cmd': \"rg -n \\\"x\\\" src\", workdir: \"/w\",}))",
+     script([script_call("write_stdin", "tools.write_stdin({session_id: 7, chars: '', max_output_tokens: 4000})",
+                         {"session_id": 7, "chars": "", "max_output_tokens": 4000}),
+             script_call("apply_patch", "tools.apply_patch(`*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch`)",
+                         "*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch"),
+             script_call("exec_command", "tools.exec_command({'cmd': \"rg -n \\\"x\\\" src\", workdir: \"/w\",})",
+                         {"cmd": 'rg -n "x" src', "workdir": "/w"})], [[0, "result"], [2, "result"]])),
+    ("bound-output", "const r = await tools.exec_command({cmd: 'cargo test', workdir: '/w'});\ntext(r.output);",
+     script([script_call("exec_command", "tools.exec_command({cmd: 'cargo test', workdir: '/w'})",
+                         {"cmd": "cargo test", "workdir": "/w"})], [[0, "output"]])),
+    ("awaited-output", "text((await tools.exec_command({cmd:'ls',yield_time_ms:1})).output);",
+     script([script_call("exec_command", "tools.exec_command({cmd:'ls',yield_time_ms:1})",
+                         {"cmd": "ls", "yield_time_ms": 1})], [[0, "output"]])),
+    ("bound-literal", "const p = `*** Begin Patch\n*** Delete File: a\n*** End Patch`;\nconst c = 'make';\n"
+                      "text(await tools.apply_patch(p)); text(await tools.exec_command({cmd: c}));",
+     script([script_call("apply_patch", "tools.apply_patch(p)", "*** Begin Patch\n*** Delete File: a\n*** End Patch"),
+             script_call("exec_command", "tools.exec_command({cmd: c})", {"cmd": "make"})],
+            [[0, "result"], [1, "result"]])),
+    ("printed-later", "const a = await tools.exec_command({cmd:'a'}); const b = await tools.exec_command({cmd:'b'});"
+                      " text(b.output); text(a);",
+     script([script_call("exec_command", "tools.exec_command({cmd:'a'})", {"cmd": "a"}),
+             script_call("exec_command", "tools.exec_command({cmd:'b'})", {"cmd": "b"})],
+            [[1, "output"], [0, "result"]])),
+    ("promise-all", "const r = await Promise.all([tools.exec_command({cmd: 'ls'}), tools.exec_command({cmd: 'pwd'})]);"
+                    "\nfor (const x of r) text(x);",
+     script([script_call("exec_command", "tools.exec_command({cmd: 'ls'})", {"cmd": "ls"}),
+             script_call("exec_command", "tools.exec_command({cmd: 'pwd'})", {"cmd": "pwd"})])),
+    ("non-literal", "const c = 'cargo ' + 'test';\ntext(await tools.exec_command({cmd: c, yield_time_ms: 1000}));",
+     script([script_call("exec_command", "tools.exec_command({cmd: c, yield_time_ms: 1000})",
+                         {"yield_time_ms": 1000})])),
+    ("template-opaque", "text(await tools.exec_command({cmd: `cargo test ${name}`}));",
+     script([script_call("exec_command", "tools.exec_command({cmd: `cargo test ${name}`})", {})], [[0, "result"]])),
+    ("escapes", "text(await tools.exec_command({cmd: \"printf '\\\\u00e9\\\\x41\\\\n'\", x: \"\\u00e9\\x41\\u{1F600}\\\nz\"}))",
+     script([script_call(
+         "exec_command", "tools.exec_command({cmd: \"printf '\\\\u00e9\\\\x41\\\\n'\", x: \"\\u00e9\\x41\\u{1F600}\\\nz\"})",
+         {"cmd": "printf '\\u00e9\\x41\\n'", "x": "\u00e9A\U0001F600z"})], [[0, "result"]])),
+    ("regex-and-comments", "// list files\nconst q = x => x.replace(/'/g, \"'\\\\''\"); /* tools.fake() */\n"
+                           "text(await tools.exec_command({cmd: 'ls'}));",
+     script([script_call("exec_command", "tools.exec_command({cmd: 'ls'})", {"cmd": "ls"})])),
+    ("no-tools", "text(1 + 2);", None),
+    ("json-object-input", '{"cmd": "ls"}', None),
+    ("unterminated", "text(await tools.exec_command({cmd: 'ls}));", None),
+    ("member-not-tools", "text(await x.tools.exec_command({cmd: 'ls'}));", None),
+    ("no-argument", "text(await tools.list_agents());",
+     script([script_call("list_agents", "tools.list_agents()", None)], [[0, "result"]])),
+]
+
+
+def scripts():
+    return [{"id": "script-" + n, "group": "codeScript", "source": "codex", "tool": "exec", "input": text,
+             "want": want} for n, text, want in SCRIPTS]
+
+
+def items_result(texts, kind="custom_tool_call_output"):
+    return {"type": kind, "call_id": "c1", "output": [{"type": "input_text", "text": t} for t in texts]}
+
+
+CODE_ITEMS = [
+    ("completed", items_result(["Script completed\nWall time 1.2 seconds\nOutput:\n", '{"exit_code":0,"output":"ok"}']),
+     ['{"exit_code":0,"output":"ok"}']),
+    ("crlf-header", items_result(["Script completed\r\nWall time 1.2 seconds\r\nOutput:\r\n", "a\r\nb"]),
+     ["a\nb"]),
+    ("failed", items_result(["Script failed\nWall time 0.1 seconds\nOutput:\n", "x"]), None),
+    ("running", {"type": "custom_tool_call_output", "output": "Script running with cell ID 3\nWall time 10.0 seconds"},
+     None),
+    ("image-item", {"type": "custom_tool_call_output", "output": [
+        {"type": "input_text", "text": "Script completed\nOutput:\n"}, {"type": "input_image", "image_url": "x"},
+        {"type": "input_text", "text": "{}"}]}, [None, "{}"]),
+]
+
+
+def code_items_cases():
+    return [{"id": "items-" + n, "group": "codeItems", "source": "codex", "result": result, "want": want}
+            for n, result, want in CODE_ITEMS]
 
 
 def sessions():
@@ -744,6 +873,8 @@ OVERRIDES = {
     "vitest-suite-import-failure": {"failedCount": 1},
     # rspec: errors outside examples are failures
     "rspec-error-outside-examples": {"failedCount": 1},
+    # a clean completion marker (BUILD SUCCESSFUL) reads as zero failures (5.4)
+    "gradle-build-successful": {"failedCount": 0, "framework": "gradle"},
 }
 
 
@@ -835,6 +966,34 @@ EXTRA_FAILURES = [
      {"failedCount": 300, "passedCount": 0, "fingerprintCount": 256}),
 ]
 
+# Completion markers (5.4): a tool that ends cleanly reports zero failures, even when a pipe hides its exit code.
+EXTRA_FAILURES += [
+    ("complete-cargo", "cargo build 2>&1 | tail -3",
+     "   Compiling orbit v0.3.0 (/Users/dev/work/orbit)\n    Finished `dev` profile [unoptimized + debuginfo] "
+     "target(s) in 2.31s\n", None, None,
+     {"fingerprints": [], "failedCount": 0, "passedCount": None, "framework": "cargo"}),
+    ("complete-cargo-old", "cargo clippy 2>&1 | tail -2",
+     "warning: `orbit` (lib) generated 1 warning\n    Finished dev [unoptimized + debuginfo] target(s) in 0.42s\n",
+     None, None, {"failedCount": 0, "framework": "cargo"}),
+    ("complete-swiftpm", "swift build 2>&1 | tail -2", "[12/12] Linking orbit\nBuild complete! (8.04s)\n", None,
+     None, {"failedCount": 0, "passedCount": None, "framework": "swiftpm"}),
+    ("complete-xcodebuild", "xcodebuild -scheme Orbit build | tail -1", "** BUILD SUCCEEDED **\n", None, None,
+     {"failedCount": 0, "framework": "xcodebuild"}),
+    ("complete-maven", "mvn -q package | tail -3", "[INFO] BUILD SUCCESS\n[INFO] Total time:  4.210 s\n", None,
+     None, {"failedCount": 0, "framework": "maven"}),
+    ("complete-prettier", "npx prettier --check src | tail -1",
+     "Checking formatting...\nAll matched files use Prettier code style!\n", None, None,
+     {"failedCount": 0, "framework": "prettier"}),
+    ("complete-vite", "npm run build 2>&1 | tail -2",
+     "dist/assets/index-4f2a.js  142.10 kB\n\u2713 built in 2.13s\n", None, None,
+     {"failedCount": 0, "framework": "vite"}),
+    ("complete-loses-to-errors", "cargo build 2>&1 | tail",
+     "error[E0425]: cannot find value `x` in this scope\n --> src/main.rs:2:5\nerror: could not compile `orbit`\n",
+     None, None, {"failedCount": 1, "framework": "rustc"}),
+    ("complete-not-a-prefix", "cargo build 2>&1 | tail -1", "    Finished early, see log\n", None, None,
+     {"failedCount": None, "framework": None}),
+]
+
 
 def extra_failures():
     return [{"id": "fail-x-" + n, "group": "failures", "command": cmd, "output": text, "failed": failed, "cwd": cwd,
@@ -852,7 +1011,7 @@ def last_token(name):
 def hand_check(case, got):
     want = case["want"]
     problems = []
-    if case["group"] in ("actionKind", "resultText"):
+    if case["group"] in ("actionKind", "resultText", "notification", "codeScript", "codeItems"):
         if got != want:
             problems.append("expected %r got %r" % (want, got))
         return problems
@@ -895,5 +1054,5 @@ def check_relations(cases, outputs):
 
 
 def cases():
-    return kinds() + commands() + outcomes() + result_texts() + sessions() + edits() + output_cases() + \
-        extra_failures()
+    return kinds() + commands() + outcomes() + result_texts() + sessions() + notifications() + scripts() + \
+        code_items_cases() + edits() + output_cases() + extra_failures()

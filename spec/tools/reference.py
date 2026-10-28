@@ -9,8 +9,13 @@
   python3 spec/tools/reference.py --write-history-fixture
   python3 spec/tools/reference.py --dump-unpriced [--days N | --first YYYY-MM-DD --last YYYY-MM-DD | --live]
                                                  [--source ID] [--prices PATH] [...]
+  python3 spec/tools/reference.py --dump-tasks [--utc] [--first YYYY-MM-DD --last YYYY-MM-DD] [--source ID] [...]
+  python3 spec/tools/reference.py --write-task-fixture
 
 The dump format matches the `--dump-today` output of both platform probes. Conversation content is never printed.
+`--dump-today` ends with one `task` row per seeded agent of a scored source and a `taskSets` row (METRICS 6.9 Values,
+evaluated at `--now` or the capture time, predictions with the prior coefficients); `--dump-tasks` prints the task
+records of every log read whole, the calibration per source and the comparison (METRICS 6.11).
 `--dump-unpriced` prints the copied diagnostics text of METRICS 9.10 (model ids, providers and counts only) over the
 daily history, or with `--live` over today's engine responses.
 Costs (METRICS 9) use spec/assets/prices.json unless --prices names another table; prices.py does the pricing.
@@ -236,6 +241,8 @@ class FileState:
         # workbuddy
         self.cwd = None
         self.open_calls = OrderedDict()
+        # task score (METRICS 6.9): the event composer of task_events.py, when attached
+        self.tasks = None
         if source in WB_FOLDERS:
             self.source_decided = True
             rel = [p for p in re.split(r"[\\/]", os.path.relpath(path, root) if root else path) if p]
@@ -638,6 +645,7 @@ def process_file(state, dedupe, start_offset=0, max_lines=None):
                "workbuddy": workbuddy_line, "workbuddyAi": workbuddy_line}.get(state.source, claude_line)
     if state.source in ("omp", "pi") and start_offset > 0:
         omp_read_header(state, dedupe)
+    composer = state.tasks
     if state.path.endswith(".zstd"):
         lines = zstd_lines(state.path, start_offset)
     elif state.path.endswith(".jsonl.zst"):
@@ -657,6 +665,8 @@ def process_file(state, dedupe, start_offset=0, max_lines=None):
             state.malformed += 1
             continue
         handler(state, obj, dedupe)
+        if composer is not None:
+            composer.feed(state, obj, dedupe, raw)
 
 
 def resolve_parents(states):
@@ -1248,6 +1258,8 @@ def omp_read_header(state, dedupe):
                 continue
             if isinstance(obj, dict) and obj.get("type") == "session":
                 (pi_line if state.source == "pi" else omp_line)(state, obj, dedupe)
+                if state.tasks is not None:
+                    state.tasks.feed(state, obj, dedupe, raw)
                 return
 
 
@@ -1596,8 +1608,16 @@ def openclaw_assistant(state, entry, msg, ts, dedupe):
         state.phase, state.in_flight = "idle", None
 
 
-def openclaw_event(state, text, blob, size):
-    """The entry of one transcript row: event_json, else the zstd frame decoded within event_utf8_bytes."""
+def openclaw_event(state, text, blob, size, with_raw=False):
+    """The entry of one transcript row: event_json, else the zstd frame decoded within event_utf8_bytes (with its raw
+    text when `with_raw`)."""
+    entry = openclaw_entry_raw(state, text, blob, size)
+    if entry is None:
+        return None
+    return entry if with_raw else entry[0]
+
+
+def openclaw_entry_raw(state, text, blob, size):
     if isinstance(text, str):
         raw = text.encode("utf-8", "surrogatepass")
     elif isinstance(blob, bytes) and isinstance(size, int) and 0 < size <= OC_EVENT_MAX:
@@ -1619,10 +1639,10 @@ def openclaw_event(state, text, blob, size):
     if not isinstance(obj, dict):
         state.malformed += 1
         return None
-    return obj
+    return obj, raw
 
 
-def openclaw_states(db_path, dedupe, stop_at=None):
+def openclaw_states(db_path, dedupe, stop_at=None, tasks=False):
     """Parses one agent database (METRICS 4.14): one state per transcript window, in created_at order, or None when the
     database has no session tables. `stop_at` = (session_id, seq) stops after that row (phase traces)."""
     db = sqlite_readonly(db_path)
@@ -1651,12 +1671,17 @@ def openclaw_states(db_path, dedupe, stop_at=None):
             st.oc_mirror_window = acp == 1 or runtime in ("codex", "claude-cli") or runtime.startswith("acp")
             st.is_subagent = isinstance(spawned, str) and spawned != ""
             parent_of[st.path] = current.get(spawned) if st.is_subagent else None
+            if tasks:
+                import task_events
+                task_events.attach(st)
             states.append(st)
             for seq, text, blob, size in db.execute("select seq, event_json, %s from transcript_events "
                                                     "where session_id = ? order by seq" % zstd_cols, (sid,)):
-                obj = openclaw_event(st, text, blob, size)
-                if obj is not None:
-                    openclaw_entry(st, obj, dedupe)
+                entry = openclaw_event(st, text, blob, size, with_raw=True)
+                if entry is not None:
+                    openclaw_entry(st, entry[0], dedupe)
+                    if st.tasks is not None:
+                        st.tasks.feed(st, entry[0], dedupe, entry[1])
                 if stop_at == (sid, seq):
                     break
             if stop_at is not None and stop_at[0] == sid:
@@ -2741,6 +2766,247 @@ def today_stats(responses, today_start, now):
                 unpriced=sum(r.get("requestCount", 1) for r in today if r.get("costMicroUsd") is None))
 
 
+# ----------------------------------------------------------------------------- task score (METRICS 6.9, 6.11)
+
+TASK_SOURCES = ("codex", "claudeCode", "claudeDesktop", "omp", "pi", "openclaw")
+
+
+def task_states(files, dedupe, include=lambda path: True):
+    """Parses `files` ((time, path, source, root) in startup order) with the task composer attached to every agent of a
+    scored source; returns the parser states of those agents."""
+    import task_events
+    states = []
+    for _, path, source, root in files:
+        if not include(path):
+            continue
+        if source == "openclaw":
+            states += [st for st in openclaw_states(path, dedupe, tasks=True) or [] if st.tasks is not None]
+        elif source in TASK_SOURCES:
+            state = task_events.attach(FileState(path, source, root))
+            process_file(state, dedupe)
+            states.append(state)
+    return states
+
+
+def task_parents(states):
+    """6.7 parent links of the scored agents (OpenClaw windows link inside their database, 4.14)."""
+    parents = resolve_parents([s for s in states if s.source != "openclaw"])
+    for s in states:
+        if s.source == "openclaw":
+            parents[s.path] = s.parent_session
+    return parents
+
+
+def task_value_rows(states, now, models_by_source=None, sets=None, label=lambda path: path):
+    """The `task` rows (one per agent) and the `taskSets` row of a dump at `now` (6.9 Values, 6.11 Predictions)."""
+    import task_events
+    rows = task_events.agent_rows(states, task_parents(states), now, models_by_source)
+    out = []
+    for r in rows:
+        a, v, d, p = r["agent"], r["value"], r["task"], r["predictions"]
+        row = OrderedDict([("agentId", label(a["id"])), ("source", a["source"]), ("phase", a["phase"]),
+                           ("lastLineMs", a["lastLineMs"]),
+                           ("parentId", label(a["parentId"]) if a["parentId"] else None),
+                           ("taskStartMs", r["taskStartMs"]), ("form", v["form"]), ("score", v["score"]),
+                           ("shown", v["shown"]), ("state", v["state"])])
+        if d is not None:
+            for k in ("dims", "ig", "loop", "osc", "counts", "firstPassMs", "vHeld", "openFailure", "lastPass"):
+                row[k] = d[k]
+        row["predictions"] = None if p is None else OrderedDict(
+            [(k, p[k]) for k in ("success", "stall", "fix", "successShown", "stallShown", "fixShown")])
+        row["models"] = r["flags"]
+        out.append(row)
+    values = task_events.set_values(rows, now, sets)
+    sets_row = OrderedDict([("listed", [label(x) for x in values["listed"]]),
+                            ("sets", [dict(v, agent=label(v["agent"]) if v["agent"] else None) for v in values["sets"]]),
+                            ("groups", OrderedDict((label(root), dict(g, members=[label(m) for m in g["members"]],
+                                                                       agent=label(g["agent"]) if g["agent"] else None))
+                                                   for root, g in sorted(values["groups"].items(),
+                                                                         key=lambda kv: kv[0].encode("utf-16-be"))))])
+    return out, sets_row
+
+
+def task_records_all(states, analysis_ms, tz=None, label=lambda path: path):
+    """Every task record of the agents read whole (6.11 Task records), by agent id, then ordinal."""
+    import task_events
+
+    def day_of(ms):
+        if not has_day(ms):
+            return ""
+        zone = tz or datetime.now().astimezone().tzinfo
+        return datetime.fromtimestamp(ms / 1000, tz=zone).strftime("%Y-%m-%d")
+    records = []
+    for st in states:
+        records += task_events.records_of(st, analysis_ms, day_of)
+    records.sort(key=lambda r: (r["agentId"].encode("utf-16-be"), r["ordinal"]))
+    for r in records:
+        r["agentId"] = label(r["agentId"])
+    return records
+
+
+RECORD_FIELDS = ("agentId", "ordinal", "source", "model", "effort", "startMs", "endMs", "day", "complete", "state",
+                 "score", "dims", "counts", "firstPassMs", "success", "stalled", "snapshots", "fixRows")
+
+
+def task_calibration(records):
+    """Per scored source with records: its three models (6.11 Calibration)."""
+    import task_score
+    out = OrderedDict()
+    for source in task_score.SOURCE_ORDER:
+        part = [r for r in records if r["source"] == source]
+        if part:
+            out[source] = task_score.calibrate(part)
+    return out
+
+
+def dump_tasks(files, first=None, last=None, source=None, tz=None):
+    """`--dump-tasks`: the task records of every log read whole (6.11), the calibration and the comparison."""
+    import task_score
+    started = time.time()
+    analysis_ms = int(started * 1000)
+    states = task_states(files, Deduper(limit=10 ** 9))
+    records = task_records_all(states, analysis_ms, tz)
+    for r in records:
+        print(json.dumps({"record": OrderedDict((k, r[k]) for k in RECORD_FIELDS)}, ensure_ascii=False,
+                         separators=(",", ":")))
+    for src, models in task_calibration(records).items():
+        print(json.dumps({"calibration": {"source": src, "models": models}}, separators=(",", ":")))
+    days = sorted(r["day"] for r in records if r["day"])
+    first = first or (days[0] if days else "0001-01-01")
+    last = last or (days[-1] if days else "9999-12-31")
+    print(json.dumps({"comparison": dict(first=first, last=last, source=source,
+                                         **task_score.compare(records, first, last, source))},
+                     ensure_ascii=False, separators=(",", ":")))
+    stitched = sum(st.tasks.stats["stitched"] for st in states)
+    print(json.dumps({"summary": {"agents": len(states), "records": len(records),
+                                  "complete": sum(1 for r in records if r["complete"]),
+                                  "scored": sum(1 for r in records if r["score"] is not None),
+                                  "stitched": stitched, "analysisMs": analysis_ms,
+                                  "seconds": round(time.time() - started, 1)}}))
+
+
+TASK_FIXTURE = "task-e2e-expected.json"
+TASK_FIXTURE_COMMENT = (
+    "End-to-end task score (METRICS 6.9 Composing the stream, Values; 6.11): read the files of `order` (paths relative "
+    "to spec/fixtures; omp and Pi files with the roots of `roots`; an OpenClaw database gives one agent per window, "
+    "id `<path>#<session_id>`) in that order with one dedupe set (3.4) and the task composer, then: `agents` gives each "
+    "agent's composed event stream and the number of sessions stitched back (TASK-PARSERS 4.3); `records` the task "
+    "records of every agent read whole at `analysisMs`, days in UTC, by agent id (UTF-16 ordinal), then ordinal; "
+    "`calibration` the models of each source from those records; `values` each agent's form, value, state, dimensions, "
+    "facts and predictions at `nowMs`, with the phase after the 300-second staleness rule and the coefficients of its "
+    "source's calibration; `taskSets` the agents list (6.7) at `nowMs`, the highest-score value of every set in "
+    "`sets` (null: all sources) and of every board group; `comparison` the 6.11 comparison over `comparisonRange`. "
+    "Generated by spec/tools/reference.py --write-task-fixture after checking the hand expectations of "
+    "spec/tools/task_e2e_fixtures.py; ports must match every value (numbers within 1e-9, calibration coefficients "
+    "and probabilities within 1e-6).")
+
+
+def task_fixture_result(root, meta):
+    """Everything spec/fixtures/task-e2e-expected.json states, computed from the files of `meta`."""
+    import task_score
+    files = []
+    for item in meta["order"]:
+        files.append((0, os.path.join(root, *item["path"].split("/")), item["source"],
+                      os.path.join(root, *meta["roots"][item["source"]].split("/")) if item["source"] in meta["roots"]
+                      else None))
+    states = task_states(files, Deduper())
+
+    def label(path):
+        base, sep, window = path.partition("#")
+        return os.path.relpath(base, root).replace(os.sep, "/") + sep + window
+    records = task_records_all(states, meta["analysisMs"], timezone.utc, label)
+    calibration = task_calibration(records)
+    values, sets_row = task_value_rows(states, meta["nowMs"], calibration, meta["sets"], label)
+    agents = OrderedDict()
+    for st in sorted(states, key=lambda st: label(st.path).encode("utf-16-be")):
+        agents[label(st.path)] = OrderedDict([("source", st.source), ("stitched", st.tasks.stats["stitched"]),
+                                              ("events", st.tasks.events)])
+    rng = meta["comparison"]
+    return OrderedDict([
+        ("_comment", TASK_FIXTURE_COMMENT), ("nowMs", meta["nowMs"]), ("analysisMs", meta["analysisMs"]),
+        ("timeZone", meta["timeZone"]), ("roots", meta["roots"]), ("order", meta["order"]), ("sets", meta["sets"]),
+        ("comparisonRange", rng), ("agents", agents),
+        ("records", [OrderedDict((k, r[k]) for k in RECORD_FIELDS) for r in records]),
+        ("calibration", calibration), ("values", values), ("taskSets", sets_row),
+        ("comparison", task_score.compare(records, rng["first"], rng["last"]))])
+
+
+def task_fixture_hand_check(got, want):
+    """The expectations written by hand in task_e2e_fixtures.py hold in the computed fixture."""
+    import task_score
+    failures = []
+
+    def subset(w, g, label):
+        if isinstance(w, dict):
+            if not isinstance(g, dict):
+                failures.append("%s: expected %r got %r" % (label, w, g))
+                return
+            for k, v in w.items():
+                if k not in g:
+                    failures.append("%s: missing %s" % (label, k))
+                else:
+                    subset(v, g[k], label + "." + k)
+        elif isinstance(w, list) and isinstance(g, list) and any(isinstance(x, dict) for x in w):
+            if len(w) != len(g):
+                failures.append("%s: expected %d items got %d" % (label, len(w), len(g)))
+            for i, (x, y) in enumerate(zip(w, g)):
+                subset(x, y, "%s[%d]" % (label, i))
+        elif not task_score.close(w, g, 1e-9):
+            failures.append("%s: expected %r got %r" % (label, w, g))
+
+    values = {v["agentId"]: v for v in got["values"]}
+    for aid, w in want["agents"].items():
+        subset(w, values.get(aid), "value " + aid)
+    for aid, w in want["records"].items():
+        subset(w, [r for r in got["records"] if r["agentId"] == aid], "records " + aid)
+    subset(want["sets"], got["taskSets"]["sets"], "sets")
+    subset(want["groups"], got["taskSets"]["groups"], "groups")
+    subset(want["calibration"], got["calibration"], "calibration")
+    for aid, n in want["stitched"].items():
+        subset(n, got["agents"].get(aid, {}).get("stitched"), "stitched " + aid)
+    return failures
+
+
+def write_task_fixture():
+    import task_e2e_fixtures as fx
+    root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures"))
+    files = fx.write(root)
+    got = task_fixture_result(root, fx.meta(files))
+    failures = task_fixture_hand_check(json.loads(json.dumps(got)), fx.want(files))
+    if failures:
+        print("\n".join(failures))
+        print("%d hand expectations failed; %s not written" % (len(failures), TASK_FIXTURE))
+        return 1
+    with open(os.path.join(root, TASK_FIXTURE), "w", encoding="utf-8") as f:
+        json.dump(got, f, indent=1, ensure_ascii=False)
+        f.write("\n")
+    print("wrote %s: %d agents, %d records, %d values" % (TASK_FIXTURE, len(got["agents"]), len(got["records"]),
+                                                         len(got["values"])))
+    return 0
+
+
+def check_task_fixture(root):
+    """spec/fixtures/task-e2e-expected.json against the reference (numbers exact: the reference wrote them)."""
+    path = os.path.join(root, TASK_FIXTURE)
+    if not os.path.exists(path):
+        return [], 0
+    want = json.load(open(path, encoding="utf-8"))
+    meta = {k: want[k] for k in ("nowMs", "analysisMs", "timeZone", "roots", "order", "sets")}
+    meta["comparison"] = want["comparisonRange"]
+    got = json.loads(json.dumps(task_fixture_result(root, meta)))
+    failures = []
+    for key in want:
+        if got.get(key) != want[key]:
+            failures.append("task fixture: %s differs" % key)
+            if isinstance(want[key], dict):
+                for k in sorted(set(want[key]) | set(got.get(key) or {})):
+                    if (got.get(key) or {}).get(k) != want[key].get(k):
+                        failures.append("  %s.%s" % (key, k))
+                        if len(failures) > 20:
+                            break
+    return failures, len(want["agents"])
+
+
 # ----------------------------------------------------------------------------- commands
 
 def check_fixtures():
@@ -2884,6 +3150,8 @@ def check_fixtures():
                     if abs(st["buckets"].get(int(k), 0.0) - v) > 1e-6:
                         failures.append("%s: bucket %s expected %r got %r" % (case["name"], k, v,
                                                                               st["buckets"].get(int(k))))
+    task_failures, task_agents = check_task_fixture(root)
+    failures += task_failures
     failures += ["prices: " + e for e in pricing.check_cases()]
     failures += ["unpriced: " + e for e in diagnostics.check_cases()]
     failures += ["harnesses: " + e for e in harnesses.check_fixtures(root)]
@@ -2893,9 +3161,10 @@ def check_fixtures():
         print("\n".join(failures))
         sys.exit(1)
     print("reference implementation matches all fixtures (%d files, %d Antigravity databases, %d OpenClaw databases, "
-          "%d Hermes log files, %d engine cases, price cases, %d model attribution cases, unpriced %s)" % (
+          "%d Hermes log files, %d engine cases, price cases, %d model attribution cases, unpriced %s, %d task score "
+          "agents end to end)" % (
         len(expected["order"]), len((ag or {}).get("order", [])), len((ocl or {}).get("dbOrder", [])),
-        len((hm or {}).get("order", [])), len(cases), len(attribution["cases"]), diagnostics.summary()))
+        len((hm or {}).get("order", [])), len(cases), len(attribution["cases"]), diagnostics.summary(), task_agents))
 
 
 def report_model_id(index, model, provider=None):
@@ -3488,8 +3757,11 @@ def startup_files(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=()
 
 def today_rows(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
                table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(), openclaw_dbs=(),
-               codex_roots=None, hermes_dirs=()):
-    """Today's responses as the engine seeds them (the `--dump-today` rows), with files and bytes read."""
+               codex_roots=None, hermes_dirs=(), tasks=False):
+    """Today's responses as the engine seeds them (the `--dump-today` rows), with files and bytes read; with `tasks`,
+    also the seeded agents of scored sources with their task composers (METRICS 6.9)."""
+    import task_events
+    scored = []
     index = pricing.Index(pricing.load(table))
     now = datetime.now().astimezone()
     today_start = int(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
@@ -3511,14 +3783,17 @@ def today_rows(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
                 continue
             offset = 0
         elif source == "openclaw":
-            states = openclaw_states(path, dedupe)
+            states = openclaw_states(path, dedupe, tasks=tasks)
             if states is None:
                 continue
             offset = 0
         else:
             offset = size - 64 * 1024 * 1024 if size > 256 * 1024 * 1024 and not path.endswith(".jsonl.zst") else 0
             states = [FileState(path, source, root)]
+            if tasks:
+                task_events.attach(states[0])
             process_file(states[0], dedupe, offset)
+        scored += [st for st in states if st.tasks is not None]
         read_files += 1
         read_bytes += size - offset
         for state, r in [(st, r) for st in states for r in st.responses.values()]:
@@ -3554,18 +3829,23 @@ def today_rows(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
             rows.append(dict(record, source=source, agentId=agent,
                              costMicroUsd=index.price(record) if has_day(record["endMs"]) else None))
     rows.sort(key=lambda r: (r["endMs"], r["key"]))
-    return rows, read_files, read_bytes
+    return (rows, read_files, read_bytes, scored) if tasks else (rows, read_files, read_bytes)
 
 
 def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
                table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(), openclaw_dbs=(),
-               codex_roots=None, hermes_dirs=()):
+               codex_roots=None, hermes_dirs=(), now_ms=None):
     started = time.time()
-    rows, read_files, read_bytes = today_rows(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores,
-                                              wb_roots, table, zcode_root, kimi_root, grok_root, pi_dirs,
-                                              openclaw_dbs, codex_roots, hermes_dirs)
+    rows, read_files, read_bytes, scored = today_rows(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs,
+                                                      ag_stores, wb_roots, table, zcode_root, kimi_root, grok_root,
+                                                      pi_dirs, openclaw_dbs, codex_roots, hermes_dirs, tasks=True)
     for r in rows:
         print(json.dumps(r, ensure_ascii=False, separators=(",", ":")))
+    now = now_ms if now_ms is not None else int(time.time() * 1000)
+    task_rows, sets_row = task_value_rows(scored, now)
+    for row in task_rows:
+        print(json.dumps({"task": row}, ensure_ascii=False, separators=(",", ":")))
+    print(json.dumps({"taskSets": sets_row}, ensure_ascii=False, separators=(",", ":")))
     counts = {}
     for r in rows:
         counts[r["source"]] = counts.get(r["source"], 0) + 1
@@ -3573,7 +3853,8 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
                                   "costMicroUsd": sum(r["costMicroUsd"] or 0 for r in rows),
                                   "unpricedRequests": sum(r.get("requestCount", 1) for r in rows if r["costMicroUsd"] is None),
                                   "input": sum(r["input"] for r in rows), "filesRead": read_files,
-                                  "bytesRead": read_bytes, "seedMs": int((time.time() - started) * 1000)}}))
+                                  "bytesRead": read_bytes, "seedMs": int((time.time() - started) * 1000),
+                                  "nowMs": now, "taskAgents": len(task_rows)}}))
 
 
 def collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs=(), omp_dirs=(), ag_stores=(),
@@ -3714,6 +3995,12 @@ def main():
     parser.add_argument("--source", default=None, help="--dump-unpriced: one source id (METRICS 1)")
     parser.add_argument("--live", action="store_true",
                         help="--dump-unpriced: today's engine responses (Settings -> Cost) instead of the history")
+    parser.add_argument("--dump-tasks", action="store_true",
+                        help="task records of every log read whole, calibration and comparison (METRICS 6.11)")
+    parser.add_argument("--now", type=int, default=None,
+                        help="--dump-today: evaluate the task values at this Unix ms instead of the capture time")
+    parser.add_argument("--write-task-fixture", action="store_true",
+                        help="regenerate spec/fixtures/task-e2e-expected.json (METRICS 6.9 Composing the stream)")
     args = parser.parse_args()
     home = os.path.expanduser("~")
     codex_root = args.codex or (os.path.join(os.environ["CODEX_HOME"], "sessions") if os.environ.get("CODEX_HOME")
@@ -3738,6 +4025,16 @@ def main():
     codex_roots = [args.codex] if args.codex else None
     if args.write_history_fixture:
         write_history_fixture()
+        return
+    if args.write_task_fixture:
+        sys.exit(write_task_fixture())
+    if args.dump_tasks:
+        if args.source is not None and args.source not in TASK_SOURCES:
+            parser.error("--source takes a scored source id: " + ", ".join(TASK_SOURCES))
+        files = startup_files(codex_root, claude_root, os.path.join(home, ".agent-speed-none"), omp_dirs=omp_dirs,
+                              limit=10 ** 9, include_archived=True, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
+                              codex_roots=codex_roots)
+        dump_tasks(files, args.first, args.last, args.source, timezone.utc if args.utc else None)
         return
     if args.dump_unpriced:
         if args.days is not None and (args.days < 1 or args.first or args.last):
@@ -3779,7 +4076,7 @@ def main():
     elif args.dump_today:
         dump_today(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots, args.prices,
                    zcode_root, kimi_root, grok_root, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs, codex_roots=codex_roots,
-                   hermes_dirs=hermes_dirs)
+                   hermes_dirs=hermes_dirs, now_ms=args.now)
     else:
         parser.print_help()
 

@@ -373,13 +373,19 @@
    "expect": null
   },
   {
-   "name": "codex: a user message event is a prompt",
+   "name": "codex: a user message item is a prompt",
    "source": "codex",
    "line": {
-    "type": "event_msg",
+    "type": "response_item",
     "payload": {
-     "type": "user_message",
-     "message": "Add a --json flag"
+     "type": "message",
+     "role": "user",
+     "content": [
+      {
+       "type": "input_text",
+       "text": "Add a --json flag"
+      }
+     ]
     }
    },
    "expect": {
@@ -391,10 +397,16 @@
    "name": "codex: a continuation",
    "source": "codex",
    "line": {
-    "type": "event_msg",
+    "type": "response_item",
     "payload": {
-     "type": "user_message",
-     "message": "繼續"
+     "type": "message",
+     "role": "user",
+     "content": [
+      {
+       "type": "input_text",
+       "text": "繼續"
+      }
+     ]
     }
    },
    "expect": {
@@ -403,15 +415,18 @@
    }
   },
   {
-   "name": "codex: an images-only message is a prompt",
+   "name": "codex: an image alone is a prompt",
    "source": "codex",
    "line": {
-    "type": "event_msg",
+    "type": "response_item",
     "payload": {
-     "type": "user_message",
-     "message": "",
-     "images": [
-      "data:"
+     "type": "message",
+     "role": "user",
+     "content": [
+      {
+       "type": "input_image",
+       "image_url": "data:image/png;base64,AAAA"
+      }
      ]
     }
    },
@@ -421,7 +436,7 @@
    }
   },
   {
-   "name": "codex: the user message item is not (its event is)",
+   "name": "codex: an IDE mention list with the request is a prompt",
    "source": "codex",
    "line": {
     "type": "response_item",
@@ -431,7 +446,149 @@
      "content": [
       {
        "type": "input_text",
-       "text": "Add a --json flag"
+       "text": "# Files mentioned by the user:\n\n## a.rs: src/a.rs\n\n## My request for Codex:\nok"
+      },
+      {
+       "type": "input_text",
+       "text": "<image name=[Image #1]>"
+      },
+      {
+       "type": "input_image",
+       "image_url": "data:"
+      },
+      {
+       "type": "input_text",
+       "text": "</image>"
+      }
+     ]
+    }
+   },
+   "expect": {
+    "kind": "prompt",
+    "continuation": false
+   }
+  },
+  {
+   "name": "codex: tag blocks are left out of the continuation text",
+   "source": "codex",
+   "line": {
+    "type": "response_item",
+    "payload": {
+     "type": "message",
+     "role": "user",
+     "content": [
+      {
+       "type": "input_text",
+       "text": "go on"
+      },
+      {
+       "type": "input_text",
+       "text": "<image name=[Image #1]>"
+      }
+     ]
+    }
+   },
+   "expect": {
+    "kind": "prompt",
+    "continuation": true
+   }
+  },
+  {
+   "name": "codex: injected environment context is not a prompt",
+   "source": "codex",
+   "line": {
+    "type": "response_item",
+    "payload": {
+     "type": "message",
+     "role": "user",
+     "content": [
+      {
+       "type": "input_text",
+       "text": "<environment_context>\n  <cwd>/w</cwd>\n</environment_context>"
+      }
+     ]
+    }
+   },
+   "expect": null
+  },
+  {
+   "name": "codex: AGENTS.md instructions are not a prompt",
+   "source": "codex",
+   "line": {
+    "type": "response_item",
+    "payload": {
+     "type": "message",
+     "role": "user",
+     "content": [
+      {
+       "type": "input_text",
+       "text": "# AGENTS.md instructions for /w\n\n<INSTRUCTIONS>\nbe brief\n</INSTRUCTIONS>"
+      }
+     ]
+    }
+   },
+   "expect": null
+  },
+  {
+   "name": "codex: a heartbeat or a reply to the agent's question is not a prompt",
+   "source": "codex",
+   "line": {
+    "type": "response_item",
+    "payload": {
+     "type": "message",
+     "role": "user",
+     "content": [
+      {
+       "type": "input_text",
+       "text": "<heartbeat>tick</heartbeat>"
+      }
+     ]
+    }
+   },
+   "expect": null
+  },
+  {
+   "name": "codex: blank text is not a prompt",
+   "source": "codex",
+   "line": {
+    "type": "response_item",
+    "payload": {
+     "type": "message",
+     "role": "user",
+     "content": [
+      {
+       "type": "input_text",
+       "text": " \n"
+      }
+     ]
+    }
+   },
+   "expect": null
+  },
+  {
+   "name": "codex: the user message event is not (it repeats the item in older versions)",
+   "source": "codex",
+   "line": {
+    "type": "event_msg",
+    "payload": {
+     "type": "user_message",
+     "message": "Add a --json flag"
+    }
+   },
+   "expect": null
+  },
+  {
+   "name": "codex: developer messages are not prompts",
+   "source": "codex",
+   "line": {
+    "type": "response_item",
+    "payload": {
+     "type": "message",
+     "role": "developer",
+     "content": [
+      {
+       "type": "input_text",
+       "text": "rules"
       }
      ]
     }
@@ -4076,6 +4233,126 @@
        "class": "test",
        "key": "3e51f085eb01e5ba",
        "buildOnly": false
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "a piped build that reports no error passes; a test summary that ran nothing is no run",
+   "events": [
+    {
+     "t": 1000000000000,
+     "type": "prompt",
+     "continuation": false
+    },
+    {
+     "t": 1000000001000,
+     "type": "action",
+     "kind": "edit",
+     "tool": "Edit",
+     "digest": "153407ccb3faf9c6",
+     "hunks": [
+      {
+       "file": "252f10c83610ebca",
+       "old": "ca978112ca1bbdca",
+       "new": "3e23e8160039594a"
+      }
+     ],
+     "outcome": {
+      "t": 1000000001300,
+      "exitCode": null,
+      "failed": false
+     }
+    },
+    {
+     "t": 1000000002000,
+     "type": "action",
+     "kind": "command",
+     "tool": "Bash",
+     "digest": "4bc5df0d562b7188",
+     "command": {
+      "class": "build",
+      "suite": "cargo build",
+      "targeted": false,
+      "key": "9ec0ab077b49b548"
+     },
+     "outcome": {
+      "t": 1000000012000,
+      "exitCode": null,
+      "failed": null
+     },
+     "failures": {
+      "fingerprints": [],
+      "failedCount": 0,
+      "passedCount": null,
+      "framework": "cargo"
+     }
+    },
+    {
+     "t": 1000000020000,
+     "type": "action",
+     "kind": "command",
+     "tool": "Bash",
+     "digest": "24cdeb2cfa69422b",
+     "command": {
+      "class": "test",
+      "suite": "cargo test",
+      "targeted": true,
+      "key": "4297b1643480dce3"
+     },
+     "outcome": {
+      "t": 1000000030000,
+      "exitCode": null,
+      "failed": null
+     },
+     "failures": {
+      "fingerprints": [],
+      "failedCount": 0,
+      "passedCount": 0,
+      "framework": "cargo"
+     }
+    }
+   ],
+   "queries": [
+    {
+     "expect": {
+      "state": "passing",
+      "score": 67.75,
+      "shown": 68,
+      "dims": {
+       "V": 20.0,
+       "C": 25.0,
+       "R": 15.0,
+       "E": 3.75,
+       "K": 4.0
+      },
+      "ig": 1.0,
+      "loop": 0.0,
+      "osc": 0.0,
+      "counts": {
+       "actions": 3,
+       "counted": 3,
+       "edits": 1,
+       "oscillations": 0,
+       "loopActions": 0,
+       "runs": 1,
+       "failingRuns": 0,
+       "episodes": 0,
+       "recovered": 0,
+       "recoverAttempts": 0,
+       "fixAttempts": 0,
+       "fixFailures": 0
+      },
+      "firstPassMs": 1000000012000,
+      "stallEnds": [],
+      "vHeld": null,
+      "openFailure": null,
+      "lastPass": {
+       "suite": "cargo build",
+       "class": "build",
+       "key": "9ec0ab077b49b548",
+       "buildOnly": true
       }
      }
     }

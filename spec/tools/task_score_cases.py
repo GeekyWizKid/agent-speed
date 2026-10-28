@@ -117,6 +117,14 @@ def continuations():
     return [{"text": t, "want": True} for t in yes] + [{"text": t, "want": False} for t in no]
 
 
+def codex_text(text):
+    return {"type": "input_text", "text": text}
+
+
+def codex_user(content):
+    return {"type": "response_item", "payload": {"type": "message", "role": "user", "content": content}}
+
+
 def prompt_lines():
     def claude(content, **extra):
         return dict({"type": "user", "message": {"role": "user", "content": content}}, **extra)
@@ -153,16 +161,28 @@ def prompt_lines():
         ("claude: blank text is not a prompt", "claudeCode", claude([{"type": "text", "text": "  \n"}]), None),
         ("claude: assistant lines are never prompts", "claudeCode",
          {"type": "assistant", "message": {"role": "assistant", "content": "continue"}}, None),
-        ("codex: a user message event is a prompt", "codex",
-         {"type": "event_msg", "payload": {"type": "user_message", "message": "Add a --json flag"}}, p),
-        ("codex: a continuation", "codex",
-         {"type": "event_msg", "payload": {"type": "user_message", "message": "繼續"}}, c),
-        ("codex: an images-only message is a prompt", "codex",
-         {"type": "event_msg", "payload": {"type": "user_message", "message": "", "images": ["data:"]}}, p),
-        ("codex: the user message item is not (its event is)", "codex",
-         {"type": "response_item", "payload": {"type": "message", "role": "user",
-                                               "content": [{"type": "input_text", "text": "Add a --json flag"}]}},
-         None),
+        ("codex: a user message item is a prompt", "codex", codex_user([codex_text("Add a --json flag")]), p),
+        ("codex: a continuation", "codex", codex_user([codex_text("繼續")]), c),
+        ("codex: an image alone is a prompt", "codex",
+         codex_user([{"type": "input_image", "image_url": "data:image/png;base64,AAAA"}]), p),
+        ("codex: an IDE mention list with the request is a prompt", "codex",
+         codex_user([codex_text("# Files mentioned by the user:\n\n## a.rs: src/a.rs\n\n## My request for Codex:\nok"),
+                     codex_text("<image name=[Image #1]>"), {"type": "input_image", "image_url": "data:"},
+                     codex_text("</image>")]), p),
+        ("codex: tag blocks are left out of the continuation text", "codex",
+         codex_user([codex_text("go on"), codex_text("<image name=[Image #1]>")]), c),
+        ("codex: injected environment context is not a prompt", "codex",
+         codex_user([codex_text("<environment_context>\n  <cwd>/w</cwd>\n</environment_context>")]), None),
+        ("codex: AGENTS.md instructions are not a prompt", "codex",
+         codex_user([codex_text("# AGENTS.md instructions for /w\n\n<INSTRUCTIONS>\nbe brief\n</INSTRUCTIONS>")]), None),
+        ("codex: a heartbeat or a reply to the agent's question is not a prompt", "codex",
+         codex_user([codex_text("<heartbeat>tick</heartbeat>")]), None),
+        ("codex: blank text is not a prompt", "codex", codex_user([codex_text(" \n")]), None),
+        ("codex: the user message event is not (it repeats the item in older versions)", "codex",
+         {"type": "event_msg", "payload": {"type": "user_message", "message": "Add a --json flag"}}, None),
+        ("codex: developer messages are not prompts", "codex",
+         {"type": "response_item", "payload": {"type": "message", "role": "developer",
+                                               "content": [codex_text("rules")]}}, None),
         ("omp: a user message is a prompt", "omp",
          {"type": "message", "id": "e1", "message": {"role": "user", "content": [{"type": "text", "text": "續"}]}}, p),
         ("pi: string content", "pi",
@@ -352,6 +372,12 @@ def tasks():
               "queries": [{"nowMs": at(15), "want": {"state": "failing", "score": 5.25, "shown": 5,
                                                      "openFailure": open_failure("cargo test | tail", 3, 3)}},
                           {"want": {"state": "passing", "score": 93.75, "dims": dims(40, 25, 15, 3.75, 10)}}]})
+    t.append({"name": "a piped build that reports no error passes; a test summary that ran nothing is no run",
+              "events": [prompt(0), edit(1, "f", "a", "b"),
+                         run(2, "cargo build | tail", cls="build", suite="cargo build", failed=None, failed_count=0),
+                         run(20, "cargo test none | tail", targeted=True, failed=None, failed_count=0, passed_count=0)],
+              "queries": [{"want": {"state": "passing", "score": 67.75, "dims": dims(20, 25, 15, 3.75, 4),
+                                    "counts": {"runs": 1}, "lastPass": {"buildOnly": True}}}]})
     stall = [prompt(0)] + [read(1 + i, "a" if i % 2 == 0 else "b") for i in range(9)]
     t.append({"name": "stall: eight actions in a row that find almost nothing new", "events": stall,
               "queries": [{"want": {"state": "none", "score": None, "ig": 2 / 9, "loop": 7 / 9, "stallEnds": [8, 9],

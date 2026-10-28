@@ -64,6 +64,7 @@ CONTINUATIONS = frozenset([
     "続けて", "続けてください", "続行", "進めて", "進めてください", "はい", "お願いします", "うん", "いいよ", "どうぞ",
 ])
 TRAILING = ".!~,。、"
+ASCII_LETTERS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 CLAUDE_OUTPUT_TAGS = ("local-command-stdout", "local-command-stderr")
 CLAUDE_IGNORED_TAGS = ("local-command-caveat", "bash-input", "bash-stdout", "bash-stderr", "user-memory-input",
                        "system-reminder", "task-notification")
@@ -156,12 +157,30 @@ def claude_prompt(obj):
     return {"kind": "prompt", "continuation": is_continuation(_prompt_text(content, texts))}
 
 
+CODEX_AGENTS = "# AGENTS.md instructions"
+
+
 def codex_prompt(obj):
+    """A `response_item` user message the user wrote; injected context (a text led by a tag, AGENTS.md) is not."""
     payload = obj.get("payload")
-    if obj.get("type") != "event_msg" or not isinstance(payload, dict) or payload.get("type") != "user_message":
+    if obj.get("type") != "response_item" or not isinstance(payload, dict) or payload.get("type") != "message" \
+            or payload.get("role") != "user":
         return None
-    text = payload.get("message") if isinstance(payload.get("message"), str) else ""
-    return {"kind": "prompt", "continuation": is_continuation(text)}
+    content = payload.get("content")
+    if isinstance(content, str):
+        texts, media = [content], False
+    elif isinstance(content, list):
+        blocks = [b for b in content if isinstance(b, dict)]
+        texts = [b["text"] for b in blocks if b.get("type") in ("input_text", "text") and isinstance(b.get("text"), str)]
+        media = any(b.get("type") == "input_image" for b in blocks)
+    else:
+        return None
+    if not media and all(not t.strip() for t in texts):
+        return None
+    lead = texts[0].lstrip() if texts else ""
+    if (len(lead) > 1 and lead[0] == "<" and lead[1] in ASCII_LETTERS) or lead.startswith(CODEX_AGENTS):
+        return None
+    return {"kind": "prompt", "continuation": is_continuation(_prompt_text(content, texts))}
 
 
 def pi_family_prompt(obj):
@@ -293,7 +312,8 @@ def run_result(act):
     passed_count = act.failures.get("passedCount")
     if failed is True or (_is_int(failed_count) and failed_count > 0):
         return "fail"
-    if failed is False or (failed_count == 0 and _is_int(failed_count) and _is_int(passed_count) and passed_count > 0):
+    if failed is False or (_is_int(failed_count) and failed_count == 0 and not (_is_int(passed_count) and
+                                                                               passed_count == 0)):
         return "pass"
     return None
 
