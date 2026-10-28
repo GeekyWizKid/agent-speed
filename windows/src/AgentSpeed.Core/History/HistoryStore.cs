@@ -714,6 +714,7 @@ internal static class SourceNames
         SourceKind.GrokBuild => "grokBuild",
         SourceKind.Pi => "pi",
         SourceKind.OpenClaw => "openclaw",
+        SourceKind.Hermes => "hermes",
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 
@@ -734,6 +735,7 @@ internal static class SourceNames
         "grokBuild" => SourceKind.GrokBuild,
         "pi" => SourceKind.Pi,
         "openclaw" => SourceKind.OpenClaw,
+        "hermes" => SourceKind.Hermes,
         _ => null,
     };
 }

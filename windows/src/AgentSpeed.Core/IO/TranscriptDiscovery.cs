@@ -39,6 +39,9 @@ internal enum TranscriptNaming
 
     /// <summary><c>openclaw-agent.sqlite</c> and its WAL below an <c>agents</c> folder (OpenClaw, METRICS 4.14); not enumerated.</summary>
     OpenClawDatabase,
+
+    /// <summary><c>agent.log</c> and its rotated copies directly in a log folder (Hermes Agent, METRICS 4.15); not enumerated.</summary>
+    HermesLog,
 }
 
 /// <summary>Recursive transcript enumeration that never follows reparse points or symlinks (METRICS 2).</summary>
@@ -58,7 +61,8 @@ internal static class TranscriptDiscovery
             TranscriptNaming.CodexRollout => fileName.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase)
                 || fileName.EndsWith(".jsonl.zst", StringComparison.OrdinalIgnoreCase),
             TranscriptNaming.GeminiSession => Gemini.GeminiDiscovery.IsSessionFileName(fileName),
-            TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase or TranscriptNaming.OpenClawDatabase => false,
+            TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase or TranscriptNaming.OpenClawDatabase
+                or TranscriptNaming.HermesLog => false,
             TranscriptNaming.KimiSession => fileName.SequenceEqual("wire.jsonl"),
             TranscriptNaming.GrokBuildSession => fileName.SequenceEqual("updates.jsonl"),
             TranscriptNaming.OmpSession or TranscriptNaming.PiSession => Omp.OmpDiscovery.IsSessionFileName(fileName),
@@ -100,7 +104,8 @@ internal static class TranscriptDiscovery
             return Gemini.GeminiDiscovery.Enumerate(root, limit, cancellationToken);
         }
 
-        if (naming is TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase or TranscriptNaming.OpenClawDatabase)
+        if (naming is TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase or TranscriptNaming.OpenClawDatabase
+            or TranscriptNaming.HermesLog)
         {
             return [];
         }

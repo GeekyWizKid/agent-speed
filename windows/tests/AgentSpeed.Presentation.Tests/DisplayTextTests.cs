@@ -165,6 +165,7 @@ public class DisplayTextTests
     [InlineData(SourceKind.GrokBuild, "source.grokBuild", "Grok Build")]
     [InlineData(SourceKind.Pi, "source.pi", "Pi")]
     [InlineData(SourceKind.OpenClaw, "source.openclaw", "OpenClaw")]
+    [InlineData(SourceKind.Hermes, "source.hermes", "Hermes Agent")]
     public void EverySourceHasItsOwnName(SourceKind source, string key, string english)
     {
         Assert.Equal(key, DisplayText.SourceKey(source));
@@ -206,6 +207,20 @@ public class DisplayTextTests
             Assert.True(Embedded.TryGet("settings.sources.openclawHint", language, out var hint), language);
             Assert.Contains("~/.openclaw", hint, StringComparison.Ordinal);
             Assert.Contains("openclaw-agent.sqlite", hint, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void HermesStringsExistInEveryLanguage()
+    {
+        foreach (var language in LanguageCodes.All)
+        {
+            Assert.True(Embedded.TryGet("source.hermes", language, out var name), language);
+            Assert.Equal("Hermes Agent", name);
+            Assert.True(Embedded.TryGet("settings.sources.hermesHint", language, out var hint), language);
+            Assert.Contains("logs/agent.log", hint, StringComparison.Ordinal);
+            Assert.Contains("%LOCALAPPDATA%\\hermes", hint, StringComparison.Ordinal);
+            Assert.Contains("Codex", hint, StringComparison.Ordinal);
         }
     }
 

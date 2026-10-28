@@ -21,6 +21,12 @@ internal sealed record HistoryOptions
 
     /// <summary>Upper bound for files read ahead of the consumer (by estimated decoded size).</summary>
     public long MaxBufferedBytes { get; init; } = 256L * 1024 * 1024;
+
+    /// <summary>
+    /// The zone whose rules convert Hermes Agent's wall-clock times (METRICS 4.15): this computer's; null uses the zone the
+    /// days are labeled in. Fixtures and <c>--utc</c> dumps label days in UTC but read wall times in a local zone.
+    /// </summary>
+    public TimeZoneInfo? HermesZone { get; init; }
 }
 
 internal readonly record struct HistoryProgress(int FilesDone, int FilesTotal, long BytesDone, long BytesTotal)
@@ -108,8 +114,11 @@ internal sealed partial class HistoryAnalyzer
     public List<DailyUsage> Days(IReadOnlySet<SourceKind>? sources = null, IReadOnlyDictionary<string, double>? livePeaks = null)
     {
         var totals = new Dictionary<DayKey, DayAggregate>();
+        var hermesAgents = new Dictionary<DayKey, HashSet<string>>();
         foreach (var entry in _entries.Values)
         {
+            // A Hermes session spans rotated files: its days count it once (distinct agent ids, METRICS 8).
+            var hermesAgent = entry.Family == HermesFamily ? HermesAgentOf(entry.Path) : null;
             foreach (var (key, day) in entry.Days)
             {
                 if (sources is not null && !sources.Contains(key.Source))
@@ -123,7 +132,21 @@ internal sealed partial class HistoryAnalyzer
                 }
 
                 total.Merge(day);
+                if (hermesAgent is not null)
+                {
+                    total.Agents -= day.Agents;
+                    if (day.Requests > 0)
+                    {
+                        (hermesAgents.TryGetValue(key, out var agents) ? agents : hermesAgents[key] = new HashSet<string>(StringComparer.Ordinal))
+                            .Add(hermesAgent);
+                    }
+                }
             }
+        }
+
+        foreach (var (key, agents) in hermesAgents)
+        {
+            totals[key].Agents += agents.Count;
         }
 
         return [.. totals
@@ -173,19 +196,22 @@ internal sealed partial class HistoryAnalyzer
         var priceVersion = Pricing.CurrentVersion.ToString(CultureInfo.InvariantCulture);
         var repricing = _entries.Count > 0 && !string.Equals(_store.Meta(PriceVersionMeta), priceVersion, StringComparison.Ordinal);
         var plan = BuildPlan(locations, enabled, zoneChanged, repricing, zoneId, cancellationToken);
-        var state = new HistoryProgress(0, plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count + plan.OpenClawDatabases.Count, 0,
-            plan.Files.Sum(f => f.Size));
+        PlanHermes(plan, locations, enabled, zoneChanged, repricing, zone);
+        var state = new HistoryProgress(0, plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count + plan.OpenClawDatabases.Count
+            + plan.HermesLogs.Count, 0, plan.Files.Sum(f => f.Size) + plan.HermesLogs.Sum(l => l.Size));
         progress?.Invoke(state);
         int analyzed = 0, sessions = 0, unreadable = (plan.OpenCodeFailed ? 1 : 0) + (plan.ZCodeFailed ? 1 : 0);
         long bytes = 0;
         var cancelled = false;
         try
         {
-            if (plan.Files.Count > 0 || plan.Sessions.Count > 0 || plan.ZCodeSessions.Count > 0 || plan.OpenClawDatabases.Count > 0)
+            if (plan.Files.Count > 0 || plan.Sessions.Count > 0 || plan.ZCodeSessions.Count > 0 || plan.OpenClawDatabases.Count > 0
+                || plan.HermesLogs.Count > 0)
             {
                 var ledger = new KeyLedger();
                 var replaced = plan.Files.Select(f => f.Previous?.Id ?? 0).Concat(plan.Sessions.Select(s => s.Previous?.Id ?? 0)).Concat(plan.ZCodeSessions.Select(s => s.Previous?.Id ?? 0))
                     .Concat(OpenClawReplacedIds(plan))
+                    .Concat(HermesReplacedIds(plan))
                     .Where(id => id != 0).ToHashSet();
                 _store.LoadKeys(ledger, replaced);
                 var labeler = new DayLabeler(zone);
@@ -214,6 +240,12 @@ internal sealed partial class HistoryAnalyzer
 
                     if (!cancelled)
                     {
+                        cancelled = !AnalyzeHermes(plan, ledger, labeler, pending, Flush, ref state, ref analyzed, ref bytes, ref unreadable,
+                            progress, cancellationToken);
+                    }
+
+                    if (!cancelled)
+                    {
                         cancelled = !AnalyzeZCodeSessions(plan.ZCodeSessions, ledger, labeler, pending, Flush, ref state, ref sessions,
                             progress, cancellationToken);
                     }
@@ -235,6 +267,11 @@ internal sealed partial class HistoryAnalyzer
             {
                 _store.SetMeta(ZoneMeta, zoneId);
                 _store.SetMeta(PriceVersionMeta, priceVersion);
+                if (plan.HermesZone is { } hermesZone)
+                {
+                    _store.SetMeta(HermesZoneMeta, hermesZone.Id);
+                }
+
                 if (plan.OpenCodeIdentity is { } identity)
                 {
                     _store.SetMeta(OpenCodeMeta, identity);
@@ -246,7 +283,8 @@ internal sealed partial class HistoryAnalyzer
             plan.Database?.Dispose();
         }
 
-        return new HistoryReport(plan.Discovered, plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count + plan.OpenClawDatabases.Count,
+        return new HistoryReport(plan.Discovered,
+            plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count + plan.OpenClawDatabases.Count + plan.HermesLogs.Count,
             analyzed, bytes, sessions, unreadable,
             stopwatch.ElapsedMilliseconds, cancelled);
     }
@@ -576,6 +614,11 @@ internal sealed partial class HistoryAnalyzer
         public List<PlannedZCodeSession> ZCodeSessions { get; } = [];
 
         public List<PlannedOpenClawDatabase> OpenClawDatabases { get; } = [];
+
+        public List<PlannedHermesLog> HermesLogs { get; } = [];
+
+        /// <summary>The zone Hermes's wall times were read in; null when Hermes is not read.</summary>
+        public TimeZoneInfo? HermesZone { get; set; }
 
         public bool ZCodeFailed { get; set; }
 

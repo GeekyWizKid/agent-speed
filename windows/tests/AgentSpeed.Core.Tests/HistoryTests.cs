@@ -35,7 +35,8 @@ public sealed class HistoryTests : IDisposable
             WorkBuddyRoot: SourceLocations.WorkBuddyRootOf(Path.Combine(copy, "workbuddy", ".workbuddy")),
             WorkBuddyAiRoot: SourceLocations.WorkBuddyRootOf(Path.Combine(copy, "workbuddy", ".workbuddy-ai")),
             PiRoots: PiFixture.RootsIn(copy),
-            OpenClawRoots: OpenClawFixture.StateFoldersIn(copy));
+            OpenClawRoots: OpenClawFixture.StateFoldersIn(copy),
+            HermesRoot: HermesFixture.HomeIn(copy));
         var document = JsonNode.Parse(File.ReadAllText(Path.Combine(FixtureLocator.FixturesDirectory, "history-expected.json")))!;
         var pricing = document["prices"]!;
         var tables = pricing["tables"]!.AsArray()
@@ -43,7 +44,8 @@ public sealed class HistoryTests : IDisposable
             .ToList();
         var bindings = pricing["bindings"]!.AsObject().ToDictionary(b => b.Key, b => b.Value!.GetValue<int>());
         using var store = HistoryStore.Open(StorePath);
-        var analyzer = new HistoryAnalyzer(store, pricing: new Pricing.PriceBook(tables, bindings));
+        var analyzer = new HistoryAnalyzer(store, new HistoryOptions { HermesZone = HermesFixture.Zone },
+            new Pricing.PriceBook(tables, bindings));
 
         var report = analyzer.Run(locations, All, TimeZoneInfo.Utc, CancellationToken.None);
 

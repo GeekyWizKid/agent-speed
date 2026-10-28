@@ -27,6 +27,7 @@ internal enum ProbeMode
 /// <param name="WorkBuddyAiRoot">The WorkBuddy AI data folder or its <c>projects</c> folder; null uses <c>~/.workbuddy-ai</c>.</param>
 /// <param name="PiRoot">One Pi sessions folder (replaces every automatic Pi root); null uses Pi's automatic roots.</param>
 /// <param name="OpenClawRoot">An OpenClaw state folder, agent folder or database (replaces every automatic state folder).</param>
+/// <param name="HermesRoot">A Hermes home or one <c>logs</c> folder (replaces the automatic Hermes home).</param>
 internal sealed record ProbeOptions(
     ProbeMode Mode,
     int WatchSeconds,
@@ -49,14 +50,15 @@ internal sealed record ProbeOptions(
     string? KimiRoot = null,
     string? GrokBuildRoot = null,
     string? PiRoot = null,
-    string? OpenClawRoot = null)
+    string? OpenClawRoot = null,
+    string? HermesRoot = null)
 {
     public const string Usage =
         "usage: AgentSpeed.Probe (--dump-today [--since UNIXMS] | --dump-history [--utc] [--history-store PATH] | " +
         "--dump-unpriced [--days N | --first YYYY-MM-DD --last YYYY-MM-DD | --live] [--source ID] [--history-store PATH] | " +
         "--watch N | --sync-prices DIR | --sync-rates DIR CURRENCY) [--prices PATH] " +
         "[--codex PATH] [--claude PATH] [--dsh PATH] [--opencode PATH] [--gemini PATH]... [--omp PATH]... [--antigravity PATH]... " +
-        "[--workbuddy PATH] [--workbuddy-ai PATH] [--zcode PATH] [--kimi PATH] [--grok-build PATH] [--pi PATH] [--openclaw PATH]";
+        "[--workbuddy PATH] [--workbuddy-ai PATH] [--zcode PATH] [--kimi PATH] [--grok-build PATH] [--pi PATH] [--openclaw PATH] [--hermes PATH]";
 
     /// <summary><c>--days N</c> of <c>--dump-unpriced</c>: the last N local days, today included.</summary>
     public int? Days { get; init; }
@@ -82,7 +84,7 @@ internal sealed record ProbeOptions(
         OmpRoots is { Count: > 0 } omp ? omp[0] : null,
         AntigravityRoots is { Count: > 0 } antigravity ? antigravity[0] : null,
         WorkBuddyRoot,
-        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, PiRoot, OpenClawRoot);
+        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, PiRoot, OpenClawRoot, HermesRoot);
 
     /// <summary>Resolved roots; several <c>--gemini</c>, <c>--omp</c> or <c>--antigravity</c> folders are all read (like the reference).</summary>
     public SourceLocations Locations
@@ -144,7 +146,7 @@ internal sealed record ProbeOptions(
         var seconds = 0;
         var utc = false;
         string? codex = null, claude = null, dsh = null, opencode = null, store = null, prices = null, sync = null, currency = null;
-        string? workBuddy = null, workBuddyAi = null, zcode = null, kimi = null, grokBuild = null, pi = null, openClaw = null;
+        string? workBuddy = null, workBuddyAi = null, zcode = null, kimi = null, grokBuild = null, pi = null, openClaw = null, hermes = null;
         long? since = null;
         int? days = null;
         string? first = null, last = null, sourceId = null;
@@ -231,6 +233,9 @@ internal sealed record ProbeOptions(
                 case "--openclaw" when i + 1 < args.Length:
                     openClaw = args[++i];
                     break;
+                case "--hermes" when i + 1 < args.Length:
+                    hermes = args[++i];
+                    break;
                 case "--store" or "--history-store" when i + 1 < args.Length:
                     store = args[++i];
                     break;
@@ -271,7 +276,7 @@ internal sealed record ProbeOptions(
 
         return new ProbeOptions(
             mode.Value, seconds, codex, claude, dsh, opencode, gemini, utc, store, since, omp, antigravity, prices, sync, currency,
-            workBuddy, workBuddyAi, zcode, kimi, grokBuild, pi, openClaw)
+            workBuddy, workBuddyAi, zcode, kimi, grokBuild, pi, openClaw, hermes)
         {
             Days = days,
             First = first,

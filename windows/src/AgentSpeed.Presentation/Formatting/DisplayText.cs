@@ -71,6 +71,7 @@ public static class DisplayText
         SourceKind.GrokBuild => "source.grokBuild",
         SourceKind.Pi => "source.pi",
         SourceKind.OpenClaw => "source.openclaw",
+        SourceKind.Hermes => "source.hermes",
         _ => throw new ArgumentOutOfRangeException(nameof(source), source, null),
     };
 
