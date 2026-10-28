@@ -75,8 +75,7 @@ public static class BoardAccessibility
         ArgumentNullException.ThrowIfNull(loc);
         var group = entry.Group;
         var parts = new List<string>(5) { loc.Format("a11y.board.row", entry.Rank, group.Root.Project, SpeedFormat.Speed(group.Live)) };
-        var readout = entry.Readout;
-        if (readout is { Spoken.Length: > 0 })
+        if (entry.Readout is { Spoken.Length: > 0 } readout)
         {
             parts.Add(readout.Spoken);
         }
@@ -90,17 +89,6 @@ public static class BoardAccessibility
         if (group.Subs.Count > 0)
         {
             parts.Add(loc.Format("boards.subCount", group.Subs.Count));
-        }
-
-        // While the second line shows a cost.
-        if (entry.TwoLine && readout?.Cost is { } cost)
-        {
-            parts.Add(cost.State switch
-            {
-                BoardMoneyState.Tag => loc["cost.subscription.tag"],
-                BoardMoneyState.Unknown => loc["cost.unknown"],
-                _ => loc.Format("a11y.board.rowCost", cost.SpokenNumber, cost.Currency),
-            });
         }
 
         return string.Join(loc.UsesLatinScript ? ", " : "，", parts);

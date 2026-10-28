@@ -91,12 +91,11 @@ public struct BoardLive: Sendable {
 
     /// Feeds one snapshot. `engineNewPeak`: the engine emitted `newPeak` since the last call (all-sources boards).
     /// While the effects preview runs every board shows all sources. A snapshot seen before (a settings change)
-    /// re-evaluates the values in the current order without advancing the ranking, history or peaks. `billable`: the
-    /// sources whose costs the group rows count (METRICS 9.4).
+    /// re-evaluates the values in the current order without advancing the ranking, history or peaks.
     @discardableResult
     public mutating func ingest(_ snapshot: SpeedSnapshot, metric: SpeedMetric, layout: BoardLayoutMetrics,
                                 expanded: String? = nil, engineNewPeak: Bool = false,
-                                previewing: Bool = false, billable: SourceSet = .everything) -> BoardLiveFrame {
+                                previewing: Bool = false) -> BoardLiveFrame {
         let set = previewing ? nil : sources.sourceSet
         let reading = OrbSubset.reading(snapshot, sources: set)
         let available = reading.state == .available
@@ -110,7 +109,7 @@ public struct BoardLive: Sendable {
             tracker.restart(nowMs: nowMs)
         }
 
-        let groups = BoardGrouping.groups(reading.agents, metric: metric, billable: billable)
+        let groups = BoardGrouping.groups(reading.agents, metric: metric)
         var events: [BoardRankEvent] = []
         let order: [String]
         if fresh {

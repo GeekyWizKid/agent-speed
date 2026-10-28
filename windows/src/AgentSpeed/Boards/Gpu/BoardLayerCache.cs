@@ -148,13 +148,6 @@ internal sealed class BoardLayerCache : IBoardLayers, IDisposable
                 full |= !Layer(BoardScene.CaptionsKey, new BoardLayerRequest(BoardLayerKind.Captions, scene, null));
             }
 
-            if (metrics.TwoLineRows)
-            {
-                full |= !Layer(BoardScene.RowUnitKey, new BoardLayerRequest(BoardLayerKind.RowUnit, scene, null));
-                full |= !Layer(BoardScene.RowAtLeastKey, new BoardLayerRequest(BoardLayerKind.RowAtLeast, scene, null));
-                full |= !Layer(BoardScene.RowTagKey, new BoardLayerRequest(BoardLayerKind.RowTag, scene, null));
-            }
-
             foreach (var callout in scene.Callouts)
             {
                 full |= !Layer(callout.Key, new BoardLayerRequest(BoardLayerKind.Callout, scene, null, Callout: callout));

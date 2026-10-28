@@ -12,9 +12,9 @@ public static class BoardGrouping
 {
     /// <summary>
     /// The groups in the order their roots appear in <paramref name="agents"/>; the ranking orders them. Each carries its
-    /// intelligence and its cost over the <paramref name="billable"/> sources (every source when null).
+    /// intelligence.
     /// </summary>
-    public static IReadOnlyList<BoardGroup> Group(IReadOnlyList<AgentStatus> agents, SpeedMetric metric, SourceSet? billable = null)
+    public static IReadOnlyList<BoardGroup> Group(IReadOnlyList<AgentStatus> agents, SpeedMetric metric)
     {
         ArgumentNullException.ThrowIfNull(agents);
         var byId = new Dictionary<string, AgentStatus>(agents.Count, StringComparer.Ordinal);
@@ -66,7 +66,6 @@ public static class BoardGrouping
             groups.Add(new BoardGroup(rootId, root, subs, LiveOf(root, metric) + subLive, subLive, lastActive, generating, tools)
             {
                 Intelligence = AgentIntelligence.Group(root, subs),
-                Cost = GroupCost.Of(root, subs, billable ?? SourceSet.Everything),
             });
         }
 

@@ -639,7 +639,7 @@ body { background: var(--c-bg); color: var(--c-ink); }
 .mb.neon[data-size="S"] .gauge .subs .ml, .mb.neon[data-size="S"] .gauge .subs .mu { font-size: 7.5px; }
 
 /* ══ Option C — 明細表: rows get a second line (model · cost), totals move to a two-row footer.
-   The second line is also a toggle (每列費用) for A and B: class rows2. ══ */
+   A and B draw the second line too (class rows2), the model alone across the row; only C's cost adds class rowcost. ══ */
 .mb.rows2:not([data-size="S"]) .group .row { align-content: start; row-gap: 3px; grid-template-rows: 16px auto; padding-top: 4px; }
 .mb.rows2:not([data-size="S"]) .group .name b, .mb.rows2:not([data-size="S"]) .group .name small, .mb.rows2:not([data-size="S"]) .group .l2 { line-height: 1; }
 .mb.rows2:not([data-size="S"]) .group .cap { height: 16px; }
@@ -648,6 +648,8 @@ body { background: var(--c-bg); color: var(--c-ink); }
 .mb.rows2:not([data-size="S"]) .group .name { display: contents; }
 .mb.rows2:not([data-size="S"]) .group .name b { grid-column: 3; grid-row: 1; align-self: baseline; }
 .mb.rows2:not([data-size="S"]) .group .name small { grid-column: 3; grid-row: 2; align-self: baseline; }
+.mb.rows2:not(.rowcost):not([data-size="S"]) .group .name small { grid-column: 3 / -1; }
+.mb.rows2:not(.rowcost):not([data-size="S"]) .group .l2 { display: none; }
 .mb.rows2:not([data-size="S"]) .group .l2 { display: block; grid-row: 2; grid-column: 4 / -1; text-align: right; white-space: nowrap; align-self: baseline;
   font-variant-numeric: tabular-nums; }
 .mb.rows2:not([data-size="S"]) .group .l2 .u { margin-left: 3px; }

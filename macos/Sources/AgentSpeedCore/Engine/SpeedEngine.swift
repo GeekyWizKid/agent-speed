@@ -334,7 +334,6 @@ struct SpeedEngine: Sendable {
                 phase: phase,
                 live: window.byAgent[agent.id] ?? .zero,
                 recentSpeed: references.recent(for: agent.id)?.output,
-                liveCost: window.costByAgent[agent.id] ?? .zero,
                 intelligence: intelligence,
                 signals: WorkSignals(agent.actions, nowMs: nowMs)
             )

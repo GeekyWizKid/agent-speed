@@ -37,16 +37,14 @@ public sealed class BoardScene
     /// <summary>The captions line at the top of the ranking (智力 over the 智力 cells, tok/s over the values, timing's 間隔).</summary>
     public const string CaptionsKey = "#caps";
 
-    /// <summary>A two-line row's cost unit, its <c>≥</c> and the subscription tag.</summary>
-    public const string RowUnitKey = "#rc.u";
-    public const string RowAtLeastKey = "#rc.ge";
-    public const string RowTagKey = "#rc.tag";
-
     /// <summary>A switch change crossfades the hero (DESIGN 2c, Live metrics: Switches).</summary>
     public const double SwitchSeconds = 0.2;
 
-    /// <summary>A two-line row's first baseline under its top; its second's (glass 32).</summary>
+    /// <summary>A two-line row's first baseline under its top.</summary>
     public const double FirstBaseline = 16;
+
+    /// <summary>A two-line row's second baseline under its top (glass 32, timing and neon 31).</summary>
+    public static double SecondBaseline(BoardStyle style) => style == BoardStyle.Glass ? 32 : 31;
 
     /// <summary>A rise of more than 8 % + 20 tok/s in one tick punches the number (DESIGN 2c Hero number).</summary>
     public const double PunchRatio = 0.08;
@@ -354,7 +352,7 @@ public sealed class BoardScene
             if (row.Entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub)
             {
                 var baseline = Value(list, layers, row, left + metrics.ListWidth, top, height, alpha, now, clip);
-                Readout(list, layers, row, left + metrics.ListWidth, top, baseline, alpha, now, clip);
+                Readout(list, layers, row, left + metrics.ListWidth, baseline, alpha, now, clip);
             }
 
             if (row.IntervalText.Length > 0 && Size != BoardSize.S)
@@ -678,78 +676,30 @@ public sealed class BoardScene
         return BoardValueGlyphs.TryGet('0', set, layers, out var zero) ? center - zero.Height / 2 + BoardValueGlyphs.Baseline(zero) : center + 4;
     }
 
-    // A row's 智力 cell on the value's baseline (crossfading between its live and resting colors) and, on a two-line group row,
-    // its cost right-aligned on the value column's right edge on the second line.
-    private void Readout(BoardDrawList list, IBoardLayers layers, BoardRowMotion row, double right, double top, double baseline, double alpha, double now,
-        RectBounds clip)
+    // A row's 智力 cell on the value's baseline (crossfading between its live and resting colors).
+    private void Readout(BoardDrawList list, IBoardLayers layers, BoardRowMotion row, double right, double baseline, double alpha, double now, RectBounds clip)
     {
-        if (row.Entry.Readout is not { } readout)
+        if (row.Entry.Readout is not { } readout || !Metrics.IntelligenceColumn)
         {
             return;
         }
 
         var sub = row.Entry.Kind == BoardEntryKind.Sub;
         var gauge = GaugePalette;
-        if (Metrics.IntelligenceColumn)
+        var x = right - Columns.IntelligenceRight;
+        var live = row.IntelLive(now);
+        var tracking = Style == BoardStyle.Glass ? 0 : -0.02 * (sub ? 10.5 : 11);
+        var baked = Style == BoardStyle.Neon && gauge.Glows;
+        if (live > 0.002)
         {
-            var x = right - Columns.IntelligenceRight;
-            var live = row.IntelLive(now);
-            var tracking = Style == BoardStyle.Glass ? 0 : -0.02 * (sub ? 10.5 : 11);
-            var baked = Style == BoardStyle.Neon && gauge.Glows;
-            if (live > 0.002)
-            {
-                BoardValueGlyphs.EmitOnBaseline(list, layers, readout.Intelligence, sub ? BoardValueSet.IntelSub : BoardValueSet.IntelGroup, x, 1, baseline,
-                    tracking, gauge.RowLive, baked ? 0 : 1, alpha * live * (baked ? gauge.RowLive.A : 1), clip);
-            }
-
-            if (live < 0.998)
-            {
-                BoardValueGlyphs.EmitOnBaseline(list, layers, readout.Intelligence, sub ? BoardValueSet.IntelSubRest : BoardValueSet.IntelGroupRest, x, 1,
-                    baseline, tracking, gauge.RowQuiet, 1, alpha * (1 - live), clip);
-            }
+            BoardValueGlyphs.EmitOnBaseline(list, layers, readout.Intelligence, sub ? BoardValueSet.IntelSub : BoardValueSet.IntelGroup, x, 1, baseline,
+                tracking, gauge.RowLive, baked ? 0 : 1, alpha * live * (baked ? gauge.RowLive.A : 1), clip);
         }
 
-        if (!row.Entry.TwoLine || readout.Cost is not { } cost)
+        if (live < 0.998)
         {
-            return;
-        }
-
-        var second = top + (Style == BoardStyle.Glass ? 32 : 31);
-        var edge = right - Columns.ValueRight;
-        switch (cost.State)
-        {
-            case BoardMoneyState.Tag:
-                if (layers.TryGet(RowTagKey, out var tag))
-                {
-                    list.AddLayer(BoardLayerInstance.Create(tag, edge - tag.Width + BoardGauge.TextPad, second - BoardValueGlyphs.Baseline(tag),
-                        alpha * gauge.RowQuiet.A, gauge.RowQuiet.WithAlpha(1), 1, clip));
-                }
-
-                break;
-            case BoardMoneyState.Unknown:
-                BoardValueGlyphs.EmitOnBaseline(list, layers, cost.Number, BoardValueSet.RowCost, edge, 1, second, 0, gauge.RowQuiet, 1, alpha, clip);
-                break;
-            default:
-            {
-                var numberRight = edge;
-                if (layers.TryGet(RowUnitKey, out var unit))
-                {
-                    var unitWidth = unit.Width - 2 * BoardGauge.TextPad;
-                    list.AddLayer(BoardLayerInstance.Create(unit, edge - unitWidth - BoardGauge.TextPad, second - BoardValueGlyphs.Baseline(unit),
-                        alpha * gauge.RowQuiet.A, gauge.RowQuiet.WithAlpha(1), 1, clip));
-                    numberRight = edge - unitWidth - 3;
-                }
-
-                var width = BoardValueGlyphs.EmitOnBaseline(list, layers, cost.Number, BoardValueSet.RowCost, numberRight, 1, second, 0, gauge.RowCost, 1,
-                    alpha, clip);
-                if (cost.AtLeast && layers.TryGet(RowAtLeastKey, out var ge))
-                {
-                    list.AddLayer(BoardLayerInstance.Create(ge, numberRight - width - 1 - ge.Width + BoardGauge.TextPad, second - BoardValueGlyphs.Baseline(ge),
-                        alpha * gauge.RowQuiet.A, gauge.RowQuiet.WithAlpha(1), 1, clip));
-                }
-
-                break;
-            }
+            BoardValueGlyphs.EmitOnBaseline(list, layers, readout.Intelligence, sub ? BoardValueSet.IntelSubRest : BoardValueSet.IntelGroupRest, x, 1,
+                baseline, tracking, gauge.RowQuiet, 1, alpha * (1 - live), clip);
         }
     }
 

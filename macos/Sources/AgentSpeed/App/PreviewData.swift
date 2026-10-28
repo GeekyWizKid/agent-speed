@@ -161,7 +161,6 @@ enum PreviewData {
             recentSpeed: live > 0 ? live : nil,
             lastActivity: activity,
             parentId: parent.map { "/preview/\($0).jsonl" },
-            liveCost: liveCost(source, live),
             intelligence: intelligence(output: live, score: previewScore(model, source: source), id: id, idle: phase == .idle,
                                        thinkingShare: 0.3, source: source)
         )
@@ -170,12 +169,6 @@ enum PreviewData {
     /// API-equivalent costs (METRICS 9): a blended price per output token, DeepSeek partly and Antigravity not priced.
     private static func pricing(_ kind: SourceKind) -> (microUsdPerToken: Double, knownShare: Double) {
         (kind == .deepseek ? 2.4 : kind == .gemini ? 9 : 21, kind == .antigravity ? 0 : kind == .deepseek ? 0.7 : 1)
-    }
-
-    /// An agent's own live cost at its source's pricing (METRICS 9.5, Per agent).
-    private static func liveCost(_ kind: SourceKind, _ live: Double) -> LiveCost {
-        let (price, known) = pricing(kind)
-        return LiveCost(microUsdPerSecond: live * known * price, knownOutput: live * known)
     }
 
     /// A plausible task score for the preview models (METRICS 6.9); nil for a source without one.

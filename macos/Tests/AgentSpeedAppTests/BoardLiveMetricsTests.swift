@@ -5,8 +5,8 @@ import Testing
 @testable import AgentSpeed
 
 /// DESIGN 2c Live metrics as the boards draw them: the prototype's numbers from the shared simulation, the sub-gauge
-/// per style and size, the table cells, folding and thinking hidden at zero, the rows' 智力 column and cost line, the
-/// collapse at S, the tooltip and accessibility words.
+/// per style and size, the table cells, folding and thinking hidden at zero, the rows' 智力 column and second line
+/// (no cost), the collapse at S, the tooltip and accessibility words.
 @Suite("Board live metrics")
 @MainActor
 struct BoardLiveMetricsTests {
@@ -39,7 +39,6 @@ struct BoardLiveMetricsTests {
         #expect(tick.costText == "US$42.71")
         let first = tick.groups[0]
         #expect(first.root.project == "opencdn" && first.intelligence.shown == 58)
-        #expect(tick.metrics.rowCosts[first.id]?.number == "0.0056")
         #expect(tick.groups.map { SpeedFormat.speed($0.live) } == ["177", "197", "168", "139", "25"])
     }
 
@@ -101,26 +100,33 @@ struct BoardLiveMetricsTests {
         let dialFolded = try #require(Self.item(folded, "gauge.track")).frame.minY
         #expect(dialFolded - dialShown == 8.5 || dialFolded - dialShown == 8 || dialFolded - dialShown == 9)
         // 思考 alone never hides.
-        let alone = Self.feed(.glass, .medium, readouts: BoardReadouts(intelligence: false, thinking: true, cost: false, rowCost: true),
+        let alone = Self.feed(.glass, .medium, readouts: BoardReadouts(intelligence: false, thinking: true, cost: false),
                               reasoning: false)
         #expect(!alone.tick.metrics.thinkingHidden && !Self.keys(alone.layout, prefix: "gauge.think").isEmpty)
     }
 
-    @Test func rowsCarryTheIntelligenceColumnAndTheCostLine() {
+    @Test func rowsCarryTheIntelligenceColumnAndTheModelLineWithoutACost() throws {
         let medium = Self.feed(.neon, .medium)
         let models = BoardRowModels.make(medium.tick, l10n: Self.l10n, twoLine: true)
-        #expect(models[0].intel == "58" && models[0].intelLive && models[0].cost?.number == "0.0056" && models[0].twoLine)
+        #expect(models[0].intel == "58" && models[0].intelLive && models[0].twoLine && !models[0].detail.isEmpty)
         #expect(Self.item(medium.layout, "captions") != nil)
-        #expect(medium.layout.items.contains { $0.key.hasSuffix("#cost") } && medium.layout.items.contains { $0.key.hasSuffix("#iq") })
-        // S never draws the second line.
+        #expect(medium.layout.items.contains { $0.key.hasSuffix("#iq") })
+        #expect(!medium.layout.items.contains { $0.key.hasSuffix("#cost") })
+        // Group rows are two-line at M and L (38 / 40 tall) whatever the switches; S never draws the second line.
+        for readouts in [BoardReadouts.all, .none] {
+            for (size, height) in [(BoardSize.medium, 38.0), (.large, 40.0)] {
+                let feed = Self.feed(.glass, size, readouts: readouts)
+                let group = try #require(feed.tick.rows.first { if case .group = $0.kind { true } else { false } })
+                #expect(group.height == height, "\(size) \(readouts)")
+                #expect(!feed.layout.items.contains { $0.key.hasSuffix("#cost") })
+            }
+        }
         let small = Self.feed(.neon, .small)
-        #expect(!small.layout.items.contains { $0.key.hasSuffix("#cost") })
-        #expect(BoardRowModels.make(small.tick, l10n: Self.l10n).allSatisfy { $0.cost == nil && !$0.twoLine })
+        #expect(BoardRowModels.make(small.tick, l10n: Self.l10n).allSatisfy { !$0.twoLine })
         // 智力 off: no column, no captions, the original value column.
-        let noIntelligence = Self.feed(.timing, .medium, readouts: BoardReadouts(intelligence: false, thinking: true, cost: true, rowCost: true))
+        let noIntelligence = Self.feed(.timing, .medium, readouts: BoardReadouts(intelligence: false, thinking: true, cost: true))
         #expect(Self.item(noIntelligence.layout, "captions") == nil)
         #expect(!noIntelligence.layout.items.contains { $0.key.hasSuffix("#iq") })
-        #expect(noIntelligence.layout.items.contains { $0.key.hasSuffix("#cost") })
     }
 
     @Test func everySwitchOffIsTheBoardBefore() {
@@ -133,21 +139,31 @@ struct BoardLiveMetricsTests {
     @Test func subscriptionsShowTheTag() {
         let feed = Self.feed(.glass, .medium, subscriptions: true)
         #expect(feed.tick.metrics.cost.state == .tag && feed.tick.costIsTag && feed.tick.costText == "訂閱")
-        #expect(feed.tick.metrics.rowCosts.values.allSatisfy { $0.state == .tag })
+        // Only the hero says so: a group's tooltip names neither a cost nor the subscription.
+        #expect(feed.tick.groups.allSatisfy { group in
+            BoardTooltip.lines(group, metric: .output, l10n: Self.l10n, readouts: .all).allSatisfy { !$0.contains("訂閱") && !$0.contains("費用") }
+        })
     }
 
     @Test func tooltipAndAccessibilityWords() {
         let tick = Self.feed(.glass, .medium).tick
         let group = tick.groups[0]
-        let lines = BoardTooltip.metricLines(group, l10n: Self.l10n, readouts: .all, money: tick.metrics.rowCosts[group.id])
+        let lines = BoardTooltip.metricLines(group, l10n: Self.l10n, readouts: .all)
         #expect(lines.first?.hasPrefix("智力 58 · 思考 ") == true)
-        #expect(lines.last == "費用 0.0056 US$/s（API 等值）")
+        #expect(lines.count == 1)
         #expect(BoardTooltip.caption(readouts: .all, l10n: Self.l10n) == "估算指數，不是測驗分數")
         let words = BoardAccessibilityReporter.metricWords(tick.metrics, currency: "美元", l10n: Self.l10n)
         #expect(words == ["智力 90，思考每秒 174 個 token", "費用每秒 0.024 美元（API 等值）"])
-        let row = BoardAccessibilityReporter.rowLabel(group, rank: 1, l10n: Self.l10n, intelligence: true,
-                                                      cost: tick.metrics.rowCosts[group.id], currency: "美元")
-        #expect(row.hasPrefix("第 1 名，opencdn，每秒 177 個 token，智力 58，") && row.hasSuffix("，費用每秒 0.0056 美元"))
+        // No tooltip names a cost, whatever the switches (費用 is the board's only live cost).
+        for readouts in [BoardReadouts.all, BoardReadouts(intelligence: false, thinking: false, cost: true)] {
+            for group in Self.feed(.glass, .medium, readouts: readouts).tick.groups {
+                let all = BoardTooltip.lines(group, metric: .output, l10n: Self.l10n, readouts: readouts)
+                #expect(!all.contains { $0.contains("費用") || $0.contains("US$") }, "\(readouts) \(group.id)")
+            }
+        }
+        // Rows name no cost.
+        let row = BoardAccessibilityReporter.rowLabel(group, rank: 1, l10n: Self.l10n, intelligence: true)
+        #expect(row.hasPrefix("第 1 名，opencdn，每秒 177 個 token，智力 58，") && !row.contains("費用") && !row.contains("美元"))
         var hidden = tick.metrics
         hidden.thinkingHidden = true
         #expect(BoardAccessibilityReporter.metricWords(hidden, currency: "美元", l10n: Self.l10n).first == "智力 90")

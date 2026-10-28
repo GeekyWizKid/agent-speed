@@ -20,14 +20,24 @@ struct BoardLayoutPlanTests {
         }
     }
 
+    /// The planner's own cases use the prototypes' one-line group rows (a board keeps them at S; M and L draw the
+    /// second line, DESIGN 2c Live metrics).
+    static func oneLine(_ style: BoardStyle, _ size: BoardSize) -> BoardLayoutMetrics {
+        var metrics = BoardLayoutMetrics.of(style, size)
+        metrics.groupHeight = (size == .large ? 32 : 30) + (style == .timing ? 0 : 2)
+        return metrics
+    }
+
     @Test func metricsFollowThePrototypes() {
         let glass = BoardLayoutMetrics.of(.glass, .medium)
-        #expect(glass.groupHeight == 32 && glass.subHeight == 22 && glass.moreHeight == 20 && glass.room == 188 && glass.top == 6)
+        #expect(glass.groupHeight == 38 && glass.subHeight == 22 && glass.moreHeight == 20 && glass.room == 188 && glass.top == 6)
+        #expect(BoardLayoutMetrics.of(.glass, .small).groupHeight == 32 && BoardLayoutMetrics.of(.glass, .large).groupHeight == 40)
         #expect(BoardLayoutMetrics.of(.neon, .large) == BoardLayoutMetrics.of(.glass, .large))
         #expect(BoardLayoutMetrics.of(.glass, .large).room == 258)
         #expect(BoardLayoutMetrics.of(.glass, .small).room == 138)
         let timing = BoardLayoutMetrics.of(.timing, .medium)
-        #expect(timing.groupHeight == 30 && timing.subHeight == 21 && timing.moreHeight == 19 && timing.room == 202 && timing.top == 0)
+        #expect(timing.groupHeight == 38 && timing.subHeight == 21 && timing.moreHeight == 19 && timing.room == 202 && timing.top == 0)
+        #expect(BoardLayoutMetrics.of(.timing, .small).groupHeight == 30)
         #expect(BoardLayoutMetrics.of(.timing, .small).room == 152)
         #expect(BoardLayoutMetrics.of(.timing, .large).room == 272)
         #expect(BoardLayoutMetrics.of(.glass, .small).subLimits.isEmpty)
@@ -39,7 +49,7 @@ struct BoardLayoutPlanTests {
     @Test func aSwarmLeavesRoomForEveryGroupFirst() {
         let groups = [Self.group("a", subs: 100, activeSubs: 60), Self.group("b", subs: 3), Self.group("c", subs: 2),
                       Self.group("d", subs: 1)]
-        let rows = BoardLayoutPlanner.plan(groups, metrics: .of(.glass, .medium))
+        let rows = BoardLayoutPlanner.plan(groups, metrics: Self.oneLine(.glass, .medium))
         #expect(Self.describe(rows) == ["g0@6", "g0.s0@38", "g0+99@60", "g1@80", "g2@112", "g3@144"])
         guard case .moreSubs(_, _, let live) = rows[2].kind else { Issue.record("more row"); return }
         #expect(live == (1..<60).reduce(0) { $0 + Double(100 - $1) }, "the rest's summed live value")
@@ -47,7 +57,7 @@ struct BoardLayoutPlanTests {
 
     @Test func groupsThatDoNotFitBecomeTheMoreGroupsRow() {
         let groups = (0..<8).map { Self.group("g\($0)", live: Double(100 - $0)) }
-        let rows = BoardLayoutPlanner.plan(groups, metrics: .of(.glass, .medium))
+        let rows = BoardLayoutPlanner.plan(groups, metrics: Self.oneLine(.glass, .medium))
         #expect(Self.describe(rows) == ["g0@6", "g1@38", "g2@70", "g3@102", "g4@134", "+3groups@166"])
         guard case .moreGroups(let count, let live) = rows.last?.kind else { Issue.record("rest row"); return }
         #expect(count == 3 && live == 95 + 94 + 93)
@@ -55,21 +65,21 @@ struct BoardLayoutPlanTests {
 
     @Test func smallShowsNoSubRows() {
         let groups = (0..<4).map { Self.group("g\($0)", subs: 3) }
-        #expect(Self.describe(BoardLayoutPlanner.plan(groups, metrics: .of(.glass, .small))) == ["g0@6", "g1@38", "g2@70", "g3@102"])
+        #expect(Self.describe(BoardLayoutPlanner.plan(groups, metrics: Self.oneLine(.glass, .small))) == ["g0@6", "g1@38", "g2@70", "g3@102"])
         let five = (0..<5).map { Self.group("g\($0)", subs: 3) }
-        #expect(Self.describe(BoardLayoutPlanner.plan(five, metrics: .of(.glass, .small))) == ["g0@6", "g1@38", "g2@70", "+2groups@102"])
+        #expect(Self.describe(BoardLayoutPlanner.plan(five, metrics: Self.oneLine(.glass, .small))) == ["g0@6", "g1@38", "g2@70", "+2groups@102"])
     }
 
     @Test func timingFillsSubRowsWithoutAMoreRowWhenAllFit() {
         let groups = (0..<3).map { Self.group("g\($0)", subs: 1) }
-        let rows = BoardLayoutPlanner.plan(groups, metrics: .of(.timing, .medium))
+        let rows = BoardLayoutPlanner.plan(groups, metrics: Self.oneLine(.timing, .medium))
         #expect(Self.describe(rows) == ["g0@0", "g0.s0@30", "g1@51", "g1.s0@81", "g2@102", "g2.s0@132"])
     }
 
     @Test func idleSubAgentsGetNoRowUnlessExpanded() {
         let groups = [Self.group("a", subs: 10, activeSubs: 0), Self.group("b")]
-        #expect(Self.describe(BoardLayoutPlanner.plan(groups, metrics: .of(.glass, .large))) == ["g0@6", "g1@40"])
-        let rows = BoardLayoutPlanner.plan(groups, metrics: .of(.glass, .large), expanded: "a")
+        #expect(Self.describe(BoardLayoutPlanner.plan(groups, metrics: Self.oneLine(.glass, .large))) == ["g0@6", "g1@40"])
+        let rows = BoardLayoutPlanner.plan(groups, metrics: Self.oneLine(.glass, .large), expanded: "a")
         #expect(Self.describe(rows) == ["g0@6", "g0.s0@40", "g0.s1@63", "g0.s2@86", "g0.s3@109", "g0.s4@132", "g0.s5@155",
                                          "g0.s6@178", "g0+3@201", "g1@221"])
     }

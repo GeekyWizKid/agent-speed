@@ -92,9 +92,6 @@ public sealed record AgentStatus(
 {
     public ExecutionModes Modes { get; init; } = ExecutionModes.Empty;
 
-    /// <summary>The agent's live cost rate (METRICS 9.5).</summary>
-    public LiveCost LiveCost { get; init; }
-
     /// <summary>The grade of the agent's current model and effort (METRICS 6.9); null without a model.</summary>
     public Intelligence.ModelGrade? Grade { get; init; }
 

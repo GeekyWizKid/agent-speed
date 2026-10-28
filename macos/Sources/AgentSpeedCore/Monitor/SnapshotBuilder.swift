@@ -79,7 +79,6 @@ enum SnapshotBuilder {
                 recentSpeed: row.recentSpeed,
                 lastActivity: date(row.agent.lastLineMs ?? 0),
                 parentId: row.parentId,
-                liveCost: row.liveCost,
                 cwdPath: row.agent.cwdPath,
                 modes: row.agent.modes,
                 intelligence: row.intelligence,

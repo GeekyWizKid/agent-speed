@@ -8,10 +8,8 @@ import SwiftUI
 enum BoardTooltip {
     static let delay: TimeInterval = 0.35
 
-    /// `money`: the group's cost as its second line would show it.
     @MainActor
-    static func lines(_ group: BoardGroup, metric: SpeedMetric, l10n: Localizer, readouts: BoardReadouts = .none,
-                      money: BoardMoney? = nil) -> [String] {
+    static func lines(_ group: BoardGroup, metric: SpeedMetric, l10n: Localizer, readouts: BoardReadouts = .none) -> [String] {
         let root = group.root
         let source = l10n(root.source.titleKey)
         var lines = [(root.project.isEmpty ? source : root.project) + " · " + source]
@@ -21,32 +19,20 @@ enum BoardTooltip {
         let speed = SpeedFormat.speed(group.live)
         lines.append(group.subs.isEmpty ? l10n("mac.boards.tooltip.speed", speed)
             : l10n("mac.boards.tooltip.speedSubs", speed, SpeedFormat.speed(group.subLive)))
-        lines += metricLines(group, l10n: l10n, readouts: readouts, money: money)
+        lines += metricLines(group, l10n: l10n, readouts: readouts)
         return lines
     }
 
-    /// While 智力 is on: the group's live task score and thinking share; while 費用 or 每列費用 is on and
-    /// the group is live: its cost as shown, then why part or all of it is missing. The disclaimer is the caption.
+    /// While 智力 is on: the group's live task score and thinking share. No cost, whatever the switches (費用 is the
+    /// board's only live cost). The disclaimer is the caption.
     @MainActor
-    static func metricLines(_ group: BoardGroup, l10n: Localizer, readouts: BoardReadouts, money: BoardMoney?) -> [String] {
+    static func metricLines(_ group: BoardGroup, l10n: Localizer, readouts: BoardReadouts) -> [String] {
         var lines: [String] = []
-        let live = group.live > BoardGrouping.idle
         if readouts.intelligence {
             if case .live = group.intelligence, let shown = group.intelligence.shown {
                 let records = ([group.root] + group.subs).contains { $0.source.recordsReasoningApart }
                 let share = records ? AgentSignalText.percent(group.sums.intelligence.thinkingShare) : "–"
                 lines.append(l10n("intel.tooltip", String(shown), share))
-            }
-        }
-        if readouts.cost || readouts.rowCost, live, let money {
-            switch money.state {
-            case .tag:
-                lines.append(l10n("boards.tooltip.subscription", l10n(group.root.source.titleKey)))
-            case .unknown:
-                lines.append(l10n("boards.tooltip.cost", l10n("cost.unknown")))
-            case .value:
-                lines.append(l10n("boards.tooltip.cost", (money.atLeast ? "≥" : "") + money.number + " " + money.unit))
-                if money.atLeast { lines.append(l10n("cost.partial")) }
             }
         }
         return lines

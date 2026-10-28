@@ -24,8 +24,8 @@ enum BoardSettingsPreviews {
         boards.setSources(.explicit([.codex]), of: timing)
         boards.setSize(.small, of: timing)
         boards.setVisible(false, of: timing)
-        // The glass board's editor shows independent switches: 思考 and 每列費用 off.
-        boards.setReadouts(BoardReadouts(intelligence: true, thinking: false, cost: true, rowCost: false), of: glass)
+        // The glass board's editor shows independent switches: 思考 off.
+        boards.setReadouts(BoardReadouts(intelligence: true, thinking: false, cost: true), of: glass)
         boards.settingsSelection = glass
         for step in 1...3 {
             PreviewRenderer.publish(model, snapshot: PreviewData.snapshot(
@@ -74,14 +74,11 @@ enum BoardSettingsPreviews {
                                                                 tick.valueText, tick.title)]
                 + BoardAccessibilityReporter.metricWords(tick.metrics, currency: currency, l10n: model.l10n), model.l10n) + "\n"
             for (rank, group) in tick.groups.prefix(3).enumerated() {
-                let cost = config.readouts.twoLineRows(config.size) ? tick.metrics.rowCosts[group.id] : nil
                 text += "  " + BoardAccessibilityReporter.rowLabel(group, rank: rank + 1, l10n: model.l10n,
-                                                                    intelligence: config.readouts.intelligence, cost: cost,
-                                                                    currency: currency) + "\n"
+                                                                    intelligence: config.readouts.intelligence) + "\n"
             }
             guard let group = tick.groups.first else { continue }
-            let lines = BoardTooltip.lines(group, metric: tick.metric, l10n: model.l10n, readouts: config.readouts,
-                                           money: tick.metrics.rowCosts[group.id])
+            let lines = BoardTooltip.lines(group, metric: tick.metric, l10n: model.l10n, readouts: config.readouts)
             let caption = BoardTooltip.caption(readouts: config.readouts, l10n: model.l10n)
             text += "  tooltip: " + (lines + [caption].compactMap { $0 }).joined(separator: " | ") + "\n"
             for dark in [false, true] {

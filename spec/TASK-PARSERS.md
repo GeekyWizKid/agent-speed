@@ -224,13 +224,13 @@ remaining words joined by spaces. `cmd` with `/c` (any case): the remaining word
 | `uv`, `poetry`, `pipenv`, `pdm`, `rye`, `pixi`, `conda`, `mamba`, `micromamba`, `hatch` followed by `run` | both words and the options after them (`UV_VALUE` + `CONDA_VALUE`) |
 | `python` with `-m MODULE` after its options (`PY_VALUE`) | everything up to `MODULE`, which becomes the program |
 | `coverage run` with `-m MODULE` after its options (`COVERAGE_VALUE`) | everything up to `MODULE` |
-
-For `python` and `coverage run`, the options are skipped one by one (a value option takes the next word) until `-m`,
-`-` or a non-option word; `-m` is then followed by the module.
 | `bundle exec` | both words |
 | `xcrun` | the runner and its options (`XCRUN_VALUE`) |
 | `dotnet tool run` | the three words |
 | `php` followed by a script whose program name is `phpunit`, `pest`, `phpstan` or `psalm` | `php` |
+
+For `python` and `coverage run`, the options are skipped one by one (a value option takes the next word) until `-m`,
+`-` or a non-option word; `-m` is then followed by the module.
 
 `python` without `-m` stays a program (3.5: after its options, `manage.py test`, `setup.py test`, else other).
 
@@ -440,7 +440,7 @@ class: a printed exit code is the chosen segment's own.
 **Error filters** (`errorFilter`, build and check only). C's class is `build` or `check`, C is followed by `|` and a
 segment whose program is `grep` or `egrep` (`GREP_PROGRAMS`), then only `|`-joined segments whose program is `head` or
 `tail` (`LIMITERS`), and that pipeline ends the command. The grep must read only its input and keep matching lines:
-its options are short flags whose letters are all in `GREP_FLAGS` (case-insensitive, extended or Perl patterns, line
+its options are short flags whose letters are all in `GREP_FLAGS` (A.6: case-insensitive, extended or Perl patterns, line
 numbers, whole words, fixed strings, text, no messages, file names, only matching), the long flags `GREP_LONG_FLAGS`,
 `--color` / `--colour` with or without a value, and `GREP_VALUE_OPTIONS` with their value (`-e PATTERN`, context and
 `-m` counts; also written `-ePATTERN`, `-A3` or `--name=value`); anything else (`-v`, `-c`, `-l`, `-q`, `-r`, `-f`, …)
@@ -448,7 +448,7 @@ makes it no filter. Its patterns are the `-e` values, else its first operand; an
 filter. Some pattern must contain `error` (ASCII case-insensitive): `grep -i error`, `grep -E "error|warning"`,
 `grep -E "error:|FAIL"`, `grep -e warning -e error`. When such a command produced **no output** — the output text,
 stripped of JSON whitespace (space, tab, CR, LF), is empty or is Claude Code's placeholder `(Bash completed with no
-output)` (`NO_OUTPUT`; real logs) — the check found no error line: `{failed: false}` (the exit code is kept) and
+output)` (`NO_OUTPUT`, A.6; real logs) — the check found no error line: `{failed: false}` (the exit code is kept) and
 `failures` reports `failedCount` 0 (5.4). A filter with output, `| tail` or `| head` alone, and every test-class
 command (a test must show its summary, 5) stay unknown.
 
@@ -615,9 +615,13 @@ read as below; a script that cannot be tokenised, or that calls no tool, gives n
   `prints` lists the printing statements in order as `[call index, mode]` (empty when the script is not plain). In a
   plain script the calls' inputs are read with the bindings made before them; otherwise without any binding.
 
-`code_items(source, result)`: the Codex output value (4.1 step 1) as an array whose first item has a string `text`
-whose first line, LF-normalised, is `Script completed`: the texts of the other items, LF-normalised (null for an item
-without a string `text`); anything else (a failed or still running script, a string output) gives null.
+`code_items(source, result)`: Codex only, and `result` must be an object. Its *output* is `result.output` when the
+object has both a `type` and an `output` member, else the object itself; unlike 4.1 step 1, a `content` member is not
+unwrapped and a string is not parsed as JSON. When the output is a non-empty array whose first item is an object with a
+string `text` whose first line, LF-normalised, is `Script completed` (`CODE_COMPLETED`, A.6), the result is the list of
+the other items in order, each item's string `text` LF-normalised, or null for an item that is not an object with a
+string `text` (whatever its `type`). Anything else gives null: a string output (a failed tool call, a script still
+running), an object, an empty array, a first item that says `Script failed`.
 
 The event layer matches the printing statements of a plain script with the items in order — the k-th statement with
 the k-th item — only when `code_items` is not null and has exactly as many items as `prints`; a call printed more than
@@ -1344,5 +1348,19 @@ The patterns each recogniser tries, in the order its code first uses them (5.3).
 - Jvm: `SUREFIRE_RUN`, `SUREFIRE_LISTED`, `GRADLE_TEST`, `GRADLE_SUMMARY`, `GRADLE_NOISE`, `SUREFIRE_TEST`, `SUREFIRE_OLD`, `SUREFIRE_HEADER`, `MAVEN_JAVAC`, `MAVEN_ERRORS`, `MAVEN_NOISE`, `JAVAC_ERROR`, `JAVAC_WARNING`, `JAVAC_COUNT`, `KOTLIN_ERROR`, `KOTLIN_ERROR_OLD`, `KOTLIN_WARNING`
 - Misc: `CTEST_LISTED`, `RSPEC_FAILED`, `RSPEC_SUMMARY`, `RSPEC_LOAD`, `PHPUNIT_SECTION`, `PHPUNIT_ITEM`, `PHPUNIT_TESTS`, `PHPUNIT_OK`, `PHPUNIT_NOISE`, `CTEST_LINE`, `CTEST_LIST_HEADER`, `CTEST_SUMMARY`, `CTEST_NOISE`
 - Cc: `LD_SYMBOL`, `CC_ERROR`, `CC_WARNING`, `CC_CONTEXT`, `CC_GENERATED`, `LD_UNDEFINED_ARCH`, `LD_REFERENCE`, `LD_NOISE`, `MAKE_NOISE`
+
+### A.6 Named strings and maps
+
+Strings as JSON string literals (escapes as in JSON; regular-expression fragments that the patterns of A.4 already contain expanded); maps as `key → values`.
+
+```text
+GREP_FLAGS         "iEnwFPashHo"
+NO_OUTPUT          "(Bash completed with no output)"
+CODE_COMPLETED     "Script completed"
+CC_EXT             "(?:c|cc|cpp|cxx|c\\+\\+|C|h|hh|hpp|hxx|h\\+\\+|m|mm|cu|cuh|ino|S|s|ipp|tpp|inl)"
+NOT_IN_PATH        "(?<![A-Za-z0-9._~/\\\\-])"
+RUNNER_SUBCOMMANDS mise → "run", "r"; deno → "task"; turbo → "run"; composer → "run-script", "run"
+SCRIPT_LABEL       npm → "npm test", "npm run "; pnpm → "pnpm test", "pnpm run "; yarn → "yarn test", "yarn run "; bun → "bun run test", "bun run "; deno → "deno task test", "deno task "; composer → "composer test", "composer "; make → "make test", "make "; ninja → "ninja test", "ninja "; just → "just test", "just "; task → "task test", "task "; rake → "rake test", "rake "; mise → "mise run test", "mise run "; turbo → "turbo test", "turbo "; nx → "nx test", "nx "
+```
 
 <!-- appendix end -->

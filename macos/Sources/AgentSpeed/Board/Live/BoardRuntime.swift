@@ -46,7 +46,7 @@ final class BoardRuntime {
         expansion.expire(now: now, present: Set(frame.groups.map(\.id)))
         let metric = model.settings.metric
         frame = live.ingest(snapshot, metric: metric, layout: layoutMetrics, expanded: expansion.group,
-                            engineNewPeak: pendingEnginePeak, previewing: previewing, billable: model.cost.billable)
+                            engineNewPeak: pendingEnginePeak, previewing: previewing)
         pendingEnginePeak = false
         let redline = model.settings.redline(for: metric)
         if gauge.redline != redline { gauge.redline = redline }
@@ -122,7 +122,7 @@ final class BoardRuntime {
             peakText: SpeedFormat.speed(frame.peak)
         )
         let readouts = config.readouts
-        guard readouts.hero || readouts.rowCost else { return tick }
+        guard readouts.hero else { return tick }
         let format = model.cost.boardMoney
         if readouts.cost, cost?.state == .subscriptionOnly {
             tick.costText = format.tag
@@ -130,15 +130,8 @@ final class BoardRuntime {
         }
         // The preview has no prices: its costs read `–`.
         let hero = cost.map(format.money) ?? BoardMoney(number: "–", unit: "", state: .unknown)
-        // Every group's cost: the second line draws it, the tooltip tells it while 費用 is on.
-        var rowCosts: [String: BoardMoney] = [:]
-        if readouts.twoLineRows(config.size) || readouts.cost {
-            for group in frame.groups {
-                rowCosts[group.id] = cost == nil ? BoardMoney(number: "–", unit: "", state: .unknown) : format.money(group.sums)
-            }
-        }
         tick.metrics = .make(readouts: readouts, intelligence: frame.intelligence, cost: hero, costUnit: format.unit,
-                             rowCosts: rowCosts, thinkingHidden: thinkingFold.hidden)
+                             thinkingHidden: thinkingFold.hidden)
         return tick
     }
 

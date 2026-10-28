@@ -4179,6 +4179,11 @@ def code_list(values):
     return ", ".join("`" + v + "`" if "`" not in v else "``" + v + "``" for v in values) or "none"
 
 
+# Strings and maps the text names, listed in A.6 (a list, so A.2 does not list it as a word tuple).
+APPENDIX_CONSTANTS = ["GREP_FLAGS", "NO_OUTPUT", "CODE_COMPLETED", "CC_EXT", "NOT_IN_PATH", "RUNNER_SUBCOMMANDS",
+                      "SCRIPT_LABEL"]
+
+
 def spec_appendix():
     """Appendix A of spec/TASK-PARSERS.md: every table, list and pattern of this reference, verbatim."""
     out = [APPENDIX_BEGIN, "", "### A.1 Tool kinds", ""]
@@ -4238,7 +4243,18 @@ def spec_appendix():
             if is_pattern and name not in names:
                 names.append(name)
         out.append("- %s: %s" % (cls.__name__, ", ".join("`%s`" % n for n in names)))
-    out += ["", APPENDIX_END]
+    out += ["", "### A.6 Named strings and maps", "",
+            "Strings as JSON string literals (escapes as in JSON; regular-expression fragments that the patterns of "
+            "A.4 already contain expanded); maps as `key → values`.", "", "```text"]
+    for name in APPENDIX_CONSTANTS:
+        value = getattr(sys.modules[__name__], name)
+        if isinstance(value, str):
+            shown = json.dumps(value, ensure_ascii=False)
+        else:
+            shown = "; ".join("%s → %s" % (k, ", ".join(json.dumps(x, ensure_ascii=False) for x in v))
+                              for k, v in value.items())
+        out.append("%-18s %s" % (name, shown))
+    out += ["```", "", APPENDIX_END]
     return "\n".join(out) + "\n"
 
 

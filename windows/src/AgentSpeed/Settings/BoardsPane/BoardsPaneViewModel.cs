@@ -240,8 +240,6 @@ internal sealed class BoardsPaneViewModel : ObservableObject
 
     public bool ReadoutCost { get => Readouts.Cost; set => SetReadout(BoardReadout.Cost, value); }
 
-    public bool ReadoutRowCost { get => Readouts.RowCost; set => SetReadout(BoardReadout.RowCost, value); }
-
     private AppSettings S => _settings.Current;
 
     private string? SelectedId => _selected?.Id;
@@ -401,6 +399,5 @@ internal sealed class BoardsPaneViewModel : ObservableObject
         OnPropertyChanged(nameof(ReadoutIntelligence));
         OnPropertyChanged(nameof(ReadoutThinking));
         OnPropertyChanged(nameof(ReadoutCost));
-        OnPropertyChanged(nameof(ReadoutRowCost));
     }
 }

@@ -132,7 +132,7 @@ struct IntelligenceCaseTests {
                 let label = "\(name) @ \(now) group \(root)"
                 var sums = AgentGroupSums()
                 for id in try #require(expected["members"] as? [String]) {
-                    sums.add(try #require(snapshot.agents.first { $0.id == id }, "\(label) \(id) listed"), billable: true)
+                    sums.add(try #require(snapshot.agents.first { $0.id == id }, "\(label) \(id) listed"))
                 }
                 Self.expect(sums.intelligence, expected, label)
                 groupSums.append(sums.intelligence)
