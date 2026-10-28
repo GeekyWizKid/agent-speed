@@ -31,6 +31,9 @@ public sealed class ModelResolver
 {
     private const int CacheLimit = 4096;
 
+    /// <summary>Factory Droid's ids of the user's own models: <c>custom:&lt;name&gt;-&lt;n&gt;</c> (METRICS 4.16).</summary>
+    private const string CustomPrefix = "custom:";
+
     private readonly PriceNormalization _normalize;
     private readonly Dictionary<string, int> _byKey = new(StringComparer.Ordinal);
     private readonly bool[] _free;
@@ -194,6 +197,12 @@ public sealed class ModelResolver
         var n = _normalize;
         var k = ExactKey(model);
         yield return ("exact", k, false);
+        if (k.StartsWith(CustomPrefix, StringComparison.Ordinal))
+        {
+            k = CustomKey(k);
+            yield return ("custom", k, false);
+        }
+
         var slash = k.LastIndexOf('/');
         if (slash >= 0)
         {
@@ -427,6 +436,41 @@ public sealed class ModelResolver
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// The <c>custom</c> step key: the prefix removed, then a trailing <c>-[0-9]+</c> (droid's index), then spaces and
+    /// <c>-</c> at both ends (<c>str.strip(" -")</c>).
+    /// </summary>
+    private static string CustomKey(string key)
+    {
+        var end = key.Length;
+        while (end > CustomPrefix.Length && char.IsAsciiDigit(key[end - 1]))
+        {
+            end--;
+        }
+
+        if (end < key.Length && end > CustomPrefix.Length && key[end - 1] == '-')
+        {
+            end--;
+        }
+        else
+        {
+            end = key.Length;
+        }
+
+        var start = CustomPrefix.Length;
+        while (start < end && key[start] is ' ' or '-')
+        {
+            start++;
+        }
+
+        while (end > start && key[end - 1] is ' ' or '-')
+        {
+            end--;
+        }
+
+        return key[start..end];
     }
 
     /// <summary>Removes a trailing <c>-v\d+(:\d+)?</c>.</summary>
