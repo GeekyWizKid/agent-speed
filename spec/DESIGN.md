@@ -3782,7 +3782,33 @@ label wrapped in `a11y.task.unverified` / `a11y.task.pending`) followed by its m
 `a11y.task.predict.success` / `.stall` / `.fixFails` with the percentage spoken as shown (`a11y.task.below` /
 `a11y.task.above` for the clamps) and wrapped in `a11y.task.predict.calibrated` or `a11y.task.predict.prior`, the
 行為 lines, the facts and the footnote. The row's custom action `a11y.task.card` also shows the card for sighted
-keyboard users.
+keyboard users. The state is spoken once: when the score words already say it (`a11y.task.unverified`,
+`a11y.task.pending`), the chip's text is not added again. Windows has no `FullDescription` in WPF, so it uses the row's
+`AutomationProperties.HelpText`, and since UI Automation has no custom actions, Space on the focused row opens the
+card.
+
+**Keyboard.** Dashboard and board rows that show a score can take keyboard focus: macOS when keyboard navigation is
+on (Full Keyboard Access or "Keyboard navigation"), with the system focus ring; Windows always, with the standard
+focus visual. Space shows the card of the focused row, focus moves keep it on the focused row, and Esc closes it.
+
+**Fit.** A card taller than the visible screen area minus 16 pt (or 16 DIP) drops its dimension rows' one-line
+meanings first, then the footnote. The accessibility content stays complete. The card is a non-activating,
+click-through panel outside the window (macOS `NSPanel`; Windows a tool window like the taskbar tooltip, not a
+`Popup`).
+
+**Platform details**, for parity:
+- **Caption color.** The card's captions (dimension meanings, prediction notes, footnote) are slightly darker than
+  tertiary to keep 4.5:1 at 10.5 pt: dark `rgba(235,235,245,0.56)`, light `rgba(60,60,67,0.72)`. With Increase
+  Contrast or high contrast they take the system secondary color.
+- **Menu bar / taskbar.** A drop replaces the number at once, since the status item is one image. With Increase
+  Contrast (Windows high contrast) a live score takes the full label color, so that live and resting differ by more
+  than the pale level.
+- **Orb.** During the 10 s fade after its agents leave the agents list, the orb keeps its last score instead of
+  switching to `–`.
+- **Board under Increase Contrast.** The track and resting colors are adjusted so that a resting arc stays distinct
+  from the track.
+- **Hero card eyebrow.** The hero's card, resting with N ≥ 2, reads `task.card.top` in its resting form, e.g. 閒置 ·
+  2 個 agent 中最高.
 
 ### Usage History: task performance
 
