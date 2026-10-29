@@ -69,6 +69,7 @@ internal sealed partial class MonitorCore : IDisposable
     private long? _observedAtMs;
     private bool _keepEveryTask;
     private IReadOnlyDictionary<SourceKind, Tasks.TaskModels> _taskModels = new Dictionary<SourceKind, Tasks.TaskModels>();
+    private readonly Tasks.TaskWatchContext _taskWatch;
     private long _seededFiles;
 
     public MonitorCore(
@@ -93,6 +94,7 @@ internal sealed partial class MonitorCore : IDisposable
         _enabled = configuration.EnabledSources;
         _enabledSet = SourceSet.From(_enabled);
         _observer = observer;
+        _taskWatch = new Tasks.TaskWatchContext(() => Clock());
         _engine = new SpeedEngine(todayStartMs, pricing, zone);
         foreach (var (family, path) in locations.FileRoots())
         {
@@ -115,6 +117,13 @@ internal sealed partial class MonitorCore : IDisposable
         _ompAutomatic = locations.OmpAutomatic;
         _piAutomatic = locations.PiAutomatic;
         RefreshAvailability();
+    }
+
+    /// <summary>Live reporting's task watch (METRICS 11.10), as last published; the monitor thread sets it before reading.</summary>
+    internal Reporting.ReportTaskWatch TaskWatch
+    {
+        get => _taskWatch.Watch;
+        set => _taskWatch.Watch = value ?? Reporting.ReportTaskWatch.Off;
     }
 
     public SourceRoot CodexRoot { get; }
@@ -701,6 +710,8 @@ internal sealed partial class MonitorCore : IDisposable
         long nowMs, long todayStartMs, MonitorState state, bool observeLive, IReadOnlyCollection<SourceSet>? subsets = null)
     {
         ResolveParents();
+        _taskWatch.Tick(nowMs);
+        _engine.CountTasks(_taskWatch.TakeCompletions(), _taskWatch.Watch);
         var frame = _engine.Compute(nowMs, todayStartMs, observeLive);
         var agents = frame.Agents
             .Select(a => new AgentStatus(
@@ -1025,7 +1036,16 @@ internal sealed partial class MonitorCore : IDisposable
         }
 
         _collector.Items.Clear();
-        prepared.Batch.ApplyTo(_collector);
+        _taskWatch.Seeding = seeded;
+        try
+        {
+            prepared.Batch.ApplyTo(_collector);
+        }
+        finally
+        {
+            _taskWatch.Seeding = false;
+        }
+
         if (seeded)
         {
             tracked.Parser.ForgetWork();
@@ -1173,6 +1193,7 @@ internal sealed partial class MonitorCore : IDisposable
 
         if (!_enabled.Contains(parser.Source))
         {
+            _taskWatch.Forget(parser.AgentId);
             _engine.RemoveAgent(parser.AgentId);
             _linksChanged |= _links.Remove(parser.AgentId);
             return;
@@ -1321,6 +1342,7 @@ internal sealed partial class MonitorCore : IDisposable
     private TrackedFile NewTrackedFile(SourceRoot root, string path)
     {
         var tracked = new TrackedFile(root, path, _deduper);
+        tracked.Parser.TaskWatch = _taskWatch;
         if (_keepEveryTask)
         {
             tracked.Parser.KeepEveryTask();
@@ -1380,6 +1402,7 @@ internal sealed partial class MonitorCore : IDisposable
 
             _removedMalformedLines += tracked.Parser.MalformedLines;
             _removedOversizedLines += tracked.Tailer.OversizedLines;
+            _taskWatch.Forget(tracked.Parser.AgentId);
             _engine.RemoveAgent(tracked.Parser.AgentId);
             _linksChanged |= _links.Remove(tracked.Parser.AgentId);
         }

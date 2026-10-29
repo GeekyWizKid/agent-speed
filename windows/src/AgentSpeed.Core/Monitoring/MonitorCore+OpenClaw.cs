@@ -25,7 +25,10 @@ internal sealed partial class MonitorCore
         _codexAutomatic = locations.CodexAutomatic;
         if (_enabled.Contains(SourceKind.OpenClaw) && _openClawRootPaths.Count > 0)
         {
-            _openClaw = new OpenClawSource(_openClawRootPaths, _openClawAutomatic ? () => CurrentOpenClawRoots() : null, _deduper);
+            _openClaw = new OpenClawSource(_openClawRootPaths, _openClawAutomatic ? () => CurrentOpenClawRoots() : null, _deduper)
+            {
+                TaskWatch = _taskWatch,
+            };
             RefreshOpenClawWatchRoots();
         }
     }
@@ -64,7 +67,17 @@ internal sealed partial class MonitorCore
             return;
         }
 
-        var update = openClaw.Seed(todayStartMs, cancellationToken);
+        OpenClawUpdate update;
+        _taskWatch.Seeding = true;
+        try
+        {
+            update = openClaw.Seed(todayStartMs, cancellationToken);
+        }
+        finally
+        {
+            _taskWatch.Seeding = false;
+        }
+
         discovered += openClaw.DatabasePaths.Count;
         filesRead += update.DatabasesRead;
         bytesRead += update.BytesRead;
@@ -116,6 +129,7 @@ internal sealed partial class MonitorCore
         foreach (var id in update.Removed)
         {
             _openClawPushed.Remove(id);
+            _taskWatch.Forget(id);
             _engine.RemoveAgent(id);
             _linksChanged |= _links.Remove(id);
         }

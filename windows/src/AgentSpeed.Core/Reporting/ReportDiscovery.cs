@@ -203,7 +203,7 @@ public sealed class ReportDiscovery
 
     /// <summary>
     /// What the preview assumes before a service's document is known (DESIGN 11, Preview window): the API at the service
-    /// URL, every section and the protocol's defaults. Never stored or confirmed.
+    /// URL, every section, the protocol's defaults and the task score extension (METRICS 11.10). Never stored or confirmed.
     /// </summary>
     public static ReportDiscovery? Assumed(ReportServiceUrl service, string name)
     {
@@ -212,7 +212,8 @@ public sealed class ReportDiscovery
             ("protocol", ReportJson.Of(ProtocolName)),
             ("versions", ReportJson.Array([ReportJson.Of(SupportedVersion)])),
             ("service", ReportJson.Object(("name", ReportJson.Of(name)), ("terms", ReportJson.Of(link)), ("privacy", ReportJson.Of(link)))),
-            ("api", ReportJson.Of(service.Text)));
+            ("api", ReportJson.Of(service.Text)),
+            ("extensions", ReportJson.Object((ReportExtensions.TaskScoreName, ReportJson.Of(1)))));
         return Parse(json.ToCompactBytes(), service, out _);
     }
 
@@ -373,7 +374,7 @@ public sealed class ReportDiscovery
         }
 
         var extensions = new ReportExtensions(root.Extension("modelHarnessRequests"), root.Extension("executionModes"), root.Extension("profileAvatar"),
-            root.Extension("sharedIdentity"), root.Extension(ReportWebSocketProtocol.Extension));
+            root.Extension("sharedIdentity"), root.Extension(ReportWebSocketProtocol.Extension), root.Extension(ReportExtensions.TaskScoreName));
         return new ReportDiscovery
         {
             Versions = versions,

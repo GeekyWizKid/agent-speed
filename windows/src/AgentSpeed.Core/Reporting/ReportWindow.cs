@@ -129,7 +129,11 @@ public sealed record ReportWindowContent(
     IReadOnlyDictionary<SourceKind, TrafficBytes> AgentBytes,
     Rate Peak,
     double PeakCost,
-    TrafficRate? PeakRate);
+    TrafficRate? PeakRate)
+{
+    /// <summary>The task ledger's rows a build takes (METRICS 11.10); empty unless the extension is active.</summary>
+    public IReadOnlyDictionary<ReportModelKey, ReportTaskRow> Tasks { get; init; } = new Dictionary<ReportModelKey, ReportTaskRow>();
+}
 
 /// <summary>The open window of a run: a baseline of the cumulative counters and the peaks since the window started.</summary>
 public sealed class ReportWindow
@@ -160,19 +164,23 @@ public sealed class ReportWindow
         sample.Facts.Counters.HasTokensSince(sample.Facts.Epoch == _lastEpoch ? _lastCounters : ReportCounters.Zero);
 
     /// <summary>
-    /// The ledger received an increment since the previous tick — tokens, cost or an unpriced request, and agent traffic when
-    /// <paramref name="traffic"/> (the report carries it) — the changed rule of METRICS 11.9. The engine copies its counters
-    /// only after a change, so an unchanged tick costs a reference comparison.
+    /// The ledger received an increment since the previous tick — tokens, cost or an unpriced request, a task completion
+    /// (METRICS 11.10), and agent traffic when <paramref name="traffic"/> (the report carries it) — the changed rule of METRICS
+    /// 11.9. The engine copies its counters only after a change, so an unchanged tick costs a reference comparison.
     /// </summary>
     public bool HasIncrement(ReportSample sample, bool traffic)
     {
         ArgumentNullException.ThrowIfNull(sample);
         var counters = sample.Facts.Counters;
         var tokens = sample.Facts.Epoch != _lastEpoch
-            ? counters.ByModel.Count > 0
-            : !ReferenceEquals(counters, _lastCounters) && counters.Since(_lastCounters).ByModel.Count > 0;
+            ? counters.ByModel.Count > 0 || counters.TaskCompleted > 0
+            : !ReferenceEquals(counters, _lastCounters) && (counters.Since(_lastCounters).ByModel.Count > 0 || Completed(counters, _lastCounters));
         return tokens || (traffic && !ReferenceEquals(sample.Traffic.Totals, _lastTraffic) && sample.Traffic.AgentBytes(_lastTraffic).Count > 0);
     }
+
+    private static bool Completed(ReportCounters now, ReportCounters before) => now.TaskGeneration != before.TaskGeneration
+        ? now.TaskCompleted > 0
+        : now.TaskCompleted > before.TaskCompleted;
 
     /// <summary>Empties the window. <paramref name="keepingTick"/> keeps this tick's increments (the gap rule, METRICS 11.1).</summary>
     public void Discard(ReportSample sample, bool keepingTick)

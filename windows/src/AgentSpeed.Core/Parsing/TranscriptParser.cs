@@ -88,6 +88,9 @@ internal abstract class TranscriptParser
     /// <summary>The file side of the composer, used by <c>Extract</c> on the reading thread.</summary>
     internal TaskLineReader? TaskReader { get; private set; }
 
+    /// <summary>Live reporting's watch (METRICS 11.10), given by the live monitor; null elsewhere (history, dumps, tests).</summary>
+    internal TaskWatchContext? TaskWatch { get; set; }
+
     /// <summary>Changes whenever agent-visible state changes.</summary>
     public int Version { get; private set; }
 
@@ -171,11 +174,15 @@ internal abstract class TranscriptParser
         var duplicate = key is not null && Deduper.TryGetOwner(key, out var owner)
             && !string.Equals(owner, AgentId, StringComparison.Ordinal);
         var before = tasks.Revision;
-        tasks.Feed(line, t, assistant || line?.Assistant == true, duplicate, suppressCalls, Model,
-            tasks.KeepsNotes ? EffortAndSpeed.Effort(Modes)?.Mode : null);
+        tasks.Feed(line, t, assistant || line?.Assistant == true, duplicate, suppressCalls, Model, EffortAndSpeed.Effort(Modes)?.Mode, TaskWatch);
         if (tasks.Revision != before)
         {
             Version++;
+        }
+
+        if (TaskWatch is { } watch && (tasks.HasWatchedTask || tasks.HasDone))
+        {
+            watch.Collect(this);
         }
     }
 

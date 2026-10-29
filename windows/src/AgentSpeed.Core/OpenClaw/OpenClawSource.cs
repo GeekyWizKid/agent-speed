@@ -60,6 +60,9 @@ internal sealed class OpenClawSource
     /// <summary>Windows keep every task's events (the probe's dumps); set before the first read.</summary>
     internal bool KeepEveryTask { get; set; }
 
+    /// <summary>Live reporting's watch (METRICS 11.10), given to every window's parser.</summary>
+    internal Tasks.TaskWatchContext? TaskWatch { get; init; }
+
     public IEnumerable<OpenClawParser> Parsers => _databases.Values.SelectMany(d => d.Windows.Values).Select(w => w.Parser);
 
     public IReadOnlyCollection<string> DatabasePaths => _databases.Keys;
@@ -343,7 +346,7 @@ internal sealed class OpenClawSource
             var generation = generations.GetValueOrDefault(window.SessionId);
             if (!tracked.Windows.TryGetValue(window.SessionId, out var state))
             {
-                var parser = new OpenClawParser(tracked.Path, window, _deduper);
+                var parser = new OpenClawParser(tracked.Path, window, _deduper) { TaskWatch = TaskWatch };
                 if (KeepEveryTask)
                 {
                     parser.KeepEveryTask();
