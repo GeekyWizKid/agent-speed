@@ -156,13 +156,16 @@ enum IntelligenceBarPreviews {
                 let state = state(model, scenario, increasedContrast: increasedContrast)
                 let size = NSSize(width: state.layout.length, height: state.layout.height)
                 let block = CGRect(x: state.layout.intelligenceX, y: 0, width: state.layout.intelligenceWidth, height: size.height)
-                let crops = [(2.0, 8.0), (1.0, 16.0)].compactMap { scale, zoom -> (CGImage, CGFloat)? in
-                    guard let bitmap = StatusItemArtist.render(state, dark: dark, size: size, scale: scale),
-                          let crop = bitmap.cropping(to: CGRect(x: block.minX * scale, y: 0, width: block.width * scale,
-                                                                height: size.height * scale)) else { return nil }
-                    return (crop, zoom)
+                let factors: [(scale: CGFloat, zoom: CGFloat)] = [(2, 8), (1, 16)]
+                let crops: [(image: CGImage, zoom: CGFloat)] = factors.compactMap { factor in
+                    guard let bitmap = StatusItemArtist.render(state, dark: dark, size: size, scale: factor.scale),
+                          let crop = bitmap.cropping(to: CGRect(x: block.minX * factor.scale, y: 0,
+                                                                width: block.width * factor.scale,
+                                                                height: size.height * factor.scale)) else { return nil }
+                    return (crop, factor.zoom)
                 }
-                let width = crops.reduce(0) { $0 + CGFloat($1.0.width) * $1.1 + 16 }
+                var width: CGFloat = 0
+                for crop in crops { width += CGFloat(crop.image.width) * crop.zoom + 16 }
                 let height = size.height * 16
                 let image = NSImage(size: CGSize(width: width, height: height), flipped: false) { rect in
                     (dark ? NSColor(white: 0.16, alpha: 1) : NSColor(white: 0.93, alpha: 1)).setFill()
