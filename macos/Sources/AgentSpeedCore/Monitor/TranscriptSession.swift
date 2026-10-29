@@ -122,6 +122,12 @@ final class TranscriptSession {
     /// Each scored source's prediction coefficients (METRICS 6.11 *Calibration*), from the history analysis.
     private var taskModels: [SourceKind: TaskModels] = [:]
     private var taskModelsVersion = 0
+    /// Live reporting's watch epoch (METRICS 11.10 *Watch*); nil while it is off.
+    private var reportWatch: Int?
+    /// The startup backlog is being read: its tasks are history.
+    private var seeding = false
+    /// Files whose task stream has watched tasks (the 30-minute rule checks only these).
+    private var watchedFiles: Set<String> = []
 
     /// Wall-clock milliseconds, for the age rule of completion events (METRICS 6.4); tests pin it.
     private let clock: @Sendable () -> Int64
@@ -161,6 +167,7 @@ final class TranscriptSession {
             ? HermesSource(root: hermesRoot.path, isSetting: hermesRoot.isSetting,
                            timeZone: configuration.resolvedHermesTimeZone, limits: limits) : nil
         refreshAvailability()
+        openclaw?.taskWatch = { [weak self] in self?.taskWatchContext() }
     }
 
     // MARK: - Roots
@@ -253,6 +260,8 @@ final class TranscriptSession {
         let started = DispatchTime.now().uptimeNanoseconds
         var summary = SeedSummary()
         self.todayStartMs = todayStartMs
+        seeding = true
+        defer { seeding = false }
         refreshAvailability()
 
         var backlog: [(file: DiscoveredFile, tracked: TrackedFile, start: FileTailer.Start)] = []
@@ -579,6 +588,7 @@ final class TranscriptSession {
             return false
         }
         if file.family.isDatabase { return readDatabase(file, live: live) }
+        file.parser.setTaskWatch(live ? taskWatchContext() : nil)
         var upserts: [ResponseUpsert] = []
         let metadataChanged = file.parser.refreshMetadata(deduper: &deduper) { upserts.append($0) }
         for upsert in upserts { deliver(upsert, project: projectName(of: file), live: live) }
@@ -652,6 +662,7 @@ final class TranscriptSession {
         }
         if result.read.didReset { file.resetParser() }
         file.parser.taskReader = result.taskReader
+        file.parser.setTaskWatch(taskWatchContext())
         var upserts: [ResponseUpsert] = []
         file.parser.consume(result.lines, taskLines: result.taskLines, deduper: &deduper) { upserts.append($0) }
         let project = projectName(of: file)
@@ -666,6 +677,7 @@ final class TranscriptSession {
 
     private func finishRead(of file: TrackedFile, result: FileTailer.ReadResult) {
         file.wasRead = true
+        takeTaskCompletions(of: file)
         if result.oversized || file.parser.hasPartialHistory { partialHistory = true }
         if result.failed {
             unreadablePaths.insert(file.path)
@@ -724,6 +736,7 @@ final class TranscriptSession {
             engine.setParents(parentLinks)
             parentLinksAreStale = false
         }
+        completeIdleTasks(nowMs: nowMs)
         let output = engine.advance(nowMs: nowMs, todayStartMs: todayStartMs, emitsEvents: emitsEvents, subsets: subsets)
         let events = pendingEvents + output.events
         pendingEvents.removeAll()
@@ -856,6 +869,7 @@ final class TranscriptSession {
 
     @discardableResult
     private func apply(_ update: OpenClawSource.Update, live: Bool) -> Bool {
+        for (agentId, completion) in update.completions { recordTaskCompletion(completion, agentId: agentId, source: .openclaw) }
         guard !update.isEmpty else { return false }
         for (upsert, project) in update.upserts { deliver(upsert, project: project, live: live) }
         for id in update.removedAgents { engine.removeAgent(id: id) }
@@ -894,6 +908,52 @@ final class TranscriptSession {
         return true
     }
 
+    // MARK: - Live reporting (METRICS 11.10)
+
+    /// The report watch's epoch from the reporting side, nil while it is off. A change unwatches every task (a break, or
+    /// a new watch whose tasks start from now).
+    func setReportWatch(_ epoch: Int?) {
+        guard epoch != reportWatch else { return }
+        reportWatch = epoch
+        for path in watchedFiles { files[path]?.parser.clearTaskWatch() }
+        watchedFiles.removeAll()
+        openclaw?.clearTaskWatch()
+    }
+
+    /// What a live read marks new tasks with; nil while the watch is off or seeding runs.
+    private func taskWatchContext() -> ReportTaskWatchContext? {
+        guard !seeding, let reportWatch else { return nil }
+        return ReportTaskWatchContext(epoch: reportWatch, nowMs: clock())
+    }
+
+    private func takeTaskCompletions(of file: TrackedFile) {
+        for completion in file.parser.takeTaskCompletions() {
+            recordTaskCompletion(completion, agentId: file.path, source: file.parser.state.source)
+        }
+        if file.parser.hasWatchedTasks {
+            watchedFiles.insert(file.path)
+        } else {
+            watchedFiles.remove(file.path)
+        }
+    }
+
+    private func recordTaskCompletion(_ completion: TaskCompletion, agentId: String, source: SourceKind) {
+        guard reportWatch == completion.epoch, enabledSources.contains(source) else { return }
+        engine.recordTaskCompletion(completion, agentId: agentId, source: source)
+    }
+
+    /// The 30-minute rule of METRICS 11.10 *Counting*: an agent quiet that long completes its watched tasks, whether or
+    /// not it is still listed.
+    private func completeIdleTasks(nowMs: Int64) {
+        for path in watchedFiles {
+            guard let file = files[path], let last = file.parser.state.lastLineMs,
+                  TaskRecord.idle(nowMs, since: last) else { continue }
+            file.parser.completeWatchedTasks()
+            takeTaskCompletions(of: file)
+        }
+        if let update = openclaw?.completeIdleTasks(nowMs: nowMs) { apply(update, live: true) }
+    }
+
     // MARK: - Tracking
 
     private func track(_ file: DiscoveredFile, family: TranscriptFamily, root: String, start: FileTailer.Start) -> TrackedFile {
@@ -907,6 +967,7 @@ final class TranscriptSession {
     }
 
     private func untrack(_ path: String) {
+        watchedFiles.remove(path)
         guard let file = files.removeValue(forKey: path) else { return }
         removedMalformedLines += file.parser.state.malformedLines
         unreadablePaths.remove(path)

@@ -317,13 +317,14 @@ struct TranscriptParser: Sendable {
 
     // MARK: - Task stream (METRICS 6.9)
 
-    /// Applies a line's task operations right after the line was parsed; in history, notes the model and effort after
-    /// it (6.11 *Task records*).
+    /// Applies a line's task operations right after the line was parsed, then notes the model and effort after it: in
+    /// history (6.11 *Task records*), and live while the report watch is on, which takes a completed task's model from
+    /// them (METRICS 11.10; a watched task starts at a line read then, so earlier notes are never needed).
     private mutating func feedTask(_ line: TaskLine, deduper: Deduper) {
         guard tasks != nil else { return }
         let fileID = self.fileID
         guard let t = tasks!.feed(line, isDuplicate: { deduper.isOwnedByOtherFile($0, for: fileID) }),
-              tasks!.keepsEveryTask else { return }
+              tasks!.keepsEveryTask || tasks!.watch != nil else { return }
         let state = self.state
         let effort: String?
         if let noted = notedModes, noted.modes == state.modes {
@@ -334,6 +335,29 @@ struct TranscriptParser: Sendable {
             notedModes = (state.modes, effort)
         }
         tasks!.note(t: t, model: state.model, effort: effort)
+    }
+
+    // MARK: - Live reporting (METRICS 11.10)
+
+    /// The watch for the lines read next; nil while it is off or seeding runs.
+    mutating func setTaskWatch(_ context: ReportTaskWatchContext?) {
+        tasks?.watch = context
+    }
+
+    var hasWatchedTasks: Bool { tasks?.hasWatchedTasks ?? false }
+
+    /// The agent has been quiet for 30 minutes: its watched tasks complete.
+    mutating func completeWatchedTasks() {
+        tasks?.completeWatchedTasks()
+    }
+
+    /// A break: every task is unwatched.
+    mutating func clearTaskWatch() {
+        tasks?.clearWatch()
+    }
+
+    mutating func takeTaskCompletions() -> [TaskCompletion] {
+        tasks?.takeCompletions() ?? []
     }
 
     // MARK: - Factory Droid read cycles (METRICS 4.16)

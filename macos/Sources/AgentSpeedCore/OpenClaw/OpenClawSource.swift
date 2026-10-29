@@ -15,11 +15,14 @@ final class OpenClawSource {
         /// Agent id → current task (METRICS 6.9), for the windows in `agents`.
         var tasks: [String: AgentTaskStatus] = [:]
         var removedAgents: [String] = []
+        /// Watched tasks that completed (METRICS 11.10), by agent id.
+        var completions: [(agentId: String, completion: TaskCompletion)] = []
 
         var isEmpty: Bool { upserts.isEmpty && agents.isEmpty && removedAgents.isEmpty }
 
         mutating func merge(_ other: Update) {
             upserts += other.upserts
+            completions += other.completions
             for id in other.removedAgents {
                 agents[id] = nil
                 tasks[id] = nil
@@ -92,6 +95,8 @@ final class OpenClawSource {
         didSet { taskModelsVersion += 1 }
     }
     private var taskModelsVersion = 0
+    /// Live reporting's watch for the rows read now (METRICS 11.10); nil while it is off or seeding runs.
+    var taskWatch: () -> ReportTaskWatchContext? = { nil }
 
     init(roots: [String], maxLineBytes: Int = FileTailer.defaultMaxLineBytes) {
         self.roots = roots
@@ -348,14 +353,20 @@ final class OpenClawSource {
             }
         }
         var taskReader = window.taskReader
+        window.tasks.watch = taskWatch()
         try connection.rows(session: info.sessionId, after: window.lastSeq, maxLineBytes: maxLineBytes, readsTools: readsTools,
                             tasks: &taskReader) { row in
             window.lastSeq = max(window.lastSeq, row.seq)
             guard let entry = row.entry else { return }
             window.parser.consume(entry, tools: row.tools, deduper: &deduper) { upserts.append($0) }
-            window.tasks.feed(row.task) { deduper.isOwnedByOtherFile($0, for: fileID) }
+            guard let t = window.tasks.feed(row.task, isDuplicate: { deduper.isOwnedByOtherFile($0, for: fileID) }),
+                  window.tasks.watch != nil else { return }
+            // Live reporting takes a completed task's model from these notes (METRICS 11.10).
+            let effort = window.parser.state.modes.attribution(for: .effort)
+            window.tasks.note(t: t, model: window.parser.state.model, effort: effort.isUnknown ? nil : effort.mode)
         }
         window.taskReader = taskReader
+        update.completions += window.tasks.takeCompletions().map { (agentId, $0) }
         let status = window.taskStatus(models: taskModels[.openclaw] ?? .prior, version: taskModelsVersion)
         database.windows[info.sessionId] = window
         let project = Self.project(of: window.parser.state, agentId: agentId)
@@ -373,6 +384,32 @@ final class OpenClawSource {
                 update.agents[agentId] = window.parser.state
                 update.tasks[agentId] = window.taskStatus(models: taskModels[.openclaw] ?? .prior, version: taskModelsVersion)
                 database.windows[id] = window
+            }
+        }
+        return update
+    }
+
+    // MARK: - Live reporting (METRICS 11.10)
+
+    /// A break: every window's tasks are unwatched.
+    func clearTaskWatch() {
+        for database in databases.values {
+            for id in Array(database.windows.keys) where database.windows[id]?.tasks.hasWatchedTasks == true {
+                database.windows[id]?.tasks.clearWatch()
+            }
+        }
+    }
+
+    /// The 30-minute rule: a window quiet that long completes its watched tasks.
+    func completeIdleTasks(nowMs: Int64) -> Update {
+        var update = Update()
+        for database in databases.values {
+            for (id, window) in database.windows where window.tasks.hasWatchedTasks {
+                guard let last = window.parser.state.lastLineMs, TaskRecord.idle(nowMs, since: last) else { continue }
+                var tasks = window.tasks
+                tasks.completeWatchedTasks()
+                update.completions += tasks.takeCompletions().map { (Self.agentId(database.path, id), $0) }
+                database.windows[id]?.tasks = tasks
             }
         }
         return update
