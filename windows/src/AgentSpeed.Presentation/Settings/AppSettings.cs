@@ -247,6 +247,9 @@ public sealed record AppSettings
     /// <summary>The history's effort and speed section shows this kind (DESIGN 4b, 3b): effort or speed.</summary>
     public ExecutionModeKind HistoryModeKind { get; init; } = ExecutionModeKind.Effort;
 
+    /// <summary>The two sources the history's task performance compares (DESIGN 12); null takes the default pair.</summary>
+    public History.Tasks.TaskPair? HistoryTaskPair { get; init; }
+
     /// <summary>Key of the monitor the orb was last placed on.</summary>
     public string? OrbMonitor { get; init; }
 
@@ -398,6 +401,7 @@ public sealed record AppSettings
         DroidRoot = CleanPath(DroidRoot),
         HistoryWindow = WindowFrame.ValidHistory(HistoryWindow),
         HistoryModeKind = HistoryModeKind == ExecutionModeKind.Speed ? ExecutionModeKind.Speed : ExecutionModeKind.Effort,
+        HistoryTaskPair = HistoryTaskPair is { IsValid: true } pair ? pair : null,
         ChartSeconds = ChartMath.NormalizeRange(ChartSeconds),
         HeroLastTitle = VehicleArt.NormalizeKey(HeroLastTitle),
         TitleThemes = (TitleThemes ?? TitleThemesDocument.Default).Validated(),
