@@ -1,0 +1,99 @@
+import AgentSpeedCore
+import AgentSpeedOrbModel
+import CoreGraphics
+import Foundation
+import Testing
+@testable import AgentSpeed
+
+/// DESIGN 2c *The second line*: in a two-line group row (M and L) the 智力 cell and the value leave line 1, share one
+/// baseline with the cap-height centre of their digits on the row's centre line (19 under the top at M, 20 at L), and
+/// are 2 pt larger; S rows and sub rows keep their sizes. Checked on the rendered pixels.
+@Suite("Board row figures")
+@MainActor
+struct BoardRowFiguresTests {
+    static let l10n = Localizer(preference: .zhHant)
+
+    static func layout(_ style: BoardStyle, _ size: BoardSize) -> (tick: BoardTick, layout: BoardContentLayout) {
+        let feed = BoardSimFeed(simulation: BoardSimulation(scenario: "team"), style: style, size: size, dark: false, l10n: l10n,
+                                metrics: .init())
+        for _ in 0..<40 { feed.step() }
+        return (feed.tick, feed.layout)
+    }
+
+    /// The vertical extent of what `item` paints (points from its top), measured at 4×.
+    static func inkExtent(_ item: BoardContentItem) throws -> (top: CGFloat, bottom: CGFloat) {
+        let scale: CGFloat = 4
+        let image = try #require(BoardRaster.image(size: item.frame.size, scale: scale, draw: item.draw))
+        let data = try #require(image.dataProvider?.data as Data?)
+        var alphas: [UInt8] = []
+        for y in 0..<image.height {
+            var row: UInt8 = 0
+            for x in 0..<image.width { row = max(row, data[y * image.bytesPerRow + x * 4 + 3]) }
+            alphas.append(row)
+        }
+        let threshold = (alphas.max() ?? 0) / 2
+        let top = try #require(alphas.firstIndex { $0 > threshold })
+        let bottom = try #require(alphas.lastIndex { $0 > threshold })
+        return (CGFloat(top) / scale, CGFloat(bottom + 1) / scale)
+    }
+
+    @Test func twoLineFiguresCentreOnTheRow() throws {
+        for style in BoardStyle.allCases {
+            for size in [BoardSize.medium, .large] {
+                let (tick, layout) = Self.layout(style, size)
+                let geometry = BoardGeometry(style, size, readouts: tick.metrics.readouts)
+                #expect(geometry.figureCentre == (size == .medium ? 19 : 20))
+                let group = tick.groups[0]
+                let row = try #require(layout.groupRows[group.id]?.row)
+                for suffix in ["#value", "#iq"] {
+                    let item = try #require(layout.items.first { $0.key == group.id + suffix }, "\(style) \(size) \(suffix)")
+                    let ink = try Self.inkExtent(item)
+                    let centre = item.frame.minY + (ink.top + ink.bottom) / 2 - row.minY
+                    #expect(abs(centre - CGFloat(geometry.figureCentre)) <= 0.75,
+                            "\(style) \(size) \(suffix): the digits' centre is \(centre)")
+                }
+            }
+        }
+    }
+
+    @Test func figuresGrowTwoPointsOnlyInTwoLineGroupRows() {
+        #expect(BoardListRows.intelFont(style: .glass, sub: false, live: true, large: true).size == 13)
+        #expect(BoardListRows.intelFont(style: .neon, sub: false, live: true, large: true).size == 13)
+        #expect(BoardTimingRows.intelFont(sub: false, live: true, large: true).size == 13)
+        #expect(BoardListRows.valueFont(style: .glass, sub: false, idle: false, large: true).size == 15)
+        #expect(BoardListRows.valueFont(style: .neon, sub: false, idle: false, large: true).size == 15)
+        #expect(BoardTimingRows.valueFont(sub: false, idle: false, large: true).size == 15)
+        // Sub rows and S keep their sizes.
+        #expect(BoardListRows.intelFont(style: .glass, sub: true, live: true).size == 10.5)
+        #expect(BoardTimingRows.valueFont(sub: true, idle: false).size == 11)
+    }
+
+    @Test func theColumnsFitTheLargerFigures() {
+        for style in [BoardStyle.glass, .neon] {
+            let palette = BoardPalette(style: style, dark: false, highContrast: false)
+            let geometry = BoardGeometry(style, .medium, readouts: .all)
+            let rows = BoardListRows(style: style, size: .medium, palette: palette, capsules: BoardEffortCapsules.shared,
+                                     geometry: geometry, caption: "智力")
+            let digits = BoardLabel("888", BoardListRows.intelFont(style: style, sub: false, live: true, large: true), color: palette.ink)
+            #expect(rows.intelCell >= digits.width.rounded(.up))
+            let value = BoardListRows.valueFont(style: style, sub: false, idle: false, large: true)
+            #expect(rows.valueWidth >= BoardFigures.widest(value, color: palette.ink) && rows.valueWidth >= 44)
+            // One-line boards keep the table's columns.
+            let small = BoardListRows(style: style, size: .small, palette: palette, capsules: BoardEffortCapsules.shared,
+                                      geometry: BoardGeometry(style, .small, readouts: .all), caption: "智力")
+            #expect(small.valueWidth == 44)
+        }
+    }
+
+    @Test func oneLineRowsKeepTheirPlaces() throws {
+        // S: a group row's value is centred on its own line as before, at the one-line size.
+        let (tick, layout) = Self.layout(.glass, .small)
+        let group = tick.groups[0]
+        let row = try #require(layout.groupRows[group.id]?.row)
+        let item = try #require(layout.items.first { $0.key == group.id + "#value" })
+        let ink = try Self.inkExtent(item)
+        let centre = item.frame.minY + (ink.top + ink.bottom) / 2 - row.minY
+        #expect(abs(centre - row.height / 2) <= 1.5, "S stays one line: \(centre) in a \(row.height) pt row")
+        #expect(ink.bottom - ink.top < 11, "S keeps the 13 pt value (digits about 9.2 pt tall)")
+    }
+}

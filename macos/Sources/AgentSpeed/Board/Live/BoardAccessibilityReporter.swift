@@ -5,9 +5,10 @@ import AppKit
 
 /// VoiceOver for one board (DESIGN 2c Accessibility): the board is a list labelled `a11y.board` (its sources, value
 /// and title), each shown group row an item labelled `a11y.board.row` with its 智力 words, effort, speed and sub-agent
-/// count. While `intelligence` is on, a row carries its score card as extra content (VoiceOver's "more content") and
-/// the custom action `a11y.task.card`, which shows the card. Labels update at most once per second; a new leader is
-/// announced politely at most once per 10 s.
+/// count. While `intelligence` is on, the sub rows are items too, and every row carries its score card as extra content
+/// (VoiceOver's "more content") and the custom action `a11y.task.card`, which shows the card (DESIGN 12). The row with
+/// the keyboard focus is the focused element. Labels update at most once per second; a new leader is announced
+/// politely at most once per 10 s.
 @MainActor
 final class BoardAccessibilityReporter {
     static let interval: TimeInterval = 1
@@ -15,9 +16,13 @@ final class BoardAccessibilityReporter {
     private weak var host: BoardHostView?
     private var publishedAt: TimeInterval = -.infinity
     private var announcer = BoardAnnouncer()
-    private var rows: [NSAccessibilityElement] = []
-    /// The custom action `a11y.task.card` on a row (its key): shows its card, or hides it when it shows.
+    private var rows: [BoardRowAccessibilityElement] = []
+    /// The custom action `a11y.task.card` on a row (its key), or a press: shows its card, or hides it when it shows.
     var onCardAction: ((String) -> Void)?
+    /// An assistive app focused a row (its key): the keyboard focus follows.
+    var onFocus: ((String) -> Void)?
+    /// The row with the keyboard focus.
+    private(set) var focusedKey: String?
 
     init(host: BoardHostView) {
         self.host = host
@@ -52,28 +57,72 @@ final class BoardAccessibilityReporter {
     }
 
     private func rowElements(tick: BoardTick, layout: BoardContentLayout?, frameInScreen: CGRect, l10n: Localizer,
-                             parent: NSView) -> [NSAccessibilityElement] {
+                             parent: NSView) -> [BoardRowAccessibilityElement] {
         let intelligence = tick.metrics.readouts.intelligence
-        return tick.rows.compactMap { row -> NSAccessibilityElement? in
-            guard case .group(let index) = row.kind, index < tick.groups.count else { return nil }
-            let group = tick.groups[index]
-            let box = layout?.groupRows[group.id]?.row ?? .zero
+        return tick.rows.compactMap { row -> BoardRowAccessibilityElement? in
+            let label: String, box: CGRect?, card: TaskScoreCardModel?
+            switch row.kind {
+            case .group(let index) where index < tick.groups.count:
+                let group = tick.groups[index]
+                label = Self.rowLabel(group, rank: index + 1, l10n: l10n, intelligence: intelligence)
+                box = layout?.groupRows[group.id]?.row
+                card = intelligence ? BoardScoreCards.group(group, l10n: l10n) : nil
+            case .sub(let index, let sub) where intelligence && index < tick.groups.count && sub < tick.groups[index].subs.count:
+                let agent = tick.groups[index].subs[sub]
+                label = Self.subRowLabel(agent, metric: tick.metric, l10n: l10n)
+                box = layout?.subRows[agent.id]
+                card = BoardScoreCards.sub(agent, metric: tick.metric, l10n: l10n)
+            default:
+                return nil
+            }
             let element = BoardRowAccessibilityElement()
+            element.key = row.key
             element.setAccessibilityRole(.staticText)
             element.setAccessibilityParent(parent)
-            element.setAccessibilityFrame(CGRect(x: frameInScreen.minX + box.minX, y: frameInScreen.maxY - box.maxY,
-                                                 width: box.width, height: box.height))
-            element.setAccessibilityLabel(Self.rowLabel(group, rank: index + 1, l10n: l10n, intelligence: intelligence))
-            guard intelligence else { return element }
-            let title = l10n("a11y.task.card")
-            element.accessibilityCustomContent = Self.cardContent(BoardScoreCards.group(group, l10n: l10n), l10n: l10n)
+            let frame = box ?? .zero
+            element.setAccessibilityFrame(CGRect(x: frameInScreen.minX + frame.minX, y: frameInScreen.maxY - frame.maxY,
+                                                 width: frame.width, height: frame.height))
+            element.setAccessibilityLabel(label)
+            if row.key == focusedKey { element.setAccessibilityFocused(true) }
+            element.onFocus = { [weak self] key in self?.onFocus?(key) }
+            guard let card else { return element }
+            element.accessibilityCustomContent = Self.cardContent(card, l10n: l10n)
             let key = row.key
-            element.setAccessibilityCustomActions([NSAccessibilityCustomAction(name: title) { [weak self] in
+            element.onPress = { [weak self] in self?.onCardAction?(key) }
+            element.setAccessibilityCustomActions([NSAccessibilityCustomAction(name: l10n("a11y.task.card")) { [weak self] in
                 MainActor.assumeIsolated { self?.onCardAction?(key) }
                 return true
             }])
             return element
         }
+    }
+
+    /// The keyboard focus moved to `key` (nil: it left the board): that row becomes the focused element at once.
+    func setFocus(_ key: String?) {
+        guard key != focusedKey else { return }
+        focusedKey = key
+        for element in rows where element.isAccessibilityFocused() != (element.key == key) {
+            element.setAccessibilityFocused(element.key == key)
+        }
+        if let element = rows.first(where: { $0.key == key }) {
+            NSAccessibility.post(element: element, notification: .focusedUIElementChanged)
+        }
+    }
+
+    /// The focused row's element, for the host's focused element.
+    var focusedElement: Any? { rows.first { $0.key == focusedKey && focusedKey != nil } }
+
+    /// A sub row in the group rows' style: `explore，子 agent，118 tok/s，智力 9，尚未驗證，推理強度 max`.
+    static func subRowLabel(_ agent: AgentStatus, metric: SpeedMetric, l10n: Localizer) -> String {
+        let name = agent.project.isEmpty ? l10n(agent.source.titleKey) : agent.project
+        var parts = [name, l10n("agents.subagent"),
+                     l10n("mac.settings.speedValue", SpeedFormat.speed(max(0, agent.live.value(for: metric))))]
+        if let words = TaskScoreText.words(TaskScoreValue(TaskSetReading(agent: agent)), l10n) {
+            parts.append(l10n("a11y.agent.intel", words))
+        }
+        let capsule = EffortCapsule(agent.modes)
+        if capsule.effort != nil || capsule.speed != nil { parts.append(capsule.accessibilityText(l10n)) }
+        return join(parts, l10n)
     }
 
     /// The card's lines as a row's extra content, in the card's order (DESIGN 12 *Accessibility*).
@@ -134,7 +183,23 @@ final class BoardAccessibilityReporter {
     }
 }
 
-/// A row element that carries its score card's lines as VoiceOver's "more content".
+/// A row element that carries its score card's lines as VoiceOver's "more content"; a press shows the card (Full
+/// Keyboard Access's Space) and an assistive app focusing it moves the board's keyboard focus there.
 final class BoardRowAccessibilityElement: NSAccessibilityElement, AXCustomContentProvider {
     var accessibilityCustomContent: [AXCustomContent]! = []
+    var key = ""
+    var onPress: (() -> Void)?
+    var onFocus: ((String) -> Void)?
+
+    override func accessibilityPerformPress() -> Bool {
+        guard let onPress else { return false }
+        onPress()
+        return true
+    }
+
+    override func setAccessibilityFocused(_ accessibilityFocused: Bool) {
+        let changed = accessibilityFocused != isAccessibilityFocused()
+        super.setAccessibilityFocused(accessibilityFocused)
+        if accessibilityFocused, changed { onFocus?(key) }
+    }
 }

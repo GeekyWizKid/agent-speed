@@ -5,8 +5,9 @@ import AppKit
 /// One board on the desktop: its window, fed by its runtime (DESIGN 2c). Lays its content out once per tick and only
 /// while it can be seen (and on every frame of a 智力 count-up), plays the tick on the effects, and handles the pointer
 /// — a click toggles a group's expansion; hovering a row lifts its tint and, after 0.35 s, shows its score card while
-/// `intelligence` is on (group and sub rows, and the hero's 智力) or a group's text tooltip while it is off — and
-/// accessibility.
+/// `intelligence` is on (group and sub rows, and the hero's 智力) or a group's text tooltip while it is off — the
+/// keyboard (DESIGN 12 *Keyboard*: with keyboard navigation on, the score rows take focus with the system focus ring,
+/// Space shows the focused row's card, a focus move keeps it on the focused row, Esc closes it) and accessibility.
 @MainActor
 final class BoardPresenter {
     /// What the pointer is over, for the score card.
@@ -57,6 +58,11 @@ final class BoardPresenter {
     /// The card's window, closed with the board (AppKit keeps a window until it is closed).
     private var cardPanel: TaskScoreCardPanel?
     private lazy var climbFrames = BoardClimbFrames(window: window.panel) { [weak self] in self?.climbFrame() }
+    /// The score rows' keyboard focus; drawn while the board is key.
+    private var focus = BoardKeyboardFocus()
+    /// The card the keyboard (Space, the row's action) opened: it closes when the board loses the keyboard.
+    private var keyboardCard: String?
+    private var highContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
     /// Lays the board out again when a sub-gauge cell narrows back with no new tick.
     private var wakeTimer: Timer?
     /// A live metrics switch change crossfades the hero (0.2 s, DESIGN 2c Live metrics, *Switches*).
@@ -73,6 +79,9 @@ final class BoardPresenter {
         window = BoardWindowController(config: runtime.config, center: center, dark: dark)
         accessibility = BoardAccessibilityReporter(host: window.host)
         accessibility.onCardAction = { [weak self] key in self?.toggleCard(key) }
+        accessibility.onFocus = { [weak self] key in self?.focusFromAccessibility(key) }
+        window.host.onKeyDown = { [weak self] event in self?.keyDown(event) ?? false }
+        window.panel.onKeyChange = { [weak self] isKey in self?.keyChanged(isKey) }
         window.contentProvider = { [unowned self] in items() }
         window.onClick = { [weak self] point in self?.click(at: point) }
         window.host.onMouseMoved = { [weak self] event in self?.pointerMoved(event) }
@@ -124,6 +133,10 @@ final class BoardPresenter {
     func setEffects(_ intensity: BoardEffectsIntensity, celebrations: Bool, reduceMotion: Bool, highContrast: Bool) {
         if window.reduceMotion != reduceMotion { window.reduceMotion = reduceMotion }
         builder.reduceMotion = reduceMotion
+        if self.highContrast != highContrast {
+            self.highContrast = highContrast
+            if window.panel.isKeyWindow, focus.key != nil { window.contentChanged(animated: false) }
+        }
         window.driver.highContrast = highContrast
         window.host.content.ambience = intensity != .off
         window.host.content.celebrations = celebrations
@@ -146,11 +159,16 @@ final class BoardPresenter {
         if let hovered, let index = items.firstIndex(where: { $0.key == hovered }) {
             items[index].plate = Self.lifted(items[index].plate, dark: look.dark)
         }
+        // The focus ring shows only while the board has the keyboard, as in any window, over every piece of its row.
+        if window.panel.isKeyWindow, let focused = focus.key, let row = items.first(where: { $0.key == focused }) {
+            items.append(BoardFocusRing.item(around: row, style: look.style, dark: look.dark, highContrast: highContrast))
+        }
         return items
     }
 
     private func tickArrived() {
         guard let tick = runtime.tick else { return }
+        updateFocus(tick)
         if layoutStale || tick != layoutTick {
             let switched = layoutTick.map { $0.metrics.readouts != tick.metrics.readouts } ?? false
             layoutStale = true
@@ -225,6 +243,8 @@ final class BoardPresenter {
     }
 
     private func click(at point: CGPoint) {
+        // A click on a row of a board that has the keyboard moves the focus there; it never brings the keyboard.
+        if window.panel.isKeyWindow, case .row(let key) = target(at: point), focus.focus(key) { focusMoved(key) }
         guard let id = group(at: point) else { return }
         runtime.toggleExpansion(of: id, model: model, now: Clock.now)
     }
@@ -343,8 +363,83 @@ final class BoardPresenter {
     /// the keyboard focus, so Esc cannot reach it).
     private func toggleCard(_ key: String) {
         let cards = cardPresenter()
-        if cards.shownKey == key { return cards.dismiss() }
+        if cards.shownKey == key {
+            keyboardCard = nil
+            return cards.dismiss()
+        }
+        keyboardCard = key
         cards.showNow(key, provider: provider(for: .row(key)))
+    }
+
+    // MARK: Keyboard
+
+    /// The rows that take focus for this tick (keyboard navigation is read again on every tick: it has no notification).
+    private func updateFocus(_ tick: BoardTick) {
+        let before = focus.key
+        focus.update(BoardKeyboardFocus.keys(tick.rows, intelligence: tick.metrics.readouts.intelligence,
+                                             keyboardNavigation: NSApplication.shared.isFullKeyboardAccessEnabled))
+        window.keyboardFocusable = focus.isEnabled
+        guard focus.key != before else { return }
+        if focus.key == nil, let keyboardCard, cards?.shownKey == keyboardCard { closeKeyboardCard() }
+        guard window.panel.isKeyWindow else { return }
+        accessibility.setFocus(focus.key)
+        if let key = focus.key { cards?.focus(key, provider: provider(for: .row(key))) }
+        // The ring moves even when the tick lays nothing out again (keyboard navigation switched off on an idle board).
+        if !layoutStale, runtime.tick == layoutTick { window.contentChanged(animated: false) }
+    }
+
+    private func keyChanged(_ isKey: Bool) {
+        if isKey {
+            window.panel.makeFirstResponder(window.host)
+            accessibility.setFocus(focus.enter())
+        } else {
+            accessibility.setFocus(nil)
+            if let keyboardCard, cards?.shownKey == keyboardCard { closeKeyboardCard() }
+        }
+        window.contentChanged(animated: false)
+    }
+
+    private func keyDown(_ event: NSEvent) -> Bool {
+        // Shortcuts with ⌘, ⌥ or ⌃ belong to the system (⌘` cycles the windows).
+        guard event.modifierFlags.intersection([.command, .option, .control]).isEmpty,
+              let pressed = BoardKey(keyCode: event.keyCode, shift: event.modifierFlags.contains(.shift)) else { return false }
+        let before = focus.key
+        guard let effect = focus.handle(pressed, cardShown: cards?.isShown == true) else { return false }
+        switch effect {
+        case .moved(let key):
+            focusMoved(key)
+        case .showCard(let key):
+            if key != before { focusMoved(key) }
+            keyboardCard = key
+            cardPresenter().showNow(key, provider: provider(for: .row(key)))
+        case .closeCard:
+            closeKeyboardCard()
+        case .none:
+            break
+        }
+        return true
+    }
+
+    /// The focus moved: the ring follows (one small piece is drawn), VoiceOver follows, an open card follows.
+    private func focusMoved(_ key: String) {
+        window.contentChanged(animated: false)
+        accessibility.setFocus(key)
+        guard let cards, cards.isShown else { return }
+        cards.focus(key, provider: provider(for: .row(key)))
+        if cards.shownKey == key, keyboardCard != nil { keyboardCard = key }
+    }
+
+    /// Full Keyboard Access or VoiceOver focused a row: with keyboard navigation on, the board takes the keyboard (as a
+    /// non-activating panel, without activating the app) and the focus moves there.
+    private func focusFromAccessibility(_ key: String) {
+        guard focus.key != key, focus.focus(key) else { return }
+        if !window.panel.isKeyWindow { window.panel.makeKey() }
+        focusMoved(key)
+    }
+
+    private func closeKeyboardCard() {
+        keyboardCard = nil
+        cards?.dismiss()
     }
 
     /// Hover lifts the row's tint only (DESIGN 2c Interaction).

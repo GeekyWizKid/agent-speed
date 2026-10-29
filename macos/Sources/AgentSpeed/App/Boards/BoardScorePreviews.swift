@@ -106,6 +106,51 @@ enum BoardScorePreviews {
         return canvas.image
     }
 
+    /// `--board-frames DIR` with `AGENT_SPEED_BOARD_FOCUS=1`: a row with the keyboard focus (DESIGN 12 *Keyboard*) in
+    /// every style, dark and light, with Increase Contrast: `focus-<style>-group-<theme>[-contrast].png` (the second
+    /// group row at 3×) and `focus-<style>-sub-<theme>.png` (a sub row with its card open, as Space shows it).
+    static func runFocus(into directory: URL) {
+        let l10n = Localizer(preference: .zhHant)
+        for style in BoardStyle.allCases {
+            for dark in [true, false] {
+                let theme = dark ? "dark" : "light"
+                for contrast in [false, true] {
+                    let board = Board(style: style, size: .medium, scenario: .live, dark: dark, contrast: contrast, l10n: l10n)
+                    let group = board.tick.groups.count > 1 ? board.tick.groups[1].id : board.tick.groups.first?.id
+                    write(board.image(scale: 3, focused: group), to: directory,
+                          "focus-\(style.rawValue)-group-\(theme)\(contrast ? "-contrast" : "")")
+                }
+                let board = Board(style: style, size: .medium, scenario: .live, dark: dark, contrast: false, l10n: l10n)
+                guard let (key, row) = board.layout.subRows.min(by: { $0.value.minY < $1.value.minY }),
+                      let model = BoardScoreCards.row(key, in: board.tick, l10n: l10n) else { continue }
+                let shot = CardShot.Shot(board: board.image(focused: key), side: board.side, model: model, top: row.minY)
+                let url = directory.appendingPathComponent("focus-\(style.rawValue)-sub-\(theme).png")
+                PreviewSnapshot.writeHosted(CardShot(shot: shot, l10n: l10n, dark: dark), dark: dark,
+                                            background: Board.desk(dark: dark), to: url)
+                print(url.path)
+            }
+        }
+    }
+
+    /// `--board-frames DIR` with `AGENT_SPEED_BOARD_CENTRE=1`: two-line group rows with their figures centred and
+    /// 2 pt larger (DESIGN 2c *The second line*), M and L, dark and light, every style: `centre-<style>-<size>-<theme>.png`
+    /// (the board at 3×, a red hairline on each group row's centre line) and `centre-detail-<style>-<size>-<theme>.png`
+    /// (the sub-gauge and the figures' columns of every scenario at 4×).
+    static func runCentre(into directory: URL) {
+        let l10n = Localizer(preference: .zhHant)
+        for style in BoardStyle.allCases {
+            for size in [BoardSize.medium, .large] {
+                for dark in [true, false] {
+                    let theme = dark ? "dark" : "light"
+                    let board = Board(style: style, size: size, scenario: .live, dark: dark, contrast: false, l10n: l10n)
+                    write(board.image(scale: 3, centreLines: true), to: directory, "centre-\(style.rawValue)-\(size.rawValue)-\(theme)")
+                    write(details(style: style, size: size, dark: dark, contrast: false, l10n: l10n), to: directory,
+                          "centre-detail-\(style.rawValue)-\(size.rawValue)-\(theme)")
+                }
+            }
+        }
+    }
+
     enum Target: String {
         case hero, group, sub
     }
@@ -116,6 +161,7 @@ enum BoardScorePreviews {
         let style: BoardStyle
         let size: BoardSize
         let dark: Bool
+        let contrast: Bool
         let l10n: Localizer
         let tick: BoardTick
         let layout: BoardContentLayout
@@ -124,6 +170,7 @@ enum BoardScorePreviews {
             self.style = style
             self.size = size
             self.dark = dark
+            self.contrast = contrast
             self.l10n = l10n
             let feed = BoardSimFeed(simulation: BoardSimulation(scenario: "team"), style: style, size: size, dark: dark, l10n: l10n,
                                     highContrast: contrast, metrics: .init())
@@ -150,15 +197,24 @@ enum BoardScorePreviews {
         var side: CGFloat { CGFloat(size.side) }
 
         /// The board alone on the desk.
-        func image(scale: CGFloat = 2, lifted: String? = nil) -> CGImage? {
+        func image(scale: CGFloat = 2, lifted: String? = nil, focused: String? = nil, centreLines: Bool = false) -> CGImage? {
             guard let canvas = PreviewCanvas(size: CGSize(width: side, height: side), scale: scale,
                                              background: Self.desk(dark: dark)) else { return nil }
-            draw(in: canvas.context, at: .zero, lifted: lifted)
+            draw(in: canvas.context, at: .zero, lifted: lifted, focused: focused)
+            if centreLines {
+                // A hairline on each two-line group row's centre line, over the figures' columns only.
+                let geometry = BoardGeometry(style, size, readouts: tick.metrics.readouts)
+                canvas.context.setFillColor(CGColor(srgbRed: 1, green: 0.2, blue: 0.2, alpha: 0.85))
+                for (_, anchor) in layout.groupRows where geometry.twoLine {
+                    let y = anchor.row.minY + CGFloat(geometry.figureCentre)
+                    canvas.context.fill(CGRect(x: anchor.row.maxX - 92, y: y - 0.125, width: 92, height: 0.25))
+                }
+            }
             return canvas.image
         }
 
         /// Composites the cached items as the board's layers show them (y down, board points from `origin`).
-        func draw(in context: CGContext, at origin: CGPoint, lifted: String? = nil) {
+        func draw(in context: CGContext, at origin: CGPoint, lifted: String? = nil, focused: String? = nil) {
             let corner = CGFloat(style.cornerRadius)
             let board = CGRect(origin: origin, size: CGSize(width: side, height: side))
             let path = CGPath(roundedRect: board, cornerWidth: corner, cornerHeight: corner, transform: nil)
@@ -170,7 +226,11 @@ enum BoardScorePreviews {
             context.clip()
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
-            for item in layout.items {
+            var items = layout.items
+            if let row = items.first(where: { $0.key == focused }) {
+                items.append(BoardFocusRing.item(around: row, style: style, dark: dark, highContrast: contrast))
+            }
+            for item in items {
                 context.saveGState()
                 let shown = item.shownFrame
                 context.translateBy(x: origin.x + shown.minX, y: origin.y + shown.minY)

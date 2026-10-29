@@ -1562,7 +1562,7 @@ while `intelligence` is on:
 | live | `ink-2` | `ink-2` | `led` at 78 %, dark glow 6 pt `rgba(140,180,255,.45)` |
 | resting, `–` | `ink-3`, weight 500 | `ink-3`, weight 600 | `ink-3` |
 
-- Right-aligned, tabular, on the value's baseline. Group row: the group's value (METRICS 6.9, *Sets and groups*: the
+- Right-aligned, tabular, on the value's baseline (in a two-line group row both are centred on the row, *The second line*). Group row: the group's value (METRICS 6.9, *Sets and groups*: the
   highest live score of its members, else the highest resting score, else none), so a group whose root only
   delegates still shows what its busiest sub-agent achieves; sub row: its sub-agent's own value (6.9, *Values*). Live
   in the table's live color, resting and none in its resting color; the proof mark (section 12) under an unverified or
@@ -1581,8 +1581,15 @@ while `intelligence` is on:
 The second line — every group row at M and L, whatever the switches:
 
 - Row height `row` + 8 (38 at M, 40 at L; glass and neon then leave out their 2 pt between group rows). Line 1, its
-  baseline 16 under the row's top: rank, badge, project name, capsule, 智力, value; the capsule sits in the first 16 pt
-  band starting 4 under the top, outside the baseline group, so every first line shares one baseline. Line 2, its
+  baseline 16 under the row's top: rank, badge, project name, capsule; the capsule sits in the first 16 pt band
+  starting 4 under the top, outside the baseline group, so every first line shares one baseline.
+- **The row's figures**, the 智力 cell and the value, are not on line 1 (user's request, 2026-10-29: they read as the
+  row's numbers, centred and a little larger). They share one baseline, placed so that the cap-height centre of their
+  digits lies on the row's centre line (19 under the top at M, 20 at L). Both are 2 pt larger than in a one-line row:
+  the 智力 number of a group row 11 → 13 (same weight and colors), the value its style's row size + 2. Each cell
+  widens to fit `888` (智力) and the widest value in the new size; the name block gives way first, as before. S rows
+  and sub rows (one line) keep their sizes and line 1's baseline.
+  Line 2, its
   baseline 31 under the top (glass 32): the detail (model · `boards.subCount`) alone, starting under the name and
   running to the value column's right edge (under the capsule, 智力 and value columns, which line 2 leaves empty),
   truncating at its tail. Timing's position block (26 tall) and stripe (24) span both lines.
