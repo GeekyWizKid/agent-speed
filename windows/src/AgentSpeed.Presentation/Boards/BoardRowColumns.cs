@@ -30,6 +30,9 @@ public readonly record struct BoardRowColumns(double Padding, double Gap, double
     /// </summary>
     public double DetailRight(double width) => width - ValueRight;
 
+    /// <summary>The 智力 cell's number size: 11 on group rows; sub rows glass 10.5, timing and neon 10.</summary>
+    public static double IntelligenceSize(BoardStyle style, bool sub) => !sub ? 11 : style == BoardStyle.Glass ? 10.5 : 10;
+
     public static BoardRowColumns For(BoardStyle style, BoardSize size, BoardReadouts readouts)
     {
         var i = size switch

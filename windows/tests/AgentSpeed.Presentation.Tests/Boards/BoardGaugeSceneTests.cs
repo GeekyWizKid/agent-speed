@@ -15,7 +15,7 @@ public class BoardGaugeSceneTests
     private static readonly Localizer Zh = new(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
 
     /// <summary>Every layer exists; each key's slot carries a unique u0 so a drawn instance names its layer.</summary>
-    private sealed class KeyedLayers : IBoardLayers
+    internal sealed class KeyedLayers : IBoardLayers
     {
         private readonly Dictionary<string, int> _ids = new(StringComparer.Ordinal);
         private readonly List<string> _keys = [];
@@ -139,8 +139,8 @@ public class BoardGaugeSceneTests
         // The 0–100 task score over 12 segments.
         var lit = Math.Clamp((int)Math.Floor(tick.Gauge.Shown!.Value / (100 / 12.0) + 0.5), 0, 12);
         Assert.True(lit > 0);
-        // Every segment's unlit shape (transparent once lit) and a lit one over each of the first `lit`.
-        Assert.Equal(12 + lit, segments.Length);
+        // Each segment once: lit (glowing on dark) over the first `lit`, unlit after them.
+        Assert.Equal(12, segments.Length);
         Assert.Equal(12 - lit, segments.Count(s => s.Color.W > 0.001 && s.Extra.Y <= 0.001));
     }
 
