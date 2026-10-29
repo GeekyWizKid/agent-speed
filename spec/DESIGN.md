@@ -1751,9 +1751,9 @@ Glanceable and calm; it must never jitter in width.
   and in the tooltip as `a11y.bar.money`. In 選單列 / 工作列 the live value control has three choices —
   `settings.liveUnit.tokens`, `settings.liveUnit.cost` and `settings.liveUnit.both` (tok/s with the money block after
   it; tok/s alone stays the default) — so showing both is one visible choice rather than a separate switch.
-- Readout block (optional, `settings.bar.traffic`, default off): network speed (`↓` / `↑`) or 智力, the highest task
-  score (section 12), with 思考 (`智力` / `思考`) in a fixed-width two-line block after the value and the money block (section 10, *Menu bar and
-  taskbar*).
+- Readout blocks (optional, both default off): network speed (`↓` / `↑`, `settings.bar.traffic`) and 智力, the
+  highest task score (section 12), with 思考 (`智力` / `思考`, `settings.bar.intelligence`). They are fixed-width
+  two-line blocks after the value and the money block, shown alone or together (section 10, *Menu bar and taskbar*).
 - Click: open/close the dashboard. Right-click (Windows) / ⌥-click (macOS): quick menu.
 - The widget follows the system/taskbar light or dark theme for text; the glyph keeps heat colors.
 
@@ -2416,7 +2416,7 @@ with Mica). Sections:
   shows that metric's values (compact `k`/`M`). Below the redline: the title theme picker and the custom set editor
   (Title themes, below).
 - **選單列 / 工作列 Menu bar / Taskbar** — Display mode, Colored glyph, Show unit, `settings.bar.traffic` (network
-  speed or 智力, section 10), `settings.liveUnit` (section 9). Windows adds, right after
+  speed, section 10), `settings.bar.intelligence` (智力, section 10), `settings.liveUnit` (section 9). Windows adds, right after
   `settings.bar.show`, the card `settings.taskbar.position` with the hint `settings.taskbar.position.hint` and the
   button `settings.taskbar.position.reset`: it puts the widget back at its default spot (`taskbar.offset` 0, section
   3, Position on the taskbar) and is disabled while the widget is already there, whether or not the widget is shown.
@@ -3039,18 +3039,27 @@ unavailable.
 
 ### Menu bar and taskbar
 
-`settings.bar.traffic` picks the readout block after the menu bar or taskbar value. Stored values `off` (default),
-`machine`, `agents` and `intelligence` (an unknown value reads as `off`); the control is labelled
-`settings.bar.traffic` with the choices `settings.bar.traffic.off`, `.machine`, `.agents` and `.intelligence`.
+Two independent readout blocks can follow the menu bar or taskbar value (user's request, 2026-10-29: 智力 and the
+network speed together, 智力 with a switch of its own):
+- `settings.bar.traffic` picks the network block. Stored values `off` (default), `machine` and `agents`; an unknown
+  value reads as `off`. The control is labelled `settings.bar.traffic` with the choices `settings.bar.traffic.off`,
+  `.machine` and `.agents`.
+- `settings.bar.intelligence` (a switch, default off) adds the intelligence block.
+- A stored `intelligence` from an earlier build migrates once to `settings.bar.traffic` = `off` and
+  `settings.bar.intelligence` = on.
+
+Order, left to right: the value, the money block (section 3) when shown, the network block, the intelligence block,
+each after an 8 pt (8 px) gap. With both on, the item is the sum of both fixed widths, and still never changes width
+with the values.
 
 - **Block**: after the value and after the money block when section 3 shows one, 8 pt gap; two lines centred on the
   bar, 9 pt (menu bar) / 10 px (taskbar), weight 500, tabular digits, 10 pt / 11 px pitch; numbers in the label color
   at 85 %, everything else in the secondary color; fixed cells — so the item's width never changes with the values
   and section 3's width rule is untouched. Display mode "glyph only" hides it.
-- **Network** (`machine`, `agents`): `↓ 1.28 MB/s` over `↑ 64.0 KB/s`. It stays visible at `0 B/s` (a system meter is
+- **Network** (`settings.bar.traffic` = `machine` or `agents`): `↓ 1.28 MB/s` over `↑ 64.0 KB/s`. It stays visible at `0 B/s` (a system meter is
   expected to stay). It needs `settings.traffic.enabled`: with measuring off it is not drawn. Accessibility and the
   Windows tooltip add `a11y.orb.traffic`.
-- **Intelligence** (`intelligence`; user's choice, 2026-10-28): 智力 — the highest task score among the agents of all
+- **Intelligence** (`settings.bar.intelligence` on; user's choices, 2026-10-28 and 2026-10-29): 智力 — the highest task score among the agents of all
   enabled sources (METRICS 6.9, *Sets and groups*; section 12) — and their thinking rate, with the orb readout's words
   and number formats (*Intelligence readout*) at the bar's one size:
 
@@ -3084,15 +3093,18 @@ unavailable.
     and `–` says "nothing right now" without claiming a score of 0.
   - Independent of network measuring: it needs neither `settings.traffic.enabled` nor the Windows helper and is never
     unavailable.
-  - Accessibility: the item's label adds `a11y.orb.intel` with the score words of section 12 (`智力 86，4 個 agent
+  - Accessibility: the item's label adds, after the network words when that block is shown, `a11y.orb.intel` with the score words of section 12 (`智力 86，4 個 agent
     中最高，思考每秒 128 個 token`; the thinking rate in METRICS 7 form), `a11y.orb.intel.only` while line 2 is hidden,
     or `intel.none` while 智力 is none. Windows tooltip: its first line adds the same text after ` · `, where the
     traffic words go, and a second line `task.tooltip.top` names the agent that supplies the score.
-- **Settings**: one control, in 選單列 / 工作列 (section 5) and in 網路流量 (*Settings → 網路流量*, below). In 選單列 /
-  工作列 it is always enabled: while `settings.traffic.enabled` is off the two network choices are disabled (shown,
-  not selectable) and a stored network choice stays selected and draws nothing, as before; `off` and `intelligence`
-  are always selectable. In 網路流量 the control follows that pane's state like its other controls. While
-  `intelligence` is chosen the control has the caption `settings.bar.traffic.hint.intel`; otherwise none.
+- **Settings**:
+  - **Network control.** `settings.bar.traffic` appears in 選單列 / 工作列 (section 5) and in 網路流量 (*Settings →
+    網路流量*, below). In 選單列 / 工作列 it is always enabled. While `settings.traffic.enabled` is off, the two
+    network choices are disabled (shown, not selectable), and a stored network choice stays selected and draws
+    nothing, as before. In 網路流量 the control follows that pane's state like its other controls.
+  - **Intelligence switch.** `settings.bar.intelligence` appears only in 選單列 / 工作列, as the row right after
+    `settings.bar.traffic`, a switch that is always enabled. While it is on, its caption is
+    `settings.bar.intelligence.hint`.
 
 ### Dashboard
 
@@ -3945,7 +3957,7 @@ per-task records of METRICS 6.11 in the history database — never a prompt, com
 
 - **About**: `privacy.taskScore` follows `privacy.traffic`, unchanged while live reporting is on (section 5).
 - **Usage History footer**: `history.privacy` and `history.privacy.short` name the per-task scores.
-- **Hints**: `agents.intel.hint`, `orbs.traffic.hint.intel`, `settings.bar.traffic.hint.intel`, `boards.readouts.hint`
+- **Hints**: `agents.intel.hint`, `orbs.traffic.hint.intel`, `settings.bar.intelligence.hint`, `boards.readouts.hint`
   and `intel.disclaimer` say what the score is and that it is not a model benchmark.
 - **README** privacy sections (all four languages) carry a *Task score* paragraph after the network traffic paragraph,
   and their storage sentence names the per-task score records.

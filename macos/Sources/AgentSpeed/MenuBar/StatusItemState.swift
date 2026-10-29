@@ -11,7 +11,7 @@ struct StatusItemState: Equatable {
     var increasedContrast: Bool
     /// The money block (DESIGN 3), when shown.
     var secondary: StatusItemSecondary?
-    /// The readout block (DESIGN 10), when shown: network speed or intelligence, never both.
+    /// The readout blocks (DESIGN 10), each when shown: the network speed, then the intelligence block.
     var traffic: StatusItemTraffic?
     var intelligence: StatusItemIntelligence?
 
@@ -36,7 +36,8 @@ struct StatusItemState: Equatable {
         traffic = StatusItemTraffic(model: model)
         intelligence = StatusItemIntelligence(model: model)
         if let intelligenceWidth, let cell = intelligence?.cell { intelligence?.cell = max(intelligenceWidth, cell) }
-        layout.readoutWidth = traffic?.width ?? intelligence?.width ?? 0
+        layout.trafficWidth = traffic?.width ?? 0
+        layout.intelligenceWidth = intelligence?.width ?? 0
     }
 
     /// Whether the redline flicker may run (DESIGN section 3; off with Reduce Motion or effects off).

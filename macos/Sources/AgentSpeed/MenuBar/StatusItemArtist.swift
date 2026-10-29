@@ -50,7 +50,7 @@ enum StatusItemArtist {
         if layout.showsValue { drawText(state, palette: palette, layout: layout) }
         state.secondary?.draw(at: layout.secondaryX, height: layout.height, palette: palette)
         state.traffic?.draw(at: layout.readoutX, height: layout.height, palette: palette)
-        state.intelligence?.draw(at: layout.readoutX, height: layout.height, palette: palette)
+        state.intelligence?.draw(at: layout.intelligenceX, height: layout.height, palette: palette)
     }
 
     private static func drawGauge(_ state: StatusItemState, palette: StatusItemPalette, layout: StatusItemLayout, in context: CGContext) {

@@ -7,8 +7,8 @@ import SwiftUI
 /// taskbar; DESIGN 12): every form and proof state of 智力 with 思考 shown, within its hold and hidden after it, and the
 /// widest numbers, in Chinese, English and Japanese on dark and light bars; with the money block and in value-only
 /// mode; with Increase Contrast; the item's own bitmap at 2× and 1× magnified to the pixel, so the proof mark's dots
-/// can be checked; every `settings.bar.traffic` choice side by side; and 選單列 and 網路流量 with the block chosen,
-/// measuring on and off. A red hairline marks the item's end, so a width change between rows shows at once.
+/// can be checked; the intelligence block beside every network choice (`settings.bar.traffic` with the switch on, both
+/// blocks together); and 選單列 and 網路流量 with the switch on, measuring on and off. A red hairline marks the item's end, so a width change between rows shows at once.
 @MainActor
 enum IntelligenceBarPreviews {
     typealias Scenario = IntelligenceBarPreviewData.Scenario
@@ -20,7 +20,8 @@ enum IntelligenceBarPreviews {
 
     static func render(model: AppModel, into directory: URL) {
         let settings = model.settings
-        let saved = (settings.language, settings.barTraffic, settings.barMode, settings.barSecondary, settings.trafficEnabled)
+        let saved = (settings.language, settings.barTraffic, settings.barMode, settings.barSecondary, settings.trafficEnabled,
+                     settings.barIntelligence)
         defer {
             settings.language = saved.0
             model.l10n.apply(saved.0)
@@ -28,10 +29,12 @@ enum IntelligenceBarPreviews {
             settings.barMode = saved.2
             settings.barSecondary = saved.3
             settings.trafficEnabled = saved.4
+            settings.barIntelligence = saved.5
         }
         settings.trafficEnabled = true
         TrafficPreviewData.publish(into: model.traffic)
-        settings.barTraffic = .intelligence
+        settings.barTraffic = .off
+        settings.barIntelligence = true
         settings.barMode = .glyphValue
         settings.barSecondary = false
         for language in [LanguagePreference.zhHant, .en, .ja] {
@@ -56,18 +59,27 @@ enum IntelligenceBarPreviews {
                     let contrast = forms.map { item(model, $0, dark: dark, increasedContrast: true) }
                     SurfacePreviews.writeColumn(contrast, to: directory.appendingPathComponent("intelbar-contrast-\(scheme).png"))
                     SurfacePreviews.writeColumn(pixels(model, dark: dark), to: directory.appendingPathComponent("intelbar-pixels-\(scheme).png"))
-                    let choices = BarTraffic.allCases.map { choice -> NSImage in
+                    // The intelligence block after every network choice, then the network block alone.
+                    var choices = BarTraffic.allCases.map { choice -> NSImage in
                         settings.barTraffic = choice
                         return item(model, scenarios[2], dark: dark)
                     }
-                    settings.barTraffic = .intelligence
+                    settings.barIntelligence = false
+                    settings.barTraffic = .machine
+                    choices.append(item(model, scenarios[2], dark: dark))
+                    settings.barSecondary = true
+                    settings.barIntelligence = true
+                    choices.append(item(model, scenarios[2], dark: dark))
+                    settings.barSecondary = false
+                    settings.barTraffic = .off
                     SurfacePreviews.writeColumn(choices, to: directory.appendingPathComponent("intelbar-choices-\(scheme).png"))
                 }
             }
         }
         settings.language = .zhHant
         model.l10n.apply(.zhHant)
-        settings.barTraffic = .intelligence
+        settings.barTraffic = .machine
+        settings.barIntelligence = true
         for enabled in [true, false] {
             settings.trafficEnabled = enabled
             let state = enabled ? "on" : "off"
@@ -112,7 +124,8 @@ enum IntelligenceBarPreviews {
     private static func item(_ model: AppModel, _ scenario: Scenario, dark: Bool, increasedContrast: Bool = false) -> NSImage {
         let state = state(model, scenario, increasedContrast: increasedContrast)
         let size = CGSize(width: 680, height: state.layout.height)
-        let caption = [scenario.name, state.intelligence?.spoken].compactMap { $0 }.joined(separator: "   ")
+        let caption = [scenario.name, state.traffic.map { _ in "+ network" }, state.intelligence?.spoken].compactMap { $0 }
+            .joined(separator: "   ")
         let image = NSImage(size: size, flipped: true) { rect in
             (dark ? NSColor(white: 0.16, alpha: 1) : NSColor(white: 0.93, alpha: 1)).setFill()
             rect.fill()
@@ -142,7 +155,7 @@ enum IntelligenceBarPreviews {
             for scenario in marked {
                 let state = state(model, scenario, increasedContrast: increasedContrast)
                 let size = NSSize(width: state.layout.length, height: state.layout.height)
-                let block = CGRect(x: state.layout.readoutX, y: 0, width: state.layout.readoutWidth, height: size.height)
+                let block = CGRect(x: state.layout.intelligenceX, y: 0, width: state.layout.intelligenceWidth, height: size.height)
                 let crops = [(2.0, 8.0), (1.0, 16.0)].compactMap { scale, zoom -> (CGImage, CGFloat)? in
                     guard let bitmap = StatusItemArtist.render(state, dark: dark, size: size, scale: scale),
                           let crop = bitmap.cropping(to: CGRect(x: block.minX * scale, y: 0, width: block.width * scale,
