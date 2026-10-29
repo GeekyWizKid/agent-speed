@@ -222,9 +222,11 @@ internal sealed class TaskbarRenderer
             x += _secondary.Width(state.Secondary!, SecondaryCell, scale, colors.Primary, colors.Secondary);
         }
 
+        // DESIGN 10: the network block, then the intelligence block, each with its own 8 px gap and fixed width.
         if (ShowsTraffic(state))
         {
             _traffic.Draw(dc, state.Traffic!, x, centerY, scale, colors.Primary, colors.Secondary);
+            x += _traffic.Width(state.Traffic!, scale, colors.Primary, colors.Secondary);
         }
 
         if (ShowsIntelligence(state))

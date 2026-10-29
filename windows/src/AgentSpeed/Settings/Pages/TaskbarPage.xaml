@@ -40,13 +40,19 @@
         </controls:SettingsCard>
         <!-- DESIGN 10: the same control as in Settings → 網路流量. Always enabled here: only the network choices need measuring;
              a stored network choice stays selected and draws nothing while measuring is off. -->
-        <controls:SettingsCard Header="{loc:Loc settings.bar.traffic}" Icon="&#xE839;" Description="{Binding Traffic.BarHint}">
+        <controls:SettingsCard Header="{loc:Loc settings.bar.traffic}" Icon="&#xE839;">
             <ComboBox MinWidth="200" SelectedIndex="{Binding Traffic.BarIndex, Mode=TwoWay}" AutomationProperties.Name="{loc:Loc settings.bar.traffic}">
                 <ComboBoxItem Content="{loc:Loc settings.bar.traffic.off}" />
                 <ComboBoxItem Content="{loc:Loc settings.bar.traffic.machine}" IsEnabled="{Binding Traffic.Enabled}" />
                 <ComboBoxItem Content="{loc:Loc settings.bar.traffic.agents}" IsEnabled="{Binding Traffic.Enabled}" />
-                <ComboBoxItem Content="{loc:Loc settings.bar.traffic.intelligence}" />
             </ComboBox>
+        </controls:SettingsCard>
+        <!-- DESIGN 10: 智力 has a switch of its own, right after the network control, always enabled; it shows beside the
+             network block. Its caption says what the score is while it is on. -->
+        <controls:SettingsCard Header="{loc:Loc settings.bar.intelligence}" Icon="&#xE82F;" Description="{Binding BarIntelligenceHint}">
+            <CheckBox Style="{StaticResource ToggleSwitch}" IsChecked="{Binding BarIntelligence, Mode=TwoWay}"
+                      AutomationProperties.Name="{loc:Loc settings.bar.intelligence}"
+                      AutomationProperties.HelpText="{loc:Loc settings.bar.intelligence.hint}" />
         </controls:SettingsCard>
         <controls:SettingsCard Header="{loc:Loc settings.liveUnit}" Icon="&#xEC4A;" Description="{loc:Loc settings.liveUnit.hint}">
             <Border Style="{StaticResource SegmentedContainer}">
