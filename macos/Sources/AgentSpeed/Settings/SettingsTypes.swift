@@ -55,10 +55,10 @@ enum TrafficUnit: String, CaseIterable, Identifiable, Sendable {
     var titleKey: String { "settings.traffic.unit.\(rawValue)" }
 }
 
-/// The menu bar's readout block after the value (DESIGN 10, Menu bar and taskbar): network speed of this computer or
-/// of the agents, or live intelligence. An unknown stored value reads as `off`.
+/// The menu bar's network block after the value (DESIGN 10, Menu bar and taskbar): network speed of this computer or
+/// of the agents. An unknown stored value reads as `off`; 智力 has a switch of its own (`AppSettings.barIntelligence`).
 enum BarTraffic: String, CaseIterable, Identifiable, Sendable {
-    case off, machine, agents, intelligence
+    case off, machine, agents
 
     var id: String { rawValue }
     var titleKey: String { "settings.bar.traffic.\(rawValue)" }

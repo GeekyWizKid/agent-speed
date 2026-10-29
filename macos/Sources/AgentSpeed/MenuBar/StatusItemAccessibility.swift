@@ -20,11 +20,11 @@ final class StatusItemAccessibility {
             _ = (self.model.gauge.readoutValue, self.model.gauge.title, self.model.l10n.language)
             _ = (self.model.settings.liveUnit, self.model.snapshot.liveCost, self.model.cost.currency)
             if self.model.settings.barSecondary { _ = self.model.snapshot.sources }
-            switch self.model.settings.barTraffic {
-            case .machine, .agents: _ = self.model.traffic.snapshot.timestamp
+            _ = (self.model.settings.barTraffic, self.model.settings.barIntelligence)
+            if self.model.settings.barTraffic.isNetwork { _ = self.model.traffic.snapshot.timestamp }
             // The score, its supplying agent's state and N, and the end of the thinking hold (DESIGN 10, 12).
-            case .intelligence: _ = (self.model.snapshot.intelligence, self.model.snapshot.agents, self.model.barThinking.hidden)
-            case .off: break
+            if self.model.settings.barIntelligence {
+                _ = (self.model.snapshot.intelligence, self.model.snapshot.agents, self.model.barThinking.hidden)
             }
             self.schedule()
         }
@@ -66,10 +66,11 @@ final class StatusItemAccessibility {
         if button.accessibilityLabel() != name { button.setAccessibilityLabel(name) }
         // The readout block reads its rates as words (DESIGN 10); arrows are never read.
         let intelligence = StatusItemIntelligence(model: model)
+        // The network words first, then the intelligence words (DESIGN 10).
         let traffic = StatusItemTraffic(model: model).flatMap { block -> String? in
             guard let rx = block.rx, let tx = block.tx else { return nil }
             return l10n("a11y.orb.traffic", TrafficText.spoken(rx), TrafficText.spoken(tx))
-        } ?? intelligence?.spoken
+        }
         // The tooltip names the agent that supplies 智力 on a line of its own (DESIGN 10, `task.tooltip.top`).
         let snapshot = model.snapshot
         let topAgent = intelligence == nil ? nil
@@ -80,7 +81,7 @@ final class StatusItemAccessibility {
         let separator = l10n.language == .ja ? "、" : l10n.language.usesLatinCase ? ", " : "，"
         let secondary = StatusItemSecondary(model: model)?.spoken
         func withTraffic(_ text: String) -> String {
-            [text, secondary, traffic].compactMap { $0 }.joined(separator: separator)
+            [text, secondary, traffic, intelligence?.spoken].compactMap { $0 }.joined(separator: separator)
         }
         if let money = StatusItemValue.money(model) {
             // The money unit reads the amount with the currency's name (DESIGN 9, Accessibility).

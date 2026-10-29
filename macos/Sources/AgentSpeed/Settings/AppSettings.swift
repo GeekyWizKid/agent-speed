@@ -45,6 +45,8 @@ final class AppSettings {
     var trafficUnit: TrafficUnit { didSet { store(trafficUnit.rawValue, .trafficUnit) } }
     /// The menu bar traffic block (DESIGN 10): off (default), this computer or the agents.
     var barTraffic: BarTraffic { didSet { store(barTraffic.rawValue, .barTraffic) } }
+    /// The menu bar intelligence block (DESIGN 10): 智力 and 思考 after the network block; off by default.
+    var barIntelligence: Bool { didSet { store(barIntelligence, .barIntelligence) } }
     /// The menu bar money block (DESIGN 3): the live money rate and today's total after a tok/s value.
     var barSecondary: Bool { didSet { store(barSecondary, .barSecondary) } }
 
@@ -142,7 +144,15 @@ final class AppSettings {
         trafficEnabled = defaults.object(forKey: Key.trafficEnabled.rawValue) as? Bool ?? true
         trafficIncludeTools = defaults.object(forKey: Key.trafficIncludeTools.rawValue) as? Bool ?? true
         trafficUnit = TrafficUnit(rawValue: defaults.string(forKey: Key.trafficUnit.rawValue) ?? "") ?? .bytes
-        barTraffic = BarTraffic(rawValue: defaults.string(forKey: Key.barTraffic.rawValue) ?? "") ?? .off
+        // Earlier builds kept 智力 as a fourth traffic choice: it becomes the switch once, and the network block off.
+        let storedTraffic = defaults.string(forKey: Key.barTraffic.rawValue)
+        let migrates = storedTraffic == Self.retiredIntelligenceTraffic
+        barTraffic = BarTraffic(rawValue: storedTraffic ?? "") ?? .off
+        barIntelligence = migrates || defaults.object(forKey: Key.barIntelligence.rawValue) as? Bool ?? false
+        if migrates {
+            defaults.set(BarTraffic.off.rawValue, forKey: Key.barTraffic.rawValue)
+            defaults.set(true, forKey: Key.barIntelligence.rawValue)
+        }
         barSecondary = defaults.object(forKey: Key.barSecondary.rawValue) as? Bool ?? false
         agentsExpanded = defaults.object(forKey: Key.agentsExpanded.rawValue) as? Bool ?? false
         effects = EffectsLevel(rawValue: defaults.string(forKey: Key.effects.rawValue) ?? "") ?? .standard
@@ -265,6 +275,9 @@ final class AppSettings {
         return URL(fileURLWithPath: path)
     }
 
+    /// The stored `barTraffic` value of builds before 智力 had its own switch (DESIGN 10).
+    static let retiredIntelligenceTraffic = "intelligence"
+
     private func store(_ value: Any?, _ key: Key) {
         if let value { defaults.set(value, forKey: key.rawValue) } else { defaults.removeObject(forKey: key.rawValue) }
     }
@@ -273,7 +286,7 @@ final class AppSettings {
         case appearance, language, metric, redline, redlineTotal, redlineDefaultsMigrated
         case barMode, barColoredGlyph, barShowsUnit
         case orbVisible, orbsVisible, orbNames
-        case trafficEnabled, trafficIncludeTools, trafficUnit, barTraffic, barSecondary
+        case trafficEnabled, trafficIncludeTools, trafficUnit, barTraffic, barIntelligence, barSecondary
         case agentsExpanded
         case effects, celebratePeaks, responsePulses
         case enabledSources, knownSources

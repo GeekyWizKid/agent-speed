@@ -6,7 +6,7 @@ import Testing
 
 /// DESIGN 10, Menu bar and taskbar, and DESIGN 12: the intelligence block's fixed cells, the task score's forms (live,
 /// resting pale, none `–`), the proof mark under an unproven score, the score words, the quiet state, the thinking
-/// hold, and the fourth `settings.bar.traffic` choice.
+/// hold, the `settings.bar.intelligence` switch with its one-time migration, and both blocks side by side.
 @Suite("Menu bar intelligence block")
 @MainActor
 struct StatusItemIntelligenceTests {
@@ -371,28 +371,107 @@ struct StatusItemIntelligenceTests {
         #expect(!StatusItemThinkingHold.readsZero(.zero))
     }
 
-    // MARK: Setting
+    // MARK: Settings
+
+    private static func defaults() throws -> (UserDefaults, String) {
+        let suite = "StatusItemIntelligenceTests.\(UUID().uuidString)"
+        return (try #require(UserDefaults(suiteName: suite)), suite)
+    }
 
     @Test func storedChoicesReadBackAndUnknownReadsAsOff() throws {
-        let suite = "StatusItemIntelligenceTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
+        let (defaults, suite) = try Self.defaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         #expect(AppSettings(defaults: defaults).barTraffic == .off)
-        for (stored, choice) in [("off", BarTraffic.off), ("machine", .machine), ("agents", .agents), ("intelligence", .intelligence),
-                                 ("sparkles", .off), ("", .off)] {
+        #expect(!AppSettings(defaults: defaults).barIntelligence)
+        for (stored, choice) in [("off", BarTraffic.off), ("machine", .machine), ("agents", .agents), ("sparkles", .off), ("", .off)] {
             defaults.set(stored, forKey: "barTraffic")
             #expect(AppSettings(defaults: defaults).barTraffic == choice, "\(stored)")
         }
         let settings = AppSettings(defaults: defaults)
-        settings.barTraffic = .intelligence
-        #expect(defaults.string(forKey: "barTraffic") == "intelligence")
-        #expect(AppSettings(defaults: defaults).barTraffic == .intelligence)
+        settings.barTraffic = .agents
+        settings.barIntelligence = true
+        let reread = AppSettings(defaults: defaults)
+        #expect(reread.barTraffic == .agents)
+        #expect(reread.barIntelligence)
+    }
+
+    @Test func theRetiredIntelligenceChoiceMigratesOnceToTheSwitch() throws {
+        let (defaults, suite) = try Self.defaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(AppSettings.retiredIntelligenceTraffic, forKey: "barTraffic")
+        let migrated = AppSettings(defaults: defaults)
+        #expect(migrated.barTraffic == .off)
+        #expect(migrated.barIntelligence)
+        #expect(defaults.string(forKey: "barTraffic") == "off")
+        #expect(defaults.object(forKey: "barIntelligence") as? Bool == true)
+        // Once: a later choice sticks.
+        migrated.barIntelligence = false
+        #expect(!AppSettings(defaults: defaults).barIntelligence)
+        // Both blocks chosen together stay so.
+        defaults.set("machine", forKey: "barTraffic")
+        defaults.set(true, forKey: "barIntelligence")
+        let both = AppSettings(defaults: defaults)
+        #expect(both.barTraffic == .machine && both.barIntelligence)
     }
 
     @Test func onlyTheNetworkChoicesNeedMeasuring() {
-        #expect(BarTraffic.allCases == [.off, .machine, .agents, .intelligence])
+        #expect(BarTraffic.allCases == [.off, .machine, .agents])
         #expect(BarTraffic.allCases.filter(\.isNetwork) == [.machine, .agents])
         let l10n = Localizer(preference: .zhHant)
-        #expect(BarTraffic.allCases.map { l10n($0.titleKey) } == ["不顯示", "網路速度：整台電腦", "網路速度：只看 agent", "即時智力"])
+        #expect(BarTraffic.allCases.map { l10n($0.titleKey) } == ["不顯示", "網路速度：整台電腦", "網路速度：只看 agent"])
+        #expect(l10n("settings.bar.intelligence") == "顯示智力")
+    }
+
+    // MARK: Both blocks
+
+    private static func model() -> AppModel {
+        _ = NSApplication.shared
+        let suite = "StatusItemIntelligenceTests.model.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defaults.removePersistentDomain(forName: suite)
+        let model = AppModel(
+            settings: AppSettings(defaults: defaults),
+            updates: UpdateController(configuration: .current(environment: [:]), store: UpdateStore(defaults: defaults))
+        )
+        model.settings.language = .zhHant
+        model.l10n.apply(.zhHant)
+        model.settings.trafficEnabled = true
+        model.settings.barMode = .glyphValue
+        return model
+    }
+
+    @Test func bothBlocksAddTheirFixedWidthsInOrderAndNeverChangeWidth() {
+        let model = Self.model()
+        model.settings.barTraffic = .machine
+        model.settings.barIntelligence = false
+        let network = StatusItemState(model: model, time: 0)
+        model.settings.barTraffic = .off
+        model.settings.barIntelligence = true
+        let intelligence = StatusItemState(model: model, time: 0)
+        model.settings.barTraffic = .machine
+        let both = StatusItemState(model: model, time: 0)
+        model.settings.barTraffic = .off
+        model.settings.barIntelligence = false
+        let plain = StatusItemState(model: model, time: 0)
+
+        let trafficWidth = network.layout.length - plain.layout.length
+        let intelligenceWidth = intelligence.layout.length - plain.layout.length
+        #expect(trafficWidth > 0 && intelligenceWidth > 0)
+        // The sum of both fixed widths, each gap included.
+        #expect(abs(both.layout.length - plain.layout.length - trafficWidth - intelligenceWidth) < 0.001)
+        #expect(both.traffic != nil && both.intelligence != nil)
+        // Left to right: the network block, then the intelligence block, each after its own 8 pt gap.
+        #expect(both.layout.readoutX < both.layout.intelligenceX)
+        #expect(abs(both.layout.intelligenceX - both.layout.readoutX - trafficWidth) < 0.001)
+        #expect(abs(both.layout.length - StatusItemLayout.padding - both.layout.intelligenceX - intelligenceWidth) < 0.001)
+
+        // The values never move the width: a wide score and wide rates measure the same.
+        var snapshot = model.snapshot
+        snapshot.intelligence = Self.sums(score: 100, thinking: 12_800)
+        snapshot.agents = [Self.agent("a", .live, 100, .passing)]
+        model.store.publishLive(snapshot)
+        model.settings.barTraffic = .machine
+        model.settings.barIntelligence = true
+        #expect(abs(StatusItemState(model: model, time: 0).layout.length - both.layout.length) < 0.001)
     }
 }
