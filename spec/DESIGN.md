@@ -2472,7 +2472,7 @@ with Mica). Sections:
   with the master switch (section 9, `spec/NETWORK.md`). With traffic measuring: `privacy.traffic` follows
   (section 10). `privacy.taskScore` follows, always (section 12: what the task score reads in memory and what it
   keeps). With live reporting: `privacy.report` follows, and the texts switch while reporting is on (section 11);
-  `privacy.taskScore` stays as it is, since the score is never reported.
+  `privacy.taskScore` stays as it is: it already says that only live reporting with model sharing sends the score.
 
 All settings apply live without restart and persist immediately.
 
@@ -3331,7 +3331,14 @@ Top to bottom:
    agents' own traffic), all on by default. The computer's overall network traffic is never reported (REPORTING 1.3);
    a switch stored for it by an earlier build is ignored. A section the service does not list is shown off and
    disabled with `report.section.notAccepted`; the traffic switch is disabled with `report.section.trafficOff` while
-   traffic measuring is off (the report then says `status: "off"`). The button `report.preview` opens the preview.
+   traffic measuring is off (the report then says `status: "off"`). Under the models switch, the 11 pt secondary
+   caption `report.section.models.taskScore` says what the switch also shares — the task score (智力), the thinking
+   speed and per-model counts of the tasks completed while reporting is on, numbers only (METRICS 11.10, user's
+   decision 2026-10-29: no switch of its own and no new consent). It shows while the service's known document
+   advertises the `taskScore` extension, and before any document is known (the preview then assumes it too); it hides
+   when the service does not advertise it, since nothing more is sent, and while the section is not accepted
+   (`report.section.notAccepted` stands there instead). The caption stays visible with the switch off, so the user
+   knows what turning it on shares. The button `report.preview` opens the preview.
 6. **Status** (`report.status`) — one line with a small dot that always has text: green `report.status.reporting`
    (with `time.secondsAgo` for the last delivery); gray `report.status.off`, `report.status.never`,
    `report.status.idle`, `report.status.quiet`, `report.status.paused` / `report.status.pausedIndefinitely`,
@@ -3378,7 +3385,8 @@ yet confirmed, or by `report.service.review` (after a change, or when an accepte
 - Title `report.consent.title` (the service name), body `report.consent.body` (with the service's interval).
 - The service card (as in the pane); the **username field**, filled with the pane's name (by default the computer
   name, below) and editable here, with its caption `report.username.public` and the random button; the API key field when needed;
-  and the section switches with their defaults (5 above). The preview shows the name exactly as it will be sent.
+  and the section switches with their defaults and captions (5 above, `report.section.models.taskScore` included). The
+  preview shows the name exactly as it will be sent.
 - **Nothing is sent before `report.start`**: no key is created and no request — not even registration — is made while
   the sheet is open; only the discovery document has been fetched (REPORTING 3). Cancelling leaves no trace on the
   service.
@@ -3406,8 +3414,9 @@ WebSocket effective the request line is the connection's (`GET wss://…/v1/repo
 body is the `report` message's body including `realtime`, and `report.preview.onChange` replaces
 `report.preview.next`. It can also be opened from the dashboard invitation (`report.invite.preview`). Before the service's document is known it
 shows the body only — no request line or headers, whose API URL comes from the document — built with the default
-switches and the protocol's default limits, and `report.preview.assumed` instead of `report.preview.hint`: the real
-report can only be smaller, since a service that lists fewer sections receives fewer.
+switches and the protocol's default limits, with the `taskScore` extension's fields (METRICS 11.10), and
+`report.preview.assumed` instead of `report.preview.hint`: the real report can only be smaller, since a service that
+lists fewer sections or advertises fewer extensions receives fewer.
 
 ### Default username and random names
 
@@ -3538,34 +3547,39 @@ find the setting.
 ### README and About wording (prepared; applied when the feature ships)
 
 The About texts are the strings above. The README privacy sections add this paragraph after the traffic paragraph
-when the feature ships (until then the README describes the released app):
+when the feature ships (until then the README describes the released app). The clauses on each model's task score and
+on commands came with the `taskScore` extension (METRICS 11.10); the *Task score* paragraph's last sentence says the
+same (section 12, *Privacy and wording*):
 
 - English: "Live reporting (optional, off by default; the dashboard offers it once): if you turn it on for an API —
   for example a public leaderboard service — Agent Speed sends that service your live speed, the tokens used in the
   last few seconds and, if you leave them on, the API-equivalent cost in US dollars, your agents' network traffic,
-  models in use and a per-tool breakdown, together with the username you choose (it starts as your computer's name;
+  models in use (with, where the service supports it, each model's task score, thinking speed and counts of
+  completed tasks) and a per-tool breakdown, together with the username you choose (it starts as your computer's name;
   one click picks a random one). It reports
   every few seconds while your agents work and stops when they rest. It never sends conversation content, prompts,
-  file, folder or project names, or your usage history, and failed reports are never resent. Each report is signed
+  commands or their output, file, folder or project names, or your usage history, and failed reports are never
+  resent. Each report is signed
   with a key that stays on your computer; the service can tell that reports come from the same device, not whether
   the numbers are true. You can pause, turn it off, or ask the service to forget your device in Settings."
 - 繁體中文：「即時上報（選用，預設關閉；儀表板會詢問一次）：為某個 API（例如公開排行榜服務）開啟後，Agent Speed 會把你的即
-  時速度、最近幾秒用掉的 token 數，以及你保留的項目——以美元計的 API 等值費用、agent 的網路流量、使用中的模型、各工具的明
-  細——連同你選擇的使用者名稱
+  時速度、最近幾秒用掉的 token 數，以及你保留的項目——以美元計的 API 等值費用、agent 的網路流量、使用中的模型（服務支援
+  時，含各模型的智力分數、思考速度和完成任務的統計）、各工具的明細——連同你選擇的使用者名稱
   （預設是電腦名稱，一鍵就能換成隨機名稱）傳送給該服務。agent 工作時每隔幾秒上報一次，閒下來就停止。它從不傳送對話內容、提示
-  詞、檔案／資料夾／專案名稱或用量歷史，上報失敗的資料也不會補傳。每筆上報都以只存在你電腦上的金鑰簽章；服務能確認資料來自同
+  詞、指令或指令輸出、檔案／資料夾／專案名稱或用量歷史，上報失敗的資料也不會補傳。每筆上報都以只存在你電腦上的金鑰簽章；服務能確認資料來自同
   一台裝置，但無法確認數字是否正確。可以在設定中暫停、關閉，或要求服務忘記你的裝置。」
 - 简体中文：「实时上报（可选，默认关闭；仪表板会询问一次）：为某个 API（例如公开排行榜服务）开启后，Agent Speed 会把你的实
-  时速度、最近几秒用掉的 token 数，以及你保留的项目——以美元计的 API 等值费用、agent 的网络流量、使用中的模型、各工具的明
-  细——连同你选择的用户名
+  时速度、最近几秒用掉的 token 数，以及你保留的项目——以美元计的 API 等值费用、agent 的网络流量、使用中的模型（服务支持
+  时，含各模型的智力分数、思考速度和完成任务的统计）、各工具的明细——连同你选择的用户名
   （默认是电脑名称，一键即可换成随机名称）发送给该服务。agent 工作时每隔几秒上报一次，空闲时停止。它从不发送对话内容、提示
-  词、文件／文件夹／项目名称或用量历史，上报失败的数据也不会补发。每条上报都用只保存在你电脑上的密钥签名；服务能确认数据来自同
+  词、命令或命令输出、文件／文件夹／项目名称或用量历史，上报失败的数据也不会补发。每条上报都用只保存在你电脑上的密钥签名；服务能确认数据来自同
   一台设备，但无法确认数字是否准确。可以在设置中暂停、关闭，或要求服务忘记你的设备。」
 - 日本語：「ライブ送信（任意・初期設定はオフ。ダッシュボードで一度だけ案内します）：API（公開ランキングサービスなど）に対して
   オンにすると、Agent Speed は現在の速度、直近数秒に使った token 数、そしてオンのままにした項目——米ドル建ての API 換算費
-  用、agent の通信量、使用中のモデル、ツールごとの内訳——を、選んだユーザー名（初期値はコンピューター名。ワンクリックでランダムな名前にできます）と一緒にそのサービスへ送信
-  します。agent が作業している間は数秒ごとに送信し、休んでいる間は止まります。会話の内容、プロンプト、ファイル・フォルダー・
-  プロジェクトの名前、使用履歴は一切送信せず、送信に失敗したデータを後から送り直すこともありません。各送信はこのコンピューター
+  用、agent の通信量、使用中のモデル（サービスが対応していれば、モデルごとの知能スコア、思考の速度、完了したタスクの集計を
+  含む）、ツールごとの内訳——を、選んだユーザー名（初期値はコンピューター名。ワンクリックでランダムな名前にできます）と一緒にそのサービスへ送信
+  します。agent が作業している間は数秒ごとに送信し、休んでいる間は止まります。会話の内容、プロンプト、コマンドやその出力、
+  ファイル・フォルダー・プロジェクトの名前、使用履歴は一切送信せず、送信に失敗したデータを後から送り直すこともありません。各送信はこのコンピューター
   から出ない鍵で署名されます。サービスは同じデバイスからの送信であることは確認できますが、数値が正しいかどうかは確認できません。
   設定から一時停止・オフにしたり、サービスにデバイスの削除を依頼したりできます。」
 
@@ -3607,8 +3621,9 @@ no value. Strings: `task.*`, `a11y.task.*`, `history.tasks.*`, `a11y.history.tas
 - **One number per agent.** An agent's score is the same on the dashboard row, its board sub row and in its card.
 - **Weights are the user's, not validated.** Wherever the breakdown is shown, the card says the weights are
   uncalibrated starting values. Predictions say whether they are priors or calibrated on the user's own tasks.
-- **Local and quiet.** The score never drives heat, tiers, titles, peaks or celebrations, and it is never reported
-  (11).
+- **Local and quiet.** The score never drives heat, tiers, titles, peaks or celebrations. Live reporting sends it,
+  as numbers, only with the models switch and to a service that advertises the `taskScore` extension (section 11,
+  METRICS 11.10).
 
 ### Values and forms
 
@@ -3941,14 +3956,17 @@ dotted shape; every number and bar in the card has a text equivalent.
 The parsers read command text, tool output and edit input in memory while a line is parsed; the app keeps only
 classes, the fixed suite names, 16-hex digests, counts, exit codes and times for each agent's current task, plus the
 per-task records of METRICS 6.11 in the history database — never a prompt, command line, output, path or text
-(METRICS 6.9, *Privacy*). Nothing of the score is reported (11). So:
+(METRICS 6.9, *Privacy*). Live reporting sends numbers only — the highest score and its form, the thinking speed and
+per-model counts of tasks completed while reporting is on — with the models switch (section 11, METRICS 11.10). So:
 
 - **About**: `privacy.taskScore` follows `privacy.traffic`, unchanged while live reporting is on (section 5).
 - **Usage History footer**: `history.privacy` and `history.privacy.short` name the per-task scores.
 - **Hints**: `agents.intel.hint`, `orbs.traffic.hint.intel`, `settings.bar.traffic.hint.intel`, `boards.readouts.hint`
   and `intel.disclaimer` say what the score is and that it is not a model benchmark.
 - **README** privacy sections (all four languages) carry a *Task score* paragraph after the network traffic paragraph,
-  and their storage sentence names the per-task score records.
+  and their storage sentence names the per-task score records. The paragraph ends by saying that only live reporting,
+  with model sharing on, sends the score and the counts of completed tasks, as numbers; the live reporting paragraph
+  lists them among the model numbers (section 11, *README and About wording*).
 
 Retired with the grade: `intel.tooltip`, `intel.grade`, `intel.class.flagship`, `intel.class.standard`,
 `intel.class.light`, `a11y.agent.grade`.

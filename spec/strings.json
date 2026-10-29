@@ -4405,10 +4405,10 @@
     "ja": "通信量：Agent Speed はこのコンピューター上で、プログラムが送受信したバイト数だけを数えます。内容・アドレス・接続先は一切読まず、どこにも送信しません。"
   },
   "privacy.taskScore": {
-    "zh-Hant": "任務評分：為了判斷 agent 是在解決問題還是原地打轉，Agent Speed 會在記憶體中分析 agent 執行的指令、指令的輸出和所做的修改，只保留步驟的類型（例如一次 cargo test）、無法還原的短雜湊值、次數、結束代碼和時間，以及每個任務的分數紀錄。這些文字從不儲存或顯示，分數也不會上報。",
-    "zh-Hans": "任务评分：为了判断 agent 是在解决问题还是原地打转，Agent Speed 会在内存中分析 agent 运行的命令、命令的输出和所做的修改，只保留步骤的类型（例如一次 cargo test）、无法还原的短哈希值、次数、退出码和时间，以及每个任务的分数记录。这些文字从不保存或显示，分数也不会上报。",
-    "en": "Task score: to tell whether an agent is solving a problem or going in circles, Agent Speed analyzes the commands agents run, what those commands print and the edits they make, in memory only. It keeps just the kind of each step (such as a cargo test run), short one-way digests, counts, exit codes and times, plus a score record per task. That text is never stored or shown, and scores are never reported.",
-    "ja": "タスクのスコア：agent が問題を解決しているのか堂々巡りしているのかを判断するため、Agent Speed は agent が実行したコマンド、その出力、加えた編集をメモリ上でのみ分析します。残すのは手順の種類（cargo test の実行など）、元に戻せない短いダイジェスト、回数、終了コード、時刻と、タスクごとのスコアの記録だけです。これらのテキストを保存・表示することはなく、スコアを送信することもありません。"
+    "zh-Hant": "任務評分：為了判斷 agent 是在解決問題還是原地打轉，Agent Speed 會在記憶體中分析 agent 執行的指令、指令的輸出和所做的修改，只保留步驟的類型（例如一次 cargo test）、無法還原的短雜湊值、次數、結束代碼和時間，以及每個任務的分數紀錄。這些文字從不儲存、顯示或傳送；只有在你開啟即時上報並分享模型時，才會把分數和完成任務的次數以數字傳送給你選的服務。",
+    "zh-Hans": "任务评分：为了判断 agent 是在解决问题还是原地打转，Agent Speed 会在内存中分析 agent 运行的命令、命令的输出和所做的修改，只保留步骤的类型（例如一次 cargo test）、无法还原的短哈希值、次数、退出码和时间，以及每个任务的分数记录。这些文字从不保存、显示或发送；只有在你开启实时上报并分享模型时，才会把分数和完成任务的次数以数字发送给你选择的服务。",
+    "en": "Task score: to tell whether an agent is solving a problem or going in circles, Agent Speed analyzes the commands agents run, what those commands print and the edits they make, in memory only. It keeps just the kind of each step (such as a cargo test run), short one-way digests, counts, exit codes and times, plus a score record per task. That text is never stored, shown or sent; only live reporting, when you turn it on and share models, sends the scores and counts of completed tasks — as numbers — to the service you chose.",
+    "ja": "タスクのスコア：agent が問題を解決しているのか堂々巡りしているのかを判断するため、Agent Speed は agent が実行したコマンド、その出力、加えた編集をメモリ上でのみ分析します。残すのは手順の種類（cargo test の実行など）、元に戻せない短いダイジェスト、回数、終了コード、時刻と、タスクごとのスコアの記録だけです。これらのテキストを保存・表示・送信することはありません。スコアと完了したタスクの回数を数値として送るのは、ライブ送信をオンにしてモデルを共有しているときに、選んだサービスへ送る場合だけです。"
   },
   "settings.report": {
     "zh-Hant": "API",
@@ -4685,6 +4685,12 @@
     "zh-Hans": "使用中的模型",
     "en": "Models in use",
     "ja": "使用中のモデル"
+  },
+  "report.section.models.taskScore": {
+    "zh-Hant": "也會傳送智力（任務分數）、思考速度，以及開啟上報後各模型完成的任務統計（成功、卡住、修正次數）。只有數字，不含指令、輸出或檔案名稱。",
+    "zh-Hans": "也会发送智力（任务分数）、思考速度，以及开启上报后各模型完成的任务统计（成功、卡住、修正次数）。只有数字，不含命令、输出或文件名称。",
+    "en": "Also sends intelligence (the task score), thinking speed and, per model, counts of the tasks completed while reporting is on (successes, stalls, fix attempts). Numbers only — never commands, output or file names.",
+    "ja": "知能（タスクのスコア）、思考の速度、送信をオンにしてから完了したタスクのモデルごとの集計（成功・停滞・修正の回数）も送信します。数値だけで、コマンド、出力、ファイル名は含みません。"
   },
   "report.section.cost": {
     "zh-Hant": "費用（API 等值，以美元計）",
@@ -5209,10 +5215,10 @@
     "ja": "ライブ送信がこの通信量の数値を %@ に送信します。"
   },
   "privacy.report": {
-    "zh-Hant": "即時上報（選用，預設關閉）：開啟後，Agent Speed 會在 agent 工作時每隔幾秒，把即時速度、token 用量，以及你保留的費用、網路流量和模型等數字，連同你選擇的使用者名稱傳送到你指定的服務。不會傳送對話內容、檔案或專案名稱，也不會傳送歷史紀錄；每筆上報都以只存在這台電腦上的金鑰簽章。",
-    "zh-Hans": "实时上报（可选，默认关闭）：开启后，Agent Speed 会在 agent 工作时每隔几秒，把实时速度、token 用量，以及你保留的费用、网络流量和模型等数字，连同你选择的用户名发送到你指定的服务。不会发送对话内容、文件或项目名称，也不会发送历史记录；每条上报都用只保存在这台电脑上的密钥签名。",
-    "en": "Live reporting (optional, off by default): when you turn it on, Agent Speed sends live speed, token usage and — if you keep them — cost, network traffic and model numbers, with the username you choose, to the service you pick, every few seconds while your agents work. It never sends conversation content, file or project names, or history, and signs every report with a key that stays on this computer.",
-    "ja": "ライブ送信（任意・初期設定はオフ）：オンにすると、Agent Speed は agent の作業中に数秒ごと、現在の速度と token 使用量、そしてオンのままにした費用・通信量・モデルなどの数値を、選んだユーザー名と一緒に指定したサービスへ送信します。会話の内容、ファイル名やプロジェクト名、履歴は送信せず、各送信はこのコンピューターから出ない鍵で署名されます。"
+    "zh-Hant": "即時上報（選用，預設關閉）：開啟後，Agent Speed 會在 agent 工作時每隔幾秒，把即時速度、token 用量，以及你保留的費用、網路流量和模型（含智力、思考速度和完成任務的統計）等數字，連同你選擇的使用者名稱傳送到你指定的服務。不會傳送對話內容、指令、檔案或專案名稱，也不會傳送歷史紀錄；每筆上報都以只存在這台電腦上的金鑰簽章。",
+    "zh-Hans": "实时上报（可选，默认关闭）：开启后，Agent Speed 会在 agent 工作时每隔几秒，把实时速度、token 用量，以及你保留的费用、网络流量和模型（含智力、思考速度和完成任务的统计）等数字，连同你选择的用户名发送到你指定的服务。不会发送对话内容、命令、文件或项目名称，也不会发送历史记录；每条上报都用只保存在这台电脑上的密钥签名。",
+    "en": "Live reporting (optional, off by default): when you turn it on, Agent Speed sends live speed, token usage and — if you keep them — cost, network traffic and model numbers (including intelligence, thinking speed and counts of completed tasks), with the username you choose, to the service you pick, every few seconds while your agents work. It never sends conversation content, commands, file or project names, or history, and signs every report with a key that stays on this computer.",
+    "ja": "ライブ送信（任意・初期設定はオフ）：オンにすると、Agent Speed は agent の作業中に数秒ごと、現在の速度と token 使用量、そしてオンのままにした費用・通信量・モデル（知能、思考の速度、完了したタスクの集計を含む）などの数値を、選んだユーザー名と一緒に指定したサービスへ送信します。会話の内容、コマンド、ファイル名やプロジェクト名、履歴は送信せず、各送信はこのコンピューターから出ない鍵で署名されます。"
   },
   "privacy.statement.report": {
     "zh-Hant": "Agent Speed 只讀取本機紀錄，不會儲存或顯示對話內容。它只在檢查更新、每天更新公開的模型價格表、使用美元以外的貨幣時更新匯率，以及依你的設定把即時數字上報到 %@ 時連網；除了即時上報的內容，不傳送任何個人資料。可在下方一次關閉所有網路連線。",
