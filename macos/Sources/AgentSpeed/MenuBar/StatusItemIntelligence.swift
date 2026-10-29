@@ -46,7 +46,7 @@ struct StatusItemIntelligence: Equatable {
     @MainActor
     init?(model: AppModel) {
         let settings = model.settings
-        guard settings.barTraffic == .intelligence, settings.barMode != .glyph else { return nil }
+        guard settings.barIntelligence, settings.barMode != .glyph else { return nil }
         let snapshot = model.snapshot
         self.init(snapshot.intelligence, agents: snapshot.agents, l10n: model.l10n, thinkingHidden: model.barThinking.hidden)
     }

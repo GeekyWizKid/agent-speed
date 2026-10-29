@@ -27,6 +27,8 @@ struct MenuBarPane: View {
 
                 BarTrafficPicker(model: model)
                     .disabled(settings.barMode == .glyph)
+
+                BarIntelligenceToggle(model: model)
             }
 
             Section {
