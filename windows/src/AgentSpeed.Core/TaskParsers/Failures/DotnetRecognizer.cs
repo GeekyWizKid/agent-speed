@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.RegularExpressions;
 
 namespace AgentSpeed.Core.TaskParsers;
@@ -8,69 +9,42 @@ namespace AgentSpeed.Core.TaskParsers;
 internal sealed partial class DotnetRecognizer(FailureFound found) : FailureRecognizer(found)
 {
     [GeneratedRegex("""\A(?:[ \t]*(.+?)\(([0-9]+)(?:,([0-9]+))?(?:,[0-9]+,[0-9]+)?\): error ([A-Za-z]+[0-9]+): (.*?)(?: \[([^\]]+)\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbErrorShared();
-
-    private static Regex MsbError() => ThreadRegex.Of(MsbErrorShared());
+    private static partial Regex MsbError();
 
     [GeneratedRegex("""\A(?:[ \t]*([A-Za-z][A-Za-z0-9_.-]*) : error ([A-Za-z]+[0-9]+): (.*?)(?: \[([^\]]+)\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbToolErrorShared();
-
-
-    private static Regex MsbToolError() => ThreadRegex.Of(MsbToolErrorShared());
+    private static partial Regex MsbToolError();
 
     [GeneratedRegex("""\A(?:[ \t]*.+?(?:\([0-9,]+\))? : warning [A-Za-z]+[0-9]+: .*|[ \t]*.+?\([0-9,]+\): warning [A-Za-z]+[0-9]+: .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbWarningShared();
-
-
-    private static Regex MsbWarning() => ThreadRegex.Of(MsbWarningShared());
+    private static partial Regex MsbWarning();
 
     [GeneratedRegex("""\A(?:[ \t]*([0-9]+) Error\(s\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbCountShared();
-
-
-    private static Regex MsbCount() => ThreadRegex.Of(MsbCountShared());
+    private static partial Regex MsbCount();
 
     [GeneratedRegex("""\A(?:Build (?:failed|succeeded)(?: with ([0-9]+) error\(s\)(?: and [0-9]+ warning\(s\))?)?(?: and [0-9]+ warning\(s\))? in [0-9.]+s)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbTerminalShared();
-
-
-    private static Regex MsbTerminal() => ThreadRegex.Of(MsbTerminalShared());
+    private static partial Regex MsbTerminal();
 
     [GeneratedRegex("""\A(?:[ \t]*[0-9]+ Warning\(s\)|Build FAILED\.|Build succeeded\.|Time Elapsed .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MsbNoiseShared();
-
-
-    private static Regex MsbNoise() => ThreadRegex.Of(MsbNoiseShared());
+    private static partial Regex MsbNoise();
 
     [GeneratedRegex("""\A(?:[ \t]*Failed ([^ ]+) \[[^\]]*\])\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VstestFailedShared();
-
-
-    private static Regex VstestFailed() => ThreadRegex.Of(VstestFailedShared());
+    private static partial Regex VstestFailed();
 
     [GeneratedRegex("""\A(?:[ \t]*(?:Passed|Skipped) ([^ ]+) \[[^\]]*\])\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VstestPassedShared();
-
-
-    private static Regex VstestPassed() => ThreadRegex.Of(VstestPassedShared());
+    private static partial Regex VstestPassed();
 
     [GeneratedRegex("""\A(?:(?:Failed|Passed)![ \t]*-[ \t]*Failed:[ \t]*([0-9]+),[ \t]*Passed:[ \t]*([0-9]+),[ \t]*Skipped:[ \t]*([0-9]+),[ \t]*Total:[ \t]*([0-9]+).*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VstestSummaryShared();
-
-
-    private static Regex VstestSummary() => ThreadRegex.Of(VstestSummaryShared());
+    private static partial Regex VstestSummary();
 
     [GeneratedRegex("""\A(?:[ \t]*Test summary: total: ([0-9]+), failed: ([0-9]+), succeeded: ([0-9]+), skipped: ([0-9]+).*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MtpSummaryShared();
-
-
-    private static Regex MtpSummary() => ThreadRegex.Of(MtpSummaryShared());
+    private static partial Regex MtpSummary();
 
     [GeneratedRegex("""\A(?:[ \t]*failed (.+?) \([0-9.]+m?s\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MtpFailedShared();
+    private static partial Regex MtpFailed();
 
+    // Every pattern below needs one of these (the patterns are anchored and case-sensitive).
+    private static readonly SearchValues<string> Gate = Literals("): error ", " : error ", ": warning ", " Error(s)", "Build ", " Warning(s)", "Time Elapsed ", "Failed ", "Passed ", "Skipped ", "Failed:", "Test summary: ", "failed ");
 
-    private static Regex MtpFailed() => ThreadRegex.Of(MtpFailedShared());
+    public override bool CannotClaim(string line) => Lacks(line, Gate);
 
     public override int Step(string[] lines, int i)
     {

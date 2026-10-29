@@ -22,15 +22,12 @@ internal readonly record struct ReadJob(string Path, RootFamily Family, string R
 /// </summary>
 internal sealed class OrderedFileReader : IDisposable
 {
-    /// <summary>From this much to read, each worker matches the task parsers' patterns with its own copies (no contention).</summary>
-    private const long OwnPatternsBytes = 64L * 1024 * 1024;
 
     private readonly IReadOnlyList<ReadJob> _jobs;
     private readonly IDeduper _deduper;
     private readonly PreparedFile?[] _done;
     private readonly long _maxBufferedBytes;
     private readonly int _maxAhead;
-    private readonly bool _ownPatterns;
     private readonly object _gate = new();
     private readonly CancellationTokenSource _stop;
     private readonly List<Thread> _workers = [];
@@ -50,7 +47,6 @@ internal sealed class OrderedFileReader : IDisposable
         _done = new PreparedFile?[jobs.Count];
         _maxBufferedBytes = maxBufferedBytes;
         _maxAhead = Math.Max(2, workers * 2);
-        _ownPatterns = workers > 1 && jobs.Sum(j => j.Size) >= OwnPatternsBytes;
         _stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var count = Math.Clamp(workers, 1, Math.Max(1, jobs.Count));
         for (var i = 0; i < count; i++)
@@ -118,10 +114,6 @@ internal sealed class OrderedFileReader : IDisposable
 
     private void Work()
     {
-        if (_ownPatterns)
-        {
-            TaskParsers.ThreadRegex.UseOwnCopies();
-        }
 
         while (true)
         {

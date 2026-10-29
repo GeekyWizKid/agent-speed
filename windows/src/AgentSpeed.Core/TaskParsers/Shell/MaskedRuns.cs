@@ -24,10 +24,7 @@ internal static partial class MaskedRuns
     private static readonly HashSet<string> Limiters = Set("head", "tail");
 
     [GeneratedRegex(@"\$\?|\$\{\?\}|\$\{PIPESTATUS\[([0-9]+)\]\}|\$PIPESTATUS", RegexOptions.CultureInvariant)]
-    private static partial Regex StatusRefShared();
-
-
-    private static Regex StatusRef() => ThreadRegex.Of(StatusRefShared());
+    private static partial Regex StatusRef();
 
     private enum Form
     {

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.RegularExpressions;
 
 namespace AgentSpeed.Core.TaskParsers;
@@ -11,160 +12,88 @@ internal sealed partial class CheckersRecognizer(FailureFound found) : FailureRe
     private bool tscTable;
 
     [GeneratedRegex("""\A(?:[ \t]+[0-9]+[ \t]+.+:[0-9]+)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex TscRowShared();
-
-
-    private static Regex TscRow() => ThreadRegex.Of(TscRowShared());
+    private static partial Regex TscRow();
 
     [GeneratedRegex("""\A(?:(.+?)\(([0-9]+),([0-9]+)\): error (TS[0-9]+): (.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex TscParenShared();
-
-
-    private static Regex TscParen() => ThreadRegex.Of(TscParenShared());
+    private static partial Regex TscParen();
 
     [GeneratedRegex("""\A(?:(.+?):([0-9]+):([0-9]+) - error (TS[0-9]+): (.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex TscPrettyShared();
-
-
-    private static Regex TscPretty() => ThreadRegex.Of(TscPrettyShared());
+    private static partial Regex TscPretty();
 
     [GeneratedRegex("""\A(?:Found ([0-9]+) errors? in [0-9]+ files? \((?:checked [0-9]+ source files?|errors prevented further checking)\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MypyFoundShared();
-
-
-    private static Regex MypyFound() => ThreadRegex.Of(MypyFoundShared());
+    private static partial Regex MypyFound();
 
     [GeneratedRegex("""\A(?:Found ([0-9]+) errors? in .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex TscFoundShared();
-
-
-    private static Regex TscFound() => ThreadRegex.Of(TscFoundShared());
+    private static partial Regex TscFound();
 
     [GeneratedRegex("""\A(?:Found ([0-9]+) errors?(?: \(([0-9]+) fixed, ([0-9]+) remaining\))?\.)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex FoundErrorsShared();
-
-
-    private static Regex FoundErrors() => ThreadRegex.Of(FoundErrorsShared());
+    private static partial Regex FoundErrors();
 
     [GeneratedRegex("""\A(?:Errors +Files)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex TscTableShared();
-
-
-    private static Regex TscTable() => ThreadRegex.Of(TscTableShared());
+    private static partial Regex TscTable();
 
     [GeneratedRegex("""\A(?:(.+?):([0-9]+):([0-9]+): (.+) \[(Error|Warning)/(.+)\])\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex EslintUnixShared();
-
-
-    private static Regex EslintUnix() => ThreadRegex.Of(EslintUnixShared());
+    private static partial Regex EslintUnix();
 
     [GeneratedRegex("""\A(?:(/[^:]*|[A-Za-z]:[\\/][^:]*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex EslintFileShared();
-
-
-    private static Regex EslintFile() => ThreadRegex.Of(EslintFileShared());
+    private static partial Regex EslintFile();
 
     [GeneratedRegex("""\A(?:[ \t]+([0-9]+):([0-9]+)[ \t]+(error|warning)[ \t]+(.+?)(?:[ \t]{2,}([^ \t]+))?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex EslintMsgShared();
-
-
-    private static Regex EslintMsg() => ThreadRegex.Of(EslintMsgShared());
+    private static partial Regex EslintMsg();
 
     [GeneratedRegex("""\A(?:✖ ([0-9]+) problems? \(([0-9]+) errors?, ([0-9]+) warnings?\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex EslintSummaryShared();
-
-
-    private static Regex EslintSummary() => ThreadRegex.Of(EslintSummaryShared());
+    private static partial Regex EslintSummary();
 
     [GeneratedRegex("""\A(?:[ \t]+[0-9]+ errors? and [0-9]+ warnings? potentially fixable.*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex EslintFixableShared();
-
-
-    private static Regex EslintFixable() => ThreadRegex.Of(EslintFixableShared());
+    private static partial Regex EslintFixable();
 
     [GeneratedRegex("""\A(?:(.+?\.(?:py|pyi|ipynb)):([0-9]+):([0-9]+): ([A-Z]+[0-9]+|SyntaxError|invalid-syntax):? (?:\[\*\] )?(.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RuffConciseShared();
-
-
-    private static Regex RuffConcise() => ThreadRegex.Of(RuffConciseShared());
+    private static partial Regex RuffConcise();
 
     [GeneratedRegex("""\A(?:([A-Z]{1,4}[0-9]{1,4}|invalid-syntax|SyntaxError):? (?:\[\*\] )?(.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RuffHeaderShared();
-
-
-    private static Regex RuffHeader() => ThreadRegex.Of(RuffHeaderShared());
+    private static partial Regex RuffHeader();
 
     [GeneratedRegex("""\A(?: *--> (.+?):([0-9]+):([0-9]+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RuffLocShared();
-
-
-    private static Regex RuffLoc() => ThreadRegex.Of(RuffLocShared());
+    private static partial Regex RuffLoc();
 
     [GeneratedRegex("""\A(?:All checks passed!)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RuffPassedShared();
-
-
-    private static Regex RuffPassed() => ThreadRegex.Of(RuffPassedShared());
+    private static partial Regex RuffPassed();
 
     [GeneratedRegex("""\A(?:Would reformat: (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RuffWouldShared();
-
-
-    private static Regex RuffWould() => ThreadRegex.Of(RuffWouldShared());
+    private static partial Regex RuffWould();
 
     [GeneratedRegex("""\A(?:would reformat (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex BlackWouldShared();
-
-
-    private static Regex BlackWould() => ThreadRegex.Of(BlackWouldShared());
+    private static partial Regex BlackWould();
 
     [GeneratedRegex("""\A(?:(?:Oh no! .*)?([0-9]+) files? would be reformatted(?:, [0-9]+ files? (?:already formatted|would be left unchanged))?\.?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex FormatSummaryShared();
-
-
-    private static Regex FormatSummary() => ThreadRegex.Of(FormatSummaryShared());
+    private static partial Regex FormatSummary();
 
     [GeneratedRegex("""\A(?:(.+?\.pyi?):([0-9]+)(?::([0-9]+))?: error: (.+?)(?:  \[([a-z0-9-]+)\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MypyErrorShared();
-
-
-    private static Regex MypyError() => ThreadRegex.Of(MypyErrorShared());
+    private static partial Regex MypyError();
 
     [GeneratedRegex("""\A(?:(.+?\.pyi?):([0-9]+)(?::([0-9]+))?: note: .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MypyNoteShared();
-
-
-    private static Regex MypyNote() => ThreadRegex.Of(MypyNoteShared());
+    private static partial Regex MypyNote();
 
     [GeneratedRegex("""\A(?:Success: no issues found in [0-9]+ source files?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MypySuccessShared();
-
-
-    private static Regex MypySuccess() => ThreadRegex.Of(MypySuccessShared());
+    private static partial Regex MypySuccess();
 
     [GeneratedRegex("""\A(?:[ \t]*(.+?):([0-9]+):([0-9]+) - error: (.+?)(?: \((report[A-Za-z]+)\))?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PyrightErrorShared();
-
-
-    private static Regex PyrightError() => ThreadRegex.Of(PyrightErrorShared());
+    private static partial Regex PyrightError();
 
     [GeneratedRegex("""\A(?:[ \t]*(.+?):([0-9]+):([0-9]+) - (?:warning|information|info|note): .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PyrightOtherShared();
-
-
-    private static Regex PyrightOther() => ThreadRegex.Of(PyrightOtherShared());
+    private static partial Regex PyrightOther();
 
     [GeneratedRegex(""" \((report[A-Za-z]+)\)$""", RegexOptions.CultureInvariant)]
-    private static partial Regex PyrightRuleShared();
-
-
-    private static Regex PyrightRule() => ThreadRegex.Of(PyrightRuleShared());
+    private static partial Regex PyrightRule();
 
     [GeneratedRegex("""\A(?:([0-9]+) errors?, ([0-9]+) warnings?, ([0-9]+) (?:informations?|infos?|notes?) ?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PyrightSummaryShared();
+    private static partial Regex PyrightSummary();
 
+    // Every pattern below needs one of these (the patterns are anchored and case-sensitive).
+    private static readonly SearchValues<string> Gate = Literals("error", "Found ", "Errors ", "[Error/", "[Warning/", "\u2716 ", " potentially fixable", "All checks passed!", "Would reformat: ", "would reformat ", " would be reformatted", ": note: ", "Success: no issues found", " - warning: ", " - info", " - note: ");
 
-    private static Regex PyrightSummary() => ThreadRegex.Of(PyrightSummaryShared());
+    public override bool CannotClaim(string line) => !tscTable && eslintFile is null && Lacks(line, Gate) && !MayBeEslintFile(line) && !MayBeRuffHeader(line)
+        && !HasLocation(line, ".py:") && !HasLocation(line, ".pyi:") && !HasLocation(line, ".ipynb:");
 
     public override int Step(string[] lines, int i)
     {
@@ -370,6 +299,51 @@ internal sealed partial class CheckersRecognizer(FailureFound found) : FailureRe
 
         Found.Error("pyright", G(r, 1), code, PyrightRule().Replace(G(r, 4), ""));
         return k - i + 1;
+    }
+
+    /// <summary>A line <c>EslintFile</c> could match: it starts with <c>/</c> or a drive (<c>C:\\</c>, <c>C:/</c>).</summary>
+    private static bool MayBeEslintFile(string line) =>
+        line.StartsWith('/') || (line.Length >= 3 && char.IsAsciiLetter(line[0]) && line[1] == ':' && line[2] is '\\' or '/');
+
+    /// <summary>
+    /// A line <c>RuffHeader</c> could match: it starts with <c>invalid-syntax</c>, <c>SyntaxError</c>, or 1–4 ASCII capitals
+    /// and 1–4 digits followed by a colon or a space.
+    /// </summary>
+    private static bool MayBeRuffHeader(string line)
+    {
+        if (line.StartsWith("invalid-syntax", StringComparison.Ordinal) || line.StartsWith("SyntaxError", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var letters = 0;
+        while (letters < 4 && letters < line.Length && char.IsAsciiLetterUpper(line[letters]))
+        {
+            letters++;
+        }
+
+        var digits = letters;
+        while (letters > 0 && digits - letters < 4 && digits < line.Length && char.IsAsciiDigit(line[digits]))
+        {
+            digits++;
+        }
+
+        return digits > letters && digits < line.Length && line[digits] is ':' or ' ';
+    }
+
+    /// <summary>The line holds <paramref name="extension"/> (ending with a colon) followed by a digit (<c>RuffConcise</c>).</summary>
+    private static bool HasLocation(string line, string extension)
+    {
+        for (var at = line.IndexOf(extension, StringComparison.Ordinal); at >= 0; at = line.IndexOf(extension, at + 1, StringComparison.Ordinal))
+        {
+            var next = at + extension.Length;
+            if (next < line.Length && char.IsAsciiDigit(line[next]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsPyrightOther(string line) =>

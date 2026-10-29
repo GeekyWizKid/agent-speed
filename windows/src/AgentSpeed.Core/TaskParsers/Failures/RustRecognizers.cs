@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.RegularExpressions;
 
 namespace AgentSpeed.Core.TaskParsers;
@@ -11,64 +12,39 @@ internal sealed partial class CargoRecognizer(FailureFound found) : FailureRecog
     private bool listing;
 
     [GeneratedRegex("""\A(?:    ([^ ].*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LibtestListedShared();
-
-
-    private static Regex LibtestListed() => ThreadRegex.Of(LibtestListedShared());
+    private static partial Regex LibtestListed();
 
     [GeneratedRegex("""\A(?:test (.+) \.\.\. (FAILED|ok|ignored(?:, .*)?|bench: .*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LibtestLineShared();
-
-
-    private static Regex LibtestLine() => ThreadRegex.Of(LibtestLineShared());
+    private static partial Regex LibtestLine();
 
     [GeneratedRegex("""\A(?:---- (.+) (?:stdout|stderr) ----)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LibtestStdoutShared();
-
-
-    private static Regex LibtestStdout() => ThreadRegex.Of(LibtestStdoutShared());
+    private static partial Regex LibtestStdout();
 
     [GeneratedRegex("""\A(?:test result: (?:ok|FAILED)\. ([0-9]+) passed; ([0-9]+) failed; ([0-9]+) ignored; ([0-9]+) measured; ([0-9]+) filtered out(?:; finished in .*)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LibtestResultShared();
-
-
-    private static Regex LibtestResult() => ThreadRegex.Of(LibtestResultShared());
+    private static partial Regex LibtestResult();
 
     [GeneratedRegex("""\A(?:failures:)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex LibtestFailuresShared();
-
-
-    private static Regex LibtestFailures() => ThreadRegex.Of(LibtestFailuresShared());
+    private static partial Regex LibtestFailures();
 
     [GeneratedRegex("""\A(?: *(?:FAIL|SIGSEGV|SIGABRT|SIGKILL|SIGBUS|TIMEOUT|LEAK-FAIL|ABORT) \[ *[0-9.]+m?s\] (?:\( *[0-9]+/[0-9]+\) )?([^ ]+) (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex NextestFailShared();
-
-
-    private static Regex NextestFail() => ThreadRegex.Of(NextestFailShared());
+    private static partial Regex NextestFail();
 
     [GeneratedRegex("""\A(?: *(?:PASS|SKIP|LEAK|SLOW|FLAKY|START|RETRY|TRY [0-9]+ [A-Z-]+) \[.*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex NextestOtherShared();
-
-
-    private static Regex NextestOther() => ThreadRegex.Of(NextestOtherShared());
+    private static partial Regex NextestOther();
 
     [GeneratedRegex("""\A(?: *Summary \[[^\]]*\] +([0-9]+) tests? run: (.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex NextestSummaryShared();
-
-
-    private static Regex NextestSummary() => ThreadRegex.Of(NextestSummaryShared());
+    private static partial Regex NextestSummary();
 
     [GeneratedRegex("""\(line [0-9]+\)""", RegexOptions.CultureInvariant)]
-    private static partial Regex DoctestLineShared();
-
-
-    private static Regex DoctestLine() => ThreadRegex.Of(DoctestLineShared());
+    private static partial Regex DoctestLine();
 
     [GeneratedRegex(""" \([^)]*\)""", RegexOptions.CultureInvariant)]
-    private static partial Regex NextestNoteShared();
+    private static partial Regex NextestNote();
 
+    // Every pattern below needs one of these (the patterns are anchored and case-sensitive).
+    private static readonly SearchValues<string> Gate = Literals(" ... ", "---- ", "test result: ", "failures:", " [");
 
-    private static Regex NextestNote() => ThreadRegex.Of(NextestNoteShared());
+    public override bool CannotClaim(string line) => !listing && Lacks(line, Gate);
 
     public override int Step(string[] lines, int i)
     {
@@ -157,39 +133,27 @@ internal sealed partial class CargoRecognizer(FailureFound found) : FailureRecog
 internal sealed partial class RustcRecognizer(FailureFound found) : FailureRecognizer(found)
 {
     [GeneratedRegex("""\A(?:error: could not compile `[^`]+`(?: \([^)]*\))?(?:;.*)?(?: due to ([0-9]+) previous errors?| due to previous error)?(?:;.*)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustCouldNotShared();
-
-    private static Regex RustCouldNot() => ThreadRegex.Of(RustCouldNotShared());
+    private static partial Regex RustCouldNot();
 
     [GeneratedRegex("""\A(?:error: aborting due to (?:([0-9]+) )?previous errors?(?:;.*)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustAbortingShared();
-
-
-    private static Regex RustAborting() => ThreadRegex.Of(RustAbortingShared());
+    private static partial Regex RustAborting();
 
     [GeneratedRegex("""\A(?:error: (?:test failed|build failed|failed to run|[0-9]+ targets? failed|process didn't exit successfully|Recipe ).*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustStatusShared();
-
-
-    private static Regex RustStatus() => ThreadRegex.Of(RustStatusShared());
+    private static partial Regex RustStatus();
 
     [GeneratedRegex("""\A(?:error(?:\[(E[0-9]{4})\])?: (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustHeaderShared();
-
-
-    private static Regex RustHeader() => ThreadRegex.Of(RustHeaderShared());
+    private static partial Regex RustHeader();
 
     [GeneratedRegex("""\A(?: *--> (.+?):([0-9]+):([0-9]+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustLocShared();
-
-
-    private static Regex RustLoc() => ThreadRegex.Of(RustLocShared());
+    private static partial Regex RustLoc();
 
     [GeneratedRegex("""\A(?:warning(?:\[[A-Za-z0-9_:]+\])?: .+)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RustWarnShared();
+    private static partial Regex RustWarn();
 
+    // Every pattern below needs one of these (the patterns are anchored and case-sensitive).
+    private static readonly SearchValues<string> Gate = Literals("error", "warning");
 
-    private static Regex RustWarn() => ThreadRegex.Of(RustWarnShared());
+    public override bool CannotClaim(string line) => Lacks(line, Gate);
 
     public override int Step(string[] lines, int i)
     {

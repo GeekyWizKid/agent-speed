@@ -12,94 +12,49 @@ internal static partial class FailureMask
     public const int MaxMessage = 200;
 
     [GeneratedRegex("""(?<![A-Za-z0-9._~/\\-])(?:(?:/private)?/var/folders/|(?:/private)?/tmp/|[A-Za-z]:[\\/]Users[\\/][^\\/ \t]+[\\/]AppData[\\/]Local[\\/]Temp[\\/])[^ \t'\"()\[\]\{\}<>,;|`]*""", RegexOptions.CultureInvariant)]
-    private static partial Regex TmpPathShared();
-
-
-    private static Regex TmpPath() => ThreadRegex.Of(TmpPathShared());
+    private static partial Regex TmpPath();
 
     [GeneratedRegex("""(?<![A-Za-z0-9._~/\\-])(?:/Users/[^/ \t'\"]+/|/home/[^/ \t'\"]+/|[A-Za-z]:[\\/]Users[\\/][^\\/ \t'\"]+[\\/])""", RegexOptions.CultureInvariant)]
-    private static partial Regex HomePathShared();
-
-
-    private static Regex HomePath() => ThreadRegex.Of(HomePathShared());
+    private static partial Regex HomePath();
 
     [GeneratedRegex("""[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}""", RegexOptions.CultureInvariant)]
-    private static partial Regex UuidShared();
-
-
-    private static Regex Uuid() => ThreadRegex.Of(UuidShared());
+    private static partial Regex Uuid();
 
     [GeneratedRegex("""[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:[.,][0-9]+)?)?(?:Z|[+-][0-9]{2}:?[0-9]{2})?""", RegexOptions.CultureInvariant)]
-    private static partial Regex IsoTimeShared();
-
-
-    private static Regex IsoTime() => ThreadRegex.Of(IsoTimeShared());
+    private static partial Regex IsoTime();
 
     [GeneratedRegex("""(?<![0-9])[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:[.,][0-9]+)?(?![0-9])""", RegexOptions.CultureInvariant)]
-    private static partial Regex TimeOfDayShared();
-
-
-    private static Regex TimeOfDay() => ThreadRegex.Of(TimeOfDayShared());
+    private static partial Regex TimeOfDay();
 
     [GeneratedRegex("""(?<![0-9])[0-9]{4}-[0-9]{2}-[0-9]{2}(?![0-9])""", RegexOptions.CultureInvariant)]
-    private static partial Regex DateShared();
-
-
-    private static Regex Date() => ThreadRegex.Of(DateShared());
+    private static partial Regex Date();
 
     [GeneratedRegex("""0x[0-9A-Fa-f]+""", RegexOptions.CultureInvariant)]
-    private static partial Regex HexAddrShared();
-
-
-    private static Regex HexAddr() => ThreadRegex.Of(HexAddrShared());
+    private static partial Regex HexAddr();
 
     [GeneratedRegex("""(\.[A-Za-z][A-Za-z0-9+]{0,9}):[0-9]+(?::[0-9]+)?""", RegexOptions.CultureInvariant)]
-    private static partial Regex FilePosShared();
-
-
-    private static Regex FilePos() => ThreadRegex.Of(FilePosShared());
+    private static partial Regex FilePos();
 
     [GeneratedRegex("""(\.[A-Za-z][A-Za-z0-9+]{0,9})\([0-9]+(?:,[0-9]+)?\)""", RegexOptions.CultureInvariant)]
-    private static partial Regex FilePosParenShared();
-
-
-    private static Regex FilePosParen() => ThreadRegex.Of(FilePosParenShared());
+    private static partial Regex FilePosParen();
 
     [GeneratedRegex("""(\.[A-Za-z][A-Za-z0-9+]{0,9}):\[[0-9]+,[0-9]+\]""", RegexOptions.CultureInvariant)]
-    private static partial Regex FilePosBracketShared();
-
-
-    private static Regex FilePosBracket() => ThreadRegex.Of(FilePosBracketShared());
+    private static partial Regex FilePosBracket();
 
     [GeneratedRegex("""(?<![A-Za-z0-9_])(line|Line|LINE|lines|col|column|Column|col\.)( ?)[0-9]+(?![0-9])""", RegexOptions.CultureInvariant)]
-    private static partial Regex LineWordShared();
-
-
-    private static Regex LineWord() => ThreadRegex.Of(LineWordShared());
+    private static partial Regex LineWord();
 
     [GeneratedRegex("""(?<![A-Za-z0-9_.])[0-9]+(?:\.[0-9]+)? ?(?:ns|us|\u00b5s|ms|s|sec|secs|seconds|second|m|min|mins|minutes|minute|h|hr|hrs|hours|hour)(?![A-Za-z0-9_])""", RegexOptions.CultureInvariant)]
-    private static partial Regex DurationShared();
-
-
-    private static Regex Duration() => ThreadRegex.Of(DurationShared());
+    private static partial Regex Duration();
 
     [GeneratedRegex("""(?<![A-Za-z0-9_])[0-9A-Fa-f]{8,}(?![A-Za-z0-9_])""", RegexOptions.CultureInvariant)]
-    private static partial Regex LongHexShared();
-
-
-    private static Regex LongHex() => ThreadRegex.Of(LongHexShared());
+    private static partial Regex LongHex();
 
     [GeneratedRegex("""(?<![A-Za-z0-9_])(pid|PID|port)([ =:#]+)[0-9]+""", RegexOptions.CultureInvariant)]
-    private static partial Regex PidPortShared();
-
-
-    private static Regex PidPort() => ThreadRegex.Of(PidPortShared());
+    private static partial Regex PidPort();
 
     [GeneratedRegex("""[ \t]+""", RegexOptions.CultureInvariant)]
-    private static partial Regex SpacesShared();
-
-
-    private static Regex Spaces() => ThreadRegex.Of(SpacesShared());
+    private static partial Regex Spaces();
 
     /// <summary><c>mask</c>: paths relative, volatile parts replaced, spaces collapsed, at most 200 characters.</summary>
     /// <remarks>Each pattern runs only when the text holds what every match of it needs, which leaves the result unchanged.</remarks>

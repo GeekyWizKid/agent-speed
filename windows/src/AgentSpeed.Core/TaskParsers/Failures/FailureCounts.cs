@@ -6,9 +6,7 @@ namespace AgentSpeed.Core.TaskParsers;
 internal static partial class FailureCounts
 {
     [GeneratedRegex("""\A(?:[ \t]*([0-9]+) ([A-Za-z][A-Za-z ]*?)[ \t]*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CountPartShared();
-
-    private static Regex CountPart() => ThreadRegex.Of(CountPartShared());
+    private static partial Regex CountPart();
 
     /// <summary>
     /// The text split at <paramref name="separator"/>; each part <c>N label</c> adds N to its label (equal labels add up).

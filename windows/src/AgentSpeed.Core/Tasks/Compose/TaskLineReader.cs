@@ -41,8 +41,8 @@ internal abstract class TaskLineReader(SourceKind source)
             return null;
         }
 
-        var (action, info, continues) = Analyze(tool, input, digest, t);
-        Remember(id, new Pending(tool, Keep(input), Cwd, info, continues, null, null, 0));
+        var (action, info, continues, shell) = Analyze(tool, input, digest, t);
+        Remember(id, new Pending(tool, Keep(input), Cwd, info, continues, null, null, 0, shell));
         return new TaskCall(id, action, continues, info, Cwd);
     }
 
@@ -60,12 +60,12 @@ internal abstract class TaskLineReader(SourceKind source)
         {
             var call = script.Calls[i];
             var input = call.Input ?? default;
-            var (action, info, continues) = Analyze(call.Tool, input, call.Digest, t);
+            var (action, info, continues, shell) = Analyze(call.Tool, input, call.Digest, t);
             calls[i] = new TaskCall(id, action, continues, info, Cwd);
-            pending[i] = new Pending(call.Tool, input, Cwd, info, continues, null, null, 0);
+            pending[i] = new Pending(call.Tool, input, Cwd, info, continues, null, null, 0, shell);
         }
 
-        Remember(id, new Pending("exec", default, Cwd, null, null, pending, script.Prints, 0));
+        Remember(id, new Pending("exec", default, Cwd, null, null, pending, script.Prints, 0, null));
         return new TaskCall(id, null, null, null, Cwd) { Script = calls };
     }
 
@@ -110,47 +110,44 @@ internal abstract class TaskLineReader(SourceKind source)
         return new TaskResult(id) { IsScript = true, ScriptAnswers = answers };
     }
 
-    private (TaskAction Action, CommandInfo? Info, string? Continues) Analyze(string tool, JsonElement input, string digest, long t)
+    /// <summary>The call's action; a shell command is parsed once for its kind, its command info and its outcome.</summary>
+    private (TaskAction Action, CommandInfo? Info, string? Continues, ShellAnalysis? Shell) Analyze(string tool, JsonElement input, string digest, long t)
     {
-        var kind = TaskParser.ActionKind(Source, tool, input, Cwd);
+        var (kind, _, shell) = ShellCommands.Classify(TaskFamilies.Of(Source), tool, input, Cwd);
         TaskCommand? command = null;
         CommandInfo? info = null;
         IReadOnlyList<EditHunk>? hunks = null;
-        if (kind == ActionKind.Command)
+        if (kind == ActionKind.Command && shell is not null)
         {
-            if (TaskParser.CommandText(Source, tool, input) is { } text)
-            {
-                info = TaskParser.CommandInfo(text, Cwd);
-                command = TaskCommand.Of(info);
-            }
+            info = shell.Info;
+            command = TaskCommand.Of(info);
         }
         else if (kind == ActionKind.Edit)
         {
             hunks = TaskParser.EditHunks(Source, tool, input, Cwd);
         }
 
-        return (new TaskAction(t, kind, tool, digest, command, hunks), info, TaskParser.Continuation(Source, tool, input));
+        return (new TaskAction(t, kind, tool, digest, command, hunks), info, TaskParser.Continuation(Source, tool, input), shell);
     }
 
     private TaskAnswer Answer(Pending call, JsonElement result, long t)
     {
-        var outcome = TaskParser.Outcome(Source, result, t, call.Tool, call.Input, call.Cwd);
-        // A result that leaves a session running has neither an exit code nor a verdict (TASK-PARSERS 4.2, 4.3).
-        var session = call.Continues is null && outcome.ExitCode is null && outcome.Failed is null
-            ? TaskParser.RunningSession(Source, result)
-            : null;
-        if (session is not null)
+        // The output text only matters to a command's failures and a session's output (a file read's is never kept).
+        var wantsText = call.Info is not null || call.Continues is not null;
+        var read = ResultParser.Read(TaskFamilies.Of(Source), result, t, call.Tool, call.Input, call.Cwd,
+            session: call.Continues is null, text: wantsText, command: call.Shell);
+        var outcome = read.Outcome;
+        if (read.Session is { } session)
         {
-            return new TaskAnswer(outcome) { Session = session, Masked = Masked(call), Text = TaskParser.ResultText(Source, result) };
+            return new TaskAnswer(outcome) { Session = session, Masked = Masked(call), Text = read.Text ?? TaskParser.ResultText(Source, result) };
         }
 
-        // The output text only matters to a command's failures and a session's output (a file read's is never kept).
-        if (call.Info is null && call.Continues is null)
+        if (!wantsText)
         {
             return new TaskAnswer(outcome);
         }
 
-        var text = TaskParser.ResultText(Source, result);
+        var text = read.Text!;
         return new TaskAnswer(outcome)
         {
             Failures = call.Info is { } info ? TaskParser.Failures(info, text, call.Cwd, outcome.Failed) : null,
@@ -160,7 +157,7 @@ internal abstract class TaskLineReader(SourceKind source)
 
     /// <summary><c>shell_call_state(…).masked</c>: the command's own flag, whatever the call's kind.</summary>
     private bool Masked(Pending call) =>
-        call.Info?.Masked ?? (TaskParser.CommandText(Source, call.Tool, call.Input) is { } text && TaskParser.CommandInfo(text, call.Cwd).Masked);
+        call.Shell?.Info.Masked ?? (TaskParser.CommandText(Source, call.Tool, call.Input) is { } text && TaskParser.CommandInfo(text, call.Cwd).Masked);
 
     private void Remember(string id, Pending call)
     {
@@ -189,5 +186,6 @@ internal abstract class TaskLineReader(SourceKind source)
         string? Continues,
         Pending[]? Script,
         IReadOnlyList<CodePrint>? Prints,
-        long Sequence);
+        long Sequence,
+        ShellAnalysis? Shell);
 }

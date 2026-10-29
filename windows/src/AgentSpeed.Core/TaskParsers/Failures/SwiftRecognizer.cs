@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.RegularExpressions;
 
 namespace AgentSpeed.Core.TaskParsers;
@@ -14,106 +15,60 @@ internal sealed partial class SwiftRecognizer(FailureFound found) : FailureRecog
     private bool commands;
 
     [GeneratedRegex("""\A(?:[ \t]+(.+?)(?: \(.*\))?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XbListedShared();
-
-
-    private static Regex XbListed() => ThreadRegex.Of(XbListedShared());
+    private static partial Regex XbListed();
 
     [GeneratedRegex("""\A(?:\(([0-9]+) failures?\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XbCountShared();
-
-
-    private static Regex XbCount() => ThreadRegex.Of(XbCountShared());
+    private static partial Regex XbCount();
 
     [GeneratedRegex("""\A(?:[^ \tA-Za-z0-9]+ Test (.+?) failed after [0-9]+(?:\.[0-9]+)? seconds(?: with [0-9]+ issues?)?(?: \(including [0-9]+ known issues?\))?\.)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex StFailedShared();
-
-
-    private static Regex StFailed() => ThreadRegex.Of(StFailedShared());
+    private static partial Regex StFailed();
 
     [GeneratedRegex(""" with [0-9]+ test cases?$""", RegexOptions.CultureInvariant)]
-    private static partial Regex StCasesShared();
-
-
-    private static Regex StCases() => ThreadRegex.Of(StCasesShared());
+    private static partial Regex StCases();
 
     [GeneratedRegex("""\A(?:[^ \tA-Za-z0-9]+ Test run with ([0-9]+) tests?(?: in [0-9]+ suites?)? (passed|failed) after [0-9]+(?:\.[0-9]+)? seconds(?: with ([0-9]+) issues?)?(?: \(including [0-9]+ known issues?\))?\.)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex StRunShared();
-
-
-    private static Regex StRun() => ThreadRegex.Of(StRunShared());
+    private static partial Regex StRun();
 
     [GeneratedRegex("""\A(?:[^ \tA-Za-z0-9]+ Test (.+?) recorded an issue.*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex StIssueShared();
-
-
-    private static Regex StIssue() => ThreadRegex.Of(StIssueShared());
+    private static partial Regex StIssue();
 
     [GeneratedRegex("""\A(?:[^ \tA-Za-z0-9]+ (?:Test .+? (?:passed after .*|started\.|skipped.*)|Suite .+? (?:passed|failed|started).*|Test run started\.|Testing Library Version: .*|Target Platform: .*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex StOtherShared();
-
-
-    private static Regex StOther() => ThreadRegex.Of(StOtherShared());
+    private static partial Regex StOther();
 
     [GeneratedRegex("""\A(?:Test [Cc]ase '(-\[[^\]]+\]|[^']+)' (failed|passed|started|skipped)(?: on '[^']*')?(?: \([0-9.]+ seconds\))?\.?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XcCaseShared();
-
-
-    private static Regex XcCase() => ThreadRegex.Of(XcCaseShared());
+    private static partial Regex XcCase();
 
     [GeneratedRegex("""\A(?:(.+?):([0-9]+): error: (-\[[^\]]+\]|[A-Za-z0-9_.()/]+) : .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XcErrorShared();
-
-
-    private static Regex XcError() => ThreadRegex.Of(XcErrorShared());
+    private static partial Regex XcError();
 
     [GeneratedRegex("""\A(?:Test [Ss]uite '.+' (?:started|passed|failed).*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XcSuiteShared();
-
-
-    private static Regex XcSuite() => ThreadRegex.Of(XcSuiteShared());
+    private static partial Regex XcSuite();
 
     [GeneratedRegex("""\A(?:[ \t]*Executed ([0-9]+) tests?, with (?:([0-9]+) tests? skipped and )?([0-9]+) failures? \(([0-9]+) unexpected\) in [0-9.]+ \([0-9.]+\) seconds)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XcExecutedShared();
-
-
-    private static Regex XcExecuted() => ThreadRegex.Of(XcExecutedShared());
+    private static partial Regex XcExecuted();
 
     [GeneratedRegex("""\A(?:Failing tests:)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XbFailingShared();
-
-
-    private static Regex XbFailing() => ThreadRegex.Of(XbFailingShared());
+    private static partial Regex XbFailing();
 
     [GeneratedRegex("""\A(?:\*\* (?:TEST|BUILD|ANALYZE|ARCHIVE|CLEAN|TEST BUILD|INSTALL) (?:FAILED|SUCCEEDED|INTERRUPTED) \*\*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XbResultShared();
-
-
-    private static Regex XbResult() => ThreadRegex.Of(XbResultShared());
+    private static partial Regex XbResult();
 
     [GeneratedRegex("""\A(?:The following build commands failed:)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex XbCommandsShared();
-
-
-    private static Regex XbCommands() => ThreadRegex.Of(XbCommandsShared());
+    private static partial Regex XbCommands();
 
     [GeneratedRegex("""\A(?:(.+\.swift):([0-9]+):([0-9]+): error: (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex SwiftcErrorShared();
-
-
-    private static Regex SwiftcError() => ThreadRegex.Of(SwiftcErrorShared());
+    private static partial Regex SwiftcError();
 
     [GeneratedRegex("""\A(?:(.+\.swift):([0-9]+):([0-9]+): (?:warning|note): .+)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex SwiftcWarnShared();
-
-
-    private static Regex SwiftcWarn() => ThreadRegex.Of(SwiftcWarnShared());
+    private static partial Regex SwiftcWarn();
 
     [GeneratedRegex("""\A(?:error: (?:emit-module command failed|fatalError|compile command failed|link command failed).*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex SwiftNoiseShared();
+    private static partial Regex SwiftNoise();
 
+    // Every pattern below needs one of these (the patterns are anchored and case-sensitive).
+    private static readonly SearchValues<string> Gate = Literals("Test ", "Testing Library Version: ", " Suite ", " Target Platform: ", "Executed ", "Failing tests:", "** ", "The following build commands failed:", ".swift:", "error: ");
 
-    private static Regex SwiftNoise() => ThreadRegex.Of(SwiftNoiseShared());
+    public override bool CannotClaim(string line) => !listing && !commands && Lacks(line, Gate);
 
     public override int Step(string[] lines, int i)
     {

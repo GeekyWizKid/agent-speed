@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.RegularExpressions;
 
 namespace AgentSpeed.Core.TaskParsers;
@@ -9,88 +10,53 @@ internal sealed partial class MiscRecognizer(FailureFound found) : FailureRecogn
     private bool? ctestFailedList;
 
     [GeneratedRegex("""\A(?:[ \t]+[0-9]+ - (.+?) \((.+)\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CtestListedShared();
-
-
-    private static Regex CtestListed() => ThreadRegex.Of(CtestListedShared());
+    private static partial Regex CtestListed();
 
     [GeneratedRegex("""\A(?:rspec (?:\./)?(.+?)(?::[0-9]+|\[[0-9:]+\]) # (.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RspecFailedShared();
-
-
-    private static Regex RspecFailed() => ThreadRegex.Of(RspecFailedShared());
+    private static partial Regex RspecFailed();
 
     [GeneratedRegex("""\A(?:([0-9]+) examples?, ([0-9]+) failures?(?:, ([0-9]+) pending)?(?:, ([0-9]+) errors? occurred outside of examples)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RspecSummaryShared();
-
-
-    private static Regex RspecSummary() => ThreadRegex.Of(RspecSummaryShared());
+    private static partial Regex RspecSummary();
 
     [GeneratedRegex("""\A(?:An error occurred while loading (?:\./)?(.+?)\.?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex RspecLoadShared();
-
-
-    private static Regex RspecLoad() => ThreadRegex.Of(RspecLoadShared());
+    private static partial Regex RspecLoad();
 
     [GeneratedRegex("""\A(?:There (?:was|were) [0-9]+ ([a-z][a-z ]*?):)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PhpunitSectionShared();
-
-
-    private static Regex PhpunitSection() => ThreadRegex.Of(PhpunitSectionShared());
+    private static partial Regex PhpunitSection();
 
     [GeneratedRegex("""\A(?:[0-9]+\) ([A-Za-z0-9_\\]+)::([A-Za-z0-9_]+)(?: with data set (#[0-9]+|\"[^\"]*\"))?(?: \(.*\))?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PhpunitItemShared();
-
-
-    private static Regex PhpunitItem() => ThreadRegex.Of(PhpunitItemShared());
+    private static partial Regex PhpunitItem();
 
     [GeneratedRegex("""\A(?:Tests: ([0-9]+), Assertions: [0-9]+((?:, [A-Za-z ]+: [0-9]+)*)\.)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PhpunitTestsShared();
-
-
-    private static Regex PhpunitTests() => ThreadRegex.Of(PhpunitTestsShared());
+    private static partial Regex PhpunitTests();
 
     [GeneratedRegex("""\A(?:OK \(([0-9]+) tests?, [0-9]+ assertions?\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PhpunitOkShared();
-
-
-    private static Regex PhpunitOk() => ThreadRegex.Of(PhpunitOkShared());
+    private static partial Regex PhpunitOk();
 
     [GeneratedRegex("""\A(?:FAILURES!|ERRORS!|OK, but (?:there were issues|incomplete, skipped, or risky tests)!)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PhpunitNoiseShared();
-
-
-    private static Regex PhpunitNoise() => ThreadRegex.Of(PhpunitNoiseShared());
+    private static partial Regex PhpunitNoise();
 
     [GeneratedRegex("""\A(?: *[0-9]+/[0-9]+ Test +#[0-9]+: (.+?) \.*(?: +|\*\*\*)(Passed|Failed|Exception|Timeout|Not Run|Skipped)(?:[: ].*)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CtestLineShared();
-
-
-    private static Regex CtestLine() => ThreadRegex.Of(CtestLineShared());
+    private static partial Regex CtestLine();
 
     [GeneratedRegex("""\A(?:The following tests (?:FAILED|did not run):)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CtestListHeaderShared();
-
-
-    private static Regex CtestListHeader() => ThreadRegex.Of(CtestListHeaderShared());
+    private static partial Regex CtestListHeader();
 
     [GeneratedRegex("""\A(?:([0-9]+)% tests passed, ([0-9]+) tests? failed out of ([0-9]+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CtestSummaryShared();
-
-
-    private static Regex CtestSummary() => ThreadRegex.Of(CtestSummaryShared());
+    private static partial Regex CtestSummary();
 
     [GeneratedRegex("""\A(?: *Start +[0-9]+: .*|Test project .*|Errors while running CTest|Total Test time .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CtestNoiseShared();
-
-
-    private static Regex CtestNoise() => ThreadRegex.Of(CtestNoiseShared());
+    private static partial Regex CtestNoise();
 
     [GeneratedRegex("""\A(?:([A-Za-z ]+): ([0-9]+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex PhpunitPairShared();
+    private static partial Regex PhpunitPair();
 
+    // Every pattern below needs one of these (the patterns are anchored and case-sensitive).
+    private static readonly SearchValues<string> Gate = Literals("rspec ", " example", "An error occurred while loading ", "There ", "Tests: ", "OK (", "FAILURES!", "ERRORS!", "OK, but ", " Test ", "The following tests ", "% tests passed, ", "Start ", "Test project ", "Errors while running CTest", "Total Test time ");
 
-    private static Regex PhpunitPair() => ThreadRegex.Of(PhpunitPairShared());
+    // Besides: phpunit items, "N) Class::method".
+    public override bool CannotClaim(string line) =>
+        ctestFailedList is null && Lacks(line, Gate) && !(line.Length > 0 && char.IsAsciiDigit(line[0]) && line.Contains("::", StringComparison.Ordinal));
 
     public override int Step(string[] lines, int i)
     {

@@ -7,6 +7,9 @@ namespace AgentSpeed.Core.TaskParsers;
 /// Tool results (TASK-PARSERS 4): the output text <c>failures</c> reads (4.1), the outcome (4.2) and the sessions that
 /// outlive a call (4.3). Unknown families give the empty text, an unknown outcome and no session.
 /// </summary>
+/// <summary>A result read once (<see cref="ResultParser.Read"/>).</summary>
+internal readonly record struct ResultRead(TaskOutcome Outcome, string? Session, string? Text);
+
 internal static class ResultParser
 {
     private static readonly string[] PollFields = ["bash_id", "shell_id", "task_id"];
@@ -45,8 +48,20 @@ internal static class ResultParser
     /// <c>outcome</c> (4.2): the exit code, <c>failed</c> (null = unknown) and <paramref name="t"/> passed through.
     /// <paramref name="tool"/> and <paramref name="input"/> are the call's, when known.
     /// </summary>
-    public static TaskOutcome Outcome(TaskFamily family, JsonElement result, long? t, string? tool, JsonElement input, string? cwd)
+    public static TaskOutcome Outcome(TaskFamily family, JsonElement result, long? t, string? tool, JsonElement input, string? cwd) =>
+        Read(family, result, t, tool, input, cwd, session: false, text: false).Outcome;
+
+    /// <summary>
+    /// One result read once: its <see cref="Outcome"/>, and when asked its <see cref="RunningSession"/> and
+    /// <see cref="ResultText"/> — the same values the three give one by one, with a Codex result's status read only once.
+    /// </summary>
+    /// <param name="command">The call's command analysis when the caller has it (<c>ShellCommands.Classify</c>), else null.</param>
+    internal static ResultRead Read(TaskFamily family, JsonElement result, long? t, string? tool, JsonElement input, string? cwd, bool session, bool text,
+        ShellAnalysis? command = null)
     {
+        var known = command;
+        CodexStatus? codex = null;
+        string? body = null;
         long? exit;
         bool? failed;
         ResultState state;
@@ -57,6 +72,7 @@ internal static class ResultParser
                 break;
             case TaskFamily.Codex:
                 var status = CodexStatus.Of(result);
+                codex = status;
                 exit = status.Exit;
                 state = status.State;
                 failed = exit is { } code ? code != 0 : status.Patch;
@@ -70,20 +86,20 @@ internal static class ResultParser
                 failed = TaskJson.IsTrue(TaskJson.Get(result, "is_error"));
                 break;
             default:
-                return new TaskOutcome(null, null, t);
+                return new ResultRead(new TaskOutcome(null, null, t), null, text ? "" : null);
         }
 
         if (tool is not null && state == ResultState.Done)
         {
-            var (background, command) = ShellCallState(family, tool, input, cwd);
+            var (background, shell) = ShellCallState(family, tool, input, cwd, known);
             if (background)
             {
                 state = ResultState.Running;
             }
-            else if (command is { Info.Masked: true })
+            else if (shell is { Info.Masked: true } masked)
             {
                 // A masked command's status is the pipeline's unless its own output shows the chosen segment's (3.10).
-                if (MaskedRuns.Status(command, ResultText(family, result)) is { } shown)
+                if (MaskedRuns.Status(masked, body ??= codex?.Body ?? ResultText(family, result)) is { } shown)
                 {
                     failed = shown.Failed;
                     if (shown.ExitCode is not null || shown.Failed)
@@ -107,7 +123,9 @@ internal static class ResultParser
             }
         }
 
-        return new TaskOutcome(exit, failed, t);
+        // A result that leaves a session running has neither an exit code nor a verdict (4.2, 4.3).
+        var running = session && exit is null && failed is null ? codex is { } c ? c.Session : RunningSession(family, result) : null;
+        return new ResultRead(new TaskOutcome(exit, failed, t), running, text ? body ?? codex?.Body ?? ResultText(family, result) : null);
     }
 
     /// <summary>
@@ -343,7 +361,8 @@ internal static class ResultParser
     /// The call's part of 4.2: whether the input or the command backgrounds it, and the command's analysis (for
     /// <c>masked</c> and 3.10). A call without command text is neither.
     /// </summary>
-    private static (bool Background, ShellAnalysis? Command) ShellCallState(TaskFamily family, string tool, JsonElement input, string? cwd)
+    private static (bool Background, ShellAnalysis? Command) ShellCallState(TaskFamily family, string tool, JsonElement input, string? cwd,
+        ShellAnalysis? known = null)
     {
         if (ShellCommands.CommandText(family, tool, input) is not { } text)
         {
@@ -361,7 +380,7 @@ internal static class ResultParser
             return (true, null);
         }
 
-        var command = ShellCommands.Analyze(text, cwd);
+        var command = known ?? ShellCommands.Analyze(text, cwd);
         return (command.Info.Background, command);
     }
 }

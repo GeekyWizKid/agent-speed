@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.RegularExpressions;
 
 namespace AgentSpeed.Core.TaskParsers;
@@ -15,46 +16,33 @@ internal sealed partial class GoRecognizer(FailureFound found) : FailureRecogniz
     private int broken;
 
     [GeneratedRegex("""\A(?:[ \t]*--- FAIL: ([^ ]+) \([0-9.]+s\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoFailShared();
-
-
-    private static Regex GoFail() => ThreadRegex.Of(GoFailShared());
+    private static partial Regex GoFail();
 
     [GeneratedRegex("""\A(?:[ \t]*--- (PASS|SKIP): ([^ ]+) \([0-9.]+s\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoPassShared();
-
-
-    private static Regex GoPass() => ThreadRegex.Of(GoPassShared());
+    private static partial Regex GoPass();
 
     [GeneratedRegex("""\A(?:=== (?:RUN|PAUSE|CONT|NAME) .*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoRunShared();
-
-
-    private static Regex GoRun() => ThreadRegex.Of(GoRunShared());
+    private static partial Regex GoRun();
 
     [GeneratedRegex("""\A(?:(?:FAIL|PASS|\?[ \t]+[^ \t]+[ \t]+\[no test files\]))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoBareShared();
-
-
-    private static Regex GoBare() => ThreadRegex.Of(GoBareShared());
+    private static partial Regex GoBare();
 
     [GeneratedRegex("""\A(?:# [^ ]+(?: \[[^\]]+\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoHeaderShared();
-
-
-    private static Regex GoHeader() => ThreadRegex.Of(GoHeaderShared());
+    private static partial Regex GoHeader();
 
     [GeneratedRegex("""\A(?:(FAIL|ok)[ \t]+([^ \t]+)[ \t]+(?:[0-9.]+s|\(cached\)|\[([^\]]+)\])(?:[ \t].*)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoPkgShared();
-
-
-    private static Regex GoPkg() => ThreadRegex.Of(GoPkgShared());
+    private static partial Regex GoPkg();
 
     [GeneratedRegex("""\A(?:([^ \t][^ \t:]*\.go):([0-9]+)(?::([0-9]+))?: (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GoErrorShared();
+    private static partial Regex GoError();
 
+    // Every pattern below needs one of these (the patterns are anchored and case-sensitive).
+    private static readonly SearchValues<string> Gate = Literals("--- ", "=== ", "[no test files]", ".go:");
 
-    private static Regex GoError() => ThreadRegex.Of(GoErrorShared());
+    // Besides: the bare FAIL / PASS lines, package lines starting FAIL / ok, and "# package" headers.
+    public override bool CannotClaim(string line) =>
+        Lacks(line, Gate) && !line.StartsWith("FAIL", StringComparison.Ordinal) && !line.StartsWith("PASS", StringComparison.Ordinal)
+        && !line.StartsWith("ok", StringComparison.Ordinal) && !line.StartsWith("# ", StringComparison.Ordinal);
 
     public override int Step(string[] lines, int i)
     {
