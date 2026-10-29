@@ -14,7 +14,9 @@ using AgentSpeed.Presentation.Layout;
 using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Modes;
 using AgentSpeed.Presentation.Settings;
+using AgentSpeed.Presentation.TaskScore;
 using AgentSpeed.Presentation.Titles;
+using AgentSpeed.TaskScore;
 using AgentSpeed.Theme;
 
 namespace AgentSpeed.Dashboard;
@@ -79,7 +81,7 @@ internal sealed class SourceRow : ObservableObject
     public bool IsListed { get => _isListed; set => Set(ref _isListed, value); }
 }
 
-internal sealed class AgentRow : ObservableObject
+internal sealed class AgentRow : ObservableObject, IScoreCardRow
 {
     private string _project = string.Empty;
     private string _detail = string.Empty;
@@ -112,13 +114,28 @@ internal sealed class AgentRow : ObservableObject
     /// <summary>The speed with its unit, or the phase name when no number is shown.</summary>
     public string LiveAccessibleName { get => _liveAccessibleName; set => Set(ref _liveAccessibleName, value); }
 
-    /// <summary>The agent's intelligence: live index, resting grade or <c>–</c> (DESIGN 4, Intelligence column).</summary>
+    /// <summary>The agent's 智力: its task score, or <c>–</c> (DESIGN 4, Intelligence column; DESIGN 12).</summary>
     public string IntelligenceText { get => _intelligenceText; set => Set(ref _intelligenceText, value); }
 
     public AgentIntelligenceForm IntelligenceForm { get => _intelligenceForm; set => Set(ref _intelligenceForm, value); }
 
-    /// <summary><c>a11y.agent.intel</c> or <c>a11y.agent.grade</c>; empty without a value.</summary>
+    /// <summary>The shown score, which plans the cell's motion; null for none.</summary>
+    public int? IntelligenceShown { get => _intelligenceShown; set => Set(ref _intelligenceShown, value); }
+
+    /// <summary>An unverified or pending score: the cell draws the proof mark.</summary>
+    public bool IntelligenceUnproven { get => _intelligenceUnproven; set => Set(ref _intelligenceUnproven, value); }
+
+    /// <summary><c>a11y.agent.intel</c> with the score words; empty without a score.</summary>
     public string IntelligenceAccessibleName { get => _intelligenceAccessibleName; set => Set(ref _intelligenceAccessibleName, value); }
+
+    /// <summary>The agent the row shows now (rows are reused as agents re-sort).</summary>
+    public object CardKey { get => _cardKey; set => Set(ref _cardKey, value); }
+
+    /// <summary>The row's score card (DESIGN 12): its tooltip, with the row's former tooltip lines as its facts.</summary>
+    public TaskScoreCard? Card { get => _card; set => Set(ref _card, value); }
+
+    /// <summary>The card's text, the row's help text for screen readers (DESIGN 12, <i>Accessibility</i>).</summary>
+    public string CardDescription { get => _cardDescription; set => Set(ref _cardDescription, value); }
 
     /// <summary>Left margin for the row's depth in the agent tree.</summary>
     public Thickness Indent { get => _indent; set => Set(ref _indent, value); }
@@ -133,17 +150,14 @@ internal sealed class AgentRow : ObservableObject
     /// <summary>The agent goes in circles (METRICS 6.10): the row shows the looping mark.</summary>
     public bool IsLooping { get => _isLooping; set => Set(ref _isLooping, value); }
 
-    /// <summary>
-    /// <c>work.looping</c> while looping, <c>traffic.agent.tooltip</c> while the agent has attributed traffic today
-    /// (DESIGN 10), the capsule's lines when effort or speed is known, the agent's live intelligence and grade, then the
-    /// work lines.
-    /// </summary>
-    public string? Tooltip { get => _tooltip; set => Set(ref _tooltip, value); }
-
     private EffortCapsule _capsule = new(null, null);
     private bool _isLooping;
-    private string? _tooltip;
     private string _intelligenceText = AgentIntelligenceCell.Dash;
+    private int? _intelligenceShown;
+    private bool _intelligenceUnproven;
+    private object _cardKey = string.Empty;
+    private TaskScoreCard? _card;
+    private string _cardDescription = string.Empty;
     private AgentIntelligenceForm _intelligenceForm = AgentIntelligenceForm.None;
     private string _intelligenceAccessibleName = string.Empty;
 }
@@ -301,6 +315,12 @@ internal sealed partial class DashboardViewModel : ObservableObject
     public bool HasEstimate { get => _hasEstimate; private set => Set(ref _hasEstimate, value); }
 
     public bool ReduceMotion { get => _reduceMotion; set => Set(ref _reduceMotion, value); }
+
+    /// <summary>Transparency effects are on: the score card uses the flyout fill (off: a solid one).</summary>
+    public bool TransparencyEnabled { get; set; } = true;
+
+    /// <summary>The agent rows changed (every refresh): an open score card takes its row's new content.</summary>
+    public event EventHandler? AgentsUpdated;
 
     /// <summary>The intelligence column's fixed width for the language (DESIGN 4, Intelligence column).</summary>
     public double IntelligenceWidth { get => _intelligenceWidth; private set => Set(ref _intelligenceWidth, value); }
@@ -589,19 +609,23 @@ internal sealed partial class DashboardViewModel : ObservableObject
             detail = agent.IsSubagent ? $"{loc["agents.subagent"]} · {detail}" : detail;
             var looping = WorkText.Looping(agent.Work, loc);
             row.IsLooping = looping is not null;
-            var tooltip = new List<string>();
-            if (looping is not null)
+
+            // The row's former tooltip lines are its score card's facts: effort and speed, a top rung's detail, traffic.
+            var facts = new List<string>();
+            var capsule = EffortCapsule.Of(agent.Modes);
+            row.Capsule = capsule;
+            if (capsule.IsKnown)
             {
-                tooltip.Add(looping);
+                facts.AddRange(capsule.TooltipLines(loc));
             }
 
             if (AgentTraffic(agent.Id) is { } traffic)
             {
-                // DESIGN 10: the agent's attributed download today ends its secondary line; the tooltip has both directions.
+                // DESIGN 10: the agent's attributed download today ends its secondary line; the card's facts have both directions.
                 var text = new TrafficText(loc, _trafficBits);
                 row.Detail = detail;
                 row.DetailSuffix = $" · ↓ {Core.Traffic.TrafficFormat.Total(traffic.Rx)}";
-                tooltip.Add(loc.Format("traffic.agent.tooltip", text.Pair(traffic)));
+                facts.Add(loc.Format("traffic.agent.tooltip", text.Pair(traffic)));
             }
             else
             {
@@ -609,20 +633,16 @@ internal sealed partial class DashboardViewModel : ObservableObject
                 row.DetailSuffix = string.Empty;
             }
 
-            var capsule = EffortCapsule.Of(agent.Modes);
-            row.Capsule = capsule;
-            if (capsule.IsKnown)
-            {
-                tooltip.AddRange(capsule.TooltipLines(loc));
-            }
-
             var intelligence = AgentIntelligenceCell.Of(agent, loc);
             row.IntelligenceText = intelligence.Text;
             row.IntelligenceForm = intelligence.Form;
+            row.IntelligenceShown = intelligence.Shown;
+            row.IntelligenceUnproven = intelligence.Unproven;
             row.IntelligenceAccessibleName = intelligence.Spoken;
-            tooltip.AddRange(intelligence.TooltipLines);
-            tooltip.AddRange(WorkText.Closing(agent.Work, loc));
-            row.Tooltip = string.Join("\n", tooltip);
+            row.CardKey = agent.Id;
+            var card = TaskScoreCard.Build(TaskScoreMapping.Subject(agent, facts), loc);
+            row.Card = card;
+            row.CardDescription = card.FullDescription;
 
             row.Phase = agent.Phase;
             row.Color = HeatPalette.SourceColor(agent.Source).ToColor();
@@ -664,5 +684,6 @@ internal sealed partial class DashboardViewModel : ObservableObject
         AgentsViewportHeight = list.ViewportHeightFor(showAll, AgentRowHeight);
         CollapsedAgentsHeight = list.ViewportHeightFor(expanded: false, AgentRowHeight);
         AgentsScroll = showAll && list.ExpandedScrolls;
+        AgentsUpdated?.Invoke(this, EventArgs.Empty);
     }
 }

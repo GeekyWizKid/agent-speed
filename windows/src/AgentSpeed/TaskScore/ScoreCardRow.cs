@@ -62,7 +62,7 @@ internal static class ScoreCardRow
         }
 
         var hwnd = new WindowInteropHelper(window).Handle;
-        if (hwnd == 0 || !User32.GetWindowRect(hwnd, out var frame))
+        if (hwnd == 0 || !WindowEffects.VisibleFrame(hwnd, out var frame))
         {
             return null;
         }

@@ -645,6 +645,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _dashboardModel.TitleTheme = _titles.General;
         _dashboardModel.TitleSlides = !_theme.ReduceMotion && Settings.Effects != EffectsIntensity.Off;
         _dashboardModel.CapsuleAppearance = CapsuleAppearance;
+        _dashboardModel.TransparencyEnabled = _theme.TransparencyEnabled;
         _dashboardModel.LiveUnit = Settings.Cost.LiveUnit;
         _dashboardModel.Update(snapshot, _speed.Value, _speed.Title, _speed.Redline, _speed.Metric, _loc, _theme.IsDark);
         var peak = snapshot.PeakToday.ValueFor(_speed.Metric);

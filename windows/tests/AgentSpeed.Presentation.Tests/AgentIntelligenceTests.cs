@@ -24,7 +24,7 @@ public class AgentIntelligenceTests
         Assert.Equal(AgentIntelligenceForm.Live, cell.Form);
         Assert.Equal("93", cell.Text);
         Assert.Equal("智力 93", cell.Spoken);
-        Assert.Equal(["已通過"], cell.TooltipLines);
+        Assert.Equal((93, false), (cell.Shown, cell.Unproven));
     }
 
     [Fact]
@@ -33,8 +33,8 @@ public class AgentIntelligenceTests
         var cell = AgentIntelligenceCell.Of(Agent(TaskValueForm.Resting, 8.75, TaskState.Unverified), ZhHant);
         Assert.Equal(AgentIntelligenceForm.Resting, cell.Form);
         Assert.Equal("9", cell.Text);
-        Assert.Equal("智力 9，閒置中", cell.Spoken);
-        Assert.Equal(["尚未驗證"], cell.TooltipLines);
+        Assert.Equal("智力 9，尚未驗證，閒置中", cell.Spoken);
+        Assert.True(cell.Unproven);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class AgentIntelligenceTests
         Assert.Equal(AgentIntelligenceForm.None, cell.Form);
         Assert.Equal("–", cell.Text);
         Assert.Equal(string.Empty, cell.Spoken);
-        Assert.Empty(cell.TooltipLines);
+        Assert.Equal((null, false), (cell.Shown, cell.Unproven));
     }
 
     [Fact]

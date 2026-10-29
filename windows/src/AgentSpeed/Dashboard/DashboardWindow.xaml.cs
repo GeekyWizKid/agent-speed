@@ -12,6 +12,7 @@ using AgentSpeed.Interop;
 using AgentSpeed.Orb;
 using AgentSpeed.Presentation.Layout;
 using AgentSpeed.Presentation.Motion;
+using AgentSpeed.TaskScore;
 
 namespace AgentSpeed.Dashboard;
 
@@ -48,6 +49,11 @@ internal sealed partial class DashboardWindow : Window
 
     public DashboardWindow(DashboardViewModel viewModel, Func<double> clock)
     {
+        ScoreCards = new ScoreCardPresenter(Dispatcher,
+            () => new TaskCardAppearance(viewModel.CapsuleAppearance.Dark, viewModel.CapsuleAppearance.HighContrast, viewModel.ReduceMotion,
+                viewModel.TransparencyEnabled),
+            () => viewModel.LanguageCode);
+        viewModel.AgentsUpdated += (_, _) => ScoreCards.Refresh();
         InitializeComponent();
         DataContext = viewModel;
         _model = viewModel;
@@ -84,6 +90,9 @@ internal sealed partial class DashboardWindow : Window
             Dispatcher.BeginInvoke(() => Place(_placedHeight));
         };
     }
+
+    /// <summary>The agent rows' score cards (DESIGN 12): beside the panel, toward the screen's centre.</summary>
+    public ScoreCardPresenter ScoreCards { get; }
 
     public event EventHandler? SettingsRequested;
 
@@ -245,6 +254,7 @@ internal sealed partial class DashboardWindow : Window
         }
 
         InfoPopup.IsOpen = false;
+        ScoreCards.Hide();
         LastHiddenTick = Environment.TickCount64;
         Hide();
     }
@@ -284,6 +294,7 @@ internal sealed partial class DashboardWindow : Window
     public void CloseForShutdown()
     {
         _allowClose = true;
+        ScoreCards.Dispose();
         Close();
     }
 

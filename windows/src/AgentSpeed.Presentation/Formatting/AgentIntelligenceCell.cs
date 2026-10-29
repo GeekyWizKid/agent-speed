@@ -1,7 +1,7 @@
 using AgentSpeed.Core;
 using AgentSpeed.Core.Intelligence;
-using AgentSpeed.Presentation.History;
 using AgentSpeed.Presentation.Localization;
+using AgentSpeed.Presentation.TaskScore;
 
 namespace AgentSpeed.Presentation.Formatting;
 
@@ -32,34 +32,28 @@ public static class AgentIntelligenceColumn
 }
 
 /// <summary>
-/// One agent row's 智力 (DESIGN 4, Intelligence column; METRICS 6.9 <i>Values</i>): the live task score in the live
-/// value's number color, the resting score in the tertiary color, or the tertiary <c>–</c> without a score.
+/// One agent row's 智力 (DESIGN 4, Intelligence column; DESIGN 12; METRICS 6.9 <i>Values</i>): the agent's own task score
+/// — live in the live value's number color, resting in the tertiary color, the tertiary <c>–</c> without a score — with the
+/// proof mark under an unverified or pending score. The row's tooltip is the score card, so the cell has no tooltip lines.
 /// </summary>
-/// <param name="Spoken">Added to the row's label after the live value: <c>a11y.agent.intel</c> (resting: inside <c>a11y.task.idle</c>); empty for none.</param>
-/// <param name="TooltipLines">The row tooltip's lines after effort and speed: the task's state.</param>
-public sealed record AgentIntelligenceCell(AgentIntelligenceForm Form, string Text, string Spoken, IReadOnlyList<string> TooltipLines)
+/// <param name="Shown">The integer shown, for the cell's motion; null for none.</param>
+/// <param name="Unproven">No verified result behind the score: the dotted underline.</param>
+/// <param name="Spoken">Added to the row's label after the live value: <c>a11y.agent.intel</c> with the score words; empty for none.</param>
+public sealed record AgentIntelligenceCell(AgentIntelligenceForm Form, string Text, int? Shown, bool Unproven, string Spoken)
 {
-    public const string Dash = "–";
+    public const string Dash = TaskScoreText.Dash;
 
     public static AgentIntelligenceCell Of(AgentStatus agent, Localizer localizer)
     {
         ArgumentNullException.ThrowIfNull(agent);
         ArgumentNullException.ThrowIfNull(localizer);
-        var intelligence = agent.Intelligence;
-        var lines = new List<string>(2);
-        if (intelligence.Shown is not { } shown)
+        var facts = TaskScoreMapping.Facts(agent);
+        if (facts.Shown is not { } shown)
         {
-            return new AgentIntelligenceCell(AgentIntelligenceForm.None, Dash, string.Empty, lines);
+            return new AgentIntelligenceCell(AgentIntelligenceForm.None, Dash, null, false, string.Empty);
         }
 
-        var text = shown.ToString(localizer.Culture);
-        var live = intelligence.Form == AgentIntelligenceForm.Live;
-        if (intelligence.State is { } state)
-        {
-            lines.Add(localizer["task.state." + Core.Tasks.TaskStateNames.Name(state)]);
-        }
-
-        var spoken = localizer.Format("a11y.agent.intel", text);
-        return new AgentIntelligenceCell(intelligence.Form, text, live ? spoken : localizer.Format("a11y.task.idle", spoken), lines);
+        return new AgentIntelligenceCell(agent.Intelligence.Form, TaskScoreText.Number(shown), shown, facts.IsUnproven,
+            TaskScoreText.AgentLabel(facts, 1, localizer));
     }
 }
