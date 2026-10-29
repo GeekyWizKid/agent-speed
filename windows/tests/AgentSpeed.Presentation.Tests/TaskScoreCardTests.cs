@@ -216,13 +216,14 @@ public class TaskScoreCardTests
     }
 
     [Fact]
-    public void TheScoreWordsAndTheChipLeadTheDescription()
+    public void TheStateIsSpokenOnce()
     {
-        // DESIGN 12 as written: the score words, then the chip's text (an unproven state is named by both).
+        // DESIGN 12: unproven score words already say the state, so the chip's text is not added again.
         var card = TaskScoreCard.Build(Subject(Unverified), Loc());
-        Assert.StartsWith("智力 9，尚未驗證，尚未驗證，已修改", card.FullDescription, StringComparison.Ordinal);
+        Assert.StartsWith("智力 9，尚未驗證，已修改", card.FullDescription, StringComparison.Ordinal);
         var pending = TaskScoreCard.Build(Subject(Pending), Loc(LanguageCodes.En));
-        Assert.StartsWith("intelligence 34, re-check pending, Re-check pending, ", pending.FullDescription, StringComparison.Ordinal);
+        Assert.StartsWith("intelligence 34, re-check pending, pytest", pending.FullDescription, StringComparison.Ordinal);
+        Assert.StartsWith("智力 86，已通過，", TaskScoreCard.Build(Subject(Passing), Loc()).FullDescription, StringComparison.Ordinal);
     }
 
     [Fact]

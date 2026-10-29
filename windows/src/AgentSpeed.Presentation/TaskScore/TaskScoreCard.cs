@@ -223,9 +223,10 @@ public sealed record TaskScoreCard(
         var dimensions = DimensionRows(score, state, points, loc);
         var predictions = PredictionCells(score, loc);
         var signals = SignalLines(subject, loc);
-        var scoreWords = shown is { } value
-            ? loc.Format("a11y.task.score", TaskScoreText.Words(value, state, score.Form, subject.TopCount, loc), chip.Text)
-            : loc["intel.none"];
+        // The state is spoken once (DESIGN 12, Accessibility): unproven score words already name it, so the chip's text is left out.
+        var scoreWords = shown is not { } value ? loc["intel.none"]
+            : TaskScoreText.IsUnproven(state) ? loc.Format("a11y.agent.intel", TaskScoreText.Words(value, state, score.Form, subject.TopCount, loc))
+            : loc.Format("a11y.task.score", TaskScoreText.Words(value, state, score.Form, subject.TopCount, loc), chip.Text);
 
         var description = new List<string> { scoreWords, TaskScoreText.Plain(status) };
         foreach (var row in dimensions)
