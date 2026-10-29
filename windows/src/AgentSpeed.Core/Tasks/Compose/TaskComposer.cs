@@ -245,8 +245,11 @@ public sealed class TaskComposer
     {
         entry.Answered = true;
         Stats.Results++;
-        var call = entry.Call;
+        var call = entry.Call!;
         var action = call.Action!;
+
+        // Only the id's mark stays for repeats: the call's command analysis and cwd go once it is answered.
+        entry.Call = null;
         action.Outcome = answer.Outcome;
         if (answer.Session is { } session)
         {
@@ -333,7 +336,7 @@ public sealed class TaskComposer
         _stale.Clear();
         foreach (var (id, entry) in _calls)
         {
-            if (entry.Answered && entry.Call.Action is { } action && !current.Contains(action))
+            if (entry.Answered && entry.Action is { } action && !current.Contains(action))
             {
                 _stale.Add(id);
             }
@@ -363,7 +366,10 @@ public sealed class TaskComposer
 
     private sealed class Entry(TaskCall call)
     {
-        public TaskCall Call { get; } = call;
+        /// <summary>The call until it is answered.</summary>
+        public TaskCall? Call { get; set; } = call;
+
+        public TaskAction? Action { get; } = call.Action;
 
         public bool Answered { get; set; }
 

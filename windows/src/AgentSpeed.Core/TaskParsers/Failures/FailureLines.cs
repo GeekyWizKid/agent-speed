@@ -18,28 +18,16 @@ internal static partial class FailureLines
         "\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u007f\u0085\u2028\u2029");
 
     [GeneratedRegex("""\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?""", RegexOptions.CultureInvariant)]
-    private static partial Regex AnsiOscShared();
-
-
-    private static Regex AnsiOsc() => ThreadRegex.Of(AnsiOscShared());
+    private static partial Regex AnsiOsc();
 
     [GeneratedRegex("""\x1b\[[0-?]*[ -/]*[@-~]""", RegexOptions.CultureInvariant)]
-    private static partial Regex AnsiCsiShared();
-
-
-    private static Regex AnsiCsi() => ThreadRegex.Of(AnsiCsiShared());
+    private static partial Regex AnsiCsi();
 
     [GeneratedRegex("""\x1b[@-Z\\-_]""", RegexOptions.CultureInvariant)]
-    private static partial Regex AnsiFeShared();
-
-
-    private static Regex AnsiFe() => ThreadRegex.Of(AnsiFeShared());
+    private static partial Regex AnsiFe();
 
     [GeneratedRegex("""\A(?:((?:@[A-Za-z0-9._-]+/|[A-Za-z0-9._-]*/)[A-Za-z0-9._/-]* [A-Za-z][A-Za-z0-9:._-]*|@?[A-Za-z0-9._/-]+:[A-Za-z][A-Za-z0-9._-]*): ?)""", RegexOptions.CultureInvariant)]
-    private static partial Regex WorkspacePrefixShared();
-
-
-    private static Regex WorkspacePrefix() => ThreadRegex.Of(WorkspacePrefixShared());
+    private static partial Regex WorkspacePrefix();
 
     /// <summary>The cleaned lines of a segment.</summary>
     public static string[] Clean(string segment)

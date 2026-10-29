@@ -11,64 +11,34 @@ internal static partial class FailureFallback
     private static readonly string[] CompletionFrameworks = ["cargo", "swiftpm", "xcodebuild", "gradle", "maven", "prettier", "vite"];
 
     [GeneratedRegex("""\A(?:(.+?\.[A-Za-z0-9]+):([0-9]+)(?::([0-9]+))?:? (?:fatal )?error(?:\[([^\]]+)\])?:? (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GenericFileShared();
-
-
-    private static Regex GenericFile() => ThreadRegex.Of(GenericFileShared());
+    private static partial Regex GenericFile();
 
     [GeneratedRegex("""\A(?:(?:error|ERROR|Error|fatal|FATAL)(?:\[([^\]]+)\])?: (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GenericPrefixShared();
-
-
-    private static Regex GenericPrefix() => ThreadRegex.Of(GenericPrefixShared());
+    private static partial Regex GenericPrefix();
 
     [GeneratedRegex("""\A(?:(?:Uncaught )?([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception)): (.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex GenericExceptionShared();
-
-
-    private static Regex GenericException() => ThreadRegex.Of(GenericExceptionShared());
+    private static partial Regex GenericException();
 
     [GeneratedRegex("""\A(?:Finished .* target\(s\) in .+)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CompleteCargoShared();
-
-
-    private static Regex CompleteCargo() => ThreadRegex.Of(CompleteCargoShared());
+    private static partial Regex CompleteCargo();
 
     [GeneratedRegex("""\A(?:Build complete!(?: \(.*\))?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CompleteSwiftpmShared();
-
-
-    private static Regex CompleteSwiftpm() => ThreadRegex.Of(CompleteSwiftpmShared());
+    private static partial Regex CompleteSwiftpm();
 
     [GeneratedRegex("""\A(?:\*\* [A-Z]+(?: [A-Z]+)* SUCCEEDED \*\*(?: \[.*\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CompleteXcodebuildShared();
-
-
-    private static Regex CompleteXcodebuild() => ThreadRegex.Of(CompleteXcodebuildShared());
+    private static partial Regex CompleteXcodebuild();
 
     [GeneratedRegex("""\A(?:BUILD SUCCESSFUL(?: in .+)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CompleteGradleShared();
-
-
-    private static Regex CompleteGradle() => ThreadRegex.Of(CompleteGradleShared());
+    private static partial Regex CompleteGradle();
 
     [GeneratedRegex("""\A(?:\[INFO\] BUILD SUCCESS)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CompleteMavenShared();
-
-
-    private static Regex CompleteMaven() => ThreadRegex.Of(CompleteMavenShared());
+    private static partial Regex CompleteMaven();
 
     [GeneratedRegex("""\A(?:All matched files use Prettier code style!)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CompletePrettierShared();
-
-
-    private static Regex CompletePrettier() => ThreadRegex.Of(CompletePrettierShared());
+    private static partial Regex CompletePrettier();
 
     [GeneratedRegex("""\A(?:\u2713 built in [0-9]+(?:\.[0-9]+)?(?:ms|s))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex CompleteViteShared();
-
-
-    private static Regex CompleteVite() => ThreadRegex.Of(CompleteViteShared());
+    private static partial Regex CompleteVite();
 
     /// <summary>Every unclaimed line as a <c>generic</c> error: <c>file:line: error</c>, an <c>error:</c> prefix or an exception.</summary>
     public static void Generic(FailureFound found, string[] lines, bool[] claimed)

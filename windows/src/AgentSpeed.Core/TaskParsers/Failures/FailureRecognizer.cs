@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.RegularExpressions;
 
 namespace AgentSpeed.Core.TaskParsers;
@@ -12,6 +13,22 @@ internal abstract class FailureRecognizer(FailureFound found)
     protected FailureFound Found { get; } = found;
 
     public abstract int Step(string[] lines, int i);
+
+    /// <summary>
+    /// The recogniser's patterns are not tried on lines it cannot claim (tests compare the results without this).
+    /// </summary>
+    internal static bool Gates { get; set; } = true;
+
+    /// <summary>
+    /// True when <see cref="Step"/> would return 0 at this line without changing any state: the line holds none of the
+    /// literals that every match of the recogniser's patterns needs. A cheap check before the patterns run.
+    /// </summary>
+    public virtual bool CannotClaim(string line) => false;
+
+    /// <summary>The line holds none of <paramref name="literals"/>.</summary>
+    protected static bool Lacks(string line, SearchValues<string> literals) => !line.AsSpan().ContainsAny(literals);
+
+    protected static SearchValues<string> Literals(params string[] literals) => SearchValues.Create(literals, StringComparison.Ordinal);
 
     public virtual void Finish()
     {

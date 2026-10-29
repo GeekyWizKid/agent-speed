@@ -22,14 +22,20 @@ internal enum ResultState
 /// <c>failures</c> reads, the exit code, the state, the session a unified-exec command left running and the patch
 /// verdict (true = failed, false = applied, null = none).
 /// </summary>
-internal readonly record struct CodexStatus(string Body, long? Exit, ResultState State, string? Session, bool? Patch)
+/// <remarks>The body is a slice of the text (or the JSON output) taken only when <see cref="Body"/> is read.</remarks>
+internal readonly record struct CodexStatus(string BodySource, int BodyStart, long? Exit, ResultState State, string? Session, bool? Patch)
 {
     private const int HeaderLines = 8;
 
+    /// <summary>The body that <c>failures</c> reads.</summary>
+    public string Body => BodyStart == 0 ? BodySource : BodyStart >= BodySource.Length ? "" : BodySource[BodyStart..];
+
     public static CodexStatus Of(JsonElement result)
     {
-        var text = TaskText.Lf(ResultBlocks.Text(OutputValue(result)));
+        var value = OutputValue(result, out var decoded);
+        var text = TaskText.Lf(decoded ?? ResultBlocks.Text(value));
         var body = text;
+        var bodyStart = 0;
         long? exit = null;
         var state = ResultState.Done;
         string? session = null;
@@ -50,11 +56,12 @@ internal readonly record struct CodexStatus(string Body, long? Exit, ResultState
         }
         else
         {
-            ReadHeader(text, ref body, ref exit, ref state, ref session);
+            ReadHeader(text, ref bodyStart, ref exit, ref state, ref session);
         }
 
-        var bodyCut = body.IndexOf('\n', StringComparison.Ordinal);
-        var bodyFirst = bodyCut < 0 ? body.AsSpan() : body.AsSpan(0, bodyCut);
+        var bodySpan = body.AsSpan(Math.Min(bodyStart, body.Length));
+        var bodyCut = bodySpan.IndexOf('\n');
+        var bodyFirst = bodyCut < 0 ? bodySpan : bodySpan[..bodyCut];
         var textCut = text.IndexOf('\n', StringComparison.Ordinal);
         var first = (textCut < 0 ? text.AsSpan() : text.AsSpan(0, textCut)).Trim(" \t");
         if (first.SequenceEqual("aborted") || first.StartsWith("aborted by user", StringComparison.Ordinal)
@@ -81,7 +88,7 @@ internal readonly record struct CodexStatus(string Body, long? Exit, ResultState
             }
         }
 
-        return new CodexStatus(body, exit, state, session, patch);
+        return new CodexStatus(body, bodyStart, exit, state, session, patch);
     }
 
     /// <summary>
@@ -89,8 +96,15 @@ internal readonly record struct CodexStatus(string Body, long? Exit, ResultState
     /// <c>type</c> and <c>output</c>, else the result; an object's <c>content</c> array or string; a string holding a
     /// non-empty JSON array of objects with a string <c>type</c> read as that array.
     /// </summary>
-    public static JsonElement OutputValue(JsonElement result)
+    public static JsonElement OutputValue(JsonElement result) => OutputValue(result, out _);
+
+    /// <summary>
+    /// The output value, and the string it holds when it is a string kept as is (decoded once: its blocks text), else
+    /// null.
+    /// </summary>
+    private static JsonElement OutputValue(JsonElement result, out string? decoded)
     {
+        decoded = null;
         var output = result.ValueKind == JsonValueKind.Object && TaskJson.Has(result, "type") && TaskJson.Has(result, "output")
             ? TaskJson.Get(result, "output")
             : result;
@@ -100,13 +114,16 @@ internal readonly record struct CodexStatus(string Body, long? Exit, ResultState
             output = content;
         }
 
-        if (output.ValueKind == JsonValueKind.String
-            && TaskJson.String(output) is { } text
-            && TaskJson.FirstNonWs(text) == '['
-            && TaskJson.Parse(text) is { ValueKind: JsonValueKind.Array } decoded
-            && IsTypedItems(decoded))
+        if (output.ValueKind == JsonValueKind.String && TaskJson.String(output) is { } text)
         {
-            output = decoded;
+            if (TaskJson.FirstNonWs(text) == '['
+                && TaskJson.Parse(text) is { ValueKind: JsonValueKind.Array } array
+                && IsTypedItems(array))
+            {
+                return array;
+            }
+
+            decoded = text;
         }
 
         return output;
@@ -131,7 +148,7 @@ internal readonly record struct CodexStatus(string Body, long? Exit, ResultState
     }
 
     /// <summary>4.1 step 4: a header of known lines ended by <c>Output:</c> within the first 8 lines.</summary>
-    private static void ReadHeader(string text, ref string body, ref long? exit, ref ResultState state, ref string? session)
+    private static void ReadHeader(string text, ref int body, ref long? exit, ref ResultState state, ref string? session)
     {
         Span<int> starts = stackalloc int[HeaderLines];
         Span<int> ends = stackalloc int[HeaderLines];
@@ -172,7 +189,7 @@ internal readonly record struct CodexStatus(string Body, long? Exit, ResultState
             }
         }
 
-        body = bodyStart >= text.Length ? "" : text[bodyStart..];
+        body = bodyStart;
         for (var k = 0; k < output; k++)
         {
             var line = text[starts[k]..ends[k]];

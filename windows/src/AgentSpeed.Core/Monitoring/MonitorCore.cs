@@ -29,8 +29,14 @@ internal sealed partial class MonitorCore : IDisposable
     public const long LargeFileTailBytes = 64L * 1024 * 1024;
     public const long RecentWriteWindowMs = 2 * 60_000;
 
-    /// <summary>From this much to read at once, readers borrow their own pattern copies (<c>ThreadRegex</c>).</summary>
-    private const long OwnPatternsBytes = 64L * 1024 * 1024;
+    /// <summary>
+    /// The startup backlog's files read ahead of the one being applied stay under this many bytes (one file at least):
+    /// a read file holds its extracted lines and task lines until it is applied in startup order.
+    /// </summary>
+    private const long MaxBacklogBytesInFlight = 256L * 1024 * 1024;
+
+    /// <summary>From this much to read at once, the startup backlog is read with blocking garbage collections.</summary>
+    private const long LargeBacklogBytes = 64L * 1024 * 1024;
 
     /// <summary>A conversation database that keeps changing is read at most this often (METRICS 5.4).</summary>
     public static readonly TimeSpan DatabaseReadInterval = TimeSpan.FromMilliseconds(500);
@@ -298,7 +304,28 @@ internal sealed partial class MonitorCore : IDisposable
             root.Seeded = true;
         }
 
-        var (filesRead, bytesRead) = ReadPlans(plans, seeded: true, cancellationToken, progress);
+        // A large backlog allocates fast on several threads for a few seconds: blocking collections that compact keep its
+        // short-lived objects from piling up in the background collector's older generations (lower peak memory).
+        var latency = System.Runtime.GCSettings.LatencyMode;
+        var large = plans.Sum(PlanBytes) >= LargeBacklogBytes;
+        if (large)
+        {
+            System.Runtime.GCSettings.LatencyMode = System.Runtime.GCLatencyMode.Batch;
+        }
+
+        int filesRead;
+        long bytesRead;
+        try
+        {
+            (filesRead, bytesRead) = ReadPlans(plans, seeded: true, cancellationToken, progress);
+        }
+        finally
+        {
+            if (large)
+            {
+                System.Runtime.GCSettings.LatencyMode = latency;
+            }
+        }
         if (_openCode is { } openCode && !_openCodeSeeded)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -900,9 +927,8 @@ internal sealed partial class MonitorCore : IDisposable
         var totalBytes = Math.Max(1, plans.Sum(p => Math.Max(0, p.ExpectedLength - p.StartOffset)));
         var degree = Math.Clamp(Environment.ProcessorCount - 1, 1, 8);
 
-        // A large backlog read on several threads matches the task parsers' patterns with borrowed copies (no contention).
-        var ownPatterns = degree > 1 && totalBytes >= OwnPatternsBytes;
         var inFlight = new Queue<(ReadPlan Plan, Task<Prepared> Task)>();
+        long inFlightBytes = 0;
         long doneBytes = 0, bytesRead = 0;
         var filesRead = 0;
         var next = 0;
@@ -911,15 +937,17 @@ internal sealed partial class MonitorCore : IDisposable
             while (next < plans.Count || inFlight.Count > 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                while (next < plans.Count && inFlight.Count < degree)
+                while (next < plans.Count && inFlight.Count < degree
+                       && (inFlight.Count == 0 || inFlightBytes + PlanBytes(plans[next]) <= MaxBacklogBytesInFlight))
                 {
                     var plan = plans[next++];
+                    inFlightBytes += PlanBytes(plan);
                     plan.File.Tailer.StartAt(plan.StartOffset, plan.Align);
-                    inFlight.Enqueue((plan, Task.Run(() => ownPatterns ? PrepareOwn(plan.File, cancellationToken) : Prepare(plan.File, cancellationToken),
-                        cancellationToken)));
+                    inFlight.Enqueue((plan, Task.Run(() => Prepare(plan.File, cancellationToken), cancellationToken)));
                 }
 
                 var (current, task) = inFlight.Dequeue();
+                inFlightBytes -= PlanBytes(current);
                 Prepared prepared;
                 try
                 {
@@ -959,21 +987,12 @@ internal sealed partial class MonitorCore : IDisposable
                 {
                 }
             }
-
-            if (ownPatterns)
-            {
-                TaskParsers.ThreadRegex.ReleasePool();
-            }
         }
 
         return (filesRead, bytesRead);
     }
 
-    private static Prepared PrepareOwn(TrackedFile tracked, CancellationToken cancellationToken)
-    {
-        using var lease = TaskParsers.ThreadRegex.Borrow();
-        return Prepare(tracked, cancellationToken);
-    }
+    private static long PlanBytes(ReadPlan plan) => Math.Max(0, plan.ExpectedLength - plan.StartOffset);
 
     private static Prepared Prepare(TrackedFile tracked, CancellationToken cancellationToken)
     {

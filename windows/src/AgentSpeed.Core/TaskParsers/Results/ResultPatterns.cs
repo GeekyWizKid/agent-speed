@@ -21,104 +21,59 @@ internal static partial class ResultPatterns
     ];
 
     [GeneratedRegex(@"\A(?:Exit code (-?[0-9]+))\z", RegexOptions.CultureInvariant)]
-    private static partial Regex ClaudeExitShared();
-
-
-    public static Regex ClaudeExit() => ThreadRegex.Of(ClaudeExitShared());
+    public static partial Regex ClaudeExit();
 
     [GeneratedRegex(@"\A(?:Command timed out after .*)\z", RegexOptions.CultureInvariant)]
-    private static partial Regex ClaudeTimeoutShared();
-
-
-    public static Regex ClaudeTimeout() => ThreadRegex.Of(ClaudeTimeoutShared());
+    public static partial Regex ClaudeTimeout();
 
     [GeneratedRegex(@"\A(?:Command running in background with ID: ?([A-Za-z0-9_:-]+(?:\.[A-Za-z0-9_:-]+)*).*)\z", RegexOptions.CultureInvariant)]
-    private static partial Regex ClaudeBackgroundShared();
-
-
-    public static Regex ClaudeBackground() => ThreadRegex.Of(ClaudeBackgroundShared());
+    public static partial Regex ClaudeBackground();
 
     [GeneratedRegex(@"\A(?:Exit code: (-?[0-9]+))\z", RegexOptions.CultureInvariant)]
-    private static partial Regex CodexExitShared();
-
-
-    public static Regex CodexExit() => ThreadRegex.Of(CodexExitShared());
+    public static partial Regex CodexExit();
 
     [GeneratedRegex(@"\A(?:Process exited with code (-?[0-9]+))\z", RegexOptions.CultureInvariant)]
-    private static partial Regex CodexExitedShared();
-
-
-    public static Regex CodexExited() => ThreadRegex.Of(CodexExitedShared());
+    public static partial Regex CodexExited();
 
     [GeneratedRegex(@"\A(?:Process running with session ID ([0-9]+))\z", RegexOptions.CultureInvariant)]
-    private static partial Regex CodexRunningShared();
-
-
-    public static Regex CodexRunning() => ThreadRegex.Of(CodexRunningShared());
+    public static partial Regex CodexRunning();
 
     /// <summary>A prefix match.</summary>
     [GeneratedRegex(@"\A(?:command timed out after [0-9]+ milliseconds)", RegexOptions.CultureInvariant)]
-    private static partial Regex CodexTimeoutShared();
-
-    public static Regex CodexTimeout() => ThreadRegex.Of(CodexTimeoutShared());
+    public static partial Regex CodexTimeout();
 
     [GeneratedRegex(@"\A(?:(Chunk ID|Wall time|Exit code|Process exited with code|Process running with session ID|Original token count|Total output lines)[: ].*)\z", RegexOptions.CultureInvariant)]
-    private static partial Regex CodexHeaderShared();
-
-
-    public static Regex CodexHeader() => ThreadRegex.Of(CodexHeaderShared());
+    public static partial Regex CodexHeader();
 
     [GeneratedRegex(@"\A(?:\(?Command exited with code (-?[0-9]+)\)?)\z", RegexOptions.CultureInvariant)]
-    private static partial Regex PiExitShared();
-
-
-    public static Regex PiExit() => ThreadRegex.Of(PiExitShared());
+    public static partial Regex PiExit();
 
     [GeneratedRegex(@"\A(?:\[?Command timed out.*)\z", RegexOptions.CultureInvariant)]
-    private static partial Regex PiTimeoutShared();
-
-
-    public static Regex PiTimeout() => ThreadRegex.Of(PiTimeoutShared());
+    public static partial Regex PiTimeout();
 
     [GeneratedRegex(@"\A(?:(Command aborted.*|Command was terminated.*|Operation aborted.*|Command cancelled.*))\z", RegexOptions.CultureInvariant)]
-    private static partial Regex PiAbortShared();
-
-
-    public static Regex PiAbort() => ThreadRegex.Of(PiAbortShared());
+    public static partial Regex PiAbort();
 
     /// <summary>A prefix match.</summary>
     [GeneratedRegex(@"\A(?:Command still running \(session .*)", RegexOptions.CultureInvariant)]
-    private static partial Regex PiRunningShared();
-
-    public static Regex PiRunning() => ThreadRegex.Of(PiRunningShared());
+    public static partial Regex PiRunning();
 
     /// <summary>A search.</summary>
     [GeneratedRegex(@"<status>([a-z_]+)</status>", RegexOptions.CultureInvariant)]
-    private static partial Regex BashOutputStatusShared();
-
-    public static Regex BashOutputStatus() => ThreadRegex.Of(BashOutputStatusShared());
+    public static partial Regex BashOutputStatus();
 
     /// <summary>A search.</summary>
     [GeneratedRegex(@"<exit_code>(-?[0-9]+)</exit_code>", RegexOptions.CultureInvariant)]
-    private static partial Regex BashOutputExitShared();
-
-    public static Regex BashOutputExit() => ThreadRegex.Of(BashOutputExitShared());
+    public static partial Regex BashOutputExit();
 
     /// <summary>A search.</summary>
     [GeneratedRegex(@"<task-id>([^<]+)</task-id>", RegexOptions.CultureInvariant)]
-    private static partial Regex NotifyTaskShared();
-
-    public static Regex NotifyTask() => ThreadRegex.Of(NotifyTaskShared());
+    public static partial Regex NotifyTask();
 
     /// <summary>A search.</summary>
     [GeneratedRegex(@"<summary>([^\n]*?)</summary>", RegexOptions.CultureInvariant)]
-    private static partial Regex NotifySummaryShared();
-
-    public static Regex NotifySummary() => ThreadRegex.Of(NotifySummaryShared());
+    public static partial Regex NotifySummary();
 
     [GeneratedRegex(@"\A(?:Background command [^\n]*(?:\(exit code (-?[0-9]+)\)|with exit code (-?[0-9]+)))\z", RegexOptions.CultureInvariant)]
-    private static partial Regex NotifyExitShared();
-
-
-    public static Regex NotifyExit() => ThreadRegex.Of(NotifyExitShared());
+    public static partial Regex NotifyExit();
 }

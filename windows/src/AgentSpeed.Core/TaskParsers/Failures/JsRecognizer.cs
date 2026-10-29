@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.RegularExpressions;
 
 namespace AgentSpeed.Core.TaskParsers;
@@ -20,118 +21,69 @@ internal sealed partial class JsRecognizer(FailureFound found) : FailureRecogniz
     private bool mochaDetails;
 
     [GeneratedRegex("""\A(?:([ \t]*)([0-9]+)\) (.*))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MochaItemShared();
-
-
-    private static Regex MochaItem() => ThreadRegex.Of(MochaItemShared());
+    private static partial Regex MochaItem();
 
     [GeneratedRegex("""\A(?: *FAIL +([^ ]+) \[ (.+) \])\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VitestLoadShared();
-
-
-    private static Regex VitestLoad() => ThreadRegex.Of(VitestLoadShared());
+    private static partial Regex VitestLoad();
 
     [GeneratedRegex("""\A(?: *FAIL +(.+?) > (.+?)(?: \[[^\]]*\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VitestFailShared();
-
-
-    private static Regex VitestFail() => ThreadRegex.Of(VitestFailShared());
+    private static partial Regex VitestFail();
 
     [GeneratedRegex("""\A(?: ?(FAIL|PASS) +([^ ]+)(?: \([0-9.]+ ?m?s\))?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex JestFileShared();
-
-
-    private static Regex JestFile() => ThreadRegex.Of(JestFileShared());
+    private static partial Regex JestFile();
 
     [GeneratedRegex("""\A(?:  ● (.+))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex JestBulletShared();
-
-
-    private static Regex JestBullet() => ThreadRegex.Of(JestBulletShared());
+    private static partial Regex JestBullet();
 
     [GeneratedRegex("""\A(?:Test Suites:[ \t]+(.*[0-9]+ total))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex JestSuitesShared();
-
-
-    private static Regex JestSuites() => ThreadRegex.Of(JestSuitesShared());
+    private static partial Regex JestSuites();
 
     [GeneratedRegex("""\A(?:Tests:[ \t]+(.*[0-9]+ total))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex JestTestsShared();
-
-
-    private static Regex JestTests() => ThreadRegex.Of(JestTestsShared());
+    private static partial Regex JestTests();
 
     [GeneratedRegex("""\A(?:(?:Snapshots:|Time:|Ran all test suites).*|[ \t]+[✓✕○✎] .*|Summary of all failing tests)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex JestNoiseShared();
-
-
-    private static Regex JestNoise() => ThreadRegex.Of(JestNoiseShared());
+    private static partial Regex JestNoise();
 
     [GeneratedRegex("""\A(?: *[❯>✓] ([^ ]+) \([0-9]+ tests?(?: \|.*)?\)(?: [0-9.]+m?s)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VitestFileShared();
-
-
-    private static Regex VitestFile() => ThreadRegex.Of(VitestFileShared());
+    private static partial Regex VitestFile();
 
     [GeneratedRegex("""\A(?: +[×✗] (.+?)(?: [0-9.]+m?s)?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VitestXShared();
-
-
-    private static Regex VitestX() => ThreadRegex.Of(VitestXShared());
+    private static partial Regex VitestX();
 
     [GeneratedRegex("""\A(?: *Test Files +(.+?) \(([0-9]+)\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VitestFilesShared();
-
-
-    private static Regex VitestFiles() => ThreadRegex.Of(VitestFilesShared());
+    private static partial Regex VitestFiles();
 
     [GeneratedRegex("""\A(?: *Tests +(.+?) \(([0-9]+)\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex VitestTestsShared();
-
-
-    private static Regex VitestTests() => ThreadRegex.Of(VitestTestsShared());
+    private static partial Regex VitestTests();
 
     [GeneratedRegex("""\A(?:[ \t]*([0-9]+) passing \([0-9a-z.]+\))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MochaPassingShared();
-
-
-    private static Regex MochaPassing() => ThreadRegex.Of(MochaPassingShared());
+    private static partial Regex MochaPassing();
 
     [GeneratedRegex("""\A(?:[ \t]*([0-9]+) failing)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MochaFailingShared();
-
-
-    private static Regex MochaFailing() => ThreadRegex.Of(MochaFailingShared());
+    private static partial Regex MochaFailing();
 
     [GeneratedRegex("""\A(?:[ \t]*([0-9]+) pending)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex MochaPendingShared();
-
-
-    private static Regex MochaPending() => ThreadRegex.Of(MochaPendingShared());
+    private static partial Regex MochaPending();
 
     [GeneratedRegex("""\A(?:\(fail\) (.+?)(?: \[[0-9.]+m?s\])?)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex BunFailShared();
-
-
-    private static Regex BunFail() => ThreadRegex.Of(BunFailShared());
+    private static partial Regex BunFail();
 
     [GeneratedRegex("""\A(?: *([0-9]+) (pass|fail))\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex BunCountShared();
-
-
-    private static Regex BunCount() => ThreadRegex.Of(BunCountShared());
+    private static partial Regex BunCount();
 
     [GeneratedRegex("""\A(?:(?:ok|FAILED) \| ([0-9]+) passed(?: \([0-9]+ steps?\))? \| ([0-9]+) failed(?: \([0-9]+ steps?\))?.*)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex DenoSummaryShared();
-
-
-    private static Regex DenoSummary() => ThreadRegex.Of(DenoSummaryShared());
+    private static partial Regex DenoSummary();
 
     [GeneratedRegex("""\A(?:(.+?) => (.+?):[0-9]+:[0-9]+)\z""", RegexOptions.CultureInvariant)]
-    private static partial Regex DenoFailureShared();
+    private static partial Regex DenoFailure();
 
+    // Every pattern below needs one of these (the patterns are anchored and case-sensitive).
+    private static readonly SearchValues<string> Gate = Literals("\u25cf", "Test Suites:", "Tests:", "Snapshots:", "Time:", "Ran all test suites", "\u2713", "\u2715", "\u25cb", "\u270e", "Summary of all failing tests", "\u276f ", "> ", "\u00d7", "\u2717", "Test Files ", "Tests ", " passing (", " failing", " pending", "(fail) ", " | ", " => ");
 
-    private static Regex DenoFailure() => ThreadRegex.Of(DenoFailureShared());
+    // Besides: FAIL / PASS headers after leading spaces (vitest, jest) and bun's "N pass" / "N fail" counts.
+    public override bool CannotClaim(string line) =>
+        !mochaDetails && Lacks(line, Gate) && !line.AsSpan().TrimStart(' ').StartsWith("FAIL ") && !line.AsSpan().TrimStart(' ').StartsWith("PASS ")
+        && !line.EndsWith(" pass", StringComparison.Ordinal) && !line.EndsWith(" fail", StringComparison.Ordinal);
 
     public override int Step(string[] lines, int i)
     {

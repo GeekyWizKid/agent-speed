@@ -149,6 +149,28 @@ internal static class ShellCommands
     /// <summary><c>command_info</c> (3).</summary>
     public static CommandInfo Info(string text, string? cwd) => Analyze(text, cwd).Info;
 
+    /// <summary>
+    /// <see cref="ActionKind"/> and, for a shell tool with command text, that text and its <see cref="Analyze"/> — the same
+    /// values the separate calls give, from one parse of the command.
+    /// </summary>
+    internal static (ActionKind Kind, string? Text, ShellAnalysis? Command) Classify(TaskFamily family, string? tool, JsonElement input, string? cwd)
+    {
+        if (family == TaskFamily.None || tool is null)
+        {
+            return (TaskParsers.ActionKind.Other, null, null);
+        }
+
+        var kind = ToolKinds.Of(family, TaskFamilies.ToolName(family, tool)) ?? TaskParsers.ActionKind.Other;
+        if (kind != TaskParsers.ActionKind.Command || CommandText(family, tool, input) is not { } text)
+        {
+            return (kind, null, null);
+        }
+
+        var parsed = ShellParser.Parse(text, cwd);
+        var (classes, chosen) = Choose(parsed.Segments, cwd);
+        return (ShellKind(parsed), text, new ShellAnalysis(parsed, classes, chosen, InfoOf(parsed, classes, chosen, cwd)));
+    }
+
     /// <summary><c>parse_command(text, cwd).patches</c>: every patch text of the command, in order (3.9, 6.2).</summary>
     public static IReadOnlyList<string> PatchTexts(string text, string? cwd) => ShellParser.Parse(text, cwd).Patches;
 

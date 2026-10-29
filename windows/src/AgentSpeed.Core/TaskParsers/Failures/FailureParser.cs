@@ -93,9 +93,10 @@ internal static class FailureParser
         while (i < lines.Length)
         {
             var used = 0;
+            var line = lines[i];
             foreach (var recognizer in recognizers)
             {
-                used = recognizer.Step(lines, i);
+                used = FailureRecognizer.Gates && recognizer.CannotClaim(line) ? 0 : recognizer.Step(lines, i);
                 if (used > 0)
                 {
                     break;

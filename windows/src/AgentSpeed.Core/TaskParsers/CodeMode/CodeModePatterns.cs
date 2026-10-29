@@ -13,32 +13,17 @@ internal static partial class CodeModePatterns
         ["return", "typeof", "instanceof", "in", "of", "new", "delete", "void", "throw", "case", "do", "else", "yield", "await"];
 
     [GeneratedRegex(@"\G(?:[0-9](?:[0-9A-Za-z_.]|(?<=[eE])[+-])*)", RegexOptions.CultureInvariant)]
-    private static partial Regex NumberTokenShared();
-
-
-    public static Regex NumberToken() => ThreadRegex.Of(NumberTokenShared());
+    public static partial Regex NumberToken();
 
     [GeneratedRegex(@"\A(?:[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\z", RegexOptions.CultureInvariant)]
-    private static partial Regex NumberShared();
-
-
-    public static Regex Number() => ThreadRegex.Of(NumberShared());
+    public static partial Regex Number();
 
     [GeneratedRegex(@"\G(?:[0-9A-Fa-f]{2})", RegexOptions.CultureInvariant)]
-    private static partial Regex Hex2Shared();
-
-
-    public static Regex Hex2() => ThreadRegex.Of(Hex2Shared());
+    public static partial Regex Hex2();
 
     [GeneratedRegex(@"\G(?:[0-9A-Fa-f]{4})", RegexOptions.CultureInvariant)]
-    private static partial Regex Hex4Shared();
-
-
-    public static Regex Hex4() => ThreadRegex.Of(Hex4Shared());
+    public static partial Regex Hex4();
 
     [GeneratedRegex(@"\G(?:\{([0-9A-Fa-f]{1,6})\})", RegexOptions.CultureInvariant)]
-    private static partial Regex CodePointShared();
-
-
-    public static Regex CodePoint() => ThreadRegex.Of(CodePointShared());
+    public static partial Regex CodePoint();
 }
