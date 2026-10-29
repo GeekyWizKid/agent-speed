@@ -7,6 +7,7 @@ import SwiftUI
 struct TaskScoreCardView: View {
     let model: TaskScoreCardModel
     let l10n: Localizer
+    var fit: TaskScoreCardFit = .full
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -34,7 +35,7 @@ struct TaskScoreCardView: View {
     @ViewBuilder
     private func scored(_ score: TaskScoreCardScore) -> some View {
         TaskScoreCardScoreBlock(score: score, l10n: l10n)
-        TaskScoreCardDimensions(score: score, l10n: l10n)
+        TaskScoreCardDimensions(score: score, l10n: l10n, meanings: fit == .full)
             .padding(.top, TaskCardLayout.blockSpacing + 2)
         let cells = TaskScoreCardText.predictions(score, l10n)
         if !cells.isEmpty {
@@ -49,12 +50,14 @@ struct TaskScoreCardView: View {
                 .transition(.opacity)
         }
         facts
-        Text(l10n("task.card.footnote"))
-            .font(TaskCardFont.footnote)
-            .foregroundStyle(.taskCardDescription)
-            .lineSpacing(1.5)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, model.facts.isEmpty ? TaskCardLayout.blockSpacing + 2 : 10)
+        if fit != .noMeaningsOrFootnote {
+            Text(l10n("task.card.footnote"))
+                .font(TaskCardFont.footnote)
+                .foregroundStyle(.taskCardDescription)
+                .lineSpacing(1.5)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, model.facts.isEmpty ? TaskCardLayout.blockSpacing + 2 : 10)
+        }
     }
 
     @ViewBuilder
@@ -74,6 +77,15 @@ struct TaskScoreCardView: View {
             }
         }
     }
+}
+
+/// DESIGN 12, *Fit*: a card taller than the visible screen minus 16 pt drops the dimensions' meanings first, then the
+/// footnote. Its accessibility content stays complete.
+enum TaskScoreCardFit: Int, CaseIterable, Sendable {
+    case full, noMeanings, noMeaningsOrFootnote
+
+    /// Room the card keeps from the visible frame's height.
+    static let margin: CGFloat = 16
 }
 
 /// The card's surface where no system material can be drawn (offscreen previews) and under Reduce Transparency: the

@@ -24,6 +24,7 @@ struct AgentRow: View {
     @Environment(\.dashboardScoreCards) private var cards
     @State private var detailFits = true
     @State private var anchor = ScreenAnchorBox()
+    @FocusState private var focused: Bool
 
     var body: some View {
         let l10n = model.l10n
@@ -118,8 +119,12 @@ struct AgentRow: View {
                 .joined(separator: ", ")
         )
         .accessibilityValue(status)
+        // With keyboard navigation on, a row takes focus with the system ring; Space shows its card (DESIGN 12, *Keyboard*).
+        .focusable(cards != nil && NSApp.isFullKeyboardAccessEnabled)
+        .focused($focused)
+        .contentShape(.focusEffect, RoundedRectangle(cornerRadius: 6, style: .continuous))
         // After the row became one element, so its extra content and custom action belong to it.
-        .modifier(ScoreCardTooltip(cards: cards, agent: agent, model: model, anchor: anchor,
+        .modifier(ScoreCardTooltip(cards: cards, agent: agent, model: model, anchor: anchor, focused: focused,
                                    fallback: [looping, "\(project) · \(status)"].compactMap { $0 }
                                        + Self.facts(of: agent, model: model) + AgentSignalText.closing(agent.signals, l10n)))
     }
@@ -176,6 +181,7 @@ private struct ScoreCardTooltip: ViewModifier {
     let agent: AgentStatus
     let model: AppModel
     let anchor: ScreenAnchorBox
+    let focused: Bool
     let fallback: [String]
 
     func body(content: Content) -> some View {
@@ -183,7 +189,7 @@ private struct ScoreCardTooltip: ViewModifier {
             let id = agent.id
             let card = TaskScoreCardModel(agent: agent, facts: AgentRow.facts(of: agent, model: model))
             content.taskScoreCard(cards.presenter, key: id, lines: TaskScoreCardText.accessibilityLines(card, model.l10n),
-                                  focused: false, l10n: model.l10n) { [weak cards, anchor] in
+                                  focused: focused, l10n: model.l10n) { [weak cards, anchor] in
                 cards?.request(agentId: id, row: anchor.view)
             }
         } else {

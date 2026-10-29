@@ -5,13 +5,15 @@ import SwiftUI
 struct TaskScoreCardDimensions: View {
     let score: TaskScoreCardScore
     let l10n: Localizer
+    /// The one-line meanings; a card too tall for the screen leaves them out (DESIGN 12, *Fit*).
+    var meanings = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             TaskCardSectionTitle(title: l10n("task.dims.title"))
-            VStack(alignment: .leading, spacing: TaskCardLayout.dimensionSpacing) {
+            VStack(alignment: .leading, spacing: meanings ? TaskCardLayout.dimensionSpacing : 8) {
                 ForEach(TaskScoreCardText.dimensionRows(score)) { row in
-                    TaskScoreCardDimensionRow(row: row, l10n: l10n)
+                    TaskScoreCardDimensionRow(row: row, l10n: l10n, meaning: meanings)
                 }
             }
         }
@@ -21,6 +23,7 @@ struct TaskScoreCardDimensions: View {
 private struct TaskScoreCardDimensionRow: View {
     let row: TaskDimensionRow
     let l10n: Localizer
+    var meaning = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -34,12 +37,14 @@ private struct TaskScoreCardDimensionRow: View {
             }
             TaskDimensionBar(row: row)
                 .padding(.top, 5)
-            Text(l10n(row.dimension.meaningKey))
-                .font(TaskCardFont.meaning)
-                .foregroundStyle(.taskCardDescription)
-                .lineSpacing(1)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 4)
+            if meaning {
+                Text(l10n(row.dimension.meaningKey))
+                    .font(TaskCardFont.meaning)
+                    .foregroundStyle(.taskCardDescription)
+                    .lineSpacing(1)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 4)
+            }
         }
     }
 

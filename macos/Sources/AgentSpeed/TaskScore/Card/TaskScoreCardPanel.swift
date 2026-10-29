@@ -11,6 +11,7 @@ final class TaskScoreCardContent {
     var key: String = ""
     var model: TaskScoreCardModel?
     var reduceMotion = false
+    var fit = TaskScoreCardFit.full
 
     @ObservationIgnored let l10n: Localizer
 
@@ -31,6 +32,8 @@ final class TaskScoreCardPanel {
     private let panel: CardWindow
     private let hosting: NSHostingView<TaskScoreCardHost>
     private var reduceTransparency: Bool?
+    /// The tallest the card may be on its screen (DESIGN 12, *Fit*).
+    private var heightLimit: CGFloat = .greatestFiniteMagnitude
     private let transition = WindowTransition()
     private(set) var isShown = false
 
@@ -72,7 +75,8 @@ final class TaskScoreCardPanel {
         }
         let level = max(window?.level.rawValue ?? NSWindow.Level.floating.rawValue, NSWindow.Level.floating.rawValue) + 1
         if panel.level.rawValue != level { panel.level = NSWindow.Level(rawValue: level) }
-        let placement = TaskScoreCardPlacement.place(size: fittingSize(), anchor: anchor)
+        heightLimit = anchor.visibleFrame.height - TaskScoreCardFit.margin
+        let placement = TaskScoreCardPlacement.place(size: fittedSize(), anchor: anchor)
         if isShown {
             transition.cancel()
             panel.alphaValue = 1
@@ -93,7 +97,7 @@ final class TaskScoreCardPanel {
     func update(_ model: TaskScoreCardModel) {
         guard isShown, model != content.model else { return }
         content.model = model
-        let size = fittingSize()
+        let size = fittedSize()
         guard abs(size.height - panel.frame.height) > 0.5 else { return }
         var frame = panel.frame
         frame.origin.y = frame.maxY - size.height
@@ -126,6 +130,17 @@ final class TaskScoreCardPanel {
     }
 
     var frame: CGRect { panel.frame }
+
+    /// The card at the fullest form that fits its screen: meanings go first, then the footnote.
+    private func fittedSize() -> CGSize {
+        var size = CGSize.zero
+        for fit in TaskScoreCardFit.allCases {
+            if content.fit != fit { content.fit = fit }
+            size = fittingSize()
+            if size.height <= heightLimit { break }
+        }
+        return size
+    }
 
     private func fittingSize() -> CGSize {
         hosting.layoutSubtreeIfNeeded()
@@ -278,7 +293,7 @@ struct TaskScoreCardHost: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             if let model = content.model {
-                TaskScoreCardView(model: model, l10n: content.l10n)
+                TaskScoreCardView(model: model, l10n: content.l10n, fit: content.fit)
                     .id(content.key)
                     .transition(.opacity)
             }

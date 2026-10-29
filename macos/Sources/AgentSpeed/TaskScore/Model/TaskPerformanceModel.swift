@@ -22,6 +22,8 @@ struct TaskPerformanceStats: Equatable, Sendable {
     var stalled: Int?
     var fixFailures: Int?
     var fixAttempts: Int?
+    /// Σ recovered episodes: the denominator of `recoverAttempts`.
+    var recovered: Int?
 
     static let empty = TaskPerformanceStats(
         tasks: 0, scoredTasks: 0, medianScore: nil, lowerQuartile: nil, upperQuartile: nil,

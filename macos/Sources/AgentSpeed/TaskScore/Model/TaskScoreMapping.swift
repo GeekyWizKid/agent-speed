@@ -95,34 +95,24 @@ extension TaskScoreCardScore {
 }
 
 extension TaskPerformanceComparison {
-    /// The comparison over [`first`, `last`], with the rates' counts for their tooltips taken from the same records.
-    init(_ comparison: TaskComparison, records: [TaskRecord], first: String, last: String, source: SourceKind?) {
-        let chosen = records.filter { record in
-            record.complete && record.day >= first && record.day <= last && (source == nil || record.source == source)
-        }
+    init(_ comparison: TaskComparison) {
         bySource = comparison.bySource.compactMap { row in
-            guard let kind = row.source else { return nil }
-            return TaskPerformanceSource(source: kind, stats: TaskPerformanceStats(row, chosen.filter { $0.source == kind }))
+            row.source.map { TaskPerformanceSource(source: $0, stats: TaskPerformanceStats(row)) }
         }
         byModel = comparison.byModel.map { row in
-            let id = row.model ?? ""
-            return TaskPerformanceModelRow(model: id, sources: row.sources,
-                                           stats: TaskPerformanceStats(row, chosen.filter { ($0.model ?? "") == id }))
+            TaskPerformanceModelRow(model: row.model ?? "", sources: row.sources, stats: TaskPerformanceStats(row))
         }
     }
 }
 
 extension TaskPerformanceStats {
-    init(_ row: TaskComparisonRow, _ records: [TaskRecord]) {
+    /// A comparison row with the numerators its rate tooltips show (METRICS 6.11 *Comparison*).
+    init(_ row: TaskComparisonRow) {
         self.init(tasks: row.tasks, scoredTasks: row.scoredTasks, medianScore: row.medianScore,
                   lowerQuartile: row.lowerQuartile, upperQuartile: row.upperQuartile, histogram: row.histogram,
                   successRate: row.successRate, stallRate: row.stallRate, fixFailureRate: row.fixFailureRate,
-                  recoverAttempts: row.recoverAttempts, timeToFirstPassMs: row.timeToFirstPassMs)
-        // Counts only when the records are the ones the row was computed from.
-        guard records.count == row.tasks else { return }
-        successes = records.filter { $0.score != nil && $0.success }.count
-        stalled = records.filter(\.stalled).count
-        fixFailures = records.reduce(0) { $0 + $1.counts.fixFailures }
-        fixAttempts = records.reduce(0) { $0 + $1.counts.fixAttempts }
+                  recoverAttempts: row.recoverAttempts, timeToFirstPassMs: row.timeToFirstPassMs,
+                  successes: row.successes, stalled: row.stalls, fixFailures: row.fixFailures,
+                  fixAttempts: row.fixAttempts, recovered: row.recovered)
     }
 }

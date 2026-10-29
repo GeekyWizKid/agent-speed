@@ -115,7 +115,9 @@ struct StatusItemIntelligence: Equatable {
             }
             draw(line.label, at: left, color: palette.secondary)
             let numberWidth = (line.number as NSString).size(withAttributes: [.font: font]).width
-            let color = line.dim ? palette.secondary : palette.primary.opacity(0.85)
+            // Increase Contrast: a live value takes the full label color, so live and resting differ by more than the
+            // pale level (DESIGN 12, *Platform details*).
+            let color = line.dim ? palette.secondary : palette.increasedContrast ? palette.primary : palette.primary.opacity(0.85)
             draw(line.number, at: numberRight - numberWidth, color: color)
             if line.unproven {
                 Self.drawProofMark(x: numberRight - numberWidth, width: numberWidth, baseline: baseline, color: color,

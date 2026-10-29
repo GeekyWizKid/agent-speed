@@ -138,7 +138,8 @@ struct TaskScoreTextTests {
         let model = TaskScoreCardModel(header: .init(source: .claudeCode, project: "nova", model: "claude-sonnet-5-5"),
                                        body: .scored(score), facts: ["推理強度：medium"])
         let lines = TaskScoreCardText.accessibilityLines(model, zh)
-        #expect(lines.first == "智力 9，尚未驗證，尚未驗證")
+        // The state is spoken once.
+        #expect(lines.first == "智力 9，尚未驗證")
         #expect(lines[1] == "已修改，但還沒有執行測試、建置或檢查")
         #expect(lines[2].hasPrefix("驗證成功，尚未驗證，"))
         #expect(lines[5].hasPrefix("行為效率 9 分，滿分 10，"))

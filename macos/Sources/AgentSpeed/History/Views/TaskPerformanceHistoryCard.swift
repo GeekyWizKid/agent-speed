@@ -11,10 +11,7 @@ struct TaskPerformanceHistoryCard: View {
         let first = range.start.description
         let last = range.end.description
         let store = model.store
-        let comparison = TaskPerformanceComparison(
-            store.taskComparison(first: first, last: last, source: model.source),
-            records: store.taskRecords, first: first, last: last, source: model.source
-        )
+        let comparison = TaskPerformanceComparison(store.taskComparison(first: first, last: last, source: model.source))
         let analyzing = if case .analyzing = store.state { true } else { false }
         TaskPerformanceSection(
             input: TaskPerformanceInput(comparison: comparison, narrowedTo: model.source, analyzing: analyzing),

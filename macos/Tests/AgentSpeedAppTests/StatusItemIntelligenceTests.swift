@@ -232,6 +232,17 @@ struct StatusItemIntelligenceTests {
         return (rows, columns.min().flatMap { min in columns.max().map { min...$0 } })
     }
 
+    @Test func increaseContrastDrawsALiveScoreInTheFullLabelColor() {
+        // DESIGN 12, *Platform details*: live and resting differ by more than the pale level.
+        let live = StatusItemIntelligence(Self.sums(score: 86, thinking: 0), l10n: Localizer(preference: .zhHant), thinkingHidden: true)
+        func strongest(_ increasedContrast: Bool) -> UInt8 {
+            let bytes = Self.pixels(live, increasedContrast: increasedContrast)
+            return stride(from: 3, to: bytes.count, by: 4).map { bytes[$0] }.max() ?? 0
+        }
+        #expect(strongest(true) == 255)
+        #expect(strongest(false) < 230)
+    }
+
     @Test func theProofMarkIsDottedUnderTheNumberAndMovesNothingElse() throws {
         for (sums, thinkingHidden) in [(Self.sums(score: 54, thinking: 4.2), false), (Self.sums(score: 100, thinking: 1_280), false),
                                        (Self.sums(score: 9, thinking: 0), true)] {

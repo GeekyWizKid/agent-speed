@@ -190,7 +190,9 @@ enum TaskScoreCardText {
         var lines: [String] = []
         if let shown = score.shown, score.form != .none {
             let words = TaskScoreText.words(shown: shown, state: score.state, form: score.form, count: score.topCount, l10n)
-            lines.append(l10n("a11y.task.score", words, l10n(score.state.titleKey)))
+            // The state is spoken once: unproven score words already say it, so the chip's text is not added.
+            lines.append(score.state.isUnproven ? l10n("a11y.agent.intel", words)
+                : l10n("a11y.task.score", words, l10n(score.state.titleKey)))
         } else {
             lines.append(l10n("intel.none"))
         }

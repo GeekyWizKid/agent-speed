@@ -27,6 +27,15 @@ enum TaskScoreCardPreviews {
                 let suffix = "\(language.rawValue)-\(dark ? "dark" : "light")"
                 write(Sheet(cases: cases, l10n: model.l10n, dark: dark), dark: dark,
                       to: directory.appendingPathComponent("taskcard-sheet-\(suffix).png"))
+                if language == .zhHant, let failing = cases.first(where: { $0.name == "failing" }) {
+                    // DESIGN 12, *Fit*: full, without the meanings, without the footnote too.
+                    write(HStack(alignment: .top, spacing: 24) {
+                        ForEach(TaskScoreCardFit.allCases, id: \.self) { fit in
+                            TaskScoreCardView(model: failing.model, l10n: model.l10n, fit: fit)
+                                .modifier(TaskScoreCardSolidSurface())
+                        }
+                    }.padding(28), dark: dark, to: directory.appendingPathComponent("taskcard-fit-\(suffix).png"))
+                }
                 if language == .zhHant {
                     write(Sheet(cases: cases, l10n: model.l10n, dark: dark).environment(\._colorSchemeContrast, .increased),
                           dark: dark, to: directory.appendingPathComponent("taskcard-sheet-contrast-\(suffix).png"))
