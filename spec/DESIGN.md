@@ -1583,7 +1583,7 @@ The second line — every group row at M and L, whatever the switches:
 - Row height `row` + 8 (38 at M, 40 at L; glass and neon then leave out their 2 pt between group rows). Line 1, its
   baseline 16 under the row's top: rank, badge, project name, capsule; the capsule sits in the first 16 pt band
   starting 4 under the top, outside the baseline group, so every first line shares one baseline.
-- **The row's figures**, the 智力 cell and the value, are not on line 1 (user's request, 2026-10-29: they read as the
+- **The row's figures**, the 智力 cell and the value (and timing's interval), are not on line 1 (user's request, 2026-10-29: they read as the
   row's numbers, centred and a little larger). They share one baseline, placed so that the cap-height centre of their
   digits lies on the row's centre line (19 under the top at M, 20 at L). Both are 2 pt larger than in a one-line row:
   the 智力 number of a group row 11 → 13 (same weight and colors), the value its style's row size + 2. Each cell
@@ -1591,8 +1591,11 @@ The second line — every group row at M and L, whatever the switches:
   and sub rows (one line) keep their sizes and line 1's baseline.
   Line 2, its
   baseline 31 under the top (glass 32): the detail (model · `boards.subCount`) alone, starting under the name and
-  running to the value column's right edge (under the capsule, 智力 and value columns, which line 2 leaves empty),
-  truncating at its tail. Timing's position block (26 tall) and stripe (24) span both lines.
+  running under the capsule column up to the first figure column's left edge (the figures, centred on the row, hold
+  their columns on both lines), truncating at its tail. Timing's position block (26 tall) and stripe (24) span both
+  lines, and timing's interval column is a figure too: centred with the 智力 cell and the value on their shared
+  baseline, at its own size. The keyboard focus ring (section 12, *Keyboard*) is drawn outside the row like a system
+  control's and may overlap the 1–3 pt gap to a neighbouring row.
 - Nothing else is drawn on line 2: rows show no cost, whatever the readouts.
 - S never draws the second line: rows stay one line.
 
