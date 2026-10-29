@@ -126,7 +126,7 @@ internal sealed class TaskbarRenderer
             if (ShowsIntelligence(state))
             {
                 var colors = Palette(state);
-                width += _intelligence.Width(state.Intelligence!, _cacheScale, colors.Primary, colors.Secondary);
+                width += _intelligence.Width(state.Intelligence!, _cacheScale, colors.Primary, colors.Secondary, state.HighContrast);
             }
         }
 
@@ -229,7 +229,7 @@ internal sealed class TaskbarRenderer
 
         if (ShowsIntelligence(state))
         {
-            _intelligence.Draw(dc, state.Intelligence!, x, centerY, scale, colors.Primary, colors.Secondary);
+            _intelligence.Draw(dc, state.Intelligence!, x, centerY, scale, colors.Primary, colors.Secondary, state.HighContrast);
         }
     }
 
@@ -280,9 +280,9 @@ internal sealed class TaskbarRenderer
 
         if (ShowsIntelligence(state))
         {
-            var blockWidth = _intelligence.Width(state.Intelligence!, 1, colors.Primary, colors.Secondary) - TaskbarIntelligenceText.Gap;
+            var blockWidth = _intelligence.Width(state.Intelligence!, 1, colors.Primary, colors.Secondary, state.HighContrast) - TaskbarIntelligenceText.Gap;
             _intelligence.Draw(dc, state.Intelligence!, (width - blockWidth) / 2 - TaskbarIntelligenceText.Gap,
-                y + TaskbarIntelligenceText.Height / 2, 1, colors.Primary, colors.Secondary);
+                y + TaskbarIntelligenceText.Height / 2, 1, colors.Primary, colors.Secondary, state.HighContrast);
         }
     }
 

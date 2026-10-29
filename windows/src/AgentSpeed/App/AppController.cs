@@ -576,7 +576,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
         if (_tooltipShown)
         {
-            _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(snapshot, _loc));
+            _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(snapshot, _loc), TooltipTop());
         }
 
         if (!_historyStarted && snapshot.State.Kind != MonitorStateKind.Starting && _historyStartFallback is not null)
@@ -765,6 +765,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     /// <summary>The taskbar intelligence block, its thinking line hidden after 3 s at 0 (DESIGN 10).</summary>
     private BarIntelligenceBlock? BarIntelligence() => BarIntelligenceBlock.From(Settings, _speed.Snapshot, _loc, _barThinking, _speed.Now);
 
+    /// <summary>The tooltip's second line while the intelligence block shows a score: <c>task.tooltip.top</c> (DESIGN 10).</summary>
+    private string? TooltipTop() => BarIntelligence()?.Top;
+
     /// <summary>The taskbar money block (DESIGN 3): the live rate and today's total after tok/s with the live value "tok/s + cost".</summary>
     private BarSecondary? BarSecondaryValue()
     {
@@ -816,7 +819,8 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             UpdateTaskbar();
             if (_tooltipShown)
             {
-                _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(_speed.Snapshot, _loc));
+                _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(_speed.Snapshot, _loc),
+                    TooltipTop());
             }
         }
 
@@ -971,7 +975,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _tooltipShown = true;
         _tooltip.Language = AppFonts.XmlLanguageFor(_loc.LanguageCode);
         var summary = LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(_speed.Snapshot, _loc);
-        _tooltip.ShowFor(bounds, LiveLine(), summary, _theme.ReduceMotion, _loc["taskbar.dragHint"]);
+        _tooltip.ShowFor(bounds, LiveLine(), summary, _theme.ReduceMotion, _loc["taskbar.dragHint"], TooltipTop());
     }
 
     /// <summary>The user dragged the taskbar widget along the taskbar (DESIGN 3, Position on the taskbar).</summary>

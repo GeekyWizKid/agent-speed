@@ -16,6 +16,7 @@ internal sealed class HoverTooltip : Window
     private const double ShadowMargin = 14;
 
     private readonly TextBlock _primary;
+    private readonly TextBlock _detail;
     private readonly TextBlock _secondary;
     private readonly TextBlock _hint;
     private RECT _anchor;
@@ -41,6 +42,11 @@ internal sealed class HoverTooltip : Window
         _primary = new TextBlock { FontSize = 13, FontWeight = FontWeights.SemiBold };
         _primary.SetResourceReference(TextBlock.ForegroundProperty, "ToolTipForegroundBrush");
         _primary.SetResourceReference(TextBlock.FontFamilyProperty, AppFonts.UiFontKey);
+        // DESIGN 10: the intelligence block's supplying agent (task.tooltip.top) on a line of its own under the first.
+        _detail = new TextBlock { FontSize = 12, Margin = new Thickness(0, 2, 0, 0), Visibility = Visibility.Collapsed };
+        _detail.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        _detail.SetResourceReference(TextBlock.FontFamilyProperty, AppFonts.UiFontKey);
+        Typography.SetNumeralAlignment(_detail, FontNumeralAlignment.Tabular);
         _secondary = new TextBlock { FontSize = 12, Margin = new Thickness(0, 2, 0, 0) };
         _secondary.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         _secondary.SetResourceReference(TextBlock.FontFamilyProperty, AppFonts.UiFontKey);
@@ -55,6 +61,7 @@ internal sealed class HoverTooltip : Window
 
         var stack = new StackPanel();
         stack.Children.Add(_primary);
+        stack.Children.Add(_detail);
         stack.Children.Add(_secondary);
         stack.Children.Add(_hint);
 
@@ -77,11 +84,12 @@ internal sealed class HoverTooltip : Window
     }
 
     /// <param name="hint">An optional last line, set apart from the others (the taskbar widget's drag hint).</param>
-    public void ShowFor(RECT anchor, string primary, string secondary, bool reduceMotion, string? hint = null)
+    /// <param name="detail">An optional line right under the first (the intelligence block's supplying agent).</param>
+    public void ShowFor(RECT anchor, string primary, string secondary, bool reduceMotion, string? hint = null, string? detail = null)
     {
         _anchor = anchor;
         _reduceMotion = reduceMotion;
-        SetText(primary, secondary);
+        SetText(primary, secondary, detail);
         _hint.Text = hint;
         _hint.Visibility = string.IsNullOrEmpty(hint) ? Visibility.Collapsed : Visibility.Visible;
         if (!IsVisible)
@@ -94,9 +102,11 @@ internal sealed class HoverTooltip : Window
         BeginAnimation(OpacityProperty, new DoubleAnimation(1, reduceMotion ? TimeSpan.Zero : TimeSpan.FromMilliseconds(140)));
     }
 
-    public void SetText(string primary, string secondary)
+    public void SetText(string primary, string secondary, string? detail = null)
     {
         _primary.Text = primary;
+        _detail.Text = detail;
+        _detail.Visibility = string.IsNullOrEmpty(detail) ? Visibility.Collapsed : Visibility.Visible;
         _secondary.Text = secondary;
         _secondary.Visibility = string.IsNullOrEmpty(secondary) ? Visibility.Collapsed : Visibility.Visible;
     }
