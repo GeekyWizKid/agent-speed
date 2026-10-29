@@ -14,6 +14,23 @@ public class BarIntelligenceSwitchTests
 {
     private static readonly Localizer ZhHant = new(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
 
+    /// <summary>
+    /// High contrast follows the orb readout for every part of the block (DESIGN 10, DESIGN 12 <i>Platform details</i>): live
+    /// numbers in the text color; labels, the unit, a resting score, <c>–</c> and a zero rate in the gray-text color.
+    /// </summary>
+    [Fact]
+    public void HighContrastColorsEveryPartLikeTheOrbReadout()
+    {
+        Assert.Equal(BarIntelligenceInk.Text, BarIntelligenceBlock.InkOf(number: true, dim: false, highContrast: true));
+        Assert.Equal(BarIntelligenceInk.GrayText, BarIntelligenceBlock.InkOf(number: true, dim: true, highContrast: true));
+        Assert.Equal(BarIntelligenceInk.GrayText, BarIntelligenceBlock.InkOf(number: false, dim: false, highContrast: true));
+        Assert.Equal(BarIntelligenceInk.GrayText, BarIntelligenceBlock.InkOf(number: false, dim: true, highContrast: true));
+
+        Assert.Equal(BarIntelligenceInk.Number, BarIntelligenceBlock.InkOf(number: true, dim: false, highContrast: false));
+        Assert.Equal(BarIntelligenceInk.Secondary, BarIntelligenceBlock.InkOf(number: true, dim: true, highContrast: false));
+        Assert.Equal(BarIntelligenceInk.Secondary, BarIntelligenceBlock.InkOf(number: false, dim: false, highContrast: false));
+    }
+
     [Fact]
     public void TheNetworkControlKeepsItsThreeChoicesAndAnUnknownOneReadsAsOff()
     {

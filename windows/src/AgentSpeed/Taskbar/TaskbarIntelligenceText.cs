@@ -10,11 +10,11 @@ namespace AgentSpeed.Taskbar;
 /// <summary>
 /// Draws the taskbar intelligence block (DESIGN 10, Menu bar and taskbar): <c>智力 86</c> over <c>思考 128 tok/s</c> in
 /// 10 px medium tabular text, labels left-aligned in a column, both numbers right-aligned in one cell as wide as
-/// <c>8.88k</c>, the unit after the second. A live score and a thinking rate in the label color at 85 % (high contrast: the
-/// full text color); labels and the unit in the secondary color; a resting score, <c>–</c> and a zero rate in the secondary
-/// color (high contrast: the gray-text color, so live and resting still differ). An unverified or pending score sits on
-/// the dotted proof mark (DESIGN 12). With the thinking line hidden at zero, line 1 alone, centred in the same cells.
-/// Runs on the taskbar thread.
+/// <c>8.88k</c>, the unit after the second. A live score and a thinking rate in the label color at 85 %; labels, the unit, a
+/// resting score, <c>–</c> and a zero rate in the secondary color. High contrast follows the orb readout for every part
+/// (<see cref="BarIntelligenceBlock.InkOf"/>): live numbers in the text color, everything else in the gray-text color. An
+/// unverified or pending score sits on the dotted proof mark (DESIGN 12). With the thinking line hidden at zero, line 1
+/// alone, centred in the same cells. Runs on the taskbar thread.
 /// </summary>
 internal sealed class TaskbarIntelligenceText
 {
@@ -128,13 +128,13 @@ internal sealed class TaskbarIntelligenceText
         return width;
     }
 
-    /// <summary>A label or the unit in the secondary color.</summary>
+    /// <summary>A label or the unit in the secondary color (high contrast: the gray-text color).</summary>
     private FormattedText Text(string text)
     {
         if (!_texts.TryGetValue(text, out var formatted))
         {
             formatted = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, _face, TextSize,
-                new SolidColorBrush(_secondary), null, TextFormattingMode.Ideal, _scale);
+                new SolidColorBrush(InkColor(BarIntelligenceBlock.InkOf(number: false, dim: false, _highContrast))), null, TextFormattingMode.Ideal, _scale);
             if (_texts.Count > 32)
             {
                 _texts.Clear();
@@ -159,15 +159,16 @@ internal sealed class TaskbarIntelligenceText
         return text;
     }
 
-    /// <summary>
-    /// Role 0 (live): the label color at 85 %, high contrast the full text color. Role 1 (resting, <c>–</c>, a zero rate): the
-    /// secondary color, high contrast the gray-text color (the palette's secondary is the text color there).
-    /// </summary>
-    private Color NumberColor(int role) => (role, _highContrast) switch
+    /// <summary>Role 0 (live) or 1 (resting, <c>–</c>, a zero rate) of a number, by <see cref="BarIntelligenceBlock.InkOf"/>.</summary>
+    private Color NumberColor(int role) => InkColor(BarIntelligenceBlock.InkOf(number: true, dim: role != 0, _highContrast));
+
+    /// <summary>The palette's color of an ink; in high contrast the palette's secondary is the text color, so gray text is the system's.</summary>
+    private Color InkColor(BarIntelligenceInk ink) => ink switch
     {
-        (0, true) => _primary,
-        (0, false) => Color.FromArgb((byte)Math.Round(_primary.A * BarIntelligenceBlock.LiveOpacity), _primary.R, _primary.G, _primary.B),
-        (_, true) => SystemColors.GrayTextColor,
+        BarIntelligenceInk.Text => _primary,
+        BarIntelligenceInk.Number => Color.FromArgb((byte)Math.Round(_primary.A * BarIntelligenceBlock.LiveOpacity), _primary.R,
+            _primary.G, _primary.B),
+        BarIntelligenceInk.GrayText => SystemColors.GrayTextColor,
         _ => _secondary,
     };
 

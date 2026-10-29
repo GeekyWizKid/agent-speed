@@ -79,6 +79,12 @@ internal sealed partial class ReportController
 
     private void Tick()
     {
+        TickTransport();
+        FollowTaskWatch();
+    }
+
+    private void TickTransport()
+    {
         FollowEffectiveTransport();
         var sample = LastSample;
         var now = MonotonicMs;
@@ -220,7 +226,7 @@ internal sealed partial class ReportController
             return;
         }
 
-        var content = run.Window.Take(sample);
+        var content = run.Window.Take(sample) with { Tasks = TakeTasks(sample) };
         var envelope = new ReportEnvelope(Client, identity.DeviceId, username, run.Id, ticket.Seq, UnixMs + _clockCorrection * 1000,
             ticket.WindowMs, ticket.Activity, run.Title.Level);
         run.Bodies[ticket.Seq] = ReportBody.Data(envelope, content, sample, Options(document, Preferences.Sections));
@@ -311,6 +317,7 @@ internal sealed partial class ReportController
         var actions = run.Scheduler.Finish(ticket, outcome, now);
         Apply(actions, LastSample);
         React(reaction);
+        FollowTaskWatch();
         if (_quitReply is not null && _run?.Scheduler.IsBusy != true)
         {
             FinishQuit();

@@ -105,7 +105,14 @@ internal sealed partial class ReportController
             options = options with { Stream = new ReportStreamBody(age, limits.MaxMessageBytes) };
         }
 
-        var (body, data) = ReportBody.Fitted(envelope, window.Content(sample), sample, options);
+        // The task rows are the selected service's (METRICS 11.10); a consent draft has watched nothing yet.
+        var content = window.Content(sample);
+        if (draft is null)
+        {
+            content = content with { Tasks = _tasks.Content(sample) };
+        }
+
+        var (body, data) = ReportBody.Fitted(envelope, content, sample, options);
         var timestamp = UnixMs / 1000 + _clockCorrection;
         var hasApiKey = draft is not null ? draft.ApiKey.Length > 0 : _apiKey is not null;
         var request = webSocket

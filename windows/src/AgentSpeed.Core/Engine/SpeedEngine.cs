@@ -144,15 +144,18 @@ internal sealed class SpeedEngine
         var sourceCosts = new LiveCost[SourceCount];
         var intelligence = new IntelligenceSums[SourceCount];
         var agentIntelligence = new Dictionary<string, IntelligenceSums>(StringComparer.Ordinal);
+        var modelIntelligence = new Dictionary<ModelSumKey, IntelligenceSums>();
 
-        // Every contribution counts for its source and for its own agent (METRICS 6.9, Live thinking).
-        void AddIntelligence(SourceKind source, string agentId, double weight, double reasoning)
+        // Every contribution counts for its source, its own agent and its model (METRICS 6.9, Live thinking).
+        void AddIntelligence(SourceKind source, string agentId, double weight, double reasoning, string? model, string? provider)
         {
             ref var sums = ref intelligence[(int)source];
             sums = sums.Add(source, weight, reasoning);
             if (weight > 0)
             {
                 agentIntelligence[agentId] = agentIntelligence.GetValueOrDefault(agentId).Add(source, weight, reasoning);
+                var key = new ModelSumKey(model ?? string.Empty, provider);
+                modelIntelligence[key] = modelIntelligence.GetValueOrDefault(key).Add(source, weight, reasoning);
             }
         }
 
@@ -191,7 +194,7 @@ internal sealed class SpeedEngine
                     sourceCosts[(int)response.Source] += new LiveCost(cost * fraction, output);
                 }
 
-                AddIntelligence(response.Source, response.AgentId, output, ReasoningOf(response.Tokens) * fraction);
+                AddIntelligence(response.Source, response.AgentId, output, ReasoningOf(response.Tokens) * fraction, response.Model, response.Provider);
             }
         }
 
@@ -203,7 +206,7 @@ internal sealed class SpeedEngine
         var estimated = new Accumulator(SourceCount);
         var estimates = new List<(long StartMs, long EndMs, SpeedPair Speed)>();
 
-        void AddEstimate(SourceKind source, string agentId, SpeedPair reference, long overlap)
+        void AddEstimate(SourceKind source, string agentId, SpeedPair reference, long overlap, string? model, string? provider)
         {
             var output = reference.Output * overlap / 1000.0;
             estimated.Add(source, agentId, output, reference.Total * overlap / 1000.0);
@@ -212,7 +215,7 @@ internal sealed class SpeedEngine
                 sourceCosts[(int)source] += new LiveCost(rate * overlap / 1000.0, output);
             }
 
-            AddIntelligence(source, agentId, output, output * reference.ThinkingShare);
+            AddIntelligence(source, agentId, output, output * reference.ThinkingShare, model, provider);
         }
 
         // Unfinalized usage: the time is real, the token count is not, so it is estimated (METRICS 6.3).
@@ -230,7 +233,7 @@ internal sealed class SpeedEngine
 
             estimates.Add((stored.Interval.StartMs, stored.Interval.EndMs, reference));
             var overlap = SpeedMath.Overlap(windowStart, nowMs, stored.Interval.StartMs, stored.Interval.EndMs);
-            AddEstimate(response.Source, response.AgentId, reference, overlap);
+            AddEstimate(response.Source, response.AgentId, reference, overlap, response.Model, response.Provider);
         }
 
         foreach (var agent in _agents.Values)
@@ -251,7 +254,7 @@ internal sealed class SpeedEngine
             var estimateStart = latestEnd.TryGetValue(agent.Id, out var ownEnd) ? Math.Max(start, ownEnd) : start;
             estimates.Add((estimateStart, nowMs, estimate));
             var overlap = SpeedMath.Overlap(windowStart, nowMs, estimateStart, nowMs);
-            AddEstimate(agent.Source, agent.Id, estimate, overlap);
+            AddEstimate(agent.Source, agent.Id, estimate, overlap, agent.Model, _agentProviders.GetValueOrDefault(agent.Id));
         }
 
         var seconds = WindowMs / 1000.0;
@@ -322,7 +325,8 @@ internal sealed class SpeedEngine
             SourceUnpricedModels = sourceUnpriced,
             SourceUnpricedFacts = sourceUnpricedFacts,
             SourceIntelligence = intelligence,
-            Report = ReportFacts(nowMs),
+            ModelIntelligence = modelIntelligence,
+            Report = ReportFacts(nowMs, agents, intelligence, modelIntelligence),
         };
     }
 
@@ -347,8 +351,65 @@ internal sealed class SpeedEngine
     /// <summary>The reasoning part of a response's output (METRICS 6.9): never more than the output.</summary>
     private static long ReasoningOf(in TokenCounts tokens) => Math.Min(tokens.Reasoning, tokens.Output);
 
+    /// <summary>
+    /// Counts the watched tasks that completed (METRICS 11.10, Counting) into the task ledger, under the report id of each
+    /// task's model and its agent's source, while their watch generation is on.
+    /// </summary>
+    public void CountTasks(IReadOnlyList<TaskCompletion> completions, ReportTaskWatch watch)
+    {
+        _reportLedger.FollowTaskWatch(watch);
+        foreach (var task in completions)
+        {
+            var key = new ReportModelKey(ReportModelId(task.Model, _agentProviders.GetValueOrDefault(task.AgentId)), task.Source);
+            _reportLedger.CountTask(key, task.Row, task.Generation, watch, ReportEpoch);
+        }
+    }
+
+    /// <summary>
+    /// The task score's live facts (METRICS 11.10): every agent of the agents list with a score, under its current model's
+    /// report id; the all-sources thinking; each report id's thinking, its raw models' model sums added.
+    /// </summary>
+    private ReportTaskFacts TaskFacts(List<AgentFrame> agents, IntelligenceSums[] sources, Dictionary<ModelSumKey, IntelligenceSums> models)
+    {
+        List<ReportTaskAgent>? scored = null;
+        foreach (var agent in agents)
+        {
+            if (agent.Intelligence.Score is { Score: { } score, Form: TaskValueForm.Live or TaskValueForm.Resting } value)
+            {
+                var id = ReportModelId(agent.Info.Model, _agentProviders.GetValueOrDefault(agent.Info.Id));
+                (scored ??= []).Add(new ReportTaskAgent(agent.Info.Source, id, value.Form, score));
+            }
+        }
+
+        var total = IntelligenceSums.Zero;
+        foreach (var sums in sources)
+        {
+            total += sums;
+        }
+
+        if (scored is null && models.Count == 0 && total.Thinking == 0)
+        {
+            return ReportTaskFacts.Empty;
+        }
+
+        var byId = new Dictionary<string, IntelligenceSums>(StringComparer.Ordinal);
+        foreach (var (key, sums) in models)
+        {
+            var id = ReportModelId(key.Model.Length == 0 ? null : key.Model, key.Provider);
+            byId[id] = byId.GetValueOrDefault(id) + sums;
+        }
+
+        var thinking = new Dictionary<string, double>(byId.Count, StringComparer.Ordinal);
+        foreach (var (id, sums) in byId)
+        {
+            thinking[id] = sums.LiveThinking;
+        }
+
+        return new ReportTaskFacts(scored ?? [], total.LiveThinking, thinking);
+    }
+
     /// <summary>Agents of the 6.7 base set per source, generating agents per model, and the report ledger (METRICS 11.2).</summary>
-    private ReportLiveFacts ReportFacts(long nowMs)
+    private ReportLiveFacts ReportFacts(long nowMs, List<AgentFrame> list, IntelligenceSums[] sources, Dictionary<ModelSumKey, IntelligenceSums> models)
     {
         var agents = new Dictionary<SourceKind, ReportAgentCounts>();
         var generating = new Dictionary<ReportModelKey, int>();
@@ -383,7 +444,7 @@ internal sealed class SpeedEngine
             _reportCountersVersion = _reportLedger.Counters.Version;
         }
 
-        return new ReportLiveFacts(agents, generating, _reportCounters, ReportEpoch);
+        return new ReportLiveFacts(agents, generating, _reportCounters, ReportEpoch) { Tasks = TaskFacts(list, sources, models) };
     }
 
     /// <summary>

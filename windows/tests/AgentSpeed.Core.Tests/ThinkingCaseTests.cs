@@ -21,6 +21,8 @@ public sealed class ThinkingCaseTests
 
     public static TheoryData<string> GroupWindowNames() => Names("groupWindows");
 
+    public static TheoryData<string> ModelWindowNames() => Names("modelWindows");
+
     [Theory]
     [MemberData(nameof(WindowNames))]
     public void WindowMatches(string name)
@@ -97,6 +99,45 @@ public sealed class ThinkingCaseTests
 
             // The groups partition the agents, so their sums add up to the set's.
             AssertAdded(set, added, at + " groups'");
+        }
+    }
+
+    /// <summary>
+    /// The model sums live reporting sends per model (METRICS 6.9 <i>Live thinking</i>, 11.10): a response counts for its own
+    /// model, an in-flight estimate for its agent's current model; keyed by the raw model, they add up to the set's.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ModelWindowNames))]
+    public void ModelWindowMatches(string name)
+    {
+        var item = Case("modelWindows", name);
+        var engine = Engine(item);
+        foreach (var query in item.GetProperty("queries").EnumerateArray())
+        {
+            var nowMs = query.GetProperty("nowMs").GetInt64();
+            var frame = engine.Compute(nowMs, 0, observeLive: false);
+            var at = $"[{name} @ {nowMs}]";
+            var set = frame.SourceIntelligence.Aggregate(IntelligenceSums.Zero, (total, sums) => total + sums);
+            AssertSums(query.GetProperty("expect"), set, at);
+
+            var byModel = new Dictionary<string, IntelligenceSums>(StringComparer.Ordinal);
+            foreach (var (key, sums) in frame.ModelIntelligence)
+            {
+                byModel[key.Model] = byModel.GetValueOrDefault(key.Model) + sums;
+            }
+
+            var expected = query.GetProperty("models").EnumerateObject().ToDictionary(p => p.Name, p => p.Value);
+            Assert.Equal(expected.Keys.Order(StringComparer.Ordinal), byModel.Keys.Order(StringComparer.Ordinal));
+            AssertAdded(set, byModel.Values.Aggregate(IntelligenceSums.Zero, (total, sums) => total + sums), at + " models'");
+            foreach (var (model, sums) in byModel)
+            {
+                AssertSums(expected[model], sums, $"{at} {model}");
+            }
+
+            // Reporting adds the raw models that resolve to one report id (METRICS 11.3).
+            var reported = frame.Report.Tasks;
+            EngineCaseTests.AssertClose(set.LiveThinking, reported.Thinking, at + " reported thinking");
+            EngineCaseTests.AssertClose(set.LiveThinking, reported.ModelThinking.Values.Sum(), at + " reported model thinking");
         }
     }
 

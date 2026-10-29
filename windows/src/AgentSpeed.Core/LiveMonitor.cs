@@ -455,6 +455,7 @@ public sealed class LiveMonitor : IDisposable
 
             elapsed = Stopwatch.GetElapsedTime(start);
             var now = NowMs();
+            core.TaskWatch = _hub.TaskWatch;
             if (elapsed >= nextZoneRefresh)
             {
                 TimeZoneInfo.ClearCachedData();

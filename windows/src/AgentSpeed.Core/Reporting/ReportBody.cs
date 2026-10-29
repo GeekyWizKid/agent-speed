@@ -1,3 +1,4 @@
+using AgentSpeed.Core.Tasks;
 using AgentSpeed.Core.Traffic;
 
 namespace AgentSpeed.Core.Reporting;
@@ -82,6 +83,15 @@ public sealed record ReportOptions(
 
     /// <summary>A WebSocket body (METRICS 11.9): it ends with <c>realtime</c> and its message must fit too; null for HTTP.</summary>
     public ReportStreamBody? Stream { get; init; }
+
+    /// <summary>The size rule dropped <c>models</c> from this report (METRICS 11.10, Size): the top-level <c>taskScore</c> stays.</summary>
+    public bool ModelsDroppedForSize { get; init; }
+
+    /// <summary>
+    /// The task score extension is active (METRICS 11.10, Active): the service advertises it and the report carries
+    /// <c>models</c> by consent — the service lists it, <c>maxModels</c> ≥ 1 and the user's switch is on.
+    /// </summary>
+    public bool TaskScoreActive => Extensions.TaskScore && MaxModels >= 1 && (ModelsDroppedForSize || Sections.Contains(ReportSection.Models));
 }
 
 /// <param name="ObservationAgeMs">The window's observation age at build, or null when the window had no new data.</param>
@@ -119,7 +129,11 @@ public static class ReportBody
                 break;
             }
 
-            options = options with { Sections = options.Sections.Where(s => s != section).ToHashSet() };
+            options = options with
+            {
+                Sections = options.Sections.Where(s => s != section).ToHashSet(),
+                ModelsDroppedForSize = options.ModelsDroppedForSize || (section == ReportSection.Models && options.Sections.Contains(section)),
+            };
             document = Json(envelope, content, sample, options);
             data = document.ToCompactBytes();
         }
@@ -190,9 +204,16 @@ public static class ReportBody
             members.Add(("sources", ReportJson.Array(SourceEntries(content, sample, sections))));
         }
 
+        var taskScore = options.TaskScoreActive;
         if (sections.Contains(ReportSection.Models) && options.MaxModels > 0)
         {
-            members.Add(("models", ReportJson.Array(ModelEntries(content, sample, options.MaxModels, sections.Contains(ReportSection.Cost), options.Extensions))));
+            members.Add(("models", ReportJson.Array(ModelEntries(content, sample, options.MaxModels, sections.Contains(ReportSection.Cost),
+                options.Extensions, taskScore))));
+        }
+
+        if (taskScore)
+        {
+            members.Add(("taskScore", sample.Facts.Tasks.Top.Json));
         }
 
         if (options.Stream is { } stream)
@@ -333,9 +354,11 @@ public static class ReportBody
 
     /// <summary>
     /// One entry per model with any increment in the window (a late price included) or a generating agent, by output then
-    /// id, <c>other</c> last (REPORTING 6.6.4, METRICS 11.3, 11.7).
+    /// id, <c>other</c> last (REPORTING 6.6.4, METRICS 11.3, 11.7). With the task score extension also the models an agent is
+    /// live with and the models with task rows, each entry with its <c>taskScore</c> and <c>taskStats</c> (METRICS 11.10).
     /// </summary>
-    private static List<ReportJson> ModelEntries(ReportWindowContent content, ReportSample sample, int maxModels, bool withCost, ReportExtensions extensions)
+    private static List<ReportJson> ModelEntries(ReportWindowContent content, ReportSample sample, int maxModels, bool withCost, ReportExtensions extensions,
+        bool taskScore)
     {
         var byId = new Dictionary<string, ModelEntry>(StringComparer.Ordinal);
         ModelEntry Entry(string id) => byId.TryGetValue(id, out var entry) ? entry : byId[id] = new ModelEntry(id);
@@ -359,6 +382,43 @@ public static class ReportBody
             }
         }
 
+        if (taskScore)
+        {
+            var tasks = sample.Facts.Tasks;
+            foreach (var model in byId.Values)
+            {
+                model.Usual = true;
+            }
+
+            foreach (var agent in tasks.Agents)
+            {
+                if (agent.Form == TaskValueForm.Live)
+                {
+                    Entry(agent.ModelId).Sources.Add(agent.Source);
+                }
+            }
+
+            foreach (var (key, row) in content.Tasks)
+            {
+                var entry = Entry(key.ModelId);
+                entry.Sources.Add(key.Source);
+                entry.AddTaskRow(key.Source, row);
+            }
+
+            foreach (var agent in tasks.Agents)
+            {
+                if (byId.TryGetValue(agent.ModelId, out var entry))
+                {
+                    entry.TaskAgents.Add(agent);
+                }
+            }
+
+            foreach (var entry in byId.Values)
+            {
+                entry.Thinking = tasks.ModelThinking.GetValueOrDefault(entry.Id);
+            }
+        }
+
         var entries = byId.Values
             .OrderByDescending(e => e.Usage.Output)
             .ThenBy(e => e.Id, StringComparer.Ordinal)
@@ -374,6 +434,10 @@ public static class ReportBody
                 foreach (var (source, requests) in entry.HarnessRequests)
                     other.HarnessRequests[source] = other.HarnessRequests.GetValueOrDefault(source) + requests;
                 foreach (var (mode, usage) in entry.Modes) other.AddMode(mode, usage);
+                other.Usual |= entry.Usual || !taskScore;
+                other.TaskAgents.AddRange(entry.TaskAgents);
+                other.Thinking += entry.Thinking;
+                foreach (var (source, row) in entry.TaskRows) other.AddTaskRow(source, row);
             }
 
             entries = [.. entries.Take(maxModels - 1), other];
@@ -396,11 +460,18 @@ public static class ReportBody
                 members.Add(("deltaMicroUsd", ReportJson.Of(entry.Usage.CostMicroUsd)));
             }
 
-            if (extensions.ModelHarnessRequests && entry.HarnessRequests.Count <= 8
+            // An entry that exists only for the task score has zero usage and no breakdowns (METRICS 11.10, Other extensions).
+            var usual = !taskScore || entry.Usual;
+            if (usual && extensions.ModelHarnessRequests && entry.HarnessRequests.Count <= 8
                 && entry.HarnessRequests.Values.All(IsSafeCount) && entry.HarnessRequests.Values.Sum() == entry.Usage.Requests)
                 members.Add(("harnessRequests", ReportJson.Array(entry.HarnessRequests.OrderBy(p => p.Key)
                     .Where(p => p.Value > 0).Select(p => ReportJson.Object(("source", ReportJson.Of(SourceId(p.Key))), ("requests", ReportJson.Of(p.Value)))))));
-            if (extensions.ExecutionModes && ModesJson(entry) is { } modes) members.Add(("modeUsage", modes));
+            if (usual && extensions.ExecutionModes && ModesJson(entry) is { } modes) members.Add(("modeUsage", modes));
+            if (taskScore)
+            {
+                members.Add(("taskScore", ReportTaskValue.Of(entry.TaskAgents, entry.Thinking).Json));
+                members.Add(("taskStats", ReportJson.Array(SourceOrder.Where(entry.TaskRows.ContainsKey).Select(s => entry.TaskRows[s].Json(s)))));
+            }
 
             return ReportJson.Object(members);
         }).ToList();
@@ -436,11 +507,25 @@ public static class ReportBody
         public int Generating { get; set; }
         public Dictionary<SourceKind, long> HarnessRequests { get; } = [];
         public Dictionary<ReportModeKey, ReportUsage> Modes { get; } = [];
+
+        /// <summary>The entry is one of METRICS 11.3 (usage or a generating agent), not one only the task score adds.</summary>
+        public bool Usual { get; set; }
+
+        public List<ReportTaskAgent> TaskAgents { get; } = [];
+
+        /// <summary>Unrounded <c>liveThinking</c> of the model sums of the entry's raw models.</summary>
+        public double Thinking { get; set; }
+
+        public Dictionary<SourceKind, ReportTaskRow> TaskRows { get; } = [];
+
         public void AddMode(ReportModeKey key, ReportUsage usage)
         {
             key = key with { ModelId = Id };
             Modes[key] = Modes.GetValueOrDefault(key) + usage;
         }
+
+        public void AddTaskRow(SourceKind source, ReportTaskRow row) =>
+            TaskRows[source] = TaskRows.TryGetValue(source, out var held) ? held + row : row;
     }
 
     private static bool IsSafeCount(long value) => value is >= 0 and <= 9_007_199_254_740_991;

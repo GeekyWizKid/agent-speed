@@ -135,6 +135,7 @@ internal sealed partial class ReportController
     {
         UpdatePreferences(p => p.WithSection(section, on));
         ClearRejection();
+        FollowTaskWatch();
         Notify();
     }
 

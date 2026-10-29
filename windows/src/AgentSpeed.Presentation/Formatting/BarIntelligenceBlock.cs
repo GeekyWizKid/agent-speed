@@ -19,6 +19,22 @@ public readonly record struct BarIntelligenceCells(double Label, double Number, 
 /// <summary>One dot of the proof mark, its box on the device pixel grid (DIP).</summary>
 public readonly record struct BarProofDot(double X, double Y, double Diameter);
 
+/// <summary>The color a part of the intelligence block takes (DESIGN 10, Menu bar and taskbar; DESIGN 12, Platform details).</summary>
+public enum BarIntelligenceInk
+{
+    /// <summary>A live number: the label color at <see cref="BarIntelligenceBlock.LiveOpacity"/>.</summary>
+    Number,
+
+    /// <summary>Labels, the unit, a resting score, <c>–</c> and a zero rate: the secondary color.</summary>
+    Secondary,
+
+    /// <summary>High contrast, a live number: the theme's full text color.</summary>
+    Text,
+
+    /// <summary>High contrast, everything else: the theme's gray-text color, as the orb readout's glyphs and units.</summary>
+    GrayText,
+}
+
 /// <summary>
 /// The taskbar intelligence block (DESIGN 10, Menu bar and taskbar): after the value, the money block and the network block,
 /// <c>智力 86</c> over
@@ -61,6 +77,20 @@ public sealed record BarIntelligenceBlock(
 
     /// <summary>The words for line 1 alone (<c>a11y.orb.intel.only</c>, or <c>intel.none</c>).</summary>
     public string SpokenAlone { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The color of a part: a number (<paramref name="number"/>) that is not <paramref name="dim"/> takes the number color,
+    /// everything else the secondary color. In high contrast every part follows the orb readout's rule (DESIGN 10): live
+    /// numbers in the text color; labels, the unit, a resting score, <c>–</c> and a zero rate in the gray-text color, so live
+    /// and resting differ by more than a pale level and no label is as loud as the number.
+    /// </summary>
+    public static BarIntelligenceInk InkOf(bool number, bool dim, bool highContrast) => (number && !dim, highContrast) switch
+    {
+        (true, true) => BarIntelligenceInk.Text,
+        (true, false) => BarIntelligenceInk.Number,
+        (false, true) => BarIntelligenceInk.GrayText,
+        _ => BarIntelligenceInk.Secondary,
+    };
 
     /// <summary>智力 has a value, live or resting.</summary>
     public bool HasScore => Form != TaskForm.None;

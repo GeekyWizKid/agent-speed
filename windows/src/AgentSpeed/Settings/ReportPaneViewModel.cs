@@ -41,7 +41,7 @@ internal sealed class ReportSectionRow(ReportSection section, string titleKey, A
 
     public bool IsEnabled { get => _isEnabled; set => Set(ref _isEnabled, value); }
 
-    /// <summary><c>report.section.notAccepted</c> or <c>report.section.trafficOff</c>.</summary>
+    /// <summary><c>report.section.notAccepted</c>, <c>report.section.trafficOff</c> or <c>report.section.models.taskScore</c>.</summary>
     public string? Caption { get => _caption; set => Set(ref _caption, value); }
 
     public void Sync(bool on, bool enabled, string? caption)
@@ -556,7 +556,7 @@ internal sealed class ReportPaneViewModel : ObservableObject, IDisposable
             var accepted = discovery is null || discovery.Sections.Contains(row.Section);
             var trafficOff = row.Section == ReportSection.Traffic && !trafficOn;
             row.Sync(accepted && _report.Preferences.IsSectionOn(row.Section), accepted && !trafficOff,
-                !accepted ? _loc["report.section.notAccepted"] : trafficOff ? _loc["report.section.trafficOff"] : null);
+                ReportSectionCaption.KeyOf(row.Section, discovery, trafficOn) is { } caption ? _loc[caption] : null);
         }
 
         var others = _report.OtherIdentities;

@@ -54,6 +54,16 @@ internal sealed record EngineFrame(
     /// <summary>The live intelligence sums of each source (METRICS 6.9), indexed by <see cref="SourceKind"/>.</summary>
     public Intelligence.IntelligenceSums[] SourceIntelligence { get; init; } = [];
 
-    /// <summary>Live reporting's view of this instant (METRICS 11.2, 11.4).</summary>
+    /// <summary>
+    /// The model sums of the live thinking line (METRICS 6.9 <i>Live thinking</i>): per raw model and provider, a response's
+    /// contribution for its own model, an in-flight estimate for its agent's current model.
+    /// </summary>
+    public IReadOnlyDictionary<ModelSumKey, Intelligence.IntelligenceSums> ModelIntelligence { get; init; } =
+        new Dictionary<ModelSumKey, Intelligence.IntelligenceSums>();
+
+    /// <summary>Live reporting's view of this instant (METRICS 11.2, 11.4, 11.10).</summary>
     public Reporting.ReportLiveFacts Report { get; init; } = Reporting.ReportLiveFacts.Empty;
 }
+
+/// <summary>A raw model (empty when unknown) and its provider, which together resolve to a report id (METRICS 11.3).</summary>
+internal readonly record struct ModelSumKey(string Model, string? Provider);

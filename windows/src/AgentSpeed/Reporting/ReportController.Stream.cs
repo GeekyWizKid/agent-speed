@@ -140,7 +140,7 @@ internal sealed partial class ReportController
         var active = wake ? run.LastActive : sample.IsWorking || sample.Live.Output > 0 || run.Window.HasTokenIncrement(sample);
         run.LastActive = active;
         var changed = !wake && (run.Window.HasIncrement(sample, EffectiveSections.Contains(ReportSection.Traffic))
-            || ReportStreamValues.Of(sample) != run.LastBuilt);
+            || ReportStreamValues.Of(sample, TaskScoreActive) != run.LastBuilt);
         var settings = _settings.Current;
         run.Title.Update(sample.Value(settings.Metric), settings.Redline, now / 1000.0);
         if (run.Scheduler.Stop is { } stop && ReportStreamStatus.ProblemOf(stop) is not null && Problem is null)
@@ -251,9 +251,10 @@ internal sealed partial class ReportController
         run.Window.Observe(sample, peaks: !windowStarted);
     }
 
-    /// <summary>After any step: the mode, the wake-up timer, the end of a finished session, the quit reply and the status.</summary>
+    /// <summary>After any step: the mode, the wake-up timer, the end of a finished session, the quit reply, the task watch and the status.</summary>
     private void AfterStream()
     {
+        FollowTaskWatch();
         if (_stream is { } run)
         {
             Mode = run.Scheduler.Mode;
