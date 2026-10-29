@@ -135,9 +135,25 @@ enum BoardScorePreviews {
     /// `--board-frames DIR` with `AGENT_SPEED_BOARD_CENTRE=1`: two-line group rows with their figures centred and
     /// 2 pt larger (DESIGN 2c *The second line*), M and L, dark and light, every style: `centre-<style>-<size>-<theme>.png`
     /// (the board at 3×, a red hairline on each group row's centre line) and `centre-detail-<style>-<size>-<theme>.png`
-    /// (the sub-gauge and the figures' columns of every scenario at 4×).
+    /// (the sub-gauge and the figures' columns of every scenario at 4×); `centre-timing-interval-<size>-<theme>[-en].png`
+    /// (timing's interval centred with the other figures) and `line2-neon-<size>-<lang>.png` (line 2 up to the 智力
+    /// column), at 3×.
     static func runCentre(into directory: URL) {
         let l10n = Localizer(preference: .zhHant)
+        let english = Localizer(preference: .en)
+        for size in [BoardSize.medium, .large] {
+            for dark in [true, false] {
+                let board = Board(style: .timing, size: size, scenario: .live, dark: dark, contrast: false, l10n: l10n)
+                write(board.image(scale: 3, centreLines: true), to: directory,
+                      "centre-timing-interval-\(size.rawValue)-\(dark ? "dark" : "light")")
+            }
+            let board = Board(style: .timing, size: size, scenario: .live, dark: true, contrast: false, l10n: english)
+            write(board.image(scale: 3, centreLines: true), to: directory, "centre-timing-interval-\(size.rawValue)-dark-en")
+            for (language, localizer) in [("zh-Hant", l10n), ("en", english)] {
+                let neon = Board(style: .neon, size: size, scenario: .live, dark: true, contrast: false, l10n: localizer)
+                write(neon.image(scale: 3), to: directory, "line2-neon-\(size.rawValue)-\(language)")
+            }
+        }
         for style in BoardStyle.allCases {
             for size in [BoardSize.medium, .large] {
                 for dark in [true, false] {
@@ -205,9 +221,10 @@ enum BoardScorePreviews {
                 // A hairline on each two-line group row's centre line, over the figures' columns only.
                 let geometry = BoardGeometry(style, size, readouts: tick.metrics.readouts)
                 canvas.context.setFillColor(CGColor(srgbRed: 1, green: 0.2, blue: 0.2, alpha: 0.85))
+                let reach: CGFloat = style == .timing ? 140 : 92
                 for (_, anchor) in layout.groupRows where geometry.twoLine {
                     let y = anchor.row.minY + CGFloat(geometry.figureCentre)
-                    canvas.context.fill(CGRect(x: anchor.row.maxX - 92, y: y - 0.125, width: 92, height: 0.25))
+                    canvas.context.fill(CGRect(x: anchor.row.maxX - reach, y: y - 0.125, width: reach, height: 0.25))
                 }
             }
             return canvas.image

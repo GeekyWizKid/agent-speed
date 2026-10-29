@@ -77,9 +77,10 @@ struct BoardTimingRows {
                             fonts: [Self.valueFont(sub: false, idle: model.idle, large: true)] + (intel.map { [$0] } ?? []))
     }
 
-    /// Where line 2 ends: before the 智力 cell (else the value), which holds a centred figure.
-    private func figuresLeft(_ width: CGFloat) -> CGFloat {
-        (intelCell > 0 ? intelRight(width) - intelCell : valueX(width)) - 7
+    /// Where line 2 ends: the first figure column's left edge — the interval, else the 智力 cell, else the value.
+    func figuresLeft(_ width: CGFloat) -> CGFloat {
+        if intervalWidth > 0 { return intervalX(width) }
+        return intelCell > 0 ? intelRight(width) - intelCell : valueX(width)
     }
 
     // MARK: Items
@@ -101,7 +102,7 @@ struct BoardTimingRows {
         var items = [body]
         let line1 = firstBaseline(model)
         if intervalWidth > 0, !model.interval.isEmpty, !sub {
-            items.append(interval(model, key: key, frame: frame, baseline: line1, look: look))
+            items.append(interval(model, key: key, frame: frame, centre: figures(model)?.centre, look: look))
         }
 
         if let rank = model.rank {
@@ -257,16 +258,18 @@ struct BoardTimingRows {
         }
     }
 
-    /// The interval column as an item of its own (it changes on most ticks; the body stays cached).
-    private func interval(_ model: BoardRowModel, key: String, frame: CGRect, baseline: CGFloat?, look: AnyHashable) -> BoardContentItem {
+    /// The interval column as an item of its own (it changes on most ticks; the body stays cached). In a two-line
+    /// group row it is a figure: at its own size, its cap-height centre on the row's centre line with the others'.
+    private func interval(_ model: BoardRowModel, key: String, frame: CGRect, centre: CGFloat?, look: AnyHashable) -> BoardContentItem {
         let box = frame.size, intervalWidth = self.intervalWidth, palette = self.palette
         let intervalX = self.intervalX(box.width)
         let rect = CGRect(x: intervalX - 24, y: 0, width: intervalWidth + 28, height: box.height)
+        let leader = model.isLeader
+        let font = leader ? BoardFont(family: .mono, size: 9.5, weight: .heavy, tracking: 0.08)
+            : BoardFont(family: .mono, size: 10.5, weight: .semibold)
+        let baseline = centre.map { $0 + font.font.capHeight / 2 }
         return .part(key + "#gap", of: frame, rect: rect, motion: .row,
                      revision: AnyHashable([AnyHashable(model.interval), AnyHashable(model.isLeader), AnyHashable(baseline), look])) { context in
-            let leader = model.isLeader
-            let font = leader ? BoardFont(family: .mono, size: 9.5, weight: .heavy, tracking: 0.08)
-                : BoardFont(family: .mono, size: 10.5, weight: .semibold)
             let gold = palette.dark ? BoardPalette.gold : RGBColor(hex: 0x9A6B00)
             let label = BoardLabel(model.interval, font, color: leader ? gold : palette.ink3)
             label.draw(in: context, x: intervalX + intervalWidth - label.width, baseline: baseline ?? label.baseline(centeredOn: box.height / 2))

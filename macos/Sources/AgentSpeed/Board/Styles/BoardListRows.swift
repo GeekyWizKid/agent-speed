@@ -75,9 +75,9 @@ struct BoardListRows {
                                                                                             large: true)] + (intel.map { [$0] } ?? []))
     }
 
-    /// Where line 2 ends: before the figures' columns, which hold the centred figures.
-    private func figuresLeft(_ width: CGFloat) -> CGFloat {
-        (intelCell > 0 ? intelRight(width) - intelCell : valueRight(width) - valueWidth) - 8
+    /// Where line 2 ends: the first figure column's left edge (the figures, centred on the row, hold their columns).
+    func figuresLeft(_ width: CGFloat) -> CGFloat {
+        intelCell > 0 ? intelRight(width) - intelCell : valueRight(width) - valueWidth
     }
 
     // MARK: Items
