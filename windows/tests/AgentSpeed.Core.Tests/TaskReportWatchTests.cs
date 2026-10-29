@@ -66,6 +66,27 @@ public sealed class TaskReportWatchTests : IDisposable
     }
 
     [Fact]
+    public void AFileReadAgainFromItsStartNeverCountsATaskTwice()
+    {
+        var path = WriteClaude("p/r.jsonl");
+        using var core = NewCore();
+        core.Seed(_now, _todayStart, CancellationToken.None);
+        core.TaskWatch = Watching;
+        string[] task = [ClaudeLines.UserText(_now - 9000, "fix it"), Edit(_now - 8000, "m1", "e1"), Result(_now - 7500, "e1", false, "ok"),
+            ClaudeLines.UserText(_now - 5000, "next"), ClaudeLines.Assistant(_now - 4000, "m2", 40)];
+        Append(path, [.. task, ClaudeLines.UserText(_now - 3000, "Continue."), ClaudeLines.Assistant(_now - 2000, "m3", 10)]);
+        core.ProcessPaths([path], _now, _todayStart);
+        Assert.Equal(1, Facts(core).Counters.TaskCompleted);
+
+        // Shorter content: the tailer reads the file from its start and composes the same task again.
+        File.WriteAllText(path, string.Concat(task.Select(l => l + "\n")));
+        Assert.True(core.ProcessPaths([path], _now, _todayStart));
+        Append(path, ClaudeLines.UserText(_now - 1000, "and then"), ClaudeLines.Assistant(_now - 500, "m4", 10));
+        core.ProcessPaths([path], _now, _todayStart);
+        Assert.Equal(1, Facts(core).Counters.TaskCompleted);
+    }
+
+    [Fact]
     public void AQuietAgentsTaskCompletesAfterThirtyMinutes()
     {
         var path = WriteClaude("p/b.jsonl");

@@ -50,6 +50,8 @@ public sealed class TaskComposer
     private readonly Dictionary<TaskEvent, long> _marks = new(ReferenceEqualityComparer.Instance);
     private readonly List<TaskDone> _done = [];
     private TaskWatchContext? _watch;
+    private long _latestMs = long.MinValue;
+    private long _watchFloorMs = long.MinValue;
     private (bool Command, TaskPrompt Prompt)? _pending;
 
     /// <param name="keepAll">Keep every task's events (history, dumps); otherwise only the current task's.</param>
@@ -82,9 +84,13 @@ public sealed class TaskComposer
     /// <summary>A watched task completed and waits for <see cref="TakeDone"/>.</summary>
     internal bool HasDone => _done.Count > 0;
 
-    /// <summary>Forgets everything (the file was replaced and is read again from its start); its tasks are unwatched.</summary>
+    /// <summary>
+    /// Forgets everything (the file was replaced and is read again from its start); its tasks are unwatched, and a task it
+    /// had already read is never watched again when the read repeats it.
+    /// </summary>
     public void Reset()
     {
+        _watchFloorMs = Math.Max(_watchFloorMs, _latestMs);
         _events.Clear();
         _notes.Clear();
         _calls.Clear();
@@ -360,10 +366,12 @@ public sealed class TaskComposer
         var starts = _events.Count == 0 || e is TaskPrompt { Continuation: false };
         _events.Add(e);
         Revision++;
-        if (starts && _watch?.Mark(e.T) is { } generation and not 0)
+        if (starts && e.T > _watchFloorMs && _watch?.Mark(e.T) is { } generation and not 0)
         {
             _marks[e] = generation;
         }
+
+        _latestMs = Math.Max(_latestMs, e.T);
     }
 
     /// <summary>
