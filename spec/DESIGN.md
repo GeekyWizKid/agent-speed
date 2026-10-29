@@ -1593,8 +1593,8 @@ The second line — every group row at M and L, whatever the switches:
   baseline 31 under the top (glass 32): the detail (model · `boards.subCount`) alone, starting under the name and
   running under the capsule column up to the first figure column's left edge (the figures, centred on the row, hold
   their columns on both lines), truncating at its tail. Timing's position block (26 tall) and stripe (24) span both
-  lines, and timing's interval column is a figure too: centred with the 智力 cell and the value on their shared
-  baseline, at its own size. The keyboard focus ring (section 12, *Keyboard*) is drawn outside the row like a system
+  lines, and timing's interval column is a figure too, centred on the row at its own size on its own baseline (on
+  the shared one its smaller digits would sit 1.3 pt off the centre line). The keyboard focus ring (section 12, *Keyboard*) is drawn outside the row like a system
   control's and may overlap the 1–3 pt gap to a neighbouring row.
 - Nothing else is drawn on line 2: rows show no cost, whatever the readouts.
 - S never draws the second line: rows stay one line.
