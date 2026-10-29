@@ -14,7 +14,6 @@ struct TaskComposer: Sendable {
         var info: TaskCommandInfo?
         var continues: String?
         var cwd: String?
-        var answered = false
     }
 
     private enum Entry: Sendable {
@@ -163,20 +162,18 @@ struct TaskComposer: Sendable {
         case (.script(let refs), .script(let mapped)):
             calls[result.handle] = nil
             for (index, prepared) in mapped where index < refs.count {
-                var ref = refs[index]
-                apply(prepared, to: &ref, t: result.t)
+                apply(prepared, to: refs[index], t: result.t)
             }
-        case (.call(var ref), .call(let prepared)):
-            guard !ref.answered else { return }
-            apply(prepared, to: &ref, t: result.t)
-            calls[result.handle] = .call(ref)
+        case (.call(let ref), .call(let prepared)):
+            // The reader sends a call's first result only, so an answered call needs no entry.
+            calls[result.handle] = nil
+            apply(prepared, to: ref, t: result.t)
         default:
             return
         }
     }
 
-    private mutating func apply(_ answer: TaskPreparedAnswer, to ref: inout CallRef, t: Int64) {
-        ref.answered = true
+    private mutating func apply(_ answer: TaskPreparedAnswer, to ref: CallRef, t: Int64) {
         update(ref.index) { $0.outcome = answer.outcome }
         if let session = answer.session {
             sessions[session] = Running(index: ref.index, info: ref.info, cwd: ref.cwd, masked: answer.masked,
@@ -227,10 +224,10 @@ struct TaskComposer: Sendable {
         events.removeFirst(local)
         base = start
         startCandidate = nil
-        // What only the dropped tasks still need: answered calls, scripts and sessions of earlier tasks.
+        // What only the dropped tasks still need: their calls without results, scripts and sessions.
         calls = calls.filter { _, entry in
             switch entry {
-            case .call(let ref): !ref.answered || ref.index >= start
+            case .call(let ref): ref.index >= start
             case .script(let refs): refs.contains { $0.index >= start }
             }
         }

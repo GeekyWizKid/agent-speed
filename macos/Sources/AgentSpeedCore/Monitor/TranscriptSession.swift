@@ -255,7 +255,7 @@ final class TranscriptSession {
         self.todayStartMs = todayStartMs
         refreshAvailability()
 
-        var backlog: [(file: DiscoveredFile, tracked: TrackedFile)] = []
+        var backlog: [(file: DiscoveredFile, tracked: TrackedFile, start: FileTailer.Start)] = []
         var droidBaselines: [TrackedFile] = []
         let threshold = todayStartMs - Self.startupLookbackMs
         for root in roots where root.enabled && root.available {
@@ -289,7 +289,7 @@ final class TranscriptSession {
                 }
                 let tracked = track(file, family: root.family, root: root.path, start: start)
                 if readsBacklog {
-                    backlog.append((file, tracked))
+                    backlog.append((file, tracked, start))
                 } else if root.family == .droid {
                     droidBaselines.append(tracked)
                 }
@@ -299,26 +299,46 @@ final class TranscriptSession {
         backlog.sort { TranscriptDiscovery.startupOrder($0.file, $1.file) }
         let ordered = backlog.map(\.tracked)
 
-        let jobs = ordered.map {
-            DecodeJob(family: $0.family, reader: $0.reader, size: $0.lastStat.size, taskReader: $0.parser.taskReader)
+        // Decoded on worker threads a bounded window ahead and consumed in startup order, so only that window of
+        // decoded lines (and task lines) is held at once, however large the backlog.
+        let jobs = backlog.map { item in
+            OrderedDecoder.Job(path: item.tracked.path, family: item.tracked.family,
+                               size: Self.backlogBytes(item.start, size: item.file.stat.size),
+                               reader: item.tracked.reader, taskReader: item.tracked.parser.taskReader)
         }
-        let decoded = Self.decodeInParallel(jobs, progress: progress, isCancelled: isCancelled)
-        let seededAt = DispatchTime.now().uptimeNanoseconds
-        for (file, result) in zip(ordered, decoded) {
-            guard let result else { continue }
+        let totalBytes = max(1, jobs.reduce(Int64(0)) { $0 + $1.size })
+        let decoder = OrderedDecoder(jobs: jobs, maxBytesAhead: Self.backlogBytesAhead)
+        if !jobs.isEmpty {
+            // At the caller's priority, as a concurrent loop on its queue would run.
+            decoder.start(workers: min(jobs.count, max(1, min(ProcessInfo.processInfo.activeProcessorCount,
+                                                                Self.maxDecodeWorkers))),
+                          qos: Thread.current.qualityOfService)
+        }
+        var consumedBytes: Int64 = 0
+        for (file, job) in zip(ordered, jobs) {
+            if isCancelled() {
+                decoder.cancel()
+                break
+            }
+            guard let result = decoder.next() else { break }
+            consumedBytes += job.size
+            progress(min(1, Double(consumedBytes) / Double(totalBytes)))
             file.reader = result.reader
-            if file.family.isDatabase { file.lastReadNs = seededAt }
+            if file.family.isDatabase { file.lastReadNs = DispatchTime.now().uptimeNanoseconds }
             summary.filesRead += 1
             summary.bytesRead += Int64(result.read.bytesRead)
             if result.read.didReset { file.resetParser() }
             file.parser.taskReader = result.taskReader
             var upserts: [ResponseUpsert] = []
-            file.parser.consume(result.lines, taskLines: result.taskLines, deduper: &deduper) { upserts.append($0) }
+            file.parser.consume(result.lines, taskLines: result.tasks, deduper: &deduper) { upserts.append($0) }
             if !result.read.failed { _ = file.parser.finishReadCycle { upserts.append($0) } }
             let project = projectName(of: file)
             for upsert in upserts { deliver(upsert, project: project, live: false) }
             finishRead(of: file, result: result.read)
         }
+        decoder.cancel()
+        decoder.waitForWorkers()
+        let seededAt = DispatchTime.now().uptimeNanoseconds
         closeIdleDatabases(nowNs: seededAt)
         if let opencode, opencode.exists {
             summary.filesDiscovered += 1
@@ -372,65 +392,17 @@ final class TranscriptSession {
         }
     }
 
-    private struct DecodeJob: Sendable {
-        var family: TranscriptFamily
-        var reader: TranscriptReader
-        var size: Int64
-        var taskReader: TaskLineReader?
-    }
+    /// The input the startup backlog may decode ahead of its consumer (a smaller window starves the consumer behind
+    /// large files).
+    static let backlogBytesAhead: Int64 = 256 << 20
 
-    private struct DecodedFile: Sendable {
-        var reader: TranscriptReader
-        var lines: DecodedLines
-        var read: FileTailer.ReadResult
-        var taskReader: TaskLineReader?
-        var taskLines: [TaskLine]
-    }
-
-    private struct DecodeProgress: Sendable {
-        var next = 0
-        var bytes: Int64 = 0
-        var results: [DecodedFile?]
-    }
-
-    /// Reads and decodes files concurrently; each job is handled by exactly one worker.
-    private static func decodeInParallel(
-        _ jobs: [DecodeJob],
-        progress: @Sendable (Double) -> Void,
-        isCancelled: @Sendable () -> Bool
-    ) -> [DecodedFile?] {
-        guard !jobs.isEmpty else { return [] }
-        let schedule = jobs.indices.sorted { jobs[$0].size > jobs[$1].size }
-        let totalBytes = max(1, jobs.reduce(Int64(0)) { $0 + $1.size })
-        let state = OSAllocatedUnfairLock(initialState: DecodeProgress(results: Array(repeating: nil, count: jobs.count)))
-        let workers = min(jobs.count, max(1, min(ProcessInfo.processInfo.activeProcessorCount, maxDecodeWorkers)))
-
-        DispatchQueue.concurrentPerform(iterations: workers) { _ in
-            while !isCancelled() {
-                let slot = state.withLock { progress -> Int in
-                    defer { progress.next += 1 }
-                    return progress.next
-                }
-                guard slot < schedule.count else { return }
-                let index = schedule[slot]
-                var job = jobs[index]
-                let decoded = decode(&job)
-                let size = job.size
-                let done = state.withLock { progress -> Int64 in
-                    progress.results[index] = decoded
-                    progress.bytes += size
-                    return progress.bytes
-                }
-                progress(min(1, Double(done) / Double(totalBytes)))
-            }
+    /// The bytes a backlog read covers: a tail window, or the whole file.
+    private static func backlogBytes(_ start: FileTailer.Start, size: Int64) -> Int64 {
+        switch start {
+        case .tail(let window): min(window, size)
+        case .end: 0
+        case .beginning: size
         }
-        return state.withLock { $0.results }
-    }
-
-    private static func decode(_ job: inout DecodeJob) -> DecodedFile {
-        let output = TranscriptDecoder.decode(job.family, reader: &job.reader, tasks: &job.taskReader)
-        return DecodedFile(reader: job.reader, lines: output.lines, read: output.read, taskReader: job.taskReader,
-                           taskLines: output.tasks)
     }
 
     // MARK: - Live reading

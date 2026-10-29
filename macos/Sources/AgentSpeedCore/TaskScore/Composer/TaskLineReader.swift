@@ -15,12 +15,13 @@ struct TaskLineReader: Sendable {
         var cwd: String?
         var info: TaskCommandInfo?
         var continues: String?
-        var answered = false
     }
 
     enum Entry: Sendable {
         case call(Pending, handle: Int)
         case script(calls: [Pending], prints: [Int], handle: Int)
+        /// A call that has its result: only its id is kept, so a repeat of its line adds nothing.
+        case answered
     }
 
     /// The source whose rules apply (both Claude sources read alike).
@@ -86,7 +87,7 @@ struct TaskLineReader: Sendable {
 
     private mutating func forgetAnsweredCalls() {
         calls = calls.filter { _, entry in
-            if case .call(let pending, _) = entry { return !pending.answered }
+            if case .answered = entry { return false }
             return true
         }
     }
@@ -128,13 +129,12 @@ struct TaskLineReader: Sendable {
                 }
             }
             return TaskPreparedResult(handle: handle, t: t, answer: .script(mapped))
-        case .call(var pending, let handle)?:
-            guard !pending.answered else { return nil }
+        case .call(let pending, let handle)?:
             let prepared = answer(pending, result: result, t: t)
-            pending.answered = true
-            pending.input = nil
-            calls[id] = .call(pending, handle: handle)
+            calls[id] = .answered
             return TaskPreparedResult(handle: handle, t: t, answer: .call(prepared))
+        case .answered?:
+            return nil
         }
     }
 
