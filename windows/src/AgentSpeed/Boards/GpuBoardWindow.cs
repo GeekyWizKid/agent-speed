@@ -152,10 +152,10 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
             return;
         }
 
-        Hover(x, y);
+        Hover(x, y, atRest: true);
     }
 
-    /// <summary>A shown row's rectangle in screen pixels, or null.</summary>
+    /// <summary>A shown row's rectangle in screen pixels where it is heading (a moving row: its new place), or null.</summary>
     public RECT? RowRect(string key)
     {
         if (_host.Handle == 0 || !User32.GetWindowRect(_host.Handle, out var window))
@@ -170,7 +170,7 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
             {
                 var metrics = scene.Metrics;
                 var left = window.Left + (BoardCanvas.Margin + metrics.ListLeft) * DisplayScale;
-                var top = window.Top + (BoardCanvas.Margin + metrics.ListTop + row.Y) * DisplayScale;
+                var top = window.Top + (BoardCanvas.Margin + metrics.ListTop + row.Target) * DisplayScale;
                 return new RECT((int)Math.Round(left), (int)Math.Round(top), (int)Math.Round(left + metrics.ListWidth * DisplayScale),
                     (int)Math.Round(top + row.Entry.Height * DisplayScale));
             }
@@ -501,8 +501,9 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
 
     // ---- Hover and click-through ----
 
-    // A window point (pixels): the hero's 智力, a group or sub row (a group row's tint lifts), or nothing.
-    private void Hover(int x, int y)
+    // A window point (pixels): the hero's 智力, a group or sub row (a group row's tint lifts), or nothing; `atRest` tests where the
+    // rows are heading.
+    private void Hover(int x, int y, bool atRest = false)
     {
         var scene = _surface.Scene;
         var (px, py) = (x / DisplayScale, y / DisplayScale);
@@ -512,7 +513,7 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
             return;
         }
 
-        var row = scene.HitRow(px, py);
+        var row = scene.HitRow(px, py, atRest);
         SetHovered(row is { Entry.Kind: BoardEntryKind.Group } ? row.Key : null,
             row is { Entry.Kind: BoardEntryKind.Group or BoardEntryKind.Sub } ? row.Key : null);
     }

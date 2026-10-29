@@ -449,8 +449,11 @@ public sealed class BoardScene
         Readouts.Hero && Readouts.Intelligence && _gauge.ScoreArea is { } area && x >= area.Left && x < area.Right && y >= area.Top &&
         y < area.Bottom;
 
-    /// <summary>The row under a canvas point, for hover, tooltips and clicks.</summary>
-    public BoardRowMotion? HitRow(double x, double y)
+    /// <summary>
+    /// The row under a canvas point, for hover, tooltips and clicks; <paramref name="atRest"/> tests the places rows are heading
+    /// for (a hover refreshed on a tick follows the row the ranking moves under a resting cursor before it arrives).
+    /// </summary>
+    public BoardRowMotion? HitRow(double x, double y, bool atRest = false)
     {
         var metrics = Metrics;
         var m = BoardCanvas.Margin;
@@ -462,7 +465,7 @@ public sealed class BoardScene
 
         foreach (var row in _order)
         {
-            var top = m + metrics.ListTop + row.Y;
+            var top = m + metrics.ListTop + (atRest ? row.Target : row.Y);
             if (!row.Leaving && y >= top && y < top + row.Entry.Height)
             {
                 return row;
@@ -688,7 +691,7 @@ public sealed class BoardScene
     // live and resting, and the dotted underline of an unproven score with the digits, as part of the row's content.
     private void Readout(BoardDrawList list, IBoardLayers layers, BoardRowMotion row, double right, double baseline, double alpha, double now, RectBounds clip)
     {
-        if (row.Entry.Readout is not { } readout || !Metrics.IntelligenceColumn)
+        if (row.Entry.Readout is null || !Metrics.IntelligenceColumn)
         {
             return;
         }
@@ -699,18 +702,22 @@ public sealed class BoardScene
         var size = BoardRowColumns.IntelligenceSize(Style, sub);
         var tracking = Style == BoardStyle.Glass ? 0 : -0.02 * size;
         var (outgoing, incoming) = row.IntelFade(now);
+        var gauge = GaugePalette;
+        var ink = Palette.HighContrast ? Palette.Ink : Rgba.Lerp(gauge.RowQuiet, gauge.RowLive, live);
         var width = Cell(list, layers, row.IntelText, sub, x, baseline, tracking, live, alpha * incoming, clip);
-        if (row.IntelOutgoing(now) is { } old)
+        var proof = row.IntelProof(now);
+        if (proof > 0.002 && row.IntelHasScore && width > 0)
         {
-            Cell(list, layers, old, sub, x, baseline, tracking, live, alpha * outgoing, clip);
+            BoardScoreDraw.Underline(list, x - width, width, baseline, size, ink, alpha * incoming * proof, Palette.HighContrast, clip);
         }
 
-        var proof = row.IntelProof(now);
-        if (proof > 0.002 && readout.Score.HasScore && width > 0)
+        if (row.IntelOutgoing(now) is { } old)
         {
-            var gauge = GaugePalette;
-            var ink = Palette.HighContrast ? Palette.Ink : Rgba.Lerp(gauge.RowQuiet, gauge.RowLive, live);
-            BoardScoreDraw.Underline(list, x - width, width, baseline, size, ink, alpha * incoming * proof, Palette.HighContrast, clip);
+            var oldWidth = Cell(list, layers, old, sub, x, baseline, tracking, live, alpha * outgoing, clip);
+            if (row.IntelOutgoingUnproven && oldWidth > 0)
+            {
+                BoardScoreDraw.Underline(list, x - oldWidth, oldWidth, baseline, size, ink, alpha * outgoing, Palette.HighContrast, clip);
+            }
         }
     }
 

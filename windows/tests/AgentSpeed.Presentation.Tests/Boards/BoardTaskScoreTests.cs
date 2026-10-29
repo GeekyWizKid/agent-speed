@@ -213,6 +213,31 @@ public class BoardTaskScoreTests
     }
 
     [Fact]
+    public void AnEmptyDialDrawsNoDotAfterAnUnprovenScoreLeavesAndZeroDrawsOnlyItsRing()
+    {
+        var spec = BoardGaugeSpec.For(BoardStyle.Glass, BoardSize.M);
+        var feed = new BoardDemoFeed(BoardSimScenario.Team) { Localizer = Zh, Readouts = BoardReadouts.All };
+        var scene = new BoardScene(BoardStyle.Glass, BoardSize.M, 3);
+        scene.Configure(BoardStyle.Glass, BoardSize.M, new BoardEffectsPolicy(Settings.EffectsIntensity.Off));
+        var tick = feed.Step(BoardStyle.Glass, BoardSize.M) with { Events = [], NewPeak = false };
+        scene.Apply(tick with { Gauge = tick.Gauge with { Score = Live(60, TaskState.Unverified) } }, 0);
+        scene.Settle();
+        scene.Apply(tick with { Gauge = tick.Gauge with { Score = TaskSetReading.None } }, 1);
+        var list = new BoardDrawList();
+        scene.Render(1.05, new KeyedLayers(), list);
+        var (cx, cy) = DialCenter(list, spec);
+        // While it fades out, the outgoing arc keeps its dots.
+        Assert.Contains(list.Instances.ToArray(), i => IsArcDot(i, spec, cx, cy));
+        list.Reset();
+        scene.Render(3, new KeyedLayers(), list);
+        Assert.DoesNotContain(list.Instances.ToArray(), i => IsArcDot(i, spec, cx, cy) || Is(i, OrbShape.Ring));
+
+        var (_, zero, _) = Hero(BoardStyle.Glass, Live(0, TaskState.Unverified));
+        Assert.DoesNotContain(zero.Instances.ToArray(), i => IsArcDot(i, spec, cx, cy));
+        Assert.Single(zero.Instances.ToArray(), i => Is(i, OrbShape.Ring) && i.Extra.X > 0 && Math.Abs(Distance(i, cx, cy) - spec.ArcRadius) < 1e-2);
+    }
+
+    [Fact]
     public void AProvenGlassHeroDrawsTheSolidArcAndTipWithoutAMark()
     {
         var (scene, list, _) = Hero(BoardStyle.Glass, Live(60));
@@ -339,32 +364,59 @@ public class BoardTaskScoreTests
         Assert.Equal(FrameClass.None, scene.Demand(2));
     }
 
-    [Fact]
-    public void ACountUpFrameAllocatesNothing()
+    [Theory]
+    [InlineData(BoardStyle.Glass)]
+    [InlineData(BoardStyle.Neon)]
+    [InlineData(BoardStyle.Timing)]
+    public void CountUpAndCrossfadeFramesAllocateNothing(BoardStyle style)
     {
-        var scene = new BoardScene(BoardStyle.Neon, BoardSize.M, 3);
-        scene.Configure(BoardStyle.Neon, BoardSize.M, new BoardEffectsPolicy(Settings.EffectsIntensity.Off));
+        var scene = new BoardScene(style, BoardSize.M, 3);
+        scene.Configure(style, BoardSize.M, new BoardEffectsPolicy(Settings.EffectsIntensity.Off));
         var layers = new PlainLayers();
         var list = new BoardDrawList();
-        scene.Apply(Quiet(Live(10, TaskState.Unverified)), 0);
+        BoardTick At(int hero, double row)
+        {
+            var agent = Agent("a", 120) with { Intelligence = BoardLiveMetricsTests.Scored(row, CoreTasks.TaskValueForm.Live, CoreState.Pending, "a") };
+            var tick = RowsTick([agent], style: style);
+            return tick with { Gauge = tick.Gauge with { Score = Live(hero, TaskState.Unverified) } };
+        }
+
+        void Frames(double from)
+        {
+            for (var t = from; t < from + 0.8; t += 1 / 60.0)
+            {
+                list.Reset();
+                scene.Render(t, layers, list);
+            }
+        }
+
+        scene.Apply(At(10, 80), 0);
         scene.Settle();
-        scene.Apply(Quiet(Live(90, TaskState.Unverified)), 1);
-        for (var t = 1.0; t < 1.8; t += 1 / 60.0)
-        {
-            list.Reset();
-            scene.Render(t, layers, list);
-        }
-
-        scene.Apply(Quiet(Live(20, TaskState.Unverified)), 2);
-        scene.Apply(Quiet(Live(95, TaskState.Unverified)), 2.001);
+        scene.Apply(At(90, 60), 1);
+        Frames(1);
+        scene.Apply(At(20, 80), 2);
+        scene.Apply(At(95, 50), 2.001);
         var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var t = 2.001; t < 2.8; t += 1 / 60.0)
-        {
-            list.Reset();
-            scene.Render(t, layers, list);
-        }
-
+        Frames(2.001);
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    [Fact]
+    public void ARefreshedHoverTestsWhereTheRowsAreHeading()
+    {
+        var a = Agent("a", 300);
+        var b = Agent("b", 100);
+        var scene = new BoardScene(BoardStyle.Glass, BoardSize.M, 3);
+        scene.Configure(BoardStyle.Glass, BoardSize.M, new BoardEffectsPolicy(Settings.EffectsIntensity.Off));
+        scene.Apply(RowsTick([a, b]), 0);
+        scene.Settle();
+        var first = scene.Rows.Single(r => r.Key == "a");
+        var x = BoardCanvas.Margin + scene.Metrics.ListLeft + 20;
+        var y = BoardCanvas.Margin + scene.Metrics.ListTop + first.Y + 4;
+        // b passes a: right after the tick the rows have not moved yet, but b is heading for the first place.
+        scene.Apply(RowsTick([b with { Live = new Rate(900, 3600) }, a]), 1);
+        Assert.Equal("a", scene.HitRow(x, y)!.Key);
+        Assert.Equal("b", scene.HitRow(x, y, atRest: true)!.Key);
     }
 
     // ---- Rows (DESIGN 2c, Ranking rows) ----
@@ -411,6 +463,13 @@ public class BoardTaskScoreTests
         scene.Apply(At(70), 3);
         Assert.Equal("60", row.IntelOutgoing(3.1));
         Assert.Null(row.IntelOutgoing(3.16));
+        Assert.False(row.IntelOutgoingUnproven);
+
+        // An unproven score going to none: its underline fades out with its digits.
+        scene.Configure(BoardStyle.Glass, BoardSize.M, new BoardEffectsPolicy(Settings.EffectsIntensity.Off));
+        scene.Apply(RowsTick([root with { Intelligence = BoardLiveMetricsTests.Scored(80, CoreTasks.TaskValueForm.Live, CoreState.Pending, "a") }]), 4);
+        scene.Apply(RowsTick([root]), 5);
+        Assert.Equal(("–", "80", true, false), (row.IntelText, row.IntelOutgoing(5.05), row.IntelOutgoingUnproven, row.IntelHasScore));
     }
 
     // ---- Score cards (DESIGN 2c, Tooltip and score card) ----
@@ -480,6 +539,10 @@ public class BoardTaskScoreTests
 
     private static bool Near(in OrbGpuInstance i, double x, double y, double within = 1e-3) => Distance(i, x, y) <= within;
 
+    // A dot of glass's unproven arc: a circle one stroke wide on the arc's radius, not a glow.
+    private static bool IsArcDot(in OrbGpuInstance i, BoardGaugeSpec spec, double cx, double cy) =>
+        Is(i, OrbShape.Circle) && Math.Abs(i.B.X - spec.ArcStroke / 2) < 1e-3 && i.Extra.X > 0 && Math.Abs(Distance(i, cx, cy) - spec.ArcRadius) < 1e-2;
+
     // The dial's centre: the track, the only band arc of its radius spanning the whole sweep.
     private static (double X, double Y) DialCenter(BoardDrawList list, BoardGaugeSpec spec)
     {
@@ -521,11 +584,11 @@ public class BoardTaskScoreTests
         return (scene, list, tick);
     }
 
-    private static BoardTick RowsTick(IReadOnlyList<AgentStatus> agents, BoardSize size = BoardSize.M)
+    private static BoardTick RowsTick(IReadOnlyList<AgentStatus> agents, BoardSize size = BoardSize.M, BoardStyle style = BoardStyle.Glass)
     {
         var texts = new BoardTexts(Zh, TitleTheme.Vehicles);
         var groups = BoardGrouping.Group(agents, SpeedMetric.Output);
-        var entries = BoardReadoutRows.Word(BoardLayoutPlan.Arrange(groups, BoardSizes.Limits(size), BoardMetrics.For(BoardStyle.Glass, size, BoardReadouts.All),
+        var entries = BoardReadoutRows.Word(BoardLayoutPlan.Arrange(groups, BoardSizes.Limits(size), BoardMetrics.For(style, size, BoardReadouts.All),
             SpeedMetric.Output), BoardReadouts.All, texts);
         var total = groups.Sum(g => g.Live);
         return new BoardTick(total, SpeedFormat.Speed(total), SpeedTier.Cruise, 2000, SpeedMetric.Output, false, entries, [], false)

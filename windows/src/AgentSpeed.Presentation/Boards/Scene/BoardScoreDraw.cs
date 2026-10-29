@@ -86,7 +86,8 @@ public static class BoardScoreDraw
             }
         }
 
-        if (dotted > 0.002)
+        // f = 0 draws no value arc, dotted or not; the tip (a ring while unproven) still marks the start.
+        if (dotted > 0.002 && sweep.Changing > 1e-6)
         {
             Dots(list, cx, cy, r, stroke, sweep, palette, live, dotted);
         }

@@ -122,7 +122,7 @@ public sealed class BoardHeroScore
 
     /// <summary>How live the arc, the tip and the meter look and how present their proof mark is: the outgoing value's while it fades to none.</summary>
     public (double Live, double Proof) Look(double now) =>
-        HasScore ? (Liveness(now), Proof(now)) : (_fromLive ? 1 : 0, _fromUnproven ? 1 : 0);
+        HasScore ? (Liveness(now), Proof(now)) : _ticker.IsAnimating(now) ? (_fromLive ? 1 : 0, _fromUnproven ? 1 : 0) : (0, 0);
 
     /// <summary>Glass's value arc: the count-up's eased value, a crossfade's two ends, or the shown value.</summary>
     public BoardScoreSweep Sweep(double now)

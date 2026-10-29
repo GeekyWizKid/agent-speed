@@ -47,6 +47,7 @@ public sealed class BoardRowMotion
     private bool _intelKnown;
     private int? _intelShown;
     private string _intelOld = string.Empty;
+    private bool _intelOldProof;
     private double _intelFadeStart = double.NegativeInfinity;
     private double _intelFadeSeconds;
     private bool _intelProof;
@@ -121,6 +122,12 @@ public sealed class BoardRowMotion
     /// <summary>The 智力 cell's old text while it crossfades out, else null.</summary>
     public string? IntelOutgoing(double now) => now - _intelFadeStart < _intelFadeSeconds ? _intelOld : null;
 
+    /// <summary>The outgoing text carried the proof mark (its underline fades out with it).</summary>
+    public bool IntelOutgoingUnproven => _intelOldProof;
+
+    /// <summary>The 智力 cell shows a score (not <c>–</c>).</summary>
+    public bool IntelHasScore => _intelShown is not null;
+
     /// <summary>The 智力 cell's crossfade: the outgoing and the incoming text's opacities (0 and 1 outside one).</summary>
     public (double Outgoing, double Incoming) IntelFade(double now)
     {
@@ -192,6 +199,7 @@ public sealed class BoardRowMotion
                 var change = TaskScoreMotion.Plan(_intelShown, shown, TaskScoreSurface.BoardRow, reduceMotion);
                 if (change.Kind == TaskScoreChangeKind.Crossfade)
                 {
+                    _intelOldProof = _intelShown is not null && IntelProof(now) >= 0.5;
                     _intelOld = IntelText;
                     _intelFadeStart = now;
                     _intelFadeSeconds = change.Duration;
