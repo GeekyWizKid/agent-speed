@@ -2444,7 +2444,7 @@ in the board's agents list, DESIGN 2c):
 Tokens do not weigh: an agent that writes far more but scores lower does not pull the value down. The value names the
 agent that supplied it (for tooltips): among the agents with that exact score in that form, the one with the latest
 `lastLineMs`, then the smallest id (ordinal). A sub row shows its sub-agent's own value. Values never drive heat, tiers,
-titles or peaks, and are never reported (11). Cases: `values`.
+titles or peaks; live reporting sends them only through its `taskScore` extension (11.10). Cases: `values`.
 
 #### Privacy
 
@@ -2452,8 +2452,10 @@ User-approved (2026-10-28). The parsers of TASK-PARSERS read a tool call's input
 result's output in memory, while the line is parsed; the engine keeps, for each agent's current task only, what the
 event stream lists: classes, flags, suite names (a fixed vocabulary), 16-hex digests, counts, exit codes and times. Prompt texts are compared with the
 continuation list in memory. No text, path, command line, output, fingerprint source text or prompt is ever stored,
-displayed, logged or reported; the history store keeps only the records of 6.11. Nothing of 6.9–6.11 is reported (11):
-`spec/REPORTING*.md` and `spec/report-schema.json` are unchanged. Every other source keeps its own exclusions (4.9
+displayed, logged or reported; the history store keeps only the records of 6.11. Live reporting sends numbers only, and
+only through its `taskScore` extension with the `models` section (11.10, user's decision 2026-10-29): the highest
+score and its form, the thinking speed, and per model and source the counts of tasks that completed while reporting was
+on — never a digest, suite name, key, time or record of a task. Every other source keeps its own exclusions (4.9
 WorkBuddy, 4.15 Hermes Agent, …): sources without a score are read exactly as before.
 
 #### Live thinking
@@ -2486,6 +2488,11 @@ hold other agents' responses, 6.2). A sub-agent is an agent of its own. The sums
 a board group's sums add its members' (never an average of their values): `liveThinking_a`, `thinkingShare_a`,
 `liveThinking_G` and `thinkingShare_G` follow. The `thinking` cases also give each set's, agent's and group's `Σ w`
 (`weight`), the tokens generating in the window; the score no longer uses it.
+
+*Model sums* (for live reporting, 11.10) are the same sums restricted to one model: a measured or unmeasured response
+counts for its own model, an in-flight estimate for its agent's current model, with `estimatedSpeed` and `share_ref`
+exactly those of the all-sources sums. The sums of all models add up to the set's. Cases: `modelWindows` (keyed by the
+raw model, the empty string when unknown; reporting adds the raw models that resolve to one id, 11.3).
 
 ### 6.10 Work signals
 
@@ -2608,7 +2615,8 @@ task_records(file_id INTEGER NOT NULL, ordinal INTEGER NOT NULL, source TEXT NOT
   `effort` are the ids as logged, like the per-model rows of the history (8).
 
 Adding the records raised the history analysis version to **8** (8), so every log that still exists is analysed again
-and the comparison and calibration have a baseline from the first launch. Cases: `records`.
+and the comparison and calibration have a baseline from the first launch. Cases: `records`. Records are never reported;
+live reporting counts the tasks that complete while it is on with the same fields (11.10).
 
 #### Features
 
@@ -3544,7 +3552,9 @@ with the protocol of `spec/REPORTING.md`. This section defines how every reporte
 *report ledger* that makes deltas exact, and the report scheduler. `spec/tools/report_reference.py` implements 11.5 as
 a simulator and checks `spec/fixtures/report-vectors.json` → `scheduler`; both apps run the same cases through their
 own scheduler core with a fake clock and instant sends. Only realtime values are reported: nothing of sections 6.6
-(today), 6.9–6.11 (task score, signals, task records), 8 (daily history), 9.6–9.7 or 10.8–10.9 is ever sent.
+(today), 6.10 (signals), 6.11 (task records, predictions, calibration, comparison), 8 (daily history), 9.6–9.7 or
+10.8–10.9 is ever sent. The task score of 6.9 is sent, as live values and as counts of tasks completed while reporting
+is on, only by the `taskScore` extension with the `models` section (11.10).
 
 ### 11.1 Scope and clock
 
@@ -3553,6 +3563,8 @@ own scheduler core with a fake clock and instant sends. Only realtime values are
 - **Sections**: an optional section is built only when the service lists it and the user's switch is on (REPORTING
   6.1). Default switches (DESIGN 11): `sources`, `models`, `cost`, `traffic`, all on. A section that
   is off is left out of the report.
+- **Extensions** of REPORTING-EXTENSIONS add fields when the confirmed document advertises them; the per-model ones
+  (Harness counts, execution modes, the task score of 11.10) ride with the `models` section and its switch.
 - **Build time** `t` is an engine tick (6: every 500 ms) with `nowMs = t`. Durations (`windowMs`, holds, retries) use
   the monotonic clock. `sentAt` is the wall clock at `t` plus the session's clock correction (11.6), formatted
   `YYYY-MM-DDTHH:MM:SS.sssZ` in UTC.
@@ -3591,7 +3603,8 @@ resolved id (11.3) of the agent's current model (the model the agents list shows
 `unknown`, a free suffix without an entry) → `unknown`. The raw model string never leaves the app. Entries are grouped
 by id and sorted by `output` descending, then `id`. With more than `maxModels` (discovery, ≤ 16) entries the first
 `maxModels − 1` are kept and the rest are merged into `other` (fields summed, `sources` united, placed last).
-`maxModels = 0` means the section is not sent.
+`maxModels = 0` means the section is not sent. With the `taskScore` extension, more ids get entries and the merged
+`other` entry also merges the task fields (11.10).
 
 ### 11.4 Report ledger
 
@@ -3669,7 +3682,8 @@ not start a new run.
    `activity` = the mode.
 8. **Deliver** (below).
 
-**Build**: `seq + 1`; the report takes the ledger and the instantaneous values at `t`; `windowMs = t − windowStart`;
+**Build**: `seq + 1`; the report takes the ledger and the instantaneous values at `t` (with the `taskScore`
+extension also the task ledger, 11.10, which discards leave alone); `windowMs = t − windowStart`;
 then the ledger is empty and `windowStart = t`. A built report goes to the one-slot outbox; a report already waiting
 there is lost (the newer one replaces it), and an in-flight report that is waiting for its retry is lost too (newest
 wins).
@@ -3721,9 +3735,10 @@ end of a backoff — waits at least `I` after the previous report.)
   its entry as sent — rounded, `null` as 0 — other than `agents.active`, `live.estimatedShare` and `cost.knownShare`
   is above 0. A source whose only increment in the window is cost (a counted response priced only now, 11.4) is
   listed, so the per-source cost sums add up. `models[]` lists every resolved id (11.3) that received a ledger
-  increment in the window, a cost increment included, or that an agent is generating with at `t`.
+  increment in the window, a cost increment included, or that an agent is generating with at `t`; with the
+  `taskScore` extension also the ids of 11.10 *Membership*.
 - The body stays within `min(16384, maxBodyBytes)` bytes: when it would not, drop `models`, then `sources`, for that
-  report only.
+  report only (11.10 *Size* for the `taskScore` fields).
 
 ### 11.8 Fixtures
 
@@ -3732,7 +3747,7 @@ ranges is a sleep), activity ranges, output increments (`from`, `to`, `step`, `o
 (`pause`, `resume`, `networkOff`, `networkOn`) and per-`seq` attempt outcomes (`ok`, `fail`, `rateLimited:<s>`;
 default `ok`). `expect.delivered` lists `[seq, endMs, windowMs, activity, output]` of every delivered report and
 `expect.lost` the lost `seq`s. The expected values were written by hand from 11.5 and the simulator must reproduce
-them.
+them. The `taskScore` extension has its own vectors (11.10 *Fixtures*).
 
 ### 11.9 WebSocket transport
 
@@ -3781,7 +3796,7 @@ text, one JSON object, no duplicate member names, no lone surrogates, no NaN, de
 400–599, `error.code`, optional `error.retryAfterSeconds` and `error.serverTime`, and `fatal`. A message of another
 `type` is ignored; an invalid message from the service, or a binary one, counts as `close 1002`.
 
-**`realtime`** (only in WebSocket bodies, last member of the body):
+**`realtime`** (only in WebSocket bodies, last member of the body, after the `taskScore` object of 11.10):
 
 | Field | Value |
 | --- | --- |
@@ -3810,7 +3825,7 @@ or a change of service or transport), not to a run, so `seq_conflict` keeps them
 the user) and the transport available and no `stop`. A tick is **changed** when the ledger received an increment at
 it, or when one of the values a report would carry at it, rounded as sent (11.7) — `live.outputTokS`,
 `live.totalTokS`, `live.estimatedShare`, `live.agents.generating`, `.tools`, `.active` — differs from the last built
-report's.
+report's; with the `taskScore` extension also as 11.10 *WebSocket* says.
 
 **Each tick `t`** (an engine tick, a snapshot after a read, or a wake-up the scheduler asked for), in this order.
 *Discard* empties the ledger, sets `windowStart = t` and clears the window's observation; *leave* builds `leaving`
@@ -3925,3 +3940,134 @@ unless a listed tick has the same time. Writes are instant. `expect.log` lists e
 `backoff <reconnectAt>`, `wait <rateLimitedUntil>`, `wake <at>` —, `expect.counters` the counters other than 0,
 `expect.latency` the samples, `expect.state` the connection, `seq`, `failures`, `stop` and the last delivery time.
 The expected values were written by hand from this section; the simulator and both apps must reproduce them.
+
+### 11.10 Task score (extension `taskScore`)
+
+User's decision (2026-10-29): live reporting carries the task score (6.9) — the highest 智力 with its form, and the
+thinking speed — overall and per model, plus per-model statistics of the tasks that complete while reporting is on, so
+that a service can rank models by score and success rate. It rides with the `models` section: no switch, section or
+consent of its own; DESIGN 11 says it under the `models` switch, and the README privacy sections name it. The protocol
+is `spec/REPORTING-EXTENSIONS.md` section 9 (kept with the partner documents). `spec/tools/report_task_score.py`
+implements this section and checks `spec/fixtures/report-vectors.json` → `taskScore`.
+
+**Active.** The extension is *active* for a report when the confirmed document has `extensions.taskScore` equal to the
+JSON integer `1` (a missing value, `null`, `true`, `"1"` or another number is not) and the report carries `models` by
+consent: the document lists `models`, `maxModels` ≥ 1 and the user's `models` switch is on (11.1). A report while it is
+inactive carries nothing of this section, and its models list is exactly that of 11.3 and 11.7. A refreshed document
+that adds or drops the capability takes effect at once and asks for no new consent (REPORTING 3.3 lists the changes
+that do; the user's decision is that existing users are not asked again).
+
+**Body.** With the extension active the body adds:
+
+- a top-level object `taskScore`, after `models` and before `realtime` (11.9); it stays when the size rule drops
+  `models`;
+- on every `models[]` entry, after its other fields: `taskScore` (the same shape) and `taskStats` (an array, empty when
+  no counted task of that model is in the report).
+
+`taskScore` is `{score, form, thinkingTokS}`:
+
+| Field | Value |
+| --- | --- |
+| `score` | the set's value (6.9 *Values*) rounded half away from zero, an integer 0–100; `null` exactly when `form` is `none` |
+| `form` | `live`, `resting` or `none` (6.9 *Values*) |
+| `thinkingTokS` | the set's `liveThinking` (6.9 *Live thinking*), rounded to 0.1 |
+
+At the top level the set is all enabled sources — the value the menu bar or taskbar block shows — with the all-sources
+sums. Per model it is the agents of that set whose current model (the model the agents list shows for it, as for
+`models[].generating`, 11.2) resolves to the entry's id (11.3), with the *model sums* of 6.9 *Live thinking* added over
+the raw models that resolve to that id. The top-level value is the highest of every agent, not of the listed entries:
+a model with nothing else to report has no entry.
+
+**Membership.** With the extension active, `models[]` also lists every id that an agent of the set is *live* with (not
+idle, with a score: an agent running a test is in phase `tools` and has no increment) and every id with a row in the
+task ledger (below); `sources` adds the sources of those agents and rows. A model that is only resting gets no entry.
+Order, `maxModels` and `other` stay as 11.3 says. The merged `other` entry's `taskScore` is the set rule over the
+merged ids' agents (the highest live score, else the highest resting, else none), its `thinkingTokS` the sum of their
+unrounded model sums, rounded once, and its `taskStats` their rows added up per source.
+
+**Task statistics.** `taskStats` has one row per source, in the source order of section 1, for the tasks counted
+(below) since the previous build:
+
+| Field | Value |
+| --- | --- |
+| `source` | the agent's source; it is one of the entry's `sources` |
+| `completed` | counted tasks, 1–1000 |
+| `scored` | those with a score (6.9) |
+| `scoreSum` | the sum of their scores rounded half away from zero, as shown: means merge exactly |
+| `scoreBins` | ten counts of those rounded scores, bins `[0, 10)`, `[10, 20)`, … `[80, 90)` and `[90, 100]`; they add up to `scored` |
+| `successes`, `stalls` | tasks whose 6.11 `success` / `stalled` is true |
+| `fixAttempts`, `fixFailures`, `recovered`, `recoverAttempts` | sums of the 6.11 counts |
+
+The bins take the rounded score so that they agree with `scoreSum`; the comparison of 6.11 bins unrounded scores, which
+differs only for a score within half a point below an edge.
+
+**Watch.** The *watch* is on at a tick when reporting is on for a confirmed and registered service, the network switch
+is on, reporting is not paused, no error or `stop` needs the user (REPORTING 8.3, 11.9), the extension is active and
+seeding has finished (6.4). Transient waits leave it on: a backoff, a `Retry-After`, quiet, a sleep gap, a new run
+(`seq_conflict`, a change of transport, `run_conflict`). A task is *watched* when its first event (its prompt, or the
+first event of a task before the first prompt, 6.9 *Tasks*) is read at a tick when the watch is on and that event's `t`
+is at most 2 minutes before `nowMs` (the 120 000 ms of 11.4). Every other task is history and is never counted: one read
+while seeding, one that started before the watch was on (reporting turned on mid-task included), one whose first event
+is older when it is read (a session found late, section 5).
+
+- A withdrawn prompt (6.9 *Withdrawal*) never started a task; the previous task keeps its own watch.
+- **Break**: at the tick the watch turns off — reporting turned off, paused or switched to another service, the network
+  switch off, the `models` switch off, a refreshed document without `models` or the capability, an error or `stop` that
+  needs the user, quitting — every task is unwatched and the task ledger is emptied, after a `leaving` report of that
+  tick (11.5 step 4, 11.9 step 4) has taken it. A task whose agent's file goes away or whose source is disabled is
+  unwatched.
+
+**Counting.** A watched task is counted once, at the first tick at which it completes:
+
+1. a later task of the same agent is *settled*, its prompt no longer withdrawable: for Claude, omp, Pi, OpenClaw and
+   Factory Droid when the first deciding assistant line after it (6.9 *Composing the stream*) has been read and is not a
+   duplicate (for a command, with no command output before it); for Codex at once;
+2. `nowMs − lastLineMs ≥ 30 min` for its agent (6.11 `complete`), whether or not the agent is still in the agents list.
+
+Counting a task with at least one action (one that has a 6.11 record) adds one row to the task ledger, under the
+resolved id (11.3) of its model — the last composer note whose `t` is at most the task's `endMs` (6.9 *Model and
+effort*, 6.11) — and its agent's source: `completed` 1, and the 6.11 fields evaluated over the task's events read so
+far — its score rounded (`scored` 1, its bin) or none, `success`, `stalled`, `fixAttempts`, `fixFailures`, `recovered`,
+`recoverAttempts`. A task without actions adds nothing. Either way the task is no longer watched, so it is never counted
+again: a continuation that reopens it later (6.9 *Values*) and outcomes that arrive after it completed (a result read
+after the next prompt, a background command's exit code) stay out of the report, though its history record (6.11) has
+them. When the task ledger already holds 1000 completed tasks, a further completion is dropped, not deferred.
+
+**Task ledger.** The rows counted since the previous build, per resolved id and source. A *build* (11.5, 11.9) with the
+extension active takes the whole task ledger into `models[].taskStats` and empties it; a build whose `models` the size
+rule dropped empties it too, and those completions are lost. Discards (11.5 steps 2, 5 and 6; 11.9 *discard* and
+`saturated`) leave it alone: completions are outcomes, not usage of a window, so a task that completes during a quiet
+period, a sleep or a backoff goes out with the next built report. Dropping it instead would lose the last task before
+every break and bias the success rates. Otherwise only a break empties the task ledger. A built report that is lost
+loses its completions, which are never resent (REPORTING 6.2): across retries, duplicates, `seq_conflict`, new runs and
+reconnections every completed task is in at most one built report. The task ledger is never persisted: a relaunch
+starts empty, and the tasks rebuilt from their files after it (6.9 *Event stream*) are history.
+
+Completions are not activity (11.5 *Activity*): a task that completes by the 30-minute rule does not wake the
+scheduler, keep a device online or start a report.
+
+**WebSocket.** A tick is also *changed* (11.9) when the task ledger received a completion at it, or when a `taskScore`
+the report would carry — the top-level one or an entry's, rounded as sent — differs from the last built report's: a
+test result changes the score while every token value stands still.
+
+**Size.** The top-level `taskScore` always stays. The per-model fields go with `models` when 11.7 drops it; a step that
+first drops the per-model Harness and mode breakdowns (REPORTING-EXTENSIONS 2, 3) keeps them.
+
+**Other extensions.** An entry that exists only for this extension has zero usage: its `harnessRequests` is empty or
+absent and its `modeUsage` absent, so their sums stay exact. Task rows are not split by Harness beyond `source`, nor by
+execution mode; the 6.11 `effort` is not sent.
+
+**Never sent**, also with the extension: prompts, commands, outputs, paths, digests, fingerprints, suite names or keys;
+any time of a task (start, end, first pass); a row per task (only sums per model and source within one report);
+predictions, calibration, comparisons and the history records of 6.11; the work signals of 6.10.
+
+**Fixtures** (`report-vectors.json` → `taskScore`): `capability` (a discovery document and the models switch → active),
+`records` (a completed task → its row), `assembly` (agents' values, model sums, the models of 11.3 and the task ledger
+→ the top-level `taskScore` and the final `models[]`), `ledger` (events in order — `watch`, `start` with the first
+event's `t` or `seeding`, `withdraw`, `drop`, `complete` with the task's record, `build` with `models: false` for a size
+drop, `discard`, `newRun`, `relaunch` — → what each build carries, `null` when `models` was dropped), `validation` (a
+body → the pointers a service that advertises the extension rejects) and `receiver` (accepted reports → the merged
+leaderboard of REPORTING-EXTENSIONS 9). The expected values were written by hand; both apps run `capability`,
+`records`, `assembly` and `ledger` through their own code. The example bodies are `report-examples/report-taskscore.json`
+(HTTP) and `report-taskscore-websocket.json`; the model sums are checked by the `modelWindows` cases of
+`task-score-cases.json`.

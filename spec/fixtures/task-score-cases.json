@@ -16189,6 +16189,229 @@
      }
     ]
    }
+  ],
+  "modelWindows": [
+   {
+    "name": "every model weighs by its own responses' output in the window, never by the agent that wrote them",
+    "agents": [
+     {
+      "id": "r1",
+      "source": "claudeCode",
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1000000003000,
+      "parentId": null
+     },
+     {
+      "id": "s1",
+      "source": "claudeCode",
+      "model": "claude-haiku-5",
+      "effort": "low",
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1000000003500,
+      "parentId": "r1"
+     },
+     {
+      "id": "s2",
+      "source": "claudeCode",
+      "model": "claude-opus-5-5",
+      "effort": "max",
+      "phase": "tools",
+      "inFlightStartMs": null,
+      "lastLineMs": 1000000004000,
+      "parentId": "s1"
+     },
+     {
+      "id": "t1",
+      "source": "codex",
+      "model": "gpt-5.5",
+      "effort": "medium",
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1000000002000,
+      "parentId": null
+     }
+    ],
+    "responses": [
+     {
+      "key": "rr1",
+      "agentId": "r1",
+      "source": "claudeCode",
+      "model": "claude-sonnet-5-5",
+      "startMs": 1000000001000,
+      "endMs": 1000000003000,
+      "input": 1000,
+      "output": 300,
+      "reasoning": 90,
+      "final": true,
+      "effort": "high"
+     },
+     {
+      "key": "rs1",
+      "agentId": "s1",
+      "source": "claudeCode",
+      "model": "claude-haiku-5",
+      "startMs": 1000000001500,
+      "endMs": 1000000003500,
+      "input": 1000,
+      "output": 200,
+      "reasoning": 20,
+      "final": true,
+      "effort": "low"
+     },
+     {
+      "key": "rs2",
+      "agentId": "s2",
+      "source": "claudeCode",
+      "model": "claude-opus-5-5",
+      "startMs": 1000000000000,
+      "endMs": 1000000002000,
+      "input": 1000,
+      "output": 100,
+      "reasoning": 50,
+      "final": true,
+      "effort": "max"
+     },
+     {
+      "key": "rt1",
+      "agentId": "t1",
+      "source": "codex",
+      "model": "gpt-5.5",
+      "startMs": 1000000001000,
+      "endMs": 1000000002000,
+      "input": 1000,
+      "output": 50,
+      "reasoning": 0,
+      "final": true,
+      "effort": "medium"
+     }
+    ],
+    "queries": [
+     {
+      "nowMs": 1000000004000,
+      "expect": {
+       "liveThinking": 45.0,
+       "thinkingShare": 0.225,
+       "weight": 600.0
+      },
+      "models": {
+       "claude-sonnet-5-5": {
+        "liveThinking": 30.0,
+        "thinkingShare": 0.3,
+        "weight": 300.0
+       },
+       "claude-haiku-5": {
+        "liveThinking": 6.666666666666667,
+        "thinkingShare": 0.1,
+        "weight": 200.0
+       },
+       "claude-opus-5-5": {
+        "liveThinking": 8.333333333333334,
+        "thinkingShare": 0.5,
+        "weight": 50.0
+       },
+       "gpt-5.5": {
+        "liveThinking": 0.0,
+        "thinkingShare": 0.0,
+        "weight": 50.0
+       }
+      }
+     }
+    ]
+   },
+   {
+    "name": "an in-flight estimate goes to the agent's current model, its finished response to the response's own; a source without separate reasoning adds weight and no share; an agent without an estimate adds nothing",
+    "agents": [
+     {
+      "id": "a1",
+      "source": "codex",
+      "model": "gpt-5.5-codex",
+      "effort": "high",
+      "phase": "generating",
+      "inFlightStartMs": 1000000004000,
+      "lastLineMs": 1000000004000,
+      "parentId": null
+     },
+     {
+      "id": "a2",
+      "source": "deepseek",
+      "model": "deepseek-v4",
+      "effort": null,
+      "phase": "idle",
+      "inFlightStartMs": null,
+      "lastLineMs": 1000000005000,
+      "parentId": null
+     },
+     {
+      "id": "a3",
+      "source": "claudeCode",
+      "model": null,
+      "effort": null,
+      "phase": "generating",
+      "inFlightStartMs": 1000000003000,
+      "lastLineMs": 1000000003000,
+      "parentId": null
+     }
+    ],
+    "responses": [
+     {
+      "key": "r1",
+      "agentId": "a1",
+      "source": "codex",
+      "model": "gpt-5.5",
+      "startMs": 1000000000000,
+      "endMs": 1000000004000,
+      "input": 1000,
+      "output": 400,
+      "reasoning": 100,
+      "final": true,
+      "effort": "high"
+     },
+     {
+      "key": "r2",
+      "agentId": "a2",
+      "source": "deepseek",
+      "model": "deepseek-v4",
+      "startMs": 1000000003000,
+      "endMs": 1000000005000,
+      "input": 1000,
+      "output": 200,
+      "reasoning": 0,
+      "final": true,
+      "effort": null
+     }
+    ],
+    "queries": [
+     {
+      "nowMs": 1000000005000,
+      "expect": {
+       "liveThinking": 25.0,
+       "thinkingShare": 0.25,
+       "weight": 500.0
+      },
+      "models": {
+       "gpt-5.5": {
+        "liveThinking": 16.666666666666668,
+        "thinkingShare": 0.25,
+        "weight": 200.0
+       },
+       "deepseek-v4": {
+        "liveThinking": 0.0,
+        "thinkingShare": 0.0,
+        "weight": 200.0
+       },
+       "gpt-5.5-codex": {
+        "liveThinking": 8.333333333333334,
+        "thinkingShare": 0.25,
+        "weight": 100.0
+       }
+      }
+     }
+    ]
+   }
   ]
  }
 }

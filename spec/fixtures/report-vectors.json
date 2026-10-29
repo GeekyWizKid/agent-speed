@@ -1590,6 +1590,293 @@
      }
     }
    ]
+  },
+  {
+   "name": "taskScore advertised: valid bodies are accepted, a retry is a duplicate, a changed body is a seq_conflict, broken task fields are 422 payload_invalid and use up no sequence number, a body without the extension is accepted",
+   "config": {
+    "authority": "api.example.com",
+    "apiPath": "/agent-speed",
+    "policies": {
+     "reportBurst": 3,
+     "reportRefillSeconds": 4,
+     "transfer": true
+    },
+    "extensions": {
+     "taskScore": 1
+    }
+   },
+   "steps": [
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/devices",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "qR4ipcaVnX90s4bs1E6bbQ",
+       "X-AgentSpeed-Signature": "iRfutvg3prl3rSzz123Y0FDbbXNAOUMAgCpoan_b2Lwvn5s_geAFf5c4zYrCZr6R5ewzu6Hc_GMnsZXgD64hlQ"
+      },
+      "body": "{\"schema\":1,\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"publicKey\":{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"U9uFTRUM0eY694W-TjRWmW8h-gmBb93fAR2wRHH_jjs\",\"y\":\"RcPBHtIdL3_F1LjwB0KVVaahaHqwT7bCkjDKfFx9YBA\"},\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27}}"
+     },
+     "expect": {
+      "status": 201,
+      "result": "created"
+     }
+    },
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/reports",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "_e8mucF8bk1JFqlsp2CDRQ",
+       "X-AgentSpeed-Signature": "zbKm47BIy3LZI1o7ujdJTYb_V9adfqqcBi1TXdyGqrfmrF9ok3ulP4dheecpRKFccZ8YUJjA1M-Q1zO6QkKDPA"
+      },
+      "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}"
+     },
+     "expect": {
+      "status": 200,
+      "result": "accepted"
+     }
+    },
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/reports",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "E-2VcVrHayZ2uS27zOonEg",
+       "X-AgentSpeed-Signature": "bl5fp4p6f5dNALverlbwMW1JyRphPOBc8bXfjV1cPKmKM6EiTM0QjMh1pnxGp1aMqJpS-eubqgpbOzy9__h14A"
+      },
+      "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}"
+     },
+     "expect": {
+      "status": 200,
+      "result": "duplicate"
+     }
+    },
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/reports",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "O6IY5Y4b50Nkqf4o00iylQ",
+       "X-AgentSpeed-Signature": "trI-cua0V4z-ojU6A6dVQJ2gAP8pBjzaG2xK-NLnLCvzxpuWruPz1LOfY1SP-c9VQ42ude-OZ4Z1YFu0xhur2A"
+      },
+      "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":1,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}"
+     },
+     "expect": {
+      "status": 409,
+      "code": "seq_conflict"
+     }
+    },
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/reports",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "Mr5i1mdYUkmlzJMLzRBhQg",
+       "X-AgentSpeed-Signature": "jGEZQ6FyV_6ZCKl0BZ1vefn1FRDWWaDJxGcjMwkgye9OwtXlN1OzHEBwexe_Prk9ryZ234raBhGfL4AWzKM0Vw"
+      },
+      "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":43},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"none\",\"thinkingTokS\":38.6}}"
+     },
+     "expect": {
+      "status": 422,
+      "code": "payload_invalid",
+      "field": "/taskScore/score"
+     }
+    },
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/reports",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "nfUUA3ho2WoYxUXVZXrlZA",
+       "X-AgentSpeed-Signature": "ZZ0YXM4scwD_2fuBpTha36PABvYF7Q1G8fx6mG6wH23vsbmkQtmKNRFY5-yoWJXU8JhinVBR04FFA70Mw_trkA"
+      },
+      "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":44},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"codex\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}"
+     },
+     "expect": {
+      "status": 422,
+      "code": "payload_invalid",
+      "field": "/models/0/taskStats/0/source"
+     }
+    },
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/reports",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "jusnlu9Ph5f3j8OUAoVFmA",
+       "X-AgentSpeed-Signature": "3bXNPRTWGr1X2KK0DyPSl-DQoBRkWg4WpvaTIe_zFFGTsFoZ5MQNsrm4rmOJDNGu-hritWoepLPj2yo2x-9ZVg"
+      },
+      "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":45},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":1000,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}"
+     },
+     "expect": {
+      "status": 422,
+      "code": "payload_invalid",
+      "field": "/models"
+     }
+    },
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/reports",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "r9pV5UIu-fmVEkhPV1tqbw",
+       "X-AgentSpeed-Signature": "sGF0FgSZ__145x3pIRL5vxKWPVxAe-fkAcMJ_ovj8VbJTGy_leZRDuGjGIUeK82oAKB_161SeXXKZm63H__ZZA"
+      },
+      "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":46},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}"
+     },
+     "expect": {
+      "status": 422,
+      "code": "payload_invalid",
+      "field": "/models/0/taskStats/0/scoreBins"
+     }
+    },
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/reports",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "xBHLYmYpxQLX5SG0QBLfqg",
+       "X-AgentSpeed-Signature": "9J_lQN-3xJeEIESxkyAkotJYfcLScAqyH6Xmqo9eu9Qt8P2e6aW1cGvE7MBpRFWhIKT8hOTShCsWk59CZpT3KA"
+      },
+      "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":47},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000}]}"
+     },
+     "expect": {
+      "status": 200,
+      "result": "accepted"
+     }
+    },
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/reports",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "xsnw41KyrPhRoSntxXg4Vg",
+       "X-AgentSpeed-Signature": "yNsTyABS7ccTZf4JHGDmDB-iX8gEC4lZhS6LG17mESzo_yuSfEOIKEpO7dQM_XvkCwJotIN346BsUlVz6ps0iQ"
+      },
+      "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":43},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}"
+     },
+     "expect": {
+      "status": 200,
+      "result": "accepted"
+     }
+    }
+   ]
+  },
+  {
+   "name": "taskScore not advertised: its members are ignored, whatever they hold",
+   "config": {
+    "authority": "api.example.com",
+    "apiPath": "/agent-speed",
+    "policies": {
+     "reportBurst": 3,
+     "reportRefillSeconds": 4,
+     "transfer": true
+    }
+   },
+   "steps": [
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/devices",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "qR4ipcaVnX90s4bs1E6bbQ",
+       "X-AgentSpeed-Signature": "iRfutvg3prl3rSzz123Y0FDbbXNAOUMAgCpoan_b2Lwvn5s_geAFf5c4zYrCZr6R5ewzu6Hc_GMnsZXgD64hlQ"
+      },
+      "body": "{\"schema\":1,\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"publicKey\":{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"U9uFTRUM0eY694W-TjRWmW8h-gmBb93fAR2wRHH_jjs\",\"y\":\"RcPBHtIdL3_F1LjwB0KVVaahaHqwT7bCkjDKfFx9YBA\"},\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27}}"
+     },
+     "expect": {
+      "status": 201,
+      "result": "created"
+     }
+    },
+    {
+     "at": 1792656931,
+     "request": {
+      "method": "POST",
+      "path": "/agent-speed/v1/reports",
+      "headers": {
+       "User-Agent": "AgentSpeed/1.3.0 (macOS)",
+       "Accept": "application/json",
+       "Content-Type": "application/json",
+       "X-AgentSpeed-Device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+       "X-AgentSpeed-Timestamp": "1792656931",
+       "X-AgentSpeed-Nonce": "-0cpGo5m2uKrItncyQ7Xyg",
+       "X-AgentSpeed-Signature": "Gollf--DyQuF7znBh9Ak1sNEpBbXuxgA6xGcX21pAx4DsUrGgLcGMNElXiZLeomcyBK0OZIi2yeCHSUYW3xkyA"
+      },
+      "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"codex\",\"completed\":-1}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":500,\"form\":\"great\"}}"
+     },
+     "expect": {
+      "status": 200,
+      "result": "accepted"
+     }
+    }
+   ]
   }
  ],
  "usernames": {
@@ -6045,6 +6332,2632 @@
       "built": 3,
       "rejected": 3
      }
+    }
+   }
+  ]
+ },
+ "taskScore": {
+  "_comment": "The taskScore extension (METRICS 11.10, REPORTING-EXTENSIONS 9), written by spec/tools/report_reference.py --write from spec/tools/report_task_score.py, whose expectations are written by hand. capability: discovery and the models switch -> active. records: one completed task -> its row. assembly: agents' values, per-model thinking, the models of 11.3 and the task ledger -> the top-level taskScore and the final models[]. ledger: events in order -> what each built report carries (null: models dropped for size). validation: a body (compact JSON text) -> the JSON pointers a service that advertises taskScore may name in 422 payload_invalid (empty: accepted). receiver: accepted reports -> the merged model leaderboard.",
+  "capability": [
+   {
+    "name": "advertised with the models section and the switch on: active",
+    "document": {
+     "sections": [
+      "sources",
+      "models",
+      "cost"
+     ],
+     "extensions": {
+      "taskScore": 1
+     }
+    },
+    "modelsSwitch": true,
+    "expect": true
+   },
+   {
+    "name": "no sections list means every section: active",
+    "document": {
+     "extensions": {
+      "taskScore": 1
+     }
+    },
+    "modelsSwitch": true,
+    "expect": true
+   },
+   {
+    "name": "the user turned the models switch off: inactive, nothing of the extension is sent",
+    "document": {
+     "extensions": {
+      "taskScore": 1
+     }
+    },
+    "modelsSwitch": false,
+    "expect": false
+   },
+   {
+    "name": "the service does not list models: inactive",
+    "document": {
+     "sections": [
+      "sources",
+      "cost"
+     ],
+     "extensions": {
+      "taskScore": 1
+     }
+    },
+    "modelsSwitch": true,
+    "expect": false
+   },
+   {
+    "name": "maxModels 0 sends no models: inactive",
+    "document": {
+     "limits": {
+      "maxModels": 0
+     },
+     "extensions": {
+      "taskScore": 1
+     }
+    },
+    "modelsSwitch": true,
+    "expect": false
+   },
+   {
+    "name": "not advertised: inactive (older services)",
+    "document": {
+     "extensions": {
+      "executionModes": 1
+     }
+    },
+    "modelsSwitch": true,
+    "expect": false
+   },
+   {
+    "name": "true is not the integer 1",
+    "document": {
+     "extensions": {
+      "taskScore": true
+     }
+    },
+    "modelsSwitch": true,
+    "expect": false
+   },
+   {
+    "name": "the string \"1\" is not the integer 1",
+    "document": {
+     "extensions": {
+      "taskScore": "1"
+     }
+    },
+    "modelsSwitch": true,
+    "expect": false
+   },
+   {
+    "name": "another version is unknown",
+    "document": {
+     "extensions": {
+      "taskScore": 2
+     }
+    },
+    "modelsSwitch": true,
+    "expect": false
+   },
+   {
+    "name": "null is absent",
+    "document": {
+     "extensions": {
+      "taskScore": null
+     }
+    },
+    "modelsSwitch": true,
+    "expect": false
+   }
+  ],
+  "records": [
+   {
+    "name": "a passing task: its score rounded half away from zero, bin 9 for 90 to 100",
+    "record": {
+     "model": "claude-opus-5-5",
+     "source": "claudeCode",
+     "actions": 5,
+     "score": 93.75,
+     "success": true,
+     "stalled": false,
+     "counts": {
+      "fixAttempts": 2,
+      "fixFailures": 0,
+      "recovered": 1,
+      "recoverAttempts": 2
+     }
+    },
+    "expect": {
+     "source": "claudeCode",
+     "completed": 1,
+     "scored": 1,
+     "scoreSum": 94,
+     "scoreBins": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+     ],
+     "successes": 1,
+     "stalls": 0,
+     "fixAttempts": 2,
+     "fixFailures": 0,
+     "recovered": 1,
+     "recoverAttempts": 2
+    }
+   },
+   {
+    "name": "9.5 rounds to 10 and lands in bin 1; the bins use the rounded score",
+    "record": {
+     "model": "gpt-5.5",
+     "source": "codex",
+     "actions": 5,
+     "score": 9.5,
+     "success": false,
+     "stalled": false,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    "expect": {
+     "source": "codex",
+     "completed": 1,
+     "scored": 1,
+     "scoreSum": 10,
+     "scoreBins": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "successes": 0,
+     "stalls": 0,
+     "fixAttempts": 0,
+     "fixFailures": 0,
+     "recovered": 0,
+     "recoverAttempts": 0
+    }
+   },
+   {
+    "name": "99.5 rounds to 100, still bin 9",
+    "record": {
+     "model": "gpt-5.5",
+     "source": "codex",
+     "actions": 5,
+     "score": 99.5,
+     "success": true,
+     "stalled": false,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    "expect": {
+     "source": "codex",
+     "completed": 1,
+     "scored": 1,
+     "scoreSum": 100,
+     "scoreBins": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+     ],
+     "successes": 1,
+     "stalls": 0,
+     "fixAttempts": 0,
+     "fixFailures": 0,
+     "recovered": 0,
+     "recoverAttempts": 0
+    }
+   },
+   {
+    "name": "a task without a score counts as completed only (and may stall)",
+    "record": {
+     "model": "claude-sonnet-5-5",
+     "source": "claudeDesktop",
+     "actions": 5,
+     "score": null,
+     "success": false,
+     "stalled": true,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    "expect": {
+     "source": "claudeDesktop",
+     "completed": 1,
+     "scored": 0,
+     "scoreSum": 0,
+     "scoreBins": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "successes": 0,
+     "stalls": 1,
+     "fixAttempts": 0,
+     "fixFailures": 0,
+     "recovered": 0,
+     "recoverAttempts": 0
+    }
+   },
+   {
+    "name": "a failing task that never fixed its check: every failing run is a fix failure",
+    "record": {
+     "model": "claude-sonnet-5-5",
+     "source": "claudeDesktop",
+     "actions": 5,
+     "score": 23.0,
+     "success": false,
+     "stalled": true,
+     "counts": {
+      "fixAttempts": 4,
+      "fixFailures": 4,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    "expect": {
+     "source": "claudeDesktop",
+     "completed": 1,
+     "scored": 1,
+     "scoreSum": 23,
+     "scoreBins": [
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "successes": 0,
+     "stalls": 1,
+     "fixAttempts": 4,
+     "fixFailures": 4,
+     "recovered": 0,
+     "recoverAttempts": 0
+    }
+   },
+   {
+    "name": "a task without actions has no 6.11 record and adds nothing",
+    "record": {
+     "model": "claude-opus-5-5",
+     "source": "claudeCode",
+     "actions": 0,
+     "score": null,
+     "success": false,
+     "stalled": false,
+     "counts": {
+      "fixAttempts": 0,
+      "fixFailures": 0,
+      "recovered": 0,
+      "recoverAttempts": 0
+     }
+    },
+    "expect": null
+   }
+  ],
+  "assembly": [
+   {
+    "name": "top-level and per-model values; a model worked with in the tools phase and a model with only a completion get entries; a resting-only model does not",
+    "input": {
+     "maxModels": 16,
+     "agents": [
+      {
+       "id": "a1",
+       "source": "claudeCode",
+       "model": "claude-opus-5-5",
+       "form": "live",
+       "score": 91.5
+      },
+      {
+       "id": "a2",
+       "source": "claudeCode",
+       "model": "claude-opus-5-5",
+       "form": "resting",
+       "score": 97.0
+      },
+      {
+       "id": "a3",
+       "source": "codex",
+       "model": "gpt-5.5",
+       "form": "live",
+       "score": 63.75
+      },
+      {
+       "id": "a4",
+       "source": "omp",
+       "model": "glm-5",
+       "form": "live",
+       "score": 40.0
+      },
+      {
+       "id": "a5",
+       "source": "pi",
+       "model": "kimi-k3",
+       "form": "resting",
+       "score": 99.0
+      },
+      {
+       "id": "a6",
+       "source": "claudeDesktop",
+       "model": "claude-sonnet-5-5",
+       "form": "resting",
+       "score": 23.0
+      },
+      {
+       "id": "a7",
+       "source": "opencode",
+       "model": "deepseek-v4",
+       "form": "none",
+       "score": null
+      }
+     ],
+     "thinking": {
+      "total": 38.64,
+      "models": {
+       "gpt-5.5": 38.64
+      }
+     },
+     "models": [
+      {
+       "id": "claude-opus-5-5",
+       "sources": [
+        "claudeCode"
+       ],
+       "requests": 3,
+       "output": 1500,
+       "measuredOutput": 1400,
+       "measuredMs": 3300,
+       "generating": 2
+      },
+      {
+       "id": "gpt-5.5",
+       "sources": [
+        "codex"
+       ],
+       "requests": 1,
+       "output": 340,
+       "measuredOutput": 302,
+       "measuredMs": 820,
+       "generating": 1
+      },
+      {
+       "id": "deepseek-v4",
+       "sources": [
+        "opencode"
+       ],
+       "requests": 0,
+       "output": 0,
+       "measuredOutput": 0,
+       "measuredMs": 0,
+       "generating": 1
+      }
+     ],
+     "ledger": {
+      "claude-sonnet-5-5": [
+       {
+        "source": "claudeDesktop",
+        "completed": 1,
+        "scored": 1,
+        "scoreSum": 23,
+        "scoreBins": [
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ],
+        "successes": 0,
+        "stalls": 1,
+        "fixAttempts": 4,
+        "fixFailures": 4,
+        "recovered": 0,
+        "recoverAttempts": 0
+       }
+      ],
+      "claude-opus-5-5": [
+       {
+        "source": "claudeCode",
+        "completed": 2,
+        "scored": 2,
+        "scoreSum": 141,
+        "scoreBins": [
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         1
+        ],
+        "successes": 1,
+        "stalls": 0,
+        "fixAttempts": 3,
+        "fixFailures": 1,
+        "recovered": 1,
+        "recoverAttempts": 2
+       }
+      ]
+     }
+    },
+    "expect": {
+     "taskScore": {
+      "score": 92,
+      "form": "live",
+      "thinkingTokS": 38.6
+     },
+     "models": [
+      {
+       "id": "claude-opus-5-5",
+       "sources": [
+        "claudeCode"
+       ],
+       "requests": 3,
+       "output": 1500,
+       "measuredOutput": 1400,
+       "measuredMs": 3300,
+       "generating": 2,
+       "taskScore": {
+        "score": 92,
+        "form": "live",
+        "thinkingTokS": 0.0
+       },
+       "taskStats": [
+        {
+         "source": "claudeCode",
+         "completed": 2,
+         "scored": 2,
+         "scoreSum": 141,
+         "scoreBins": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1
+         ],
+         "successes": 1,
+         "stalls": 0,
+         "fixAttempts": 3,
+         "fixFailures": 1,
+         "recovered": 1,
+         "recoverAttempts": 2
+        }
+       ]
+      },
+      {
+       "id": "gpt-5.5",
+       "sources": [
+        "codex"
+       ],
+       "requests": 1,
+       "output": 340,
+       "measuredOutput": 302,
+       "measuredMs": 820,
+       "generating": 1,
+       "taskScore": {
+        "score": 64,
+        "form": "live",
+        "thinkingTokS": 38.6
+       },
+       "taskStats": []
+      },
+      {
+       "id": "claude-sonnet-5-5",
+       "sources": [
+        "claudeDesktop"
+       ],
+       "requests": 0,
+       "output": 0,
+       "measuredOutput": 0,
+       "measuredMs": 0,
+       "generating": 0,
+       "taskScore": {
+        "score": 23,
+        "form": "resting",
+        "thinkingTokS": 0.0
+       },
+       "taskStats": [
+        {
+         "source": "claudeDesktop",
+         "completed": 1,
+         "scored": 1,
+         "scoreSum": 23,
+         "scoreBins": [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+         ],
+         "successes": 0,
+         "stalls": 1,
+         "fixAttempts": 4,
+         "fixFailures": 4,
+         "recovered": 0,
+         "recoverAttempts": 0
+        }
+       ]
+      },
+      {
+       "id": "deepseek-v4",
+       "sources": [
+        "opencode"
+       ],
+       "requests": 0,
+       "output": 0,
+       "measuredOutput": 0,
+       "measuredMs": 0,
+       "generating": 1,
+       "taskScore": {
+        "score": null,
+        "form": "none",
+        "thinkingTokS": 0.0
+       },
+       "taskStats": []
+      },
+      {
+       "id": "glm-5",
+       "sources": [
+        "omp"
+       ],
+       "requests": 0,
+       "output": 0,
+       "measuredOutput": 0,
+       "measuredMs": 0,
+       "generating": 0,
+       "taskScore": {
+        "score": 40,
+        "form": "live",
+        "thinkingTokS": 0.0
+       },
+       "taskStats": []
+      }
+     ]
+    }
+   },
+   {
+    "name": "beyond maxModels the rest merges into other: the highest value live before resting, thinking summed before rounding, rows summed per source",
+    "input": {
+     "maxModels": 2,
+     "agents": [
+      {
+       "id": "a1",
+       "source": "claudeCode",
+       "model": "claude-opus-5-5",
+       "form": "live",
+       "score": 50.0
+      },
+      {
+       "id": "a2",
+       "source": "codex",
+       "model": "gpt-5.5",
+       "form": "resting",
+       "score": 88.0
+      },
+      {
+       "id": "a3",
+       "source": "claudeCode",
+       "model": "claude-sonnet-5-5",
+       "form": "live",
+       "score": 12.25
+      }
+     ],
+     "thinking": {
+      "total": 20.08,
+      "models": {
+       "claude-opus-5-5": 10.0,
+       "gpt-5.5": 10.04,
+       "claude-sonnet-5-5": 0.04
+      }
+     },
+     "models": [
+      {
+       "id": "claude-opus-5-5",
+       "sources": [
+        "claudeCode"
+       ],
+       "requests": 2,
+       "output": 900,
+       "measuredOutput": 900,
+       "measuredMs": 3000,
+       "generating": 1
+      },
+      {
+       "id": "gpt-5.5",
+       "sources": [
+        "codex"
+       ],
+       "requests": 1,
+       "output": 300,
+       "measuredOutput": 300,
+       "measuredMs": 1000,
+       "generating": 0
+      },
+      {
+       "id": "claude-sonnet-5-5",
+       "sources": [
+        "claudeCode"
+       ],
+       "requests": 1,
+       "output": 100,
+       "measuredOutput": 100,
+       "measuredMs": 500,
+       "generating": 1
+      }
+     ],
+     "ledger": {
+      "gpt-5.5": [
+       {
+        "source": "codex",
+        "completed": 1,
+        "scored": 1,
+        "scoreSum": 88,
+        "scoreBins": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0
+        ],
+        "successes": 1,
+        "stalls": 0,
+        "fixAttempts": 0,
+        "fixFailures": 0,
+        "recovered": 0,
+        "recoverAttempts": 0
+       }
+      ],
+      "claude-sonnet-5-5": [
+       {
+        "source": "claudeCode",
+        "completed": 1,
+        "scored": 1,
+        "scoreSum": 41,
+        "scoreBins": [
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0
+        ],
+        "successes": 0,
+        "stalls": 0,
+        "fixAttempts": 2,
+        "fixFailures": 1,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      ]
+     }
+    },
+    "expect": {
+     "taskScore": {
+      "score": 50,
+      "form": "live",
+      "thinkingTokS": 20.1
+     },
+     "models": [
+      {
+       "id": "claude-opus-5-5",
+       "sources": [
+        "claudeCode"
+       ],
+       "requests": 2,
+       "output": 900,
+       "measuredOutput": 900,
+       "measuredMs": 3000,
+       "generating": 1,
+       "taskScore": {
+        "score": 50,
+        "form": "live",
+        "thinkingTokS": 10.0
+       },
+       "taskStats": []
+      },
+      {
+       "id": "other",
+       "sources": [
+        "codex",
+        "claudeCode"
+       ],
+       "requests": 2,
+       "output": 400,
+       "measuredOutput": 400,
+       "measuredMs": 1500,
+       "generating": 1,
+       "taskScore": {
+        "score": 12,
+        "form": "live",
+        "thinkingTokS": 10.1
+       },
+       "taskStats": [
+        {
+         "source": "codex",
+         "completed": 1,
+         "scored": 1,
+         "scoreSum": 88,
+         "scoreBins": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+         ],
+         "successes": 1,
+         "stalls": 0,
+         "fixAttempts": 0,
+         "fixFailures": 0,
+         "recovered": 0,
+         "recoverAttempts": 0
+        },
+        {
+         "source": "claudeCode",
+         "completed": 1,
+         "scored": 1,
+         "scoreSum": 41,
+         "scoreBins": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+         ],
+         "successes": 0,
+         "stalls": 0,
+         "fixAttempts": 2,
+         "fixFailures": 1,
+         "recovered": 1,
+         "recoverAttempts": 1
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "name": "no agent has a score: none everywhere, thinking still reported",
+    "input": {
+     "maxModels": 16,
+     "agents": [
+      {
+       "id": "a1",
+       "source": "gemini",
+       "model": "gemini-3-pro",
+       "form": "none",
+       "score": null
+      }
+     ],
+     "thinking": {
+      "total": 4.25,
+      "models": {
+       "gemini-3-pro": 4.25
+      }
+     },
+     "models": [
+      {
+       "id": "gemini-3-pro",
+       "sources": [
+        "gemini"
+       ],
+       "requests": 1,
+       "output": 50,
+       "measuredOutput": 50,
+       "measuredMs": 400,
+       "generating": 1
+      }
+     ]
+    },
+    "expect": {
+     "taskScore": {
+      "score": null,
+      "form": "none",
+      "thinkingTokS": 4.3
+     },
+     "models": [
+      {
+       "id": "gemini-3-pro",
+       "sources": [
+        "gemini"
+       ],
+       "requests": 1,
+       "output": 50,
+       "measuredOutput": 50,
+       "measuredMs": 400,
+       "generating": 1,
+       "taskScore": {
+        "score": null,
+        "form": "none",
+        "thinkingTokS": 4.3
+       },
+       "taskStats": []
+      }
+     ]
+    }
+   }
+  ],
+  "ledger": [
+   {
+    "name": "a task watched from its start counts once, when it completes, in the next built report",
+    "events": [
+     {
+      "at": 1800000000000,
+      "watch": true
+     },
+     {
+      "at": 1800000001000,
+      "start": "x",
+      "t": 1800000000900
+     },
+     {
+      "at": 1800000005000,
+      "build": 1
+     },
+     {
+      "at": 1800000009000,
+      "complete": "x",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000010000,
+      "build": 2
+     },
+     {
+      "at": 1800000015000,
+      "build": 3
+     }
+    ],
+    "expect": {
+     "builds": [
+      {
+       "seq": 1,
+       "taskStats": {}
+      },
+      {
+       "seq": 2,
+       "taskStats": {
+        "claude-opus-5-5": [
+         {
+          "source": "claudeCode",
+          "completed": 1,
+          "scored": 1,
+          "scoreSum": 86,
+          "scoreBins": [
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           1,
+           0
+          ],
+          "successes": 1,
+          "stalls": 0,
+          "fixAttempts": 1,
+          "fixFailures": 0,
+          "recovered": 1,
+          "recoverAttempts": 1
+         }
+        ]
+       }
+      },
+      {
+       "seq": 3,
+       "taskStats": {}
+      }
+     ],
+     "watched": [],
+     "pending": {}
+    }
+   },
+   {
+    "name": "history is never counted: a task read while seeding, one that started before reporting was on, and one whose first event is more than 2 minutes old when read (a session found late)",
+    "events": [
+     {
+      "at": 1800000000000,
+      "start": "seeded",
+      "t": 1799999940000,
+      "seeding": true
+     },
+     {
+      "at": 1800000001000,
+      "start": "early",
+      "t": 1800000001000
+     },
+     {
+      "at": 1800000002000,
+      "watch": true
+     },
+     {
+      "at": 1800000003000,
+      "start": "late",
+      "t": 1799999882999
+     },
+     {
+      "at": 1800000004000,
+      "start": "edge",
+      "t": 1799999884000
+     },
+     {
+      "at": 1800000006000,
+      "complete": "seeded",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000006000,
+      "complete": "early",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000006000,
+      "complete": "late",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000006000,
+      "complete": "edge",
+      "record": {
+       "model": "gpt-5.5",
+       "source": "codex",
+       "actions": 5,
+       "score": 55.0,
+       "success": false,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 3,
+        "fixFailures": 1,
+        "recovered": 1,
+        "recoverAttempts": 2
+       }
+      }
+     },
+     {
+      "at": 1800000007000,
+      "build": 1
+     }
+    ],
+    "expect": {
+     "builds": [
+      {
+       "seq": 1,
+       "taskStats": {
+        "gpt-5.5": [
+         {
+          "source": "codex",
+          "completed": 1,
+          "scored": 1,
+          "scoreSum": 55,
+          "scoreBins": [
+           0,
+           0,
+           0,
+           0,
+           0,
+           1,
+           0,
+           0,
+           0,
+           0
+          ],
+          "successes": 0,
+          "stalls": 0,
+          "fixAttempts": 3,
+          "fixFailures": 1,
+          "recovered": 1,
+          "recoverAttempts": 2
+         }
+        ]
+       }
+      }
+     ],
+     "watched": [],
+     "pending": {}
+    }
+   },
+   {
+    "name": "a break (pause, models switch off, the service dropping the extension, network off) drops every watched task and every pending completion; tasks that start afterwards count",
+    "events": [
+     {
+      "at": 1800000000000,
+      "watch": true
+     },
+     {
+      "at": 1800000001000,
+      "start": "a",
+      "t": 1800000001000
+     },
+     {
+      "at": 1800000001000,
+      "start": "b",
+      "t": 1800000001000
+     },
+     {
+      "at": 1800000002000,
+      "complete": "a",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000003000,
+      "watch": false
+     },
+     {
+      "at": 1800000060000,
+      "watch": true
+     },
+     {
+      "at": 1800000061000,
+      "complete": "b",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000062000,
+      "start": "c",
+      "t": 1800000062000
+     },
+     {
+      "at": 1800000063000,
+      "complete": "c",
+      "record": {
+       "model": "gpt-5.5",
+       "source": "codex",
+       "actions": 5,
+       "score": 55.0,
+       "success": false,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 3,
+        "fixFailures": 1,
+        "recovered": 1,
+        "recoverAttempts": 2
+       }
+      }
+     },
+     {
+      "at": 1800000065000,
+      "build": 1
+     }
+    ],
+    "expect": {
+     "builds": [
+      {
+       "seq": 1,
+       "taskStats": {
+        "gpt-5.5": [
+         {
+          "source": "codex",
+          "completed": 1,
+          "scored": 1,
+          "scoreSum": 55,
+          "scoreBins": [
+           0,
+           0,
+           0,
+           0,
+           0,
+           1,
+           0,
+           0,
+           0,
+           0
+          ],
+          "successes": 0,
+          "stalls": 0,
+          "fixAttempts": 3,
+          "fixFailures": 1,
+          "recovered": 1,
+          "recoverAttempts": 2
+         }
+        ]
+       }
+      }
+     ],
+     "watched": [],
+     "pending": {}
+    }
+   },
+   {
+    "name": "a leaving report on a user action takes the pending completions before the break empties the ledger",
+    "events": [
+     {
+      "at": 1800000000000,
+      "watch": true
+     },
+     {
+      "at": 1800000001000,
+      "start": "a",
+      "t": 1800000001000
+     },
+     {
+      "at": 1800000001000,
+      "start": "b",
+      "t": 1800000001000
+     },
+     {
+      "at": 1800000002000,
+      "complete": "a",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000003000,
+      "build": 1,
+      "activity": "leaving"
+     },
+     {
+      "at": 1800000003000,
+      "watch": false
+     }
+    ],
+    "expect": {
+     "builds": [
+      {
+       "seq": 1,
+       "taskStats": {
+        "claude-opus-5-5": [
+         {
+          "source": "claudeCode",
+          "completed": 1,
+          "scored": 1,
+          "scoreSum": 86,
+          "scoreBins": [
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           1,
+           0
+          ],
+          "successes": 1,
+          "stalls": 0,
+          "fixAttempts": 1,
+          "fixFailures": 0,
+          "recovered": 1,
+          "recoverAttempts": 1
+         }
+        ]
+       }
+      }
+     ],
+     "watched": [],
+     "pending": {}
+    }
+   },
+   {
+    "name": "quiet, sleep gaps, backoff and new runs keep the task ledger; a built report that is lost loses its completions; a report whose models were dropped for size loses them too",
+    "events": [
+     {
+      "at": 1800000000000,
+      "watch": true
+     },
+     {
+      "at": 1800000001000,
+      "start": "a",
+      "t": 1800000001000
+     },
+     {
+      "at": 1800000001000,
+      "start": "b",
+      "t": 1800000001000
+     },
+     {
+      "at": 1800000001000,
+      "start": "c",
+      "t": 1800000001000
+     },
+     {
+      "at": 1800000001000,
+      "start": "d",
+      "t": 1800000001000
+     },
+     {
+      "at": 1800001801000,
+      "complete": "a",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800001801000,
+      "discard": "quiet"
+     },
+     {
+      "at": 1800001900000,
+      "discard": "gap"
+     },
+     {
+      "at": 1800001905000,
+      "build": 1,
+      "lost": true
+     },
+     {
+      "at": 1800001906000,
+      "complete": "b",
+      "record": {
+       "model": "gpt-5.5",
+       "source": "codex",
+       "actions": 5,
+       "score": 55.0,
+       "success": false,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 3,
+        "fixFailures": 1,
+        "recovered": 1,
+        "recoverAttempts": 2
+       }
+      }
+     },
+     {
+      "at": 1800001907000,
+      "newRun": "seq_conflict"
+     },
+     {
+      "at": 1800001907000,
+      "discard": "notReady"
+     },
+     {
+      "at": 1800001912000,
+      "build": 1
+     },
+     {
+      "at": 1800001913000,
+      "complete": "c",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800001917000,
+      "build": 2,
+      "models": false
+     },
+     {
+      "at": 1800001918000,
+      "complete": "d",
+      "record": {
+       "model": "gpt-5.5",
+       "source": "codex",
+       "actions": 5,
+       "score": 55.0,
+       "success": false,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 3,
+        "fixFailures": 1,
+        "recovered": 1,
+        "recoverAttempts": 2
+       }
+      }
+     },
+     {
+      "at": 1800001922000,
+      "build": 3
+     }
+    ],
+    "expect": {
+     "builds": [
+      {
+       "seq": 1,
+       "taskStats": {
+        "claude-opus-5-5": [
+         {
+          "source": "claudeCode",
+          "completed": 1,
+          "scored": 1,
+          "scoreSum": 86,
+          "scoreBins": [
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           1,
+           0
+          ],
+          "successes": 1,
+          "stalls": 0,
+          "fixAttempts": 1,
+          "fixFailures": 0,
+          "recovered": 1,
+          "recoverAttempts": 1
+         }
+        ]
+       }
+      },
+      {
+       "seq": 1,
+       "taskStats": {
+        "gpt-5.5": [
+         {
+          "source": "codex",
+          "completed": 1,
+          "scored": 1,
+          "scoreSum": 55,
+          "scoreBins": [
+           0,
+           0,
+           0,
+           0,
+           0,
+           1,
+           0,
+           0,
+           0,
+           0
+          ],
+          "successes": 0,
+          "stalls": 0,
+          "fixAttempts": 3,
+          "fixFailures": 1,
+          "recovered": 1,
+          "recoverAttempts": 2
+         }
+        ]
+       }
+      },
+      {
+       "seq": 2,
+       "taskStats": null
+      },
+      {
+       "seq": 3,
+       "taskStats": {
+        "gpt-5.5": [
+         {
+          "source": "codex",
+          "completed": 1,
+          "scored": 1,
+          "scoreSum": 55,
+          "scoreBins": [
+           0,
+           0,
+           0,
+           0,
+           0,
+           1,
+           0,
+           0,
+           0,
+           0
+          ],
+          "successes": 0,
+          "stalls": 0,
+          "fixAttempts": 3,
+          "fixFailures": 1,
+          "recovered": 1,
+          "recoverAttempts": 2
+         }
+        ]
+       }
+      }
+     ],
+     "watched": [],
+     "pending": {}
+    }
+   },
+   {
+    "name": "a withdrawn prompt never started a task; a task without actions adds nothing; an agent whose file or source went away drops its task; rows add up per model and source",
+    "events": [
+     {
+      "at": 1800000000000,
+      "watch": true
+     },
+     {
+      "at": 1800000001000,
+      "start": "w",
+      "t": 1800000001000
+     },
+     {
+      "at": 1800000001500,
+      "withdraw": "w"
+     },
+     {
+      "at": 1800000002000,
+      "start": "empty",
+      "t": 1800000002000
+     },
+     {
+      "at": 1800000002000,
+      "start": "gone",
+      "t": 1800000002000
+     },
+     {
+      "at": 1800000002000,
+      "start": "a",
+      "t": 1800000002000
+     },
+     {
+      "at": 1800000002000,
+      "start": "b",
+      "t": 1800000002000
+     },
+     {
+      "at": 1800000002000,
+      "start": "c",
+      "t": 1800000002000
+     },
+     {
+      "at": 1800000003000,
+      "complete": "w",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000003000,
+      "complete": "empty",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 0,
+       "score": null,
+       "success": false,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 0,
+        "fixFailures": 0,
+        "recovered": 0,
+        "recoverAttempts": 0
+       }
+      }
+     },
+     {
+      "at": 1800000003000,
+      "drop": "gone"
+     },
+     {
+      "at": 1800000003500,
+      "complete": "gone",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000004000,
+      "complete": "a",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000004000,
+      "complete": "b",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 9.5,
+       "success": false,
+       "stalled": true,
+       "counts": {
+        "fixAttempts": 0,
+        "fixFailures": 0,
+        "recovered": 0,
+        "recoverAttempts": 0
+       }
+      }
+     },
+     {
+      "at": 1800000004000,
+      "complete": "c",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeDesktop",
+       "actions": 5,
+       "score": 70.0,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 0,
+        "fixFailures": 0,
+        "recovered": 0,
+        "recoverAttempts": 0
+       }
+      }
+     },
+     {
+      "at": 1800000005000,
+      "build": 1
+     }
+    ],
+    "expect": {
+     "builds": [
+      {
+       "seq": 1,
+       "taskStats": {
+        "claude-opus-5-5": [
+         {
+          "source": "claudeCode",
+          "completed": 2,
+          "scored": 2,
+          "scoreSum": 96,
+          "scoreBins": [
+           0,
+           1,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           1,
+           0
+          ],
+          "successes": 1,
+          "stalls": 1,
+          "fixAttempts": 1,
+          "fixFailures": 0,
+          "recovered": 1,
+          "recoverAttempts": 1
+         },
+         {
+          "source": "claudeDesktop",
+          "completed": 1,
+          "scored": 1,
+          "scoreSum": 70,
+          "scoreBins": [
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           1,
+           0,
+           0
+          ],
+          "successes": 1,
+          "stalls": 0,
+          "fixAttempts": 0,
+          "fixFailures": 0,
+          "recovered": 0,
+          "recoverAttempts": 0
+         }
+        ]
+       }
+      }
+     ],
+     "watched": [],
+     "pending": {}
+    }
+   },
+   {
+    "name": "relaunch: nothing survives; the task rebuilt from its file after the launch is history",
+    "events": [
+     {
+      "at": 1800000000000,
+      "watch": true
+     },
+     {
+      "at": 1800000001000,
+      "start": "a",
+      "t": 1800000001000
+     },
+     {
+      "at": 1800000002000,
+      "start": "b",
+      "t": 1800000002000
+     },
+     {
+      "at": 1800000003000,
+      "complete": "b",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000004000,
+      "relaunch": true
+     },
+     {
+      "at": 1800000010000,
+      "watch": true
+     },
+     {
+      "at": 1800000011000,
+      "complete": "a",
+      "record": {
+       "model": "claude-opus-5-5",
+       "source": "claudeCode",
+       "actions": 5,
+       "score": 86.4,
+       "success": true,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 1,
+        "fixFailures": 0,
+        "recovered": 1,
+        "recoverAttempts": 1
+       }
+      }
+     },
+     {
+      "at": 1800000015000,
+      "build": 1
+     }
+    ],
+    "expect": {
+     "builds": [
+      {
+       "seq": 1,
+       "taskStats": {}
+      }
+     ],
+     "watched": [],
+     "pending": {}
+    }
+   },
+   {
+    "name": "at most 1000 completed tasks wait for one report; later completions are dropped, not deferred",
+    "events": [
+     {
+      "at": 1800000000000,
+      "watch": true
+     },
+     {
+      "at": 1800000001000,
+      "start": "bulk",
+      "t": 1800000001000,
+      "count": 1001
+     },
+     {
+      "at": 1800000002000,
+      "complete": "bulk",
+      "count": 1001,
+      "record": {
+       "model": "gpt-5.5",
+       "source": "codex",
+       "actions": 5,
+       "score": null,
+       "success": false,
+       "stalled": false,
+       "counts": {
+        "fixAttempts": 0,
+        "fixFailures": 0,
+        "recovered": 0,
+        "recoverAttempts": 0
+       }
+      }
+     },
+     {
+      "at": 1800000005000,
+      "build": 1
+     }
+    ],
+    "expect": {
+     "builds": [
+      {
+       "seq": 1,
+       "taskStats": {
+        "gpt-5.5": [
+         {
+          "source": "codex",
+          "completed": 1000,
+          "scored": 0,
+          "scoreSum": 0,
+          "scoreBins": [
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0,
+           0
+          ],
+          "successes": 0,
+          "stalls": 0,
+          "fixAttempts": 0,
+          "fixFailures": 0,
+          "recovered": 0,
+          "recoverAttempts": 0
+         }
+        ]
+       }
+      }
+     ],
+     "watched": [],
+     "pending": {}
+    }
+   }
+  ],
+  "validation": [
+   {
+    "name": "the example body is valid",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": []
+   },
+   {
+    "name": "a body without the extension is valid (an older client, or models not shared)",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0}]}",
+    "expect": []
+   },
+   {
+    "name": "models dropped for size: the top-level object alone is valid",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": []
+   },
+   {
+    "name": "form none needs a null score",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"none\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/taskScore/score"
+    ]
+   },
+   {
+    "name": "a null score needs form none",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":null,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/1/taskScore/score"
+    ]
+   },
+   {
+    "name": "a score above 100",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":101,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/taskScore/score"
+    ]
+   },
+   {
+    "name": "an unknown form",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"sleeping\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/taskScore/form"
+    ]
+   },
+   {
+    "name": "a model entry without taskStats while the top level has taskScore",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6}},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/1/taskStats"
+    ]
+   },
+   {
+    "name": "per-model fields without the top-level object",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}]}",
+    "expect": [
+     "/models/0/taskScore",
+     "/models/0/taskStats",
+     "/models/1/taskScore",
+     "/models/1/taskStats",
+     "/models/2/taskScore",
+     "/models/2/taskStats"
+    ]
+   },
+   {
+    "name": "a row whose source the model does not list",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"codex\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/0/taskStats/0/source"
+    ]
+   },
+   {
+    "name": "two rows for one source",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2},{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/0/taskStats/1/source"
+    ]
+   },
+   {
+    "name": "a row with no completed task",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":0,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/0/taskStats/0/completed"
+    ]
+   },
+   {
+    "name": "scored above completed",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":3,\"scoreSum\":235,\"scoreBins\":[0,0,0,0,1,0,0,0,1,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/0/taskStats/0/scored"
+    ]
+   },
+   {
+    "name": "bins that do not add up to scored",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,0],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/0/taskStats/0/scoreBins"
+    ]
+   },
+   {
+    "name": "nine bins",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/0/taskStats/0/scoreBins"
+    ]
+   },
+   {
+    "name": "a score sum outside its bins (two tasks in bins 4 and 9 sum to 130-149)",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":150,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/0/taskStats/0/scoreSum"
+    ]
+   },
+   {
+    "name": "more successes than scored tasks",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":3,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/0/taskStats/0/successes"
+    ]
+   },
+   {
+    "name": "more fix failures than attempts",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":4,\"recovered\":1,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/0/taskStats/0/fixFailures"
+    ]
+   },
+   {
+    "name": "recovered episodes without as many attempts",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":3,\"recoverAttempts\":2}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/0/taskStats/0/recovered"
+    ]
+   },
+   {
+    "name": "recovery attempts above the fix attempts",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":2,\"scored\":2,\"scoreSum\":141,\"scoreBins\":[0,0,0,0,1,0,0,0,0,1],\"successes\":1,\"stalls\":0,\"fixAttempts\":3,\"fixFailures\":1,\"recovered\":1,\"recoverAttempts\":4}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models/0/taskStats/0/recoverAttempts"
+    ]
+   },
+   {
+    "name": "more than 1000 completed tasks in one report",
+    "body": "{\"schema\":1,\"client\":{\"app\":\"AgentSpeed\",\"version\":\"1.3.0\",\"platform\":\"macOS\",\"osMajor\":27},\"deviceId\":\"6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b\",\"username\":\"zoe-mbp\",\"run\":{\"id\":\"c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f\",\"seq\":42},\"sentAt\":\"2026-10-22T08:15:30.500Z\",\"windowMs\":5000,\"activity\":\"active\",\"live\":{\"outputTokS\":412.6,\"totalTokS\":182340.2,\"estimatedShare\":0.215,\"agents\":{\"generating\":3,\"tools\":1,\"active\":5}},\"peak\":{\"outputTokS\":655.0,\"totalTokS\":240118.7},\"delta\":{\"requests\":4,\"output\":1840,\"input\":912400,\"cachedInput\":880120,\"cacheWriteInput\":12050,\"reasoning\":310,\"measuredOutput\":1702,\"measuredMs\":4120},\"title\":{\"level\":8,\"metric\":\"output\",\"redline\":2000,\"heat\":0.388},\"cost\":{\"liveMicroUsdPerSecond\":4213,\"peakMicroUsdPerSecond\":6120,\"knownShare\":1.0,\"deltaMicroUsd\":21003,\"unpricedRequests\":0,\"priceVersion\":1},\"traffic\":{\"status\":\"ok\",\"includesTools\":true,\"rxBytesPerSecond\":24310,\"txBytesPerSecond\":1288,\"peakRxBytesPerSecond\":61200,\"peakTxBytesPerSecond\":3410,\"rxBytes\":121550,\"txBytes\":6440},\"sources\":[{\"source\":\"codex\",\"live\":{\"outputTokS\":112.2,\"totalTokS\":32120.1,\"estimatedShare\":0.47},\"agents\":{\"generating\":1,\"tools\":0,\"active\":2},\"delta\":{\"requests\":1,\"output\":340,\"input\":112400,\"cachedInput\":100120,\"cacheWriteInput\":0,\"reasoning\":310,\"measuredOutput\":302,\"measuredMs\":820},\"cost\":{\"liveMicroUsdPerSecond\":613,\"knownShare\":1.0,\"deltaMicroUsd\":3000,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":4200,\"txBytesPerSecond\":288,\"rxBytes\":21000,\"txBytes\":1440}},{\"source\":\"claudeCode\",\"live\":{\"outputTokS\":300.4,\"totalTokS\":150220.1,\"estimatedShare\":0.12},\"agents\":{\"generating\":2,\"tools\":1,\"active\":3},\"delta\":{\"requests\":3,\"output\":1500,\"input\":800000,\"cachedInput\":780000,\"cacheWriteInput\":12050,\"reasoning\":0,\"measuredOutput\":1400,\"measuredMs\":3300},\"cost\":{\"liveMicroUsdPerSecond\":3600,\"knownShare\":1.0,\"deltaMicroUsd\":18003,\"unpricedRequests\":0},\"traffic\":{\"rxBytesPerSecond\":20110,\"txBytesPerSecond\":1000,\"rxBytes\":100550,\"txBytes\":5000}}],\"models\":[{\"id\":\"claude-opus-5-5\",\"sources\":[\"claudeCode\"],\"requests\":3,\"output\":1500,\"measuredOutput\":1400,\"measuredMs\":3300,\"generating\":2,\"deltaMicroUsd\":18003,\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeCode\",\"completed\":500,\"scored\":0,\"scoreSum\":0,\"scoreBins\":[0,0,0,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":0,\"fixAttempts\":0,\"fixFailures\":0,\"recovered\":0,\"recoverAttempts\":0}]},{\"id\":\"gpt-5.5\",\"sources\":[\"codex\"],\"requests\":1,\"output\":340,\"measuredOutput\":302,\"measuredMs\":820,\"generating\":1,\"deltaMicroUsd\":3000,\"taskScore\":{\"score\":64,\"form\":\"live\",\"thinkingTokS\":38.6},\"taskStats\":[{\"source\":\"codex\",\"completed\":501,\"scored\":0,\"scoreSum\":0,\"scoreBins\":[0,0,0,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":0,\"fixAttempts\":0,\"fixFailures\":0,\"recovered\":0,\"recoverAttempts\":0}]},{\"id\":\"claude-sonnet-5-5\",\"sources\":[\"claudeDesktop\"],\"requests\":0,\"output\":0,\"measuredOutput\":0,\"measuredMs\":0,\"generating\":0,\"deltaMicroUsd\":0,\"taskScore\":{\"score\":23,\"form\":\"resting\",\"thinkingTokS\":0.0},\"taskStats\":[{\"source\":\"claudeDesktop\",\"completed\":1,\"scored\":1,\"scoreSum\":23,\"scoreBins\":[0,0,1,0,0,0,0,0,0,0],\"successes\":0,\"stalls\":1,\"fixAttempts\":4,\"fixFailures\":4,\"recovered\":0,\"recoverAttempts\":0}]}],\"taskScore\":{\"score\":92,\"form\":\"live\",\"thinkingTokS\":38.6}}",
+    "expect": [
+     "/models"
+    ]
+   }
+  ],
+  "receiver": [
+   {
+    "name": "live values from each online device's latest report (highest, live before resting; thinking summed); increments summed once per accepted report; a forgotten device leaves no trace",
+    "reports": [
+     {
+      "device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+      "body": {
+       "taskScore": {
+        "score": 92,
+        "form": "live",
+        "thinkingTokS": 12.0
+       },
+       "models": [
+        {
+         "id": "claude-opus-5-5",
+         "sources": [
+          "claudeCode"
+         ],
+         "taskScore": {
+          "score": 92,
+          "form": "live",
+          "thinkingTokS": 12.0
+         },
+         "taskStats": [
+          {
+           "source": "claudeCode",
+           "completed": 2,
+           "scored": 2,
+           "scoreSum": 141,
+           "scoreBins": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1
+           ],
+           "successes": 1,
+           "stalls": 0,
+           "fixAttempts": 3,
+           "fixFailures": 1,
+           "recovered": 1,
+           "recoverAttempts": 2
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+      "accepted": false,
+      "note": "a duplicate (same run and seq) is never recorded again",
+      "body": {
+       "taskScore": {
+        "score": 92,
+        "form": "live",
+        "thinkingTokS": 12.0
+       },
+       "models": [
+        {
+         "id": "claude-opus-5-5",
+         "sources": [
+          "claudeCode"
+         ],
+         "taskScore": {
+          "score": 92,
+          "form": "live",
+          "thinkingTokS": 12.0
+         },
+         "taskStats": [
+          {
+           "source": "claudeCode",
+           "completed": 2,
+           "scored": 2,
+           "scoreSum": 141,
+           "scoreBins": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1
+           ],
+           "successes": 1,
+           "stalls": 0,
+           "fixAttempts": 3,
+           "fixFailures": 1,
+           "recovered": 1,
+           "recoverAttempts": 2
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "device": "0b7e4d2c-9a1f-4c3e-b5d6-7e8f9a0b1c2d",
+      "body": {
+       "taskScore": {
+        "score": 64,
+        "form": "live",
+        "thinkingTokS": 30.25
+       },
+       "models": [
+        {
+         "id": "gpt-5.5",
+         "sources": [
+          "codex"
+         ],
+         "taskScore": {
+          "score": 64,
+          "form": "live",
+          "thinkingTokS": 30.25
+         },
+         "taskStats": [
+          {
+           "source": "codex",
+           "completed": 3,
+           "scored": 2,
+           "scoreSum": 120,
+           "scoreBins": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0
+           ],
+           "successes": 1,
+           "stalls": 1,
+           "fixAttempts": 5,
+           "fixFailures": 2,
+           "recovered": 2,
+           "recoverAttempts": 3
+          }
+         ]
+        },
+        {
+         "id": "claude-opus-5-5",
+         "sources": [
+          "claudeCode"
+         ],
+         "taskScore": {
+          "score": 97,
+          "form": "resting",
+          "thinkingTokS": 0.0
+         },
+         "taskStats": [
+          {
+           "source": "claudeCode",
+           "completed": 1,
+           "scored": 1,
+           "scoreSum": 86,
+           "scoreBins": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0
+           ],
+           "successes": 1,
+           "stalls": 0,
+           "fixAttempts": 1,
+           "fixFailures": 0,
+           "recovered": 1,
+           "recoverAttempts": 1
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "device": "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+      "body": {
+       "taskScore": {
+        "score": 92,
+        "form": "resting",
+        "thinkingTokS": 0.0
+       },
+       "models": [
+        {
+         "id": "claude-sonnet-5-5",
+         "sources": [
+          "claudeDesktop"
+         ],
+         "taskScore": {
+          "score": 23,
+          "form": "resting",
+          "thinkingTokS": 0.0
+         },
+         "taskStats": [
+          {
+           "source": "claudeDesktop",
+           "completed": 1,
+           "scored": 1,
+           "scoreSum": 23,
+           "scoreBins": [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+           ],
+           "successes": 0,
+           "stalls": 1,
+           "fixAttempts": 4,
+           "fixFailures": 4,
+           "recovered": 0,
+           "recoverAttempts": 0
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "device": "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d",
+      "body": {
+       "taskScore": {
+        "score": 99,
+        "form": "live",
+        "thinkingTokS": 5.0
+       },
+       "models": [
+        {
+         "id": "claude-opus-5-5",
+         "sources": [
+          "claudeCode"
+         ],
+         "taskScore": {
+          "score": 99,
+          "form": "live",
+          "thinkingTokS": 5.0
+         },
+         "taskStats": [
+          {
+           "source": "claudeCode",
+           "completed": 1,
+           "scored": 1,
+           "scoreSum": 86,
+           "scoreBins": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0
+           ],
+           "successes": 1,
+           "stalls": 0,
+           "fixAttempts": 1,
+           "fixFailures": 0,
+           "recovered": 1,
+           "recoverAttempts": 1
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "device": "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d",
+      "forget": true,
+      "note": "forget this device: its contributions and live values go"
+     },
+     {
+      "device": "0b7e4d2c-9a1f-4c3e-b5d6-7e8f9a0b1c2d",
+      "body": {
+       "models": [
+        {
+         "id": "gpt-5.5",
+         "sources": [
+          "codex"
+         ]
+        }
+       ]
+      },
+      "note": "a later report without the extension (models off or an older client) clears the live values, keeps the sums"
+     }
+    ],
+    "online": [
+     "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+     "0b7e4d2c-9a1f-4c3e-b5d6-7e8f9a0b1c2d"
+    ],
+    "expect": {
+     "live": {
+      "score": 92,
+      "form": "resting",
+      "thinkingTokS": 0.0
+     },
+     "models": [
+      {
+       "id": "claude-opus-5-5",
+       "ranked": true,
+       "stats": {
+        "completed": 3,
+        "scored": 3,
+        "scoreSum": 227,
+        "scoreBins": [
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         1,
+         1
+        ],
+        "successes": 2,
+        "stalls": 0,
+        "fixAttempts": 4,
+        "fixFailures": 1,
+        "recovered": 2,
+        "recoverAttempts": 3
+       },
+       "bySource": [
+        {
+         "source": "claudeCode",
+         "completed": 3,
+         "scored": 3,
+         "scoreSum": 227,
+         "scoreBins": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+          1
+         ],
+         "successes": 2,
+         "stalls": 0,
+         "fixAttempts": 4,
+         "fixFailures": 1,
+         "recovered": 2,
+         "recoverAttempts": 3
+        }
+       ],
+       "meanScore": 75.66666666666667,
+       "successRate": 0.6666666666666666,
+       "stallRate": 0.0,
+       "fixFailureRate": 0.25,
+       "recoverAttempts": 1.5,
+       "live": null
+      },
+      {
+       "id": "claude-sonnet-5-5",
+       "ranked": true,
+       "stats": {
+        "completed": 1,
+        "scored": 1,
+        "scoreSum": 23,
+        "scoreBins": [
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ],
+        "successes": 0,
+        "stalls": 1,
+        "fixAttempts": 4,
+        "fixFailures": 4,
+        "recovered": 0,
+        "recoverAttempts": 0
+       },
+       "bySource": [
+        {
+         "source": "claudeDesktop",
+         "completed": 1,
+         "scored": 1,
+         "scoreSum": 23,
+         "scoreBins": [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+         ],
+         "successes": 0,
+         "stalls": 1,
+         "fixAttempts": 4,
+         "fixFailures": 4,
+         "recovered": 0,
+         "recoverAttempts": 0
+        }
+       ],
+       "meanScore": 23.0,
+       "successRate": 0.0,
+       "stallRate": 1.0,
+       "fixFailureRate": 1.0,
+       "recoverAttempts": null,
+       "live": {
+        "score": 23,
+        "form": "resting",
+        "thinkingTokS": 0.0,
+        "devices": 1
+       }
+      },
+      {
+       "id": "gpt-5.5",
+       "ranked": true,
+       "stats": {
+        "completed": 3,
+        "scored": 2,
+        "scoreSum": 120,
+        "scoreBins": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         1,
+         0,
+         0,
+         0
+        ],
+        "successes": 1,
+        "stalls": 1,
+        "fixAttempts": 5,
+        "fixFailures": 2,
+        "recovered": 2,
+        "recoverAttempts": 3
+       },
+       "bySource": [
+        {
+         "source": "codex",
+         "completed": 3,
+         "scored": 2,
+         "scoreSum": 120,
+         "scoreBins": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0
+         ],
+         "successes": 1,
+         "stalls": 1,
+         "fixAttempts": 5,
+         "fixFailures": 2,
+         "recovered": 2,
+         "recoverAttempts": 3
+        }
+       ],
+       "meanScore": 60.0,
+       "successRate": 0.5,
+       "stallRate": 0.3333333333333333,
+       "fixFailureRate": 0.4,
+       "recoverAttempts": 1.5,
+       "live": null
+      }
+     ]
     }
    }
   ]

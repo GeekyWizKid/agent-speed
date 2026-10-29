@@ -9,12 +9,14 @@ rules, size and rate limits, and prints every report it accepts. State is in mem
   python3 spec/tools/report_server.py --api-path /agent-speed --api-key-mode required --api-key secret-123
   python3 spec/tools/report_server.py --tls-cert cert.pem --tls-key key.pem --public-url https://test.local:8787
   python3 spec/tools/report_server.py --websocket            also offer GET {api}/v1/reports/ws (METRICS 11.9)
+  python3 spec/tools/report_server.py --task-score           advertise and check the taskScore extension (METRICS 11.10)
 
 Then, in another terminal, the reference client:
 
   python3 spec/tools/report_reference.py client --url http://127.0.0.1:8787 --username demo --reports 3
 
-GET / shows a plain-text table of the devices and their summed deltas. Not for production use.
+GET / shows a plain-text table of the devices and their summed deltas (with --task-score also the merged model
+table, whose JSON is GET {api}/public/models). Not for production use.
 """
 
 from __future__ import annotations
@@ -42,10 +44,17 @@ def build_service(args) -> ref.ReferenceService:
     service = ref.ReferenceService(authority=ref.authority_of(public), api_path=args.api_path, name=args.name,
                                    api_key_mode=args.api_key_mode, api_keys=tuple(args.api_key), rules=rules,
                                    limits=limits, log=lambda line: print(line, flush=True),
-                                   extensions={name: 1 for name in ref.EXTENSIONS} if args.extensions else None,
+                                   extensions=extensions(args),
                                    websocket=websocket_settings(args))
     service.public_scheme = public.split("://", 1)[0]
     return service
+
+
+def extensions(args) -> dict | None:
+    chosen = {name: 1 for name in ref.EXTENSIONS} if args.extensions else {}
+    if args.task_score:
+        chosen["taskScore"] = 1
+    return chosen or None
 
 
 def websocket_settings(args) -> dict | None:
@@ -174,6 +183,24 @@ class Handler(BaseHTTPRequestHandler):
                          f"{last.get('activity', '-'):<8} {last.get('live', {}).get('outputTokS', 0):>9.1f} "
                          f"{totals.get('output', 0):>12} {totals.get('requests', 0):>9} "
                          f"{totals.get('costMicroUsd', 0) / 1e6:>12.6f}")
+        if self.service.task_board:
+            with self.lock:
+                online = [i for i, d in self.service.devices.items() if id(d) in online]
+                board = self.service.task_board.leaderboard(online)
+            score = board["live"]["score"]
+            lines += ["", f"taskScore: IQ {'-' if score is None else score} ({board['live']['form']}), "
+                          f"thinking {board['live']['thinkingTokS']:.1f} tok/s over online devices", "",
+                      f"{'model':<28} {'tasks':>6} {'scored':>7} {'mean IQ':>8} {'success':>8} {'stalls':>7} "
+                      f"{'fix fail':>9} {'live IQ':>8}"]
+            for row in board["models"]:
+                stats, live = row["stats"], row["live"] or {}
+                mean = "-" if row["meanScore"] is None else f"{row['meanScore']:.1f}"
+                success = "-" if row["successRate"] is None else f"{row['successRate']:.0%}"
+                fix = "-" if row["fixFailureRate"] is None else f"{row['fixFailureRate']:.0%}"
+                live_score = ("-" if live.get("score") is None
+                              else f"{live['score']}{'' if live['form'] == 'live' else '*'}")
+                lines.append(f"{row['id']:<28} {stats['completed']:>6} {stats['scored']:>7} {mean:>8} {success:>8} "
+                             f"{stats['stalls']:>7} {fix:>9} {live_score:>8}")
         return "\n".join(lines) + "\n"
 
     do_GET = do_POST = do_PATCH = do_PUT = do_DELETE = _dispatch
@@ -200,7 +227,10 @@ def main() -> int:
     parser.add_argument("--tls-cert")
     parser.add_argument("--tls-key")
     parser.add_argument("--verbose", action="store_true", help="print every accepted report in full")
-    parser.add_argument("--extensions", action="store_true", help="enable the optional mode/profile/pairing reference APIs")
+    parser.add_argument("--extensions", action="store_true",
+                        help="enable every optional extension: modes, profiles, pairing, taskScore")
+    parser.add_argument("--task-score", action="store_true",
+                        help="advertise and check only the taskScore extension (METRICS 11.10)")
     parser.add_argument("--websocket", action="store_true", help="offer the WebSocket transport (METRICS 11.9)")
     parser.add_argument("--ws-min-interval", type=int, help="minIntervalMs in the discovery document")
     parser.add_argument("--ws-max-in-flight", type=int, help="maxInFlight in the discovery document")
@@ -229,6 +259,7 @@ def main() -> int:
     service = Handler.service
     print(f"listening on {scheme}://{args.host}:{args.port}  signed authority {service.authority!r}  "
           f"api path {service.api_path or '/'}  api key {service.api_key_mode}"
+          f"{'  extensions ' + ','.join(sorted(service.extensions)) if service.extensions else ''}"
           f"{'  websocket ' + json.dumps(service.websocket) if service.websocket else ''}", flush=True)
     try:
         httpd.serve_forever()

@@ -193,5 +193,61 @@ class WebSocketEndpointTests(unittest.TestCase):
         self.assertEqual(second.close_code(), 1008)
 
 
+class WebSocketTaskScoreTests(unittest.TestCase):
+    """The taskScore extension over the WebSocket transport: the same body checks, `taskScore` before `realtime`."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), report_server.Handler)
+        cls.port = cls.httpd.server_address[1]
+        cls.api = f"http://127.0.0.1:{cls.port}/agent-speed"
+        cls.service = ref.ReferenceService(authority=f"127.0.0.1:{cls.port}", api_path="/agent-speed",
+                                           websocket={"minIntervalMs": 50}, extensions={"taskScore": 1})
+        cls.service.public_scheme = "http"
+        report_server.Handler.service = cls.service
+        report_server.Handler.ws_options = {}
+        threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
+        cls.d = ref.test_private_key("websocket task score")
+        cls.device = str(uuid.uuid4())
+        registration = ref._registration(cls.device, "ws-iq", ref.public_key(cls.d))
+        status, _, body = cls.service.handle(
+            "POST", "/agent-speed/v1/devices",
+            ref.signed_headers(cls.d, "POST", cls.api + "/v1/devices", cls.device, registration), registration)
+        assert status in (200, 201), (status, body)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+        cls.httpd.server_close()
+
+    def test_task_score_bodies_are_acknowledged_or_rejected_by_field(self):
+        report_server.Handler.service = self.service
+        client = Client(self.port, rw.handshake_headers(self.d, self.api, self.device), "/agent-speed" + rw.WS_PATH)
+        self.addCleanup(client.sock.close)
+        self.assertEqual(client.status, 101)
+        client.message()
+        run_id = str(uuid.uuid4())
+
+        def send(seq, change=None):
+            document = ref.load_examples()["report-taskscore-websocket"]
+            now_ms = int(time.time() * 1000)
+            document.update(deviceId=self.device, username="ws-iq", run={"id": run_id, "seq": seq},
+                            sentAt=ref.format_instant(now_ms), realtime=rw.realtime("mixed", now_ms, 18))
+            if change:
+                change(document)
+            self.assertEqual(list(document)[-2:], ["taskScore", "realtime"])
+            body = ref.compact_json(document)
+            client.send_text(rw.report_message(ref.signed_headers(self.d, "POST", self.api + "/v1/reports",
+                                                                  self.device, body), body))
+            return client.message()
+
+        self.assertEqual(send(1)["status"], "accepted")
+        error = send(2, lambda d: d["models"][2]["taskStats"][0].update(stalls=2))
+        self.assertEqual((error["type"], error["code"], error["httpStatus"]), ("error", "payload_invalid", 422))
+        self.assertEqual(send(2)["status"], "accepted")
+        rows = {row["id"]: row for row in self.service.task_board.leaderboard([self.device])["models"]}
+        self.assertEqual(rows["claude-sonnet-5-5"]["stats"]["completed"], 2)
+
+
 if __name__ == "__main__":
     unittest.main()

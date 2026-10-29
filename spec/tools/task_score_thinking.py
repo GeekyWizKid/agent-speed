@@ -550,3 +550,38 @@ THINKING = {'windows': [{'name': 'a measured response: grade plus 20 × its thin
                                                     'o1': {'members': ['o1'],
                                                            'liveThinking': 0.0,
                                                            'thinkingShare': 0.0}}}}]}]}
+
+# METRICS 6.9 Model sums (added for live reporting, METRICS 11.10): the same window restricted to one model. A response
+# counts for its own model and an in-flight estimate for the agent's current model; the sums of all models add up to
+# the set's. Expectations by hand.
+_GROUP = THINKING['groupWindows'][0]
+THINKING['modelWindows'] = [
+    {'name': "every model weighs by its own responses' output in the window, never by the agent that wrote them",
+     'agents': _GROUP['agents'],
+     'responses': _GROUP['responses'],
+     'queries': [{'nowMs': 1000000004000,
+                  'want': {'expect': {'liveThinking': 45.0, 'thinkingShare': 0.225, 'weight': 600.0},
+                           'models': {'claude-sonnet-5-5': {'liveThinking': 30.0, 'thinkingShare': 0.3, 'weight': 300.0},
+                                      'claude-haiku-5': {'liveThinking': 20 / 3, 'thinkingShare': 0.1, 'weight': 200.0},
+                                      'claude-opus-5-5': {'liveThinking': 25 / 3, 'thinkingShare': 0.5, 'weight': 50.0},
+                                      'gpt-5.5': {'liveThinking': 0.0, 'thinkingShare': 0.0, 'weight': 50.0}}}}]},
+    {'name': "an in-flight estimate goes to the agent's current model, its finished response to the response's own; "
+             "a source without separate reasoning adds weight and no share; an agent without an estimate adds nothing",
+     'agents': [{'id': 'a1', 'source': 'codex', 'model': 'gpt-5.5-codex', 'effort': 'high', 'phase': 'generating',
+                 'inFlightStartMs': 1000000004000, 'lastLineMs': 1000000004000, 'parentId': None},
+                {'id': 'a2', 'source': 'deepseek', 'model': 'deepseek-v4', 'effort': None, 'phase': 'idle',
+                 'inFlightStartMs': None, 'lastLineMs': 1000000005000, 'parentId': None},
+                {'id': 'a3', 'source': 'claudeCode', 'model': None, 'effort': None, 'phase': 'generating',
+                 'inFlightStartMs': 1000000003000, 'lastLineMs': 1000000003000, 'parentId': None}],
+     'responses': [{'key': 'r1', 'agentId': 'a1', 'source': 'codex', 'model': 'gpt-5.5', 'startMs': 1000000000000,
+                    'endMs': 1000000004000, 'input': 1000, 'output': 400, 'reasoning': 100, 'final': True,
+                    'effort': 'high'},
+                   {'key': 'r2', 'agentId': 'a2', 'source': 'deepseek', 'model': 'deepseek-v4',
+                    'startMs': 1000000003000, 'endMs': 1000000005000, 'input': 1000, 'output': 200, 'reasoning': 0,
+                    'final': True, 'effort': None}],
+     'queries': [{'nowMs': 1000000005000,
+                  'want': {'expect': {'liveThinking': 25.0, 'thinkingShare': 0.25, 'weight': 500.0},
+                           'models': {'gpt-5.5': {'liveThinking': 50 / 3, 'thinkingShare': 0.25, 'weight': 200.0},
+                                      'gpt-5.5-codex': {'liveThinking': 25 / 3, 'thinkingShare': 0.25, 'weight': 100.0},
+                                      'deepseek-v4': {'liveThinking': 0.0, 'thinkingShare': 0.0, 'weight': 200.0}}}}]},
+]

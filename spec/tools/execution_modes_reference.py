@@ -22,7 +22,7 @@ UNKNOWN = {"mode": "unknown", "evidence": "unknown"}
 EVIDENCE = ("configured", "selected", "recorded", "served")
 SCOPES = ("configuration", "session", "turn", "request", "response")
 FIELDS = ("requests", "output", "measuredOutput", "measuredMs")
-EXTENSIONS = ("modelHarnessRequests", "executionModes", "profileAvatar", "sharedIdentity")
+EXTENSIONS = ("modelHarnessRequests", "executionModes", "profileAvatar", "sharedIdentity", "taskScore")
 MAX_INTEGER = 9007199254740991
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$", re.ASCII)
 

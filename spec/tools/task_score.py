@@ -962,7 +962,7 @@ def compute(cases):
 
 
 def compute_thinking(cases):
-    out = {"windows": [], "agentWindows": [], "groupWindows": []}
+    out = {"windows": [], "agentWindows": [], "groupWindows": [], "modelWindows": []}
     for case in cases["windows"]:
         queries = []
         for q in case["queries"]:
@@ -988,6 +988,14 @@ def compute_thinking(cases):
                    for root, members in groups.items()}
             queries.append(dict(q, expect=total.result(), groups=got))
         out["groupWindows"].append(dict(case, queries=queries))
+    for case in cases.get("modelWindows", []):
+        queries = []
+        for q in case["queries"]:
+            total, _ = thinking.window_sums(case["responses"], case["agents"], q["nowMs"])
+            models = {model: window.result()
+                      for model, window in thinking.model_sums(case["responses"], case["agents"], q["nowMs"]).items()}
+            queries.append(dict(q, expect=total.result(), models=models))
+        out["modelWindows"].append(dict(case, queries=queries))
     return out
 
 
@@ -1026,7 +1034,8 @@ def counts(data):
         "segmentation": len(data["segmentation"]), "taskQueries": seq_sum(len(c["queries"]) for c in data["tasks"]),
         "values": len(data["values"]), "predictions": len(data["predictions"]), "records": len(data["records"]),
         "calibration": len(data["calibration"]), "comparison": len(data["comparison"]),
-        "thinkingQueries": seq_sum(len(c["queries"]) for k in ("windows", "agentWindows", "groupWindows")
+        "thinkingQueries": seq_sum(len(c["queries"]) for k in ("windows", "agentWindows", "groupWindows",
+                                                                "modelWindows")
                                for c in data["thinking"][k]),
     }
 
@@ -1114,7 +1123,7 @@ def main():
     return 0
 
 
-EXPECT_KEYS = ("expect", "agents", "groups")
+EXPECT_KEYS = ("expect", "agents", "groups", "models")
 
 
 def strip_expect(data):

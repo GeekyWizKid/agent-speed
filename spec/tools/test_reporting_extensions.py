@@ -12,6 +12,7 @@ import zlib
 
 import execution_modes_reference as modes
 import report_reference as ref
+import report_task_score as task_score
 from report_profile_reference import PNG_MAGIC, sanitize_avatar
 
 
@@ -266,6 +267,109 @@ class ProfileTests(unittest.TestCase):
         for model in document["models"]:
             model["sources"] = ["futureHarness"]
         self.assertEqual(ref.report_errors(document, self.service.schema), [])
+
+
+class TaskScoreTests(unittest.TestCase):
+    """REPORTING-EXTENSIONS 9 / METRICS 11.10: the taskScore extension on the reference service."""
+
+    def setUp(self):
+        self.now = 1792656931.0
+        self.ids = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"]
+        self.keys = [ref.test_private_key("task-score-device-" + str(i)) for i in range(2)]
+        self.names = ["TaskMac", "TaskWin"]
+
+    def service(self, advertised=True):
+        service = ref.ReferenceService(authority="127.0.0.1:18789",
+                                       extensions={"taskScore": 1} if advertised else None)
+        for i in range(2):
+            self.assertEqual(self.call(service, i, "POST", "/v1/devices", {
+                "schema": 1, "deviceId": self.ids[i], "username": self.names[i],
+                "publicKey": ref.jwk(ref.public_key(self.keys[i])),
+                "client": {"app": "AgentSpeed", "version": "1.5.0", "platform": "macOS", "osMajor": 27}})[0], 201)
+        return service
+
+    def call(self, service, index, method, path, document=None):
+        self.now += 5
+        body = ref.compact_json(document) if document is not None else b""
+        headers = ref.signed_headers(self.keys[index], method, "http://127.0.0.1:18789" + path, self.ids[index],
+                                     body, timestamp=int(self.now))
+        return service.handle(method, path, headers, body, now=self.now)
+
+    def report(self, index, seq, run="c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f"):
+        document = copy.deepcopy(ref.load_examples()["report-taskscore"])
+        document.update(deviceId=self.ids[index], username=self.names[index], run={"id": run, "seq": seq},
+                        sentAt=ref.format_instant(int((self.now + 5) * 1000)))
+        return document
+
+    def models(self, service):
+        status, _, payload = service.handle("GET", "/public/models", {}, b"", now=self.now)
+        self.assertEqual(status, 200)
+        return {row["id"]: row for row in payload["models"]}, payload
+
+    def test_stored_vectors_pass(self):
+        vectors = json.loads(ref.VECTORS_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(task_score.check_vectors(vectors["taskScore"]), [])
+        self.assertEqual(task_score.hand_check(), [])
+
+    def test_increments_count_once_and_live_values_follow_the_latest_report(self):
+        service = self.service()
+        first = self.report(0, 1)
+        self.assertEqual(self.call(service, 0, "POST", "/v1/reports", first)[2]["status"], "accepted")
+        self.assertEqual(self.call(service, 0, "POST", "/v1/reports", first)[2]["status"], "duplicate")
+        rows, payload = self.models(service)
+        self.assertEqual(rows["claude-opus-5-5"]["stats"]["completed"], 2)
+        self.assertEqual(rows["claude-opus-5-5"]["stats"]["scoreSum"], 141)
+        self.assertEqual(payload["live"], {"score": 92, "form": "live", "thinkingTokS": 38.6})
+        second = self.report(0, 2)
+        for model in second["models"]:
+            model["taskStats"] = []
+        second["taskScore"] = {"score": 92, "form": "resting", "thinkingTokS": 0.0}
+        self.assertEqual(self.call(service, 0, "POST", "/v1/reports", second)[2]["status"], "accepted")
+        other = self.report(1, 1, run="d4e5f6a7-b8c9-4d0e-8f1a-2b3c4d5e6f70")
+        self.assertEqual(self.call(service, 1, "POST", "/v1/reports", other)[2]["status"], "accepted")
+        rows, payload = self.models(service)
+        self.assertEqual(rows["claude-opus-5-5"]["stats"]["completed"], 4)
+        self.assertEqual(rows["claude-opus-5-5"]["successRate"], 0.5)
+        self.assertEqual(rows["claude-sonnet-5-5"]["stats"]["fixFailures"], 8)
+        self.assertEqual(payload["live"]["form"], "live")
+        self.assertEqual(payload["live"]["thinkingTokS"], 38.6)
+        self.assertEqual(self.call(service, 1, "DELETE", "/v1/devices/" + self.ids[1])[0], 200)
+        rows, _ = self.models(service)
+        self.assertEqual(rows["claude-opus-5-5"]["stats"]["completed"], 2)
+
+    def test_broken_task_fields_are_rejected_without_using_the_sequence(self):
+        service = self.service()
+        document = self.report(0, 7)
+        document["models"][0]["taskStats"][0]["successes"] = 3
+        status, _, payload = self.call(service, 0, "POST", "/v1/reports", document)
+        self.assertEqual((status, payload["error"]["code"], payload["error"]["field"]),
+                         (422, "payload_invalid", "/models/0/taskStats/0/successes"))
+        self.assertNotIn((self.ids[0], document["run"]["id"], 7), service.seqs)
+        document["models"][0]["taskStats"][0]["successes"] = 1
+        self.assertEqual(self.call(service, 0, "POST", "/v1/reports", document)[2]["status"], "accepted")
+
+    def test_unadvertised_service_ignores_the_members(self):
+        service = self.service(advertised=False)
+        document = self.report(0, 1)
+        document["taskScore"] = {"score": "high"}
+        document["models"][0]["taskStats"] = "many"
+        self.assertEqual(self.call(service, 0, "POST", "/v1/reports", document)[2]["status"], "accepted")
+        self.assertEqual(service.handle("GET", "/public/models", {}, b"", now=self.now)[0], 404)
+        self.assertEqual(modes.supported(service.discovery().get("extensions"), "taskScore"), False)
+
+    def test_discovery_advertises_exactly_the_integer_one(self):
+        self.assertEqual(self.service().discovery()["extensions"], {"taskScore": 1})
+        parsed = ref.parse_discovery(self.service().discovery("http"),
+                                     "http://127.0.0.1:18789/.well-known/agent-speed-report")
+        self.assertTrue(task_score.active(parsed))
+        self.assertFalse(task_score.active(parsed, models_switch=False))
+
+    def test_public_models_do_not_expose_device_ids(self):
+        service = self.service()
+        self.assertEqual(self.call(service, 0, "POST", "/v1/reports", self.report(0, 1))[0], 200)
+        public_json = json.dumps(self.models(service)[1])
+        for device_id in self.ids:
+            self.assertNotIn(device_id, public_json)
 
 
 if __name__ == "__main__":
