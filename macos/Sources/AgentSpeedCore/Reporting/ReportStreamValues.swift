@@ -9,8 +9,11 @@ public struct ReportStreamValues: Equatable, Sendable {
     public let generating: Int
     public let tools: Int
     public let active: Int
+    /// The `taskScore` objects the report would carry while the extension is active (METRICS 11.10 *WebSocket*).
+    public let taskScore: ReportTaskScoreValues?
 
-    public init(_ sample: ReportSample) {
+    public init(_ sample: ReportSample, taskScore: ReportTaskScoreValues? = nil) {
+        self.taskScore = taskScore
         outputTokS = Self.tokS(sample.live.output)
         totalTokS = Self.tokS(sample.live.total)
         estimatedShare = ReportBody.rounded(min(max(sample.estimatedShare.isFinite ? sample.estimatedShare : 0, 0), 1), 3)

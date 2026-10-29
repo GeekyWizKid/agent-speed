@@ -135,21 +135,25 @@ public struct ReportAgentCounts: Equatable, Sendable {
     public static let zero = ReportAgentCounts()
 }
 
-/// What each snapshot carries for live reporting (METRICS 11.2, 11.4).
+/// What each snapshot carries for live reporting (METRICS 11.2, 11.4, 11.10).
 public struct ReportLiveFacts: Equatable, Sendable {
     public var agents: [SourceKind: ReportAgentCounts]
     /// Generating agents by the resolved id of their current model and their source.
     public var generatingModels: [ReportModelKey: Int]
     public var counters: ReportCounters
+    /// The task score's values and completions (METRICS 11.10).
+    public var task: ReportTaskFacts
 
     public init(
         agents: [SourceKind: ReportAgentCounts] = [:],
         generatingModels: [ReportModelKey: Int] = [:],
-        counters: ReportCounters = .zero
+        counters: ReportCounters = .zero,
+        task: ReportTaskFacts = .empty
     ) {
         self.agents = agents
         self.generatingModels = generatingModels
         self.counters = counters
+        self.task = task
     }
 
     public static let empty = ReportLiveFacts()

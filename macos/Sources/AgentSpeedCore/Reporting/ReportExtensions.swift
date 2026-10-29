@@ -7,13 +7,16 @@ public struct ReportExtensions: Equatable, Codable, Sendable {
     public var sharedIdentity: Bool
     /// The WebSocket transport (METRICS 11.9); usable only with a valid `websocket` object.
     public var reportWebSocket: Bool
+    /// The task score with the `models` section (METRICS 11.10); advertising it asks for no new consent.
+    public var taskScore: Bool
     public static let none = ReportExtensions()
 
     public init(modelHarnessRequests: Bool = false, executionModes: Bool = false,
-                profileAvatar: Bool = false, sharedIdentity: Bool = false, reportWebSocket: Bool = false) {
+                profileAvatar: Bool = false, sharedIdentity: Bool = false, reportWebSocket: Bool = false,
+                taskScore: Bool = false) {
         self.modelHarnessRequests = modelHarnessRequests; self.executionModes = executionModes
         self.profileAvatar = profileAvatar; self.sharedIdentity = sharedIdentity
-        self.reportWebSocket = reportWebSocket
+        self.reportWebSocket = reportWebSocket; self.taskScore = taskScore
     }
 
     init(_ value: JSONValue?) {
@@ -23,18 +26,18 @@ public struct ReportExtensions: Equatable, Codable, Sendable {
         }
         self.init(modelHarnessRequests: supported("modelHarnessRequests"), executionModes: supported("executionModes"),
                   profileAvatar: supported("profileAvatar"), sharedIdentity: supported("sharedIdentity"),
-                  reportWebSocket: supported("reportWebSocket"))
+                  reportWebSocket: supported("reportWebSocket"), taskScore: supported("taskScore"))
     }
 
     private enum CodingKeys: CodingKey {
-        case modelHarnessRequests, executionModes, profileAvatar, sharedIdentity, reportWebSocket
+        case modelHarnessRequests, executionModes, profileAvatar, sharedIdentity, reportWebSocket, taskScore
     }
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         func supported(_ key: CodingKeys) -> Bool { (try? c.decode(Int.self, forKey: key)) == 1 }
         self.init(modelHarnessRequests: supported(.modelHarnessRequests), executionModes: supported(.executionModes),
                   profileAvatar: supported(.profileAvatar), sharedIdentity: supported(.sharedIdentity),
-                  reportWebSocket: supported(.reportWebSocket))
+                  reportWebSocket: supported(.reportWebSocket), taskScore: supported(.taskScore))
     }
     public func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -43,6 +46,7 @@ public struct ReportExtensions: Equatable, Codable, Sendable {
         if profileAvatar { try c.encode(1, forKey: .profileAvatar) }
         if sharedIdentity { try c.encode(1, forKey: .sharedIdentity) }
         if reportWebSocket { try c.encode(1, forKey: .reportWebSocket) }
+        if taskScore { try c.encode(1, forKey: .taskScore) }
     }
 }
 
