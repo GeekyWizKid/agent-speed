@@ -11,6 +11,8 @@ public final class LiveMonitor {
     private let store: SpeedStore
     private var core: MonitorCore?
     private var mailbox: SnapshotMailbox?
+    /// The prediction coefficients from the history's calibration (METRICS 6.11), kept across restarts.
+    public private(set) var taskModels: [SourceKind: TaskModels] = [:]
 
     public init(store: SpeedStore, configuration: MonitorConfiguration = MonitorConfiguration(), pricing: PriceBook? = nil) {
         self.store = store
@@ -30,6 +32,13 @@ public final class LiveMonitor {
         self.mailbox = mailbox
         self.core = core
         core.start()
+        if !taskModels.isEmpty { core.setTaskModels(taskModels) }
+    }
+
+    /// New calibrations for the live predictions (METRICS 6.11).
+    public func setTaskModels(_ models: [SourceKind: TaskModels]) {
+        taskModels = models
+        core?.setTaskModels(models)
     }
 
     public func stop() {

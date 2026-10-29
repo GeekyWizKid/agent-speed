@@ -12,14 +12,20 @@ final class OpenClawSource {
         var upserts: [(upsert: ResponseUpsert, project: String)] = []
         /// Agent id → state, for windows whose state may have changed.
         var agents: [String: AgentState] = [:]
+        /// Agent id → current task (METRICS 6.9), for the windows in `agents`.
+        var tasks: [String: AgentTaskStatus] = [:]
         var removedAgents: [String] = []
 
         var isEmpty: Bool { upserts.isEmpty && agents.isEmpty && removedAgents.isEmpty }
 
         mutating func merge(_ other: Update) {
             upserts += other.upserts
-            for id in other.removedAgents { agents[id] = nil }
+            for id in other.removedAgents {
+                agents[id] = nil
+                tasks[id] = nil
+            }
             agents.merge(other.agents) { _, new in new }
+            tasks.merge(other.tasks) { _, new in new }
             removedAgents += other.removedAgents.filter { other.agents[$0] == nil }
         }
     }
@@ -35,6 +41,24 @@ final class OpenClawSource {
         var generation: String?
         /// Started past its first row: the header is read before the next rows (METRICS 4.7, 4.14).
         var headerPending = false
+        /// The window's task stream (METRICS 6.9) and its current task's evaluation.
+        var taskReader: TaskLineReader?
+        var tasks = TaskComposer(source: .openclaw, keepsEveryTask: false)
+        var taskStatus: (version: Int, models: Int, status: AgentTaskStatus)?
+
+        init(info: OpenClawWindow, parser: OpenClawParser) {
+            self.info = info
+            self.parser = parser
+            taskReader = TaskLineReader(source: .openclaw)
+            taskReader?.mirrorWindow = info.mirrorsTurns
+        }
+
+        mutating func taskStatus(models: TaskModels, version: Int) -> AgentTaskStatus {
+            if let cached = taskStatus, cached.version == tasks.version, cached.models == version { return cached.status }
+            let status = AgentTaskStatus(events: tasks.events, now: nil, models: models)
+            taskStatus = (tasks.version, version, status)
+            return status
+        }
     }
 
     private final class TrackedDatabase {
@@ -63,6 +87,11 @@ final class OpenClawSource {
     private var fileIDs: [String: FileID] = [:]
     private var nextFileID = OpenClawSource.firstFileID
     private var removedMalformedLines = 0
+    /// The prediction coefficients of OpenClaw's calibration (METRICS 6.11).
+    var taskModels: [SourceKind: TaskModels] = [:] {
+        didSet { taskModelsVersion += 1 }
+    }
+    private var taskModelsVersion = 0
 
     init(roots: [String], maxLineBytes: Int = FileTailer.defaultMaxLineBytes) {
         self.roots = roots
@@ -305,21 +334,48 @@ final class OpenClawSource {
         }
         window.generation = generation
         var upserts: [ResponseUpsert] = []
+        let fileID = window.parser.fileID
         if window.headerPending {
             window.headerPending = false
             if let header = try connection.header(session: info.sessionId, maxLineBytes: maxLineBytes), let entry = header.entry {
                 window.parser.consume(entry, deduper: &deduper) { upserts.append($0) }
+                if case .line(let line)? = header.entry, case .header(let found) = line {
+                    // The header's cwd counts for a window read from an offset (METRICS 6.9 *Reading from an offset*).
+                    window.taskReader?.headerSeen = true
+                    window.taskReader?.createdMs = found.timestampMs
+                    window.taskReader?.setCwd(found.cwd)
+                }
             }
         }
-        try connection.rows(session: info.sessionId, after: window.lastSeq, maxLineBytes: maxLineBytes, readsTools: readsTools) { row in
+        var taskReader = window.taskReader
+        try connection.rows(session: info.sessionId, after: window.lastSeq, maxLineBytes: maxLineBytes, readsTools: readsTools,
+                            tasks: &taskReader) { row in
             window.lastSeq = max(window.lastSeq, row.seq)
             guard let entry = row.entry else { return }
             window.parser.consume(entry, tools: row.tools, deduper: &deduper) { upserts.append($0) }
+            window.tasks.feed(row.task) { deduper.isOwnedByOtherFile($0, for: fileID) }
         }
+        window.taskReader = taskReader
+        let status = window.taskStatus(models: taskModels[.openclaw] ?? .prior, version: taskModelsVersion)
         database.windows[info.sessionId] = window
         let project = Self.project(of: window.parser.state, agentId: agentId)
         update.upserts += upserts.map { ($0, project) }
         update.agents[agentId] = window.parser.state
+        update.tasks[agentId] = status
+    }
+
+    /// Every window's state with its current task evaluated with the current coefficients.
+    func taskStatusUpdate() -> Update {
+        var update = Update()
+        for database in databases.values {
+            for (id, var window) in database.windows {
+                let agentId = Self.agentId(database.path, id)
+                update.agents[agentId] = window.parser.state
+                update.tasks[agentId] = window.taskStatus(models: taskModels[.openclaw] ?? .prior, version: taskModelsVersion)
+                database.windows[id] = window
+            }
+        }
+        return update
     }
 
     private func forget(_ database: TrackedDatabase) {

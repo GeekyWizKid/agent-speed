@@ -2,14 +2,15 @@ import AgentSpeedCore
 import AgentSpeedOrbModel
 import SwiftUI
 
-/// A group row's hover tooltip (DESIGN 2c Interaction): project and source, model, the effort and speed lines of
-/// section 4, and the group speed with its sub-agents' share; then the live metrics lines (Live metrics, *Tooltip*).
-/// The engine keeps no per-agent total for today, so the prototype's "today's output" line has no data to show.
+/// A group row's hover tooltip while the board's `intelligence` is off (DESIGN 2c Interaction; with it on, the row's
+/// score card takes its place, `BoardScoreCards`): project and source, model, the effort and speed lines of section 4,
+/// and the group speed with its sub-agents' share. It names no cost. The engine keeps no per-agent total for today, so
+/// the prototype's "today's output" line has no data to show.
 enum BoardTooltip {
     static let delay: TimeInterval = 0.35
 
     @MainActor
-    static func lines(_ group: BoardGroup, metric: SpeedMetric, l10n: Localizer, readouts: BoardReadouts = .none) -> [String] {
+    static func lines(_ group: BoardGroup, metric: SpeedMetric, l10n: Localizer) -> [String] {
         let root = group.root
         let source = l10n(root.source.titleKey)
         var lines = [(root.project.isEmpty ? source : root.project) + " · " + source]
@@ -19,38 +20,13 @@ enum BoardTooltip {
         let speed = SpeedFormat.speed(group.live)
         lines.append(group.subs.isEmpty ? l10n("mac.boards.tooltip.speed", speed)
             : l10n("mac.boards.tooltip.speedSubs", speed, SpeedFormat.speed(group.subLive)))
-        lines += metricLines(group, l10n: l10n, readouts: readouts)
         return lines
-    }
-
-    /// While 智力 is on: the group's live index and thinking share, the root's grade. No cost, whatever the switches
-    /// (費用 is the board's only live cost). The disclaimer is the caption.
-    @MainActor
-    static func metricLines(_ group: BoardGroup, l10n: Localizer, readouts: BoardReadouts) -> [String] {
-        var lines: [String] = []
-        if readouts.intelligence {
-            if case .live = group.intelligence, let shown = group.intelligence.shown {
-                let records = ([group.root] + group.subs).contains { $0.source.recordsReasoningApart }
-                let share = records ? AgentSignalText.percent(group.sums.intelligence.thinkingShare) : "–"
-                lines.append(l10n("intel.tooltip", String(shown), share))
-            }
-            if let grade = group.root.grade { lines.append(AgentSignalText.grade(grade, l10n)) }
-        }
-        return lines
-    }
-
-    /// The tooltip's closing caption while 智力 is on: `intel.disclaimer`.
-    @MainActor
-    static func caption(readouts: BoardReadouts, l10n: Localizer) -> String? {
-        readouts.intelligence ? l10n("intel.disclaimer") : nil
     }
 }
 
-/// The tooltip's look: the source chip's material (DESIGN 2b) as a small card, 11 pt text, the first line semibold,
-/// the caption (`intel.disclaimer`) smaller and quieter under a little space.
+/// The tooltip's look: the source chip's material (DESIGN 2b) as a small card, 11 pt text, the first line semibold.
 struct BoardTooltipView: View {
     let lines: [String]
-    var caption: String?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -62,12 +38,6 @@ struct BoardTooltipView: View {
                     .font(.system(size: 11, weight: index == 0 ? .semibold : .regular))
                     .foregroundStyle(index == 0 ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                     .monospacedDigit()
-            }
-            if let caption {
-                Text(caption)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 3)
             }
         }
         .lineLimit(1)

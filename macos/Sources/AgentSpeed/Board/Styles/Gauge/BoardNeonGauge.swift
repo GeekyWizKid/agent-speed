@@ -3,6 +3,8 @@ import AppKit
 
 /// Neon's sub-gauge, LED 副錶 (DESIGN 2c Live metrics): 智力 in lit LED digits over ghost segments, a 12-segment
 /// meter, the 思考 / 費用 table under it; right-aligned at the side inset and centred in the band less the LED bar.
+/// Resting draws the digits in `ink-3` and the lit segments at 35 %, without glow; an unproven score draws the lit
+/// segments hollow and the dotted underline under the digits (DESIGN 12 *Proof mark*).
 @MainActor
 final class BoardNeonGauge {
     let size: BoardSize
@@ -12,6 +14,12 @@ final class BoardNeonGauge {
     private(set) var table: BoardGaugeTable?
     private var tableKey: [String] = []
     private var numberCell = BoardCellWidth()
+    private var score = BoardHeroScore()
+    /// The digits and the meter, where the hero's score card opens (board points); nil without 智力.
+    private(set) var scoreArea: CGRect?
+
+    /// When a running count-up lands (the board lays itself out on every frame until then).
+    func climbsUntil(after now: TimeInterval) -> TimeInterval? { score.climbsUntil(after: now) }
 
     init(size: BoardSize, palette: BoardPalette, l10n: Localizer) {
         self.size = size
@@ -54,8 +62,9 @@ final class BoardNeonGauge {
         let top = frame.top + (frame.height - CGFloat(stack.height)) / 2
         let memory = frame.memory
         var items: [BoardContentItem] = []
+        scoreArea = nil
         if let main = stack.main {
-            items += digits(tick, readings: readings, center: center, top: top + CGFloat(main), memory: memory)
+            items += digits(tick, center: center, top: top + CGFloat(main), frame: frame)
         }
         if let table {
             let left = center - table.width(numberCell: cell) / 2
@@ -70,9 +79,14 @@ final class BoardNeonGauge {
         return items
     }
 
-    private func digits(_ tick: BoardMetricsTick, readings: BoardGaugeReadings, center: CGFloat, top: CGFloat,
-                        memory: BoardTickMemory) -> [BoardContentItem] {
+    private func digits(_ tick: BoardMetricsTick, center: CGFloat, top: CGFloat, frame gauge: BoardGaugeFrame) -> [BoardContentItem] {
         let palette = self.palette, metrics = self.metrics
+        let reading = tick.intelligence
+        let memory = gauge.memory
+        let previous = memory.previousHeroScore
+        let (shown, motion) = score.update(reading, previous: previous, fresh: memory.fresh, now: gauge.now,
+                                           reduceMotion: gauge.reduceMotion)
+        let live = reading.form == .live, resting = reading.isResting, unproven = reading.isUnproven
         let board = CGRect(x: 0, y: 0, width: CGFloat(size.side), height: CGFloat(size.side))
         let theme = AnyHashable([AnyHashable(palette.dark), AnyHashable(palette.highContrast), AnyHashable(size.rawValue)])
         var items: [BoardContentItem] = []
@@ -90,13 +104,14 @@ final class BoardNeonGauge {
         items.append(caption)
 
         let numberFont = BoardFont(family: .mono, size: CGFloat(metrics.mainNumberSize), weight: .bold, tracking: -0.03)
-        let quiet = readings.intelligenceQuiet
         let baseline = top + CGFloat(metrics.mainNumberBaseline)
-        let number = BoardRollingText(key: "gauge.iq.n", text: readings.intelligence, font: numberFont,
-                                      color: quiet ? palette.quiet : palette.led, center: center, baseline: baseline)
+        let number = BoardScoreNumber(key: "gauge.iq.n", shown: shown, font: numberFont, color: live ? palette.led : palette.quiet,
+                                      anchor: .center(center), baseline: baseline, unproven: unproven,
+                                      highContrast: palette.highContrast)
         // Ghost segments: as many dim 8s as the number has digits (none with Increase Contrast).
-        let ghostText = String(readings.intelligence.map { $0.isNumber ? "8" : " " })
-        if palette.glows, readings.intelligence.contains(where: \.isNumber) {
+        let text = number.label.text
+        let ghostText = String(text.map { $0.isNumber ? "8" : " " })
+        if palette.glows, text.contains(where: \.isNumber) {
             let ghost = BoardLabel(ghostText, numberFont, color: palette.ghost)
             let x = number.x
             var item = BoardContentItem.part("gauge.iq.ghost", of: board, rect: ghost.box(x: x, baseline: baseline),
@@ -107,7 +122,7 @@ final class BoardNeonGauge {
             item.group = .hero
             items.append(item)
         }
-        if palette.dark, palette.glows, !quiet {
+        if palette.dark, palette.glows, live {
             var glow = BoardContentItem.glow("gauge.iq.glow", label: number.label, x: number.x, baseline: baseline, layers: [
                 BoardGlow.Layer(color: RGBColor(red: 120 / 255, green: 160 / 255, blue: 1, alpha: 0.4), blur: 12),
                 BoardGlow.Layer(color: RGBColor(red: 150 / 255, green: 190 / 255, blue: 1, alpha: 0.75), blur: 4),
@@ -115,19 +130,24 @@ final class BoardNeonGauge {
             glow.motion = .glide(fade: 0.25)
             items.append(glow)
         }
-        items += number.items(previous: memory.previousMetric("intel"), fresh: memory.fresh,
-                              motion: .glide(fade: BoardRollingText.crossfade))
+        items += number.items(fade: motion.numberFade)
 
-        // The meter: 12 segments, 3 tall and 2 apart, lit from the left (8 index points each); a new count crossfades.
-        let lit = BoardIntelligenceScale.segments(tick.intelligence)
+        // The meter: 12 segments, 3 tall and 2 apart, lit from the left (one per 8⅓ points); a new count crossfades in
+        // the roll's 0.24 s (Reduce Motion: at once), a count-up's frames replace it.
+        let lit = BoardIntelligenceScale.segments(shown)
         let meterWidth = CGFloat(metrics.meterWidth)
         let segments = BoardGaugeMetrics.meterSegments
         let meter = CGRect(x: center - meterWidth / 2, y: top + CGFloat(metrics.meterTop), width: meterWidth,
                            height: CGFloat(BoardGaugeMetrics.meterHeight))
-        let glows = palette.dark && palette.glows
-        let unlit = palette.highContrast ? palette.ink3 : palette.unlit
+        let digitsTop = number.box.minY
+        scoreArea = CGRect(x: min(meter.minX, number.box.minX), y: digitsTop,
+                           width: max(meter.width, number.box.width), height: meter.maxY - digitsTop).insetBy(dx: -2, dy: -2)
+        let glows = palette.dark && palette.glows && !resting && !unproven
+        // Increase Contrast: lit `ink` over unlit `ink-3`, a resting meter in the quiet ink rather than faded below it.
+        let unlit = palette.highContrast ? palette.ink3Token : palette.unlit
+        let litColor = palette.highContrast ? (resting ? palette.quiet : palette.mind) : palette.mind.opacity(resting ? 0.35 : 1)
         var item = BoardContentItem.part("gauge.meter", of: board, rect: meter.insetBy(dx: -8, dy: -8),
-                                         revision: AnyHashable([AnyHashable(lit), theme])) { context in
+                                         revision: AnyHashable([AnyHashable(lit), AnyHashable(resting), AnyHashable(unproven), theme])) { context in
             let gap: CGFloat = 2
             let width = (meter.width - gap * CGFloat(segments - 1)) / CGFloat(segments)
             func segment(_ index: Int) -> CGRect {
@@ -139,15 +159,27 @@ final class BoardNeonGauge {
                 }
             }
             for index in 0..<segments {
-                BoardDrawing.fill(segment(index), radius: 1, color: index < lit ? palette.mind : unlit, in: context)
+                let rect = segment(index)
+                guard index < lit else {
+                    BoardDrawing.fill(rect, radius: 1, color: unlit, in: context)
+                    continue
+                }
+                if unproven {
+                    let path = CGPath(roundedRect: rect, cornerWidth: 1, cornerHeight: 1, transform: nil)
+                    ProofMark.strokeHollow(path, in: context, color: litColor.cgColor)
+                } else {
+                    BoardDrawing.fill(rect, radius: 1, color: litColor, in: context)
+                }
             }
         }
         item.motion = .glide(fade: 0.25)
         item.group = .hero
-        if memory.fresh, let previous = memory.previousMetric("intel"),
-           BoardIntelligenceScale.segments(Int(previous)) != lit {
-            item.accents.append(.crossfade(BoardContentStack.sweepSeconds))
+        var fade = motion.shapeFade
+        if memory.fresh, let previous, !gauge.reduceMotion, motion.climb == nil,
+           BoardIntelligenceScale.segments(previous.shown) != lit {
+            fade = max(fade ?? 0, BoardContentStack.sweepSeconds)
         }
+        if let fade { item.accents.append(.crossfade(fade)) }
         items.append(item)
         return items
     }

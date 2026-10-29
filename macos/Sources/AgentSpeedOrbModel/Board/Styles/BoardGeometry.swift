@@ -166,6 +166,13 @@ public struct BoardGeometry: Equatable, Sendable {
     /// Two-line rows: line 1's baseline under the row's top, line 2's.
     public static let firstLineBaseline = 16.0
     public var secondLineBaseline: Double { style == .glass ? 32 : 31 }
+
+    /// Two-line group rows: the row's figures (the 智力 cell and the value) leave line 1 and share one baseline with the
+    /// cap-height centre of their digits on the row's centre line, 19 under the top at M and 20 at L (DESIGN 2c *The
+    /// second line*).
+    public var figureCentre: Double { groupRow / 2 }
+    /// …and they are this much larger than in a one-line row.
+    public static let figureGrowth = 2.0
 }
 
 extension BoardLayoutMetrics {

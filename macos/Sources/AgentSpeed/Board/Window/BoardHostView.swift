@@ -12,6 +12,10 @@ final class BoardHostView: NSView {
     /// The pointer moved over the board or left it (hover tooltips and row tint).
     var onMouseMoved: ((NSEvent) -> Void)?
     var onMouseExited: ((NSEvent) -> Void)?
+    /// A key while the board has the keyboard focus; true when it was handled.
+    var onKeyDown: ((NSEvent) -> Bool)?
+    /// The rows take keyboard focus (keyboard navigation on, DESIGN 12 *Keyboard*): the view takes the key events.
+    var keyboardFocusable = false
 
     let content = BoardContentStack()
     private let glass = NSVisualEffectView()
@@ -53,6 +57,14 @@ final class BoardHostView: NSView {
     override var isOpaque: Bool { false }
     override var mouseDownCanMoveWindow: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var acceptsFirstResponder: Bool { keyboardFocusable }
+    override var canBecomeKeyView: Bool { keyboardFocusable }
+    /// A click or a drag never makes the board key: only the keyboard brings it focus.
+    override var needsPanelToBecomeKey: Bool { false }
+
+    override func keyDown(with event: NSEvent) {
+        if onKeyDown?(event) != true { super.keyDown(with: event) }
+    }
 
     func apply(style: BoardStyle, side: CGFloat, dark: Bool) {
         self.style = style

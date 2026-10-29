@@ -33,6 +33,16 @@ final class BoardWindowController {
     var contentProvider: (() -> [BoardContentItem])?
     /// The board can be seen, so content and effects are worth drawing.
     var isRendering: Bool { driver.canRender }
+    /// Keyboard navigation is on and the rows take focus: the panel may become key, the host takes the keys.
+    var keyboardFocusable: Bool {
+        get { panel.keyboardFocusable }
+        set {
+            guard newValue != panel.keyboardFocusable else { return }
+            panel.keyboardFocusable = newValue
+            host.keyboardFocusable = newValue
+            panel.initialFirstResponder = newValue ? host : nil
+        }
+    }
 
     private let animator: OrbWindowAnimator
     private var visibility: OrbWindowVisibilityMonitor?

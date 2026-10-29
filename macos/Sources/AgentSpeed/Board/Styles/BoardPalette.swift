@@ -85,6 +85,14 @@ struct BoardPalette {
         }
     }
 
+    /// The `ink-3` token itself, not strengthened by Increase Contrast: what Increase Contrast draws in `ink-3` behind
+    /// a value (glass's dial track, neon's unlit meter segments; DESIGN 2c Accessibility), so the value, a resting one
+    /// and the proof mark's dots still stand out from it.
+    var ink3Token: RGBColor { inkBase.opacity(dark ? (style == .glass ? 0.38 : 0.36) : 0.4) }
+
+    /// Glass's dial track: `line-2`, `ink-3` with Increase Contrast.
+    var dialTrack: RGBColor { highContrast ? ink3Token : line2 }
+
     /// Glass's pearl gradient (`pearl-c` → `pearl-a` → `pearl-b`).
     var pearl: [RGBColor] {
         dark ? [RGBColor(hex: 0xA5F3FC), RGBColor(hex: 0xC7D2FE), RGBColor(hex: 0xF5D0FE)]

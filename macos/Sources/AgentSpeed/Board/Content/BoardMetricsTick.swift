@@ -69,27 +69,28 @@ struct BoardMoneyFormat {
 /// 智力 comes from the groups themselves; nothing on a board shows a cost per group.
 struct BoardMetricsTick: Equatable {
     var readouts = BoardReadouts.none
-    /// 智力 as shown, rounded half away from zero; nil while there is no value (`–`).
-    var intelligence: Int?
+    /// 智力 over the board's agents `A` (METRICS 6.9 *Sets and groups*): the highest live score, else the highest resting
+    /// one, else none, with its supplier's state (the proof mark) and N.
+    var intelligence = TaskSetReading.none
     /// 思考 (METRICS 7), `–` while there is no value.
     var thinking = "–"
+    /// Σ w = 0 over the board's agents: 思考 reads `–` (智力 keeps its own form, DESIGN 2c *Updates, motion and quiet*).
+    var quiet = true
     /// 思考 hidden at zero (after its 3 s hold).
     var thinkingHidden = false
     var cost = BoardMoney.zero
     /// The display currency's `cost.unitPerSecond` (the table measures its unit cell with it, whatever 費用 shows).
     var costUnit = ""
 
-    /// Σ w = 0 over the board's sources: 智力 and 思考 read `–`.
-    var quiet: Bool { intelligence == nil }
     /// 思考 shows in the hero (on and not hidden).
     var showsThinking: Bool { readouts.thinking && !thinkingHidden }
 
-    /// Formats the hero's values from the board's sums and cost reading.
-    static func make(readouts: BoardReadouts, intelligence sums: IntelligenceSums, cost: BoardMoney, costUnit: String,
-                     thinkingHidden: Bool) -> BoardMetricsTick {
-        let shown = sums.shownIndex
-        return BoardMetricsTick(readouts: readouts, intelligence: shown,
-                                thinking: shown == nil ? "–" : SpeedFormat.speed(sums.thinking),
+    /// Formats the hero's values from the board's sums over `agents` (its agents list) and its cost reading.
+    static func make(readouts: BoardReadouts, intelligence sums: IntelligenceSums, agents: [AgentStatus], cost: BoardMoney,
+                     costUnit: String, thinkingHidden: Bool) -> BoardMetricsTick {
+        let quiet = !(sums.output > 0)
+        return BoardMetricsTick(readouts: readouts, intelligence: TaskSetReading(score: sums.score, agents: agents),
+                                thinking: quiet ? "–" : SpeedFormat.speed(sums.thinking), quiet: quiet,
                                 thinkingHidden: thinkingHidden && readouts.thinkingMayHide, cost: cost, costUnit: costUnit)
     }
 }

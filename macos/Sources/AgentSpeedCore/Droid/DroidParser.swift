@@ -75,18 +75,20 @@ struct DroidParser: Sendable {
 
     // MARK: - Transcript lines
 
-    mutating func consume(_ line: DroidLineRead, deduper: inout Deduper) {
+    /// `tools`: the line's tool calls and results, read only from live lines (METRICS 6.10).
+    mutating func consume(_ line: DroidLineRead, tools: [ToolEvent] = [], deduper: inout Deduper) {
         switch line.extraction {
         case .blank:
             return
         case .malformed:
             state.malformedLines += 1
         case .line(let decoded):
-            consume(decoded, offset: line.offset, length: line.length, deduper: &deduper)
+            consume(decoded, offset: line.offset, length: line.length, tools: tools, deduper: &deduper)
         }
     }
 
-    private mutating func consume(_ line: DroidLine, offset: Int64, length: Int, deduper: inout Deduper) {
+    private mutating func consume(_ line: DroidLine, offset: Int64, length: Int, tools: [ToolEvent],
+                                  deduper: inout Deduper) {
         switch line {
         case .sessionStart(let cwd, let parent, let callingSessionId):
             guard !headerSeen else { return }
@@ -107,6 +109,7 @@ struct DroidParser: Sendable {
             state.noteLine(at: timestamp)
             switch record {
             case .input:
+                state.actions.record(tools, at: timestamp)
                 pendingStartMs = timestamp
                 state.setPhase(.generating, at: timestamp, inFlightStartMs: timestamp)
             case .compaction:
@@ -117,8 +120,14 @@ struct DroidParser: Sendable {
                     state.setPhase(.generating, at: timestamp, inFlightStartMs: timestamp)
                 }
             case .assistant(let assistant):
+                // Another file's message (a fork's copy) adds no actions (METRICS 6.10).
+                if let id = assistant.id, !deduper.isOwnedByOtherFile("droid:" + id, for: fileID) {
+                    state.actions.record(tools, at: timestamp)
+                }
                 call(assistant, at: timestamp, offset: offset, length: length, deduper: &deduper)
-            case .notice, .other:
+            case .notice:
+                state.actions.record(tools, at: timestamp)
+            case .other:
                 break
             }
         }

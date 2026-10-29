@@ -22,8 +22,8 @@ enum StatusItemArtist {
         return image
     }
 
-    private static func render(_ state: StatusItemState, dark: Bool, size: NSSize) -> CGImage? {
-        let scale: CGFloat = 2
+    /// The item's bitmap at `scale` device pixels per point (2 in the menu bar; previews also check 1).
+    static func render(_ state: StatusItemState, dark: Bool, size: NSSize, scale: CGFloat = 2) -> CGImage? {
         guard let context = CGContext(
             data: nil,
             width: Int(size.width * scale),

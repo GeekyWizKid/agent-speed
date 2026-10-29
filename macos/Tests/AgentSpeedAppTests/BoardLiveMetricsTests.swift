@@ -6,7 +6,7 @@ import Testing
 
 /// DESIGN 2c Live metrics as the boards draw them: the prototype's numbers from the shared simulation, the sub-gauge
 /// per style and size, the table cells, folding and thinking hidden at zero, the rows' 智力 column and second line
-/// (no cost), the collapse at S, the tooltip and accessibility words.
+/// (no cost), the collapse at S, the tooltip, the score card and accessibility words.
 @Suite("Board live metrics")
 @MainActor
 struct BoardLiveMetricsTests {
@@ -34,11 +34,12 @@ struct BoardLiveMetricsTests {
     @Test func theSimulationShowsThePrototypesNumbers() {
         let tick = Self.feed(.glass, .medium).tick
         #expect(tick.valueText == "707")
-        #expect(tick.metrics.intelligence == 123 && tick.metrics.thinking == "174")
+        #expect(tick.metrics.intelligence.shown == 90 && tick.metrics.intelligence.form == .live)
+        #expect(tick.metrics.thinking == "174" && !tick.metrics.quiet)
         #expect(tick.metrics.cost == BoardMoney(number: "0.024", unit: "US$/s"))
         #expect(tick.costText == "US$42.71")
         let first = tick.groups[0]
-        #expect(first.root.project == "opencdn" && first.intelligence.shown == 135)
+        #expect(first.root.project == "opencdn" && first.intelligence.shown == 58)
         #expect(tick.groups.map { SpeedFormat.speed($0.live) } == ["177", "197", "168", "139", "25"])
     }
 
@@ -85,13 +86,13 @@ struct BoardLiveMetricsTests {
         let neon = Self.feed(.neon, .small).layout
         let meter = try #require(Self.item(neon, "gauge.meter"))
         #expect(meter.frame.width == 62 + 16 || meter.frame.width == 62 + 17)
-        #expect(Self.keys(neon, prefix: "gauge.iq.n").count == 3, "three rolling digits")
+        #expect(Self.keys(neon, prefix: "gauge.iq.n") == ["gauge.iq.n"], "one image for the task score 90, no proof mark")
     }
 
     @Test func thinkingHiddenAtZeroFoldsTheSubGauge() throws {
         let shown = Self.feed(.glass, .medium).layout
         let hidden = Self.feed(.glass, .medium, reasoning: false)
-        #expect(hidden.tick.metrics.thinkingHidden && hidden.tick.metrics.intelligence == 117)
+        #expect(hidden.tick.metrics.thinkingHidden && hidden.tick.metrics.intelligence.shown == 90)
         let folded = hidden.layout
         #expect(!Self.keys(shown, prefix: "gauge.think").isEmpty)
         #expect(Self.keys(folded, prefix: "gauge.think").isEmpty)
@@ -108,7 +109,8 @@ struct BoardLiveMetricsTests {
     @Test func rowsCarryTheIntelligenceColumnAndTheModelLineWithoutACost() throws {
         let medium = Self.feed(.neon, .medium)
         let models = BoardRowModels.make(medium.tick, l10n: Self.l10n, twoLine: true)
-        #expect(models[0].intel == "135" && models[0].intelLive && models[0].twoLine && !models[0].detail.isEmpty)
+        #expect(models[0].intel == BoardRowScore(shown: 58, live: true, unproven: false))
+        #expect(models[0].twoLine && !models[0].detail.isEmpty)
         #expect(Self.item(medium.layout, "captions") != nil)
         #expect(medium.layout.items.contains { $0.key.hasSuffix("#iq") })
         #expect(!medium.layout.items.contains { $0.key.hasSuffix("#cost") })
@@ -141,31 +143,42 @@ struct BoardLiveMetricsTests {
         #expect(feed.tick.metrics.cost.state == .tag && feed.tick.costIsTag && feed.tick.costText == "訂閱")
         // Only the hero says so: a group's tooltip names neither a cost nor the subscription.
         #expect(feed.tick.groups.allSatisfy { group in
-            BoardTooltip.lines(group, metric: .output, l10n: Self.l10n, readouts: .all).allSatisfy { !$0.contains("訂閱") && !$0.contains("費用") }
+            (BoardTooltip.lines(group, metric: .output, l10n: Self.l10n) + BoardScoreCards.group(group, l10n: Self.l10n).facts)
+                .allSatisfy { !$0.contains("訂閱") && !$0.contains("費用") }
         })
     }
 
-    @Test func tooltipAndAccessibilityWords() {
+    @Test func tooltipCardAndAccessibilityWords() throws {
         let tick = Self.feed(.glass, .medium).tick
         let group = tick.groups[0]
-        let lines = BoardTooltip.metricLines(group, l10n: Self.l10n, readouts: .all)
-        #expect(lines.first?.hasPrefix("智力 135 · 思考 ") == true)
-        #expect(lines.last == "等級 130 · 旗艦")
-        #expect(BoardTooltip.caption(readouts: .all, l10n: Self.l10n) == "估算指數，不是測驗分數")
+        // The text tooltip (智力 off) carries no metric line and no caption.
+        let lines = BoardTooltip.lines(group, metric: .output, l10n: Self.l10n)
+        #expect(lines.first == "opencdn · Claude Code" && !lines.contains { $0.contains("智力") })
+        // The score card (智力 on): the member that supplies the group's value, its effort, the group's speed.
+        let card = BoardScoreCards.group(group, l10n: Self.l10n)
+        #expect(card.header.subAgents == group.subs.count && card.score?.shown == 58)
+        #expect(card.facts.last == "速度 177 tok/s（子 agent \(SpeedFormat.speed(group.subLive))）")
+        #expect(!card.facts.contains { $0.contains("未記錄") }, "only what is recorded, as the prototype's card")
+        let hero = try #require(BoardScoreCards.hero(tick, l10n: Self.l10n))
+        #expect(hero.score?.shown == 90 && hero.score?.topCount == tick.metrics.intelligence.count && hero.header.subAgents == 0)
+        let n = tick.metrics.intelligence.count
+        #expect(n >= 2)
         let words = BoardAccessibilityReporter.metricWords(tick.metrics, currency: "美元", l10n: Self.l10n)
-        #expect(words == ["智力 123，思考每秒 174 個 token", "費用每秒 0.024 美元（API 等值）"])
-        // No tooltip names a cost, whatever the switches (費用 is the board's only live cost).
+        #expect(words == ["智力 90，\(n) 個 agent 中最高，思考每秒 174 個 token", "費用每秒 0.024 美元（API 等值）"])
+        // No tooltip or card names a cost, whatever the switches (費用 is the board's only live cost).
         for readouts in [BoardReadouts.all, BoardReadouts(intelligence: false, thinking: false, cost: true)] {
             for group in Self.feed(.glass, .medium, readouts: readouts).tick.groups {
-                let all = BoardTooltip.lines(group, metric: .output, l10n: Self.l10n, readouts: readouts)
+                let all = BoardTooltip.lines(group, metric: .output, l10n: Self.l10n) + BoardScoreCards.group(group, l10n: Self.l10n).facts
                 #expect(!all.contains { $0.contains("費用") || $0.contains("US$") }, "\(readouts) \(group.id)")
             }
         }
-        // Rows name no cost.
+        // Rows name no cost; the group's 智力 words follow its supplier and N.
         let row = BoardAccessibilityReporter.rowLabel(group, rank: 1, l10n: Self.l10n, intelligence: true)
-        #expect(row.hasPrefix("第 1 名，opencdn，每秒 177 個 token，智力 135，") && !row.contains("費用") && !row.contains("美元"))
+        let members = group.intelligenceReading.count
+        let intel = members >= 2 ? "智力 58，\(members) 個 agent 中最高，" : "智力 58，"
+        #expect(row.hasPrefix("第 1 名，opencdn，每秒 177 個 token，" + intel) && !row.contains("費用") && !row.contains("美元"))
         var hidden = tick.metrics
         hidden.thinkingHidden = true
-        #expect(BoardAccessibilityReporter.metricWords(hidden, currency: "美元", l10n: Self.l10n).first == "智力 123")
+        #expect(BoardAccessibilityReporter.metricWords(hidden, currency: "美元", l10n: Self.l10n).first == "智力 90，\(n) 個 agent 中最高")
     }
 }

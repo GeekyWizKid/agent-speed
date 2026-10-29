@@ -34,6 +34,8 @@ struct OpenClawRow: Sendable {
     var seq: Int64
     var entry: LineExtraction<OpenClawLine>?
     var tools: [ToolEvent] = []
+    /// What the row gives the window's task stream (METRICS 6.9), when a task reader was passed.
+    var task: TaskLine = .none
 }
 
 /// Read-only access to one OpenClaw agent database (METRICS 4.14), opened exactly like OpenCode's (4.5): `mode=ro`,
@@ -191,9 +193,18 @@ final class OpenClawDatabase {
 
     /// The rows of a window above `seq`, in order.
     func rows(session id: String, after seq: Int64, maxLineBytes: Int, readsTools: Bool, _ body: (OpenClawRow) -> Void) throws {
+        var none: TaskLineReader?
+        try rows(session: id, after: seq, maxLineBytes: maxLineBytes, readsTools: readsTools, tasks: &none, body)
+    }
+
+    /// The same, with each row's task line prepared by the window's task reader.
+    func rows(session id: String, after seq: Int64, maxLineBytes: Int, readsTools: Bool, tasks: inout TaskLineReader?,
+              _ body: (OpenClawRow) -> Void) throws {
         rowsStatement.bind(1, id)
         rowsStatement.bind(2, seq)
-        try rowsStatement.forEachRow { row in body(decode(row, maxLineBytes: maxLineBytes, readsTools: readsTools)) }
+        try rowsStatement.forEachRow { row in
+            body(decode(row, maxLineBytes: maxLineBytes, readsTools: readsTools, tasks: &tasks))
+        }
     }
 
     /// The window's header row: the first of its first two rows whose entry has type `session` (METRICS 4.7).
@@ -202,19 +213,21 @@ final class OpenClawDatabase {
         var header: OpenClawRow?
         try firstRowsStatement.forEachRow { row in
             guard header == nil else { return }
-            let decoded = decode(row, maxLineBytes: maxLineBytes, readsTools: false)
+            var none: TaskLineReader?
+            let decoded = decode(row, maxLineBytes: maxLineBytes, readsTools: false, tasks: &none)
             if case .line(.header)? = decoded.entry { header = decoded }
         }
         return header
     }
 
     /// `event_json` when it is not NULL, else the zstd frame of `event_zstd` decoded within `event_utf8_bytes`.
-    private func decode(_ row: SQLiteStatement, maxLineBytes: Int, readsTools: Bool) -> OpenClawRow {
+    private func decode(_ row: SQLiteStatement, maxLineBytes: Int, readsTools: Bool,
+                        tasks: inout TaskLineReader?) -> OpenClawRow {
         let seq = row.int64(0)
         if row.type(1) == SQLITE_TEXT {
             return row.withText(1) { bytes in
                 guard bytes.count <= maxLineBytes else { return OpenClawRow(seq: seq, entry: nil) }
-                return Self.entry(seq: seq, bytes, readsTools: readsTools)
+                return Self.entry(seq: seq, bytes, readsTools: readsTools, tasks: &tasks)
             }
         }
         guard row.type(2) == SQLITE_BLOB, let size = row.optionalInt64(3),
@@ -225,17 +238,19 @@ final class OpenClawDatabase {
         guard let decoder else { return OpenClawRow(seq: seq, entry: .malformed) }
         var decoded: OpenClawRow?
         let ok = row.withBlob(2) { frame in
-            decoder.decode(frame, limit: Int(size)) { decoded = Self.entry(seq: seq, $0, readsTools: readsTools) }
+            decoder.decode(frame, limit: Int(size)) { decoded = Self.entry(seq: seq, $0, readsTools: readsTools, tasks: &tasks) }
         }
         return ok ? decoded ?? OpenClawRow(seq: seq, entry: .malformed) : OpenClawRow(seq: seq, entry: .malformed)
     }
 
-    private static func entry(seq: Int64, _ bytes: UnsafeRawBufferPointer, readsTools: Bool) -> OpenClawRow {
+    private static func entry(seq: Int64, _ bytes: UnsafeRawBufferPointer, readsTools: Bool,
+                              tasks: inout TaskLineReader?) -> OpenClawRow {
         var extraction = OpenClawLineExtractor.extract(bytes)
         // A row is one whole entry: an empty or blank one is not JSON.
         if case .blank = extraction { extraction = .malformed }
         let tools = readsTools ? ToolEventExtractor.openclawEvents(bytes) : []
-        return OpenClawRow(seq: seq, entry: extraction, tools: tools)
+        let task = extraction.isLine ? tasks?.piFamily(bytes) ?? .none : .none
+        return OpenClawRow(seq: seq, entry: extraction, tools: tools, task: task)
     }
 
     private static func isOne(_ row: SQLiteStatement, _ column: Int32) -> Bool {

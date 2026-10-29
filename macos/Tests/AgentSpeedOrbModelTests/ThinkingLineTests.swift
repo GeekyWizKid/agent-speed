@@ -12,8 +12,8 @@ struct ThinkingLineTests {
     @Test func onlyARateThatReadsZeroCounts() {
         for shown in ["0", "0.0"] { #expect(OrbThinkingLine.readsZero(shown), "\(shown)") }
         for shown in ["0.1", "1.0", "10", "100", "1.00k", "–", ""] { #expect(!OrbThinkingLine.readsZero(shown), "\(shown)") }
-        #expect(OrbLineContent.intelligence(index: 125, thinking: "0").thinkingReadsZero)
-        #expect(!OrbLineContent.intelligence(index: 125, thinking: "0.1").thinkingReadsZero)
+        #expect(OrbLineContent.intelligence(score: Self.score(125), thinking: "0").thinkingReadsZero)
+        #expect(!OrbLineContent.intelligence(score: Self.score(125), thinking: "0.1").thinkingReadsZero)
         let traffic = OrbLineContent.traffic(rx: .init(number: "0", unit: "B/s"), tx: .init(number: "0", unit: "B/s"))
         #expect(!traffic.thinkingReadsZero)
     }
@@ -108,23 +108,23 @@ struct ThinkingLineTests {
 
     // MARK: The quiet rule
 
-    static func sums(index: Double, thinking: Double) -> IntelligenceSums { LineQuietTests.sums(index: index, thinking: thinking) }
+    static func score(_ shown: Int) -> TaskSetReading { LineQuietTests.score(.live, shown) }
 
     @Test func theRuleStartsTheHoldWhenTheShownRateTurnsZero() throws {
         var rule = OrbLineQuietRule()
-        rule.apply(Self.sums(index: 120, thinking: 41), generating: true, at: 0)
+        rule.apply(score: Self.score(90), thinking: 41, generating: true, at: 0)
         #expect(rule.reading?.thinking == OrbThinkingLine())
-        rule.apply(Self.sums(index: 120, thinking: 0.04), generating: true, at: 0.5)
-        #expect(rule.reading?.content == .intelligence(index: 120, thinking: "0.0"))
+        rule.apply(score: Self.score(90), thinking: 0.04, generating: true, at: 0.5)
+        #expect(rule.reading?.content == .intelligence(score: Self.score(90), thinking: "0.0"))
         #expect(rule.reading?.thinking.holdEnd(after: 0.5) == 3.5)
         // Still zero in another form: the hold keeps its end.
-        rule.apply(Self.sums(index: 120, thinking: 0), generating: true, at: 1)
-        #expect(rule.reading?.content == .intelligence(index: 120, thinking: "0"))
+        rule.apply(score: Self.score(90), thinking: 0, generating: true, at: 1)
+        #expect(rule.reading?.content == .intelligence(score: Self.score(90), thinking: "0"))
         #expect(rule.reading?.thinking.holdEnd(after: 1) == 3.5)
-        // A quiet tick with the same values changes nothing, so a still orb renders no frame.
-        let changed = rule.apply(.zero, generating: false, at: 1.5)
+        // A quiet tick that holds the values changes nothing, so a still orb renders no frame.
+        let changed = rule.apply(score: .none, thinking: 0, generating: false, at: 1.5)
         #expect(!changed)
-        rule.apply(Self.sums(index: 120, thinking: 12), generating: true, at: 6)
+        rule.apply(score: Self.score(90), thinking: 12, generating: true, at: 6)
         let reading = try #require(rule.reading)
         #expect(!reading.thinking.isHidden(at: 6))
         #expect(reading.thinking.alpha(at: 6, reduceMotion: false) == 0)
@@ -132,13 +132,13 @@ struct ThinkingLineTests {
 
     @Test func aReadoutThatAppearsAtZeroShowsTheZeroForTheHold() throws {
         var rule = OrbLineQuietRule()
-        rule.apply(Self.sums(index: 95, thinking: 0), generating: true, at: 40)
+        rule.apply(score: Self.score(95), thinking: 0, generating: true, at: 40)
         let reading = try #require(rule.reading)
         #expect(reading.shownAt == 40)
         #expect(reading.thinking.holdEnd(after: 40) == 43)
         // Gone and back: the hold starts over with the new reading.
-        rule.apply(.zero, generating: false, at: 51)
-        rule.apply(Self.sums(index: 95, thinking: 0), generating: true, at: 60)
+        rule.apply(score: .none, thinking: 0, generating: false, at: 51)
+        rule.apply(score: Self.score(95), thinking: 0, generating: true, at: 60)
         #expect(rule.reading?.shownAt == 60)
         #expect(rule.reading?.thinking.holdEnd(after: 60) == 63)
     }
@@ -152,7 +152,7 @@ struct ThinkingLineTests {
     // MARK: Frame policy
 
     @Test func framesRunOnlyWhileAMotionRunsAndTheHoldEndWakesAStillOrb() {
-        var reading = OrbLineReading(content: .intelligence(index: 120, thinking: "0"), shownAt: 0, quietAt: 20)
+        var reading = OrbLineReading(content: .intelligence(score: Self.score(90), thinking: "0"), shownAt: 0, quietAt: 20)
         reading.thinking.update(zero: true, at: 1)
         #expect(reading.motion(at: 0.1, reduceMotion: false).frames)
         #expect(!reading.motion(at: 1, reduceMotion: false).frames)
@@ -167,7 +167,7 @@ struct ThinkingLineTests {
     }
 
     @Test func aHoldEndingAfterTheReadoutHasGoneWakesNothing() {
-        var reading = OrbLineReading(content: .intelligence(index: 120, thinking: "0"), shownAt: 0, quietAt: 10)
+        var reading = OrbLineReading(content: .intelligence(score: Self.score(90), thinking: "0"), shownAt: 0, quietAt: 10)
         reading.thinking.update(zero: true, at: 9)
         #expect(reading.motion(at: 9.5, reduceMotion: false).wake == 10)
         #expect(reading.motion(at: 10.2, reduceMotion: false).wake == .infinity)

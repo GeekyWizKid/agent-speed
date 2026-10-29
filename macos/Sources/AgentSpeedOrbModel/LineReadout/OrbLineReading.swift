@@ -2,7 +2,7 @@ import AgentSpeedCore
 import Foundation
 
 /// What an orb's two-line readout is set to show (DESIGN 10): network speed, with the unit cell `Mb/s` wide for bits,
-/// or the live intelligence. Known while the readout is quiet, so its width is.
+/// or 智力 and 思考. Known while the readout is quiet, so its width is.
 public enum OrbLineFormat: Equatable, Hashable, Sendable {
     case traffic(bits: Bool)
     case intelligence
@@ -12,13 +12,19 @@ public enum OrbLineFormat: Equatable, Hashable, Sendable {
 public enum OrbLineContent: Equatable, Sendable {
     /// Download over upload.
     case traffic(rx: TrafficFormat.Parts, tx: TrafficFormat.Parts)
-    /// The shown index and thinking tok/s (METRICS 6.9).
-    case intelligence(index: Int, thinking: String)
+    /// The task score of the orb's set (METRICS 6.9, *Sets and groups*) and thinking tok/s as shown.
+    case intelligence(score: TaskSetReading, thinking: String)
 
     /// The thinking rate as shown reads 0 (DESIGN 10, Thinking hidden at zero).
     public var thinkingReadsZero: Bool {
         guard case .intelligence(_, let thinking) = self else { return false }
         return OrbThinkingLine.readsZero(thinking)
+    }
+
+    /// The intelligence readout's score; nil for network speed.
+    public var score: TaskSetReading? {
+        guard case .intelligence(let score, _) = self else { return nil }
+        return score
     }
 
     fileprivate func isSameKind(as other: OrbLineContent) -> Bool {
@@ -50,12 +56,16 @@ public struct OrbLineReading: Equatable, Sendable {
     public var quietAt: TimeInterval
     /// The intelligence readout's thinking line, hidden while its rate reads 0.
     public var thinking: OrbThinkingLine
+    /// How the intelligence readout's score moves when it changes.
+    public var scoreMotion: OrbScoreMotion
 
-    public init(content: OrbLineContent, shownAt: TimeInterval, quietAt: TimeInterval, thinking: OrbThinkingLine = OrbThinkingLine()) {
+    public init(content: OrbLineContent, shownAt: TimeInterval, quietAt: TimeInterval, thinking: OrbThinkingLine = OrbThinkingLine(),
+                scoreMotion: OrbScoreMotion? = nil) {
         self.content = content
         self.shownAt = shownAt
         self.quietAt = quietAt
         self.thinking = thinking
+        self.scoreMotion = scoreMotion ?? OrbScoreMotion(content.score ?? .none)
     }
 
     public static let fadeIn: TimeInterval = 0.25
@@ -82,13 +92,15 @@ public struct OrbLineReading: Equatable, Sendable {
     /// Under Reduce Motion a step still renders over this, so its frame is drawn.
     public static let reducedStep: TimeInterval = 0.05
 
-    /// The frame policy's view (DESIGN 10, Frame policy): whether a fade or the thinking line's glide runs at `time`
-    /// (frames at 30 fps), and when a still orb must wake next — the quiet moment or the end of the thinking hold.
+    /// The frame policy's view (DESIGN 10, Frame policy): whether a fade, the thinking line's glide or a change of the
+    /// score runs at `time` (frames at 30 fps), and when a still orb must wake next — the quiet moment or the end of
+    /// the thinking hold.
     public func motion(at time: TimeInterval, reduceMotion: Bool) -> (frames: Bool, wake: TimeInterval) {
         let step = reduceMotion ? Self.reducedStep : nil
         let gone = quietAt + Self.fadeOut
         let fading = (time >= shownAt && time < shownAt + (step ?? Self.fadeIn)) || (time >= quietAt && time < quietAt + (step ?? Self.fadeOut))
-        let moving = time < gone && thinking.isMoving(at: time, step: step)
+        let moving = time < gone
+            && (thinking.isMoving(at: time, step: step) || scoreMotion.isMoving(at: time, reduceMotion: reduceMotion))
         var wake = time < quietAt ? quietAt : .infinity
         if let end = thinking.holdEnd(after: time), end < gone { wake = min(wake, end) }
         return (fading || moving, wake)
@@ -119,6 +131,7 @@ public struct OrbLineQuietRule: Sendable {
         if let current = reading, !current.isGone(at: time), current.content.isSameKind(as: content) {
             next = current
             next.content = content
+            if let score = content.score { next.scoreMotion.update(score, at: time) }
             if loud {
                 if time >= current.quietAt {
                     // Fading out: come back from the current opacity.
@@ -151,18 +164,18 @@ public struct OrbLineQuietRule: Sendable {
         return apply(content, loud: (rate?.sum ?? 0) >= Self.trafficThreshold, at: time)
     }
 
-    /// One engine tick of the orb's sources (METRICS 6.9): loud while one of its agents generates or anything was
-    /// generated in the window. With no index yet nothing shows; between bursts (a tool call) the shown index holds
-    /// until the readout has faded.
+    /// One engine tick of the orb's set (DESIGN 10, Intelligence readout, revised quiet rule): loud while 智力 is live or
+    /// resting or one of its agents generates, so a resting score stays pale for as long as its agents are listed; a
+    /// generating set without a score shows `–`. Once neither holds, the last score holds until the readout has faded.
     @discardableResult
-    public mutating func apply(_ sums: IntelligenceSums, generating: Bool, at time: TimeInterval) -> Bool {
-        guard let index = sums.shownIndex ?? shownIndex(at: time) else { return false }
-        let content = OrbLineContent.intelligence(index: index, thinking: SpeedFormat.speed(sums.thinking))
-        return apply(content, loud: generating || sums.output > 0, at: time)
+    public mutating func apply(score: TaskSetReading, thinking: Double, generating: Bool, at time: TimeInterval) -> Bool {
+        let loud = score.form != .none || generating
+        let shown = loud ? score : heldScore(at: time) ?? score
+        return apply(.intelligence(score: shown, thinking: SpeedFormat.speed(thinking)), loud: loud, at: time)
     }
 
-    private func shownIndex(at time: TimeInterval) -> Int? {
-        guard let reading, !reading.isGone(at: time), case .intelligence(let index, _) = reading.content else { return nil }
-        return index
+    private func heldScore(at time: TimeInterval) -> TaskSetReading? {
+        guard let reading, !reading.isGone(at: time) else { return nil }
+        return reading.content.score
     }
 }
