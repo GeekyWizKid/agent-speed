@@ -728,17 +728,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             accessible = $"{accessible}{SpokenSeparator}{secondary.Spoken}";
         }
 
+        // DESIGN 10: the network block's words first, then the intelligence block's.
         var traffic = BarTrafficBlock.From(s, _traffic.Snapshot, _loc);
-        if (traffic?.Spoken is { } spokenTraffic)
-        {
-            accessible = $"{accessible}{SpokenSeparator}{spokenTraffic}";
-        }
-
         var intelligence = BarIntelligence();
-        if (intelligence is not null)
-        {
-            accessible = $"{accessible}{SpokenSeparator}{intelligence.Spoken}";
-        }
+        accessible = BarReadouts.Append(accessible, SpokenSeparator, traffic, intelligence);
 
         _lastTaskbarState = new TaskbarState(
             s.ShowOnTaskbar,
@@ -789,7 +782,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
     /// <summary>
     /// The taskbar and tray tooltip line: tok/s or money, the second value when shown (DESIGN 3), the title, then the
-    /// readout block's words (DESIGN 10): network speed or the live intelligence.
+    /// readout blocks' words (DESIGN 10): network speed, then 智力.
     /// </summary>
     private string LiveLine()
     {
@@ -798,9 +791,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             ? $"{money.NumberText} {money.Unit}"
             : $"{SpeedFormat.Speed(_speed.Value)} {_loc["unit.tokS"]}";
         var line = BarSecondaryValue() is { } secondary ? $"{main} · {secondary.Spoken} · {title}" : $"{main} · {title}";
-        var readout = BarTrafficBlock.From(Settings, _traffic.Snapshot, _loc)?.Spoken
-            ?? BarIntelligence()?.Spoken;
-        return readout is not null ? $"{line} · {readout}" : line;
+        return BarReadouts.Append(line, " · ", BarTrafficBlock.From(Settings, _traffic.Snapshot, _loc), BarIntelligence());
     }
 
     // ---- Traffic ----

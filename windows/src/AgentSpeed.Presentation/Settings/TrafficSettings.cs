@@ -1,15 +1,14 @@
 namespace AgentSpeed.Presentation.Settings;
 
 /// <summary>
-/// The taskbar's readout block after the value (DESIGN 10, Menu bar and taskbar): network speed of this computer or of the
-/// agents, or the live intelligence, which needs no network measuring.
+/// The taskbar's network block after the value (DESIGN 10, Menu bar and taskbar): network speed of this computer or of the
+/// agents. 智力 has a switch of its own (<see cref="AppSettings.BarIntelligence"/>) and can show beside it.
 /// </summary>
 public enum BarTraffic
 {
     Off,
     Machine,
     Agents,
-    Intelligence,
 }
 
 /// <summary>The unit of traffic rates (DESIGN 10): bytes (default) or bits; totals are always bytes.</summary>
@@ -45,11 +44,16 @@ public sealed record TrafficSettings
         Bar = Enum.IsDefined(Bar) ? Bar : BarTraffic.Off,
     };
 
+    /// <summary>
+    /// The stored choice of earlier builds that showed 智力 in place of the network block: it reads as off and turns
+    /// <see cref="AppSettings.BarIntelligence"/> on, once (DESIGN 10).
+    /// </summary>
+    public const string LegacyIntelligenceKey = "intelligence";
+
     public static string Key(BarTraffic bar) => bar switch
     {
         BarTraffic.Machine => "machine",
         BarTraffic.Agents => "agents",
-        BarTraffic.Intelligence => "intelligence",
         _ => "off",
     };
 
@@ -58,7 +62,6 @@ public sealed record TrafficSettings
     {
         "machine" => BarTraffic.Machine,
         "agents" => BarTraffic.Agents,
-        "intelligence" => BarTraffic.Intelligence,
         _ => BarTraffic.Off,
     };
 }

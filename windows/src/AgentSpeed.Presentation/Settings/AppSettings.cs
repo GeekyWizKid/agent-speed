@@ -115,6 +115,12 @@ public sealed record AppSettings
     public bool BarSecondary { get; init; }
 
     /// <summary>
+    /// <c>settings.bar.intelligence</c> (DESIGN 10, Menu bar and taskbar): the 智力 block after the value, the money block
+    /// and the network block. Off by default; hidden in glyph-only mode; needs no network measuring.
+    /// </summary>
+    public bool BarIntelligence { get; init; }
+
+    /// <summary>
     /// The single orb's visibility before multiple orbs (<c>orb.show</c>). Read and written back unchanged so a downgrade
     /// restores it; the app uses <see cref="ShowOrbs"/>. The same holds for the other <c>Orb*</c> values below.
     /// </summary>

@@ -80,25 +80,27 @@ public class AgentIntelligenceTests
     }
 
     [Fact]
-    public void TheTaskbarBlockFollowsTheSettingAndNeedsNoMeasuring()
+    public void TheTaskbarBlockFollowsItsSwitchAndNeedsNoMeasuring()
     {
-        var chosen = AppSettings.Default with { Traffic = TrafficSettings.Default with { Bar = BarTraffic.Intelligence } };
+        var chosen = AppSettings.Default with { BarIntelligence = true };
         Assert.NotNull(BarIntelligenceBlock.From(chosen, Snapshot(IntelligenceSums.Zero), En));
         Assert.NotNull(BarIntelligenceBlock.From(chosen with { Traffic = chosen.Traffic with { Enabled = false } }, Snapshot(IntelligenceSums.Zero), En));
         Assert.Null(BarIntelligenceBlock.From(chosen with { BarMode = BarDisplayMode.GlyphOnly }, Snapshot(IntelligenceSums.Zero), En));
-        foreach (var other in new[] { BarTraffic.Off, BarTraffic.Machine, BarTraffic.Agents })
+        Assert.Null(BarIntelligenceBlock.From(AppSettings.Default, Snapshot(IntelligenceSums.Zero), En));
+
+        // Either network choice keeps it: the two blocks show together.
+        foreach (var bar in new[] { BarTraffic.Off, BarTraffic.Machine, BarTraffic.Agents })
         {
-            Assert.Null(BarIntelligenceBlock.From(chosen with { Traffic = chosen.Traffic with { Bar = other } }, Snapshot(IntelligenceSums.Zero), En));
+            Assert.NotNull(BarIntelligenceBlock.From(chosen with { Traffic = chosen.Traffic with { Bar = bar } }, Snapshot(IntelligenceSums.Zero), En));
         }
 
-        // The network block never draws for the intelligence choice.
         Assert.Null(BarTrafficBlock.From(chosen, new Core.Traffic.TrafficSnapshot(), En));
     }
 
     [Fact]
     public void TheTaskbarBlockReadsTheHighestScoreOverTheThinkingRateOfAllSources()
     {
-        var chosen = AppSettings.Default with { Traffic = TrafficSettings.Default with { Bar = BarTraffic.Intelligence } };
+        var chosen = AppSettings.Default with { BarIntelligence = true };
         // 300 tokens in the window with 30 of reasoning: 30 / 3 s = 10 tok/s.
         var block = BarIntelligenceBlock.From(chosen, Snapshot(new IntelligenceSums(300, 30, 300) { Score = Live(74.25) }), ZhHant)!;
         Assert.Equal(("智力", "74", "思考", "10", "tok/s"), (block.Label, block.Index, block.ThinkingLabel, block.Thinking, block.Unit));
@@ -142,26 +144,6 @@ public class AgentIntelligenceTests
         Assert.Equal(Number("1.28M"), wide.Number);
     }
 
-    [Fact]
-    public void TheIntelligenceChoiceIsStoredAndTheThreeOlderChoicesReadAsBefore()
-    {
-        foreach (var (key, bar) in new[]
-        {
-            ("off", BarTraffic.Off), ("machine", BarTraffic.Machine), ("agents", BarTraffic.Agents), ("intelligence", BarTraffic.Intelligence),
-        })
-        {
-            Assert.Equal(key, TrafficSettings.Key(bar));
-            Assert.Equal(bar, SettingsSerializer.Deserialize("{\"traffic\":{\"bar\":\"" + key + "\"}}").Traffic.Bar);
-            var settings = AppSettings.Default with { Traffic = TrafficSettings.Default with { Bar = bar } };
-            Assert.Equal(bar, SettingsSerializer.Deserialize(SettingsSerializer.Serialize(settings)).Traffic.Bar);
-        }
-
-        Assert.Equal(BarTraffic.Off, SettingsSerializer.Deserialize("""{"traffic":{"bar":"iq"}}""").Traffic.Bar);
-        Assert.Equal(BarTraffic.Off, (TrafficSettings.Default with { Bar = (BarTraffic)9 }).Validated().Bar);
-        Assert.Equal([0, 1, 2, 3], new[] { BarTraffic.Off, BarTraffic.Machine, BarTraffic.Agents, BarTraffic.Intelligence }.Select(b => (int)b));
-        Assert.True(TrafficSettings.IsNetwork(BarTraffic.Machine) && TrafficSettings.IsNetwork(BarTraffic.Agents));
-        Assert.False(TrafficSettings.IsNetwork(BarTraffic.Intelligence) || TrafficSettings.IsNetwork(BarTraffic.Off));
-    }
 
     private static TaskSetValue Live(double score) => new(TaskValueForm.Live, score, TaskRounding.HalfAwayFromZero(score), "a");
 

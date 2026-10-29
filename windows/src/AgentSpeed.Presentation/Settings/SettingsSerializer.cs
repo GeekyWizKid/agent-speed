@@ -43,6 +43,7 @@ public static class SettingsSerializer
             w.WriteBoolean("coloredGlyph", s.BarColoredGlyph);
             w.WriteBoolean("showUnit", s.BarShowUnit);
             w.WriteBoolean("secondary", s.BarSecondary);
+            w.WriteBoolean("intelligence", s.BarIntelligence);
             w.WriteNumber("offset", s.TaskbarOffset);
             w.WriteEndObject();
 
@@ -225,6 +226,10 @@ public static class SettingsSerializer
         var traffic = Child(root, "traffic");
         var report = Child(root, "report");
 
+        // DESIGN 10: an earlier build's `traffic.bar = intelligence` becomes the network block off and the 智力 switch on.
+        var storedBar = ReadString(traffic, "bar");
+        var legacyIntelligence = storedBar == TrafficSettings.LegacyIntelligenceKey;
+
         var settings = new AppSettings
         {
             Appearance = ReadEnum(root, "appearance", d.Appearance),
@@ -237,6 +242,7 @@ public static class SettingsSerializer
             BarColoredGlyph = ReadBool(taskbar, "coloredGlyph", d.BarColoredGlyph),
             BarShowUnit = ReadBool(taskbar, "showUnit", d.BarShowUnit),
             BarSecondary = ReadBool(taskbar, "secondary", d.BarSecondary),
+            BarIntelligence = legacyIntelligence || ReadBool(taskbar, "intelligence", d.BarIntelligence),
             TaskbarOffset = ReadDouble(taskbar, "offset", d.TaskbarOffset),
             ShowOrb = ReadBool(orb, "show", d.ShowOrb),
             ShowOrbs = ReadBool(root, "showOrbs", ReadBool(orb, "show", d.ShowOrb)),
@@ -300,7 +306,7 @@ public static class SettingsSerializer
                 Enabled = ReadBool(traffic, "enabled", TrafficSettings.Default.Enabled),
                 IncludeTools = ReadBool(traffic, "includeTools", TrafficSettings.Default.IncludeTools),
                 Unit = ReadString(traffic, "unit") == "bits" ? TrafficUnit.Bits : TrafficUnit.Bytes,
-                Bar = TrafficSettings.ParseBar(ReadString(traffic, "bar")),
+                Bar = TrafficSettings.ParseBar(storedBar),
             },
             Report = ReportSettingsJson.Read(report),
         };

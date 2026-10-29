@@ -16,7 +16,7 @@ public class BarTaskScoreTests
 {
     private static readonly Localizer ZhHant = new(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
     private static readonly Localizer En = new(Localizer.LoadEmbeddedTable(), LanguageCodes.En);
-    private static readonly AppSettings Chosen = AppSettings.Default with { Traffic = TrafficSettings.Default with { Bar = BarTraffic.Intelligence } };
+    private static readonly AppSettings Chosen = AppSettings.Default with { BarIntelligence = true };
 
     private static AgentStatus Agent(string id, string project, CoreTasks.TaskValueForm form, double score, CoreTasks.TaskState state,
         double thinking = 0, SourceKind source = SourceKind.ClaudeCode)

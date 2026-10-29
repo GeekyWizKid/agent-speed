@@ -20,7 +20,8 @@ public readonly record struct BarIntelligenceCells(double Label, double Number, 
 public readonly record struct BarProofDot(double X, double Y, double Diameter);
 
 /// <summary>
-/// The taskbar intelligence block (DESIGN 10, Menu bar and taskbar): after the value, <c>智力 86</c> over
+/// The taskbar intelligence block (DESIGN 10, Menu bar and taskbar): after the value, the money block and the network block,
+/// <c>智力 86</c> over
 /// <c>思考 128 tok/s</c>. 智力 is the highest task score among the agents of all enabled sources, live before resting
 /// (DESIGN 12; METRICS 6.9, <i>Sets and groups</i>): live in the label color at 85 %, resting and <c>–</c> in the secondary
 /// color, on the dotted proof mark while unproven. Labels sit in a column, both numbers right-aligned in one cell as wide
@@ -70,12 +71,12 @@ public sealed record BarIntelligenceBlock(
     /// <summary>The thinking rate reads 0 (or nothing was generated) under a score: line 2 hides after its hold.</summary>
     public bool ThinkingZero => HasScore && ThinkingDim;
 
-    /// <summary>Null unless the intelligence block is chosen and the widget shows a value (not glyph only).</summary>
+    /// <summary>Null unless <c>settings.bar.intelligence</c> is on and the widget shows a value (not glyph only).</summary>
     public static BarIntelligenceBlock? From(AppSettings settings, SpeedSnapshot snapshot, Localizer localizer)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(snapshot);
-        if (settings.Traffic.Bar != BarTraffic.Intelligence || settings.BarMode == BarDisplayMode.GlyphOnly)
+        if (!settings.BarIntelligence || settings.BarMode == BarDisplayMode.GlyphOnly)
         {
             return null;
         }

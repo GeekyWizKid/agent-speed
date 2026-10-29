@@ -11,7 +11,7 @@ public class BarThinkingHoldTests
 {
     private static readonly Localizer En = new(Localizer.LoadEmbeddedTable(), LanguageCodes.En);
     private static readonly Localizer ZhHant = new(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
-    private static readonly AppSettings Chosen = AppSettings.Default with { Traffic = TrafficSettings.Default with { Bar = BarTraffic.Intelligence } };
+    private static readonly AppSettings Chosen = AppSettings.Default with { BarIntelligence = true };
 
     /// <summary>125 over 0 tok/s.</summary>
     private static readonly IntelligenceSums Unthinking = TestSums.Of(300, 125, 0, 300);
