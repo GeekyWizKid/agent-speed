@@ -25,6 +25,7 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
     {
         _pathIsSubagent = PathText.HasDirectoryComponent(agentId, "subagents");
         SetSubagent(_pathIsSubagent);
+        EnableTasks(new global::AgentSpeed.Core.Tasks.ClaudeTaskReader(), SourceKind.ClaudeCode);
     }
 
     public override void Reset()
@@ -42,6 +43,17 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
     }
 
     public override void Apply(in ClaudeLine line, IResponseSink sink)
+    {
+        ApplyLine(in line, sink);
+        if (line.TaskTracked)
+        {
+            var assistant = global::AgentSpeed.Core.Tasks.ClaudeTaskReader.IsDecidingAssistant(in line);
+            ComposeTask(line.Task, line.TimestampMs, assistant: assistant,
+                dedupeKey: assistant ? global::AgentSpeed.Core.Tasks.ClaudeTaskReader.DedupeKey(in line) : null);
+        }
+    }
+
+    private void ApplyLine(in ClaudeLine line, IResponseSink sink)
     {
         if (line.Status == LineStatus.Malformed)
         {
@@ -99,7 +111,12 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
         }
     }
 
-    protected override ClaudeLine Extract(ReadOnlySpan<byte> line) => ClaudeLineReader.Read(line);
+    protected override ClaudeLine Extract(ReadOnlySpan<byte> line)
+    {
+        var parsed = ClaudeLineReader.Read(line);
+        (TaskReader as global::AgentSpeed.Core.Tasks.ClaudeTaskReader)?.Read(line, ref parsed);
+        return parsed;
+    }
 
     private void ApplyAssistant(in ClaudeLine line, long ts, IResponseSink sink)
     {

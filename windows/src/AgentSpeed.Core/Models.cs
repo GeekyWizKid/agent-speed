@@ -92,11 +92,17 @@ public sealed record AgentStatus(
 {
     public ExecutionModes Modes { get; init; } = ExecutionModes.Empty;
 
-    /// <summary>The grade of the agent's current model and effort (METRICS 6.9); null without a model.</summary>
-    public Intelligence.ModelGrade? Grade { get; init; }
-
-    /// <summary>The agent's own intelligence: live, resting on its grade, or none (METRICS 6.9, Agent intelligence).</summary>
+    /// <summary>
+    /// The agent's 智力 (METRICS 6.9 <i>Values</i>): its current task's score by phase — live, resting (pale) or none —
+    /// with the task's state, and its own live thinking sums.
+    /// </summary>
     public Intelligence.AgentIntelligence Intelligence { get; init; }
+
+    /// <summary>
+    /// The current task for the score card (METRICS 6.9 <i>Task facts</i>, 6.11 <i>Predictions</i>); null for a source
+    /// without a task score.
+    /// </summary>
+    public Tasks.AgentTaskStatus? Task { get; init; }
 
     /// <summary>What the agent's recent tool calls say (METRICS 6.10).</summary>
     public Work.WorkSignals Work { get; init; } = Core.Work.WorkSignals.None;
@@ -127,7 +133,7 @@ public sealed record SourceStatus(
     /// <summary>Today's unpriced facts (METRICS 9.6 <c>today.unpricedFacts</c>, 9.10 <i>Live</i>), in the fact order.</summary>
     public IReadOnlyList<Unpriced.UnpricedCount> UnpricedFacts { get; init; } = [];
 
-    /// <summary>The live intelligence sums (METRICS 6.9).</summary>
+    /// <summary>The source's 智力 (METRICS 6.9): its live thinking sums and the highest task score of its listed agents.</summary>
     public Intelligence.IntelligenceSums Intelligence { get; init; }
 
     public ExecutionModes ConfiguredModes { get; init; } = ExecutionModes.Empty;

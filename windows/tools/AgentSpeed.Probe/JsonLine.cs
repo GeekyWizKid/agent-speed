@@ -1,5 +1,8 @@
+using System.Buffers;
 using System.Globalization;
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using AgentSpeed.Core;
 
 namespace AgentSpeed.Probe;
@@ -10,6 +13,8 @@ namespace AgentSpeed.Probe;
 /// </summary>
 internal sealed class JsonLine
 {
+    private static readonly JsonWriterOptions WriterOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
     private readonly List<string> _parts = [];
 
     public string Text => "{" + string.Join(',', _parts) + "}";
@@ -30,6 +35,21 @@ internal sealed class JsonLine
     }
 
     public static string Array(IEnumerable<string> items) => "[" + string.Join(',', items) + "]";
+
+    /// <summary><c>{"key":value}</c> with the value from a <see cref="Utf8JsonWriter"/> (the task score's dump writers), text kept as is.</summary>
+    public static string Of(string key, Action<Utf8JsonWriter> writeValue)
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer, WriterOptions))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName(key);
+            writeValue(writer);
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(buffer.WrittenSpan);
+    }
 
     public static string Number(double value)
     {

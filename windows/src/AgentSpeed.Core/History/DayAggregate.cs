@@ -279,6 +279,9 @@ internal sealed class DayLabeler(TimeZoneInfo zone)
     /// <summary>Whether <paramref name="unixMs"/> has a date in every time zone (METRICS 8).</summary>
     public static bool HasDate(long unixMs) => unixMs is >= MinMs and <= MaxMs;
 
+    /// <summary>A task record's <c>day</c> (METRICS 6.11): the local date of <paramref name="unixMs"/>, empty when it has none (8).</summary>
+    public string DayOf(long unixMs) => Label(unixMs) ?? string.Empty;
+
     public string? Label(long unixMs)
     {
         if (unixMs >= _start && unixMs < _end)

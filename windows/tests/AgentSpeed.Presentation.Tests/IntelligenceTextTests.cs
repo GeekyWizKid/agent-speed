@@ -1,4 +1,5 @@
 using AgentSpeed.Core.Intelligence;
+using AgentSpeed.Core.Tasks;
 using AgentSpeed.Core.Work;
 using AgentSpeed.Presentation.Formatting;
 using AgentSpeed.Presentation.Localization;
@@ -6,27 +7,26 @@ using AgentSpeed.Presentation.Orb.Lines;
 
 namespace AgentSpeed.Presentation.Tests;
 
-/// <summary>The intelligence and work-signal wording of orbs and agent rows (DESIGN 4, 10).</summary>
+/// <summary>The 智力 and work-signal wording of orbs and agent rows (DESIGN 4, 10; METRICS 6.9 task score).</summary>
 public class IntelligenceTextTests
 {
     private static readonly Localizer En = new(Localizer.LoadEmbeddedTable(), LanguageCodes.En);
     private static readonly Localizer ZhHant = new(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
 
     [Fact]
-    public void AnAgentsGradeNamesItsClass()
+    public void TheOrbTooltipAndLabelReadTheScoreAndThinking()
     {
-        Assert.Equal("等級 124 · 旗艦", IntelligenceText.Grade(new ModelGrade(ModelClass.Flagship, 4), ZhHant));
-        Assert.Equal(En.Format("intel.grade", "92", En["intel.class.standard"]), IntelligenceText.Grade(ModelGrade.Unknown, En));
-        Assert.Equal(En.Format("intel.grade", "60", En["intel.class.light"]), IntelligenceText.Grade(new ModelGrade(ModelClass.Light, 0), En));
+        var sums = new IntelligenceSums(Output: 1200, Thinking: 528, ThinkingBasis: 1200) { Score = Live(74.25) };
+        var content = OrbLinesText.Intelligence(sums, generating: false, ZhHant).Content!;
+        Assert.Equal("任務進展的估算，不是模型能力測驗", content.Detail);
+        Assert.Equal("智力 74，思考每秒 176 個 token", content.Spoken);
     }
 
     [Fact]
-    public void TheOrbTooltipAndLabelReadTheIndexAndThinking()
+    public void ASetWithoutAScoreHasNoIntelligenceLine()
     {
-        var sums = new IntelligenceSums(Output: 1200, Graded: 1200 * 124, Thinking: 528, ThinkingBasis: 1200);
-        var content = OrbLinesText.Intelligence(sums, generating: false, ZhHant).Content!;
-        Assert.Equal("智力 133 · 思考 44%\n估算指數，不是測驗分數", content.Detail);
-        Assert.Equal("智力 133，思考每秒 176 個 token", content.Spoken);
+        var sums = new IntelligenceSums(Output: 1200, Thinking: 528, ThinkingBasis: 1200);
+        Assert.Null(OrbLinesText.Intelligence(sums, generating: true, En).Content);
     }
 
     [Theory]
@@ -37,7 +37,7 @@ public class IntelligenceTextTests
     public void TheOrbReadoutsGlyphsNameIntelligenceAndThinking(string language, string intelligence, string thinking)
     {
         var localizer = new Localizer(Localizer.LoadEmbeddedTable(), language);
-        var content = OrbLinesText.Intelligence(new IntelligenceSums(Output: 300, Graded: 300 * 92), generating: true, localizer).Content!;
+        var content = OrbLinesText.Intelligence(new IntelligenceSums(Output: 300) { Score = Live(92) }, generating: true, localizer).Content!;
         Assert.Equal((intelligence, "92", string.Empty), (content.First.Glyph, content.First.Number, content.First.Unit));
         Assert.Equal((thinking, localizer["unit.tokS"]), (content.Second.Glyph, content.Second.Unit));
     }
@@ -54,4 +54,6 @@ public class IntelligenceTextTests
         Assert.Equal([En.Format("work.repeating", 4)], WorkText.Closing(waiting, En));
         Assert.Empty(WorkText.Closing(WorkSignals.None, En));
     }
+
+    private static TaskSetValue Live(double score) => new(TaskValueForm.Live, score, TaskRounding.HalfAwayFromZero(score), "a");
 }

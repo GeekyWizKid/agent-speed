@@ -1,20 +1,26 @@
+using AgentSpeed.Core.Tasks;
+
 namespace AgentSpeed.Core.Intelligence;
 
 /// <summary>
-/// The window sums of the live intelligence index (METRICS 6.9), in tokens over the live window. Additive over sources,
-/// so a floating orb adds the sums of its own sources (6.8).
+/// The 智力 readout of a set of agents (METRICS 6.9): the window sums of the live thinking line, in tokens over the live
+/// window and additive over sources (an orb adds the sums of its own sources, 6.8), and the set's task score by the
+/// highest rule (<see cref="Score"/>), which merges the same way.
 /// </summary>
 /// <param name="Output">Σ w: output tokens generating in the window, measured and estimated.</param>
-/// <param name="Graded">Σ w × grade.</param>
 /// <param name="Thinking">Σ ρ: reasoning tokens.</param>
 /// <param name="ThinkingBasis">Σ w': the output of sources that record reasoning apart from output.</param>
-public readonly record struct IntelligenceSums(double Output = 0, double Graded = 0, double Thinking = 0, double ThinkingBasis = 0)
+public readonly record struct IntelligenceSums(double Output = 0, double Thinking = 0, double ThinkingBasis = 0)
 {
-    public const double ThinkingBonus = 20;
-
     public static IntelligenceSums Zero => default;
 
-    /// <summary>Something generated in the window: the index has a value.</summary>
+    /// <summary>
+    /// The highest task score of the set's agents (6.9 <i>Sets and groups</i>): live when some agent is live, else resting
+    /// (shown pale), else none; with the agent that supplied it.
+    /// </summary>
+    public TaskSetValue Score { get; init; }
+
+    /// <summary>Something generated in the window.</summary>
     public bool IsActive => Output > 0;
 
     public double ThinkingShare => ThinkingBasis > 0 ? Thinking / ThinkingBasis : 0;
@@ -22,17 +28,20 @@ public readonly record struct IntelligenceSums(double Output = 0, double Graded 
     /// <summary><c>liveThinking</c>: reasoning tok/s over the live window.</summary>
     public double LiveThinking => Thinking / (Engine.SpeedEngine.WindowMs / 1000.0);
 
-    /// <summary><c>Σ (w × g) / Σ w + 20 × thinkingShare</c>; null when nothing generated in the window.</summary>
-    public double? Index => IsActive ? Graded / Output + ThinkingBonus * ThinkingShare : null;
+    /// <summary>The set's task score, unrounded; null for none.</summary>
+    public double? Index => Score.Score;
 
-    /// <summary>The index as shown: rounded half away from zero.</summary>
-    public int? Shown => Index is { } index ? (int)Math.Round(index, MidpointRounding.AwayFromZero) : null;
+    /// <summary>The set's task score as shown (0–100, rounded half away from zero); null for none (shown as "—").</summary>
+    public int? Shown => Score.Shown;
 
-    /// <summary>DeepSeek Harness reports reasoning inside its output (METRICS 4.3): it adds its grade, not its share.</summary>
+    /// <summary>The score is the final one of idle agents only (shown pale, DESIGN 10).</summary>
+    public bool Resting => Score.Form == TaskValueForm.Resting;
+
+    /// <summary>DeepSeek Harness reports reasoning inside its output (METRICS 4.3): it adds its weight, not its share.</summary>
     public static bool RecordsReasoning(SourceKind source) => source != SourceKind.DeepSeek;
 
-    /// <summary>Adds output <paramref name="weight"/> of which <paramref name="reasoning"/> is reasoning, at <paramref name="grade"/>.</summary>
-    public IntelligenceSums Add(SourceKind source, double weight, double reasoning, ModelGrade grade)
+    /// <summary>Adds output <paramref name="weight"/> of which <paramref name="reasoning"/> is reasoning.</summary>
+    public IntelligenceSums Add(SourceKind source, double weight, double reasoning)
     {
         if (weight <= 0)
         {
@@ -40,13 +49,12 @@ public readonly record struct IntelligenceSums(double Output = 0, double Graded 
         }
 
         var separate = RecordsReasoning(source);
-        return new IntelligenceSums(
-            Output + weight,
-            Graded + weight * grade.Value,
-            Thinking + (separate ? reasoning : 0),
-            ThinkingBasis + (separate ? weight : 0));
+        return new IntelligenceSums(Output + weight, Thinking + (separate ? reasoning : 0), ThinkingBasis + (separate ? weight : 0))
+        {
+            Score = Score,
+        };
     }
 
     public static IntelligenceSums operator +(IntelligenceSums a, IntelligenceSums b) =>
-        new(a.Output + b.Output, a.Graded + b.Graded, a.Thinking + b.Thinking, a.ThinkingBasis + b.ThinkingBasis);
+        new(a.Output + b.Output, a.Thinking + b.Thinking, a.ThinkingBasis + b.ThinkingBasis) { Score = TaskSetValue.Merge(a.Score, b.Score) };
 }

@@ -1,5 +1,6 @@
 using AgentSpeed.Core;
 using AgentSpeed.Core.Intelligence;
+using AgentSpeed.Core.Tasks;
 using AgentSpeed.Presentation.Boards;
 using AgentSpeed.Presentation.Boards.Demo;
 using AgentSpeed.Presentation.Boards.Live;
@@ -222,7 +223,7 @@ public class BoardLiveMetricsTests
     public void TheHeroReadsIntelligenceThinkingAndCost()
     {
         var texts = new BoardTexts(Zh, TitleTheme.Vehicles, new CostDisplay(Zh));
-        var sums = new IntelligenceSums(2121, 2121 * 118, 3 * 174, 2121);
+        var sums = TestSums.Of(2121, 122.92, 3 * 174, 2121);
         var hero = texts.Hero(sums, new CostReading(24_000, 1, 707, CostTally.Zero, 0, [], [], CostState.Priced));
         Assert.Equal("123", hero.Intelligence);
         Assert.Equal(123, hero.Shown);
@@ -243,7 +244,7 @@ public class BoardLiveMetricsTests
         Assert.Equal(("–", BoardMoneyState.Unknown, false), (unknown.Cost.Number, unknown.Cost.State, unknown.Cost.HasUnit));
         var tag = texts.Hero(sums, new CostReading(0, 1, 0, CostTally.Zero, 0, [], [SourceKind.ClaudeCode], CostState.SubscriptionOnly));
         Assert.Equal((Zh["cost.subscription.tag"], BoardMoneyState.Tag), (tag.Cost.Number, tag.Cost.State));
-        var zero = texts.Hero(new IntelligenceSums(300, 300 * 115, 0, 300), CostReading.Zero);
+        var zero = texts.Hero(TestSums.Of(300, 115, 0, 300), CostReading.Zero);
         Assert.True(zero.ThinkingZero);
         Assert.Equal("0", zero.Thinking);
     }
@@ -286,10 +287,10 @@ public class BoardLiveMetricsTests
     public void GroupRowsCarryTheirIntelligenceAndTooltipLines()
     {
         var texts = new BoardTexts(En, TitleTheme.Vehicles, new CostDisplay(En));
+        var sums = TestSums.Of(360, 129, 90, 360);
         var root = Agent("r", 120) with
         {
-            Grade = new ModelGrade(ModelClass.Flagship, 4),
-            Intelligence = new AgentIntelligence(new IntelligenceSums(360, 360 * 124, 90, 360), new ModelGrade(ModelClass.Flagship, 4)),
+            Intelligence = new AgentIntelligence(sums, sums.Score, TaskState.Passing),
         };
         var group = BoardGrouping.Group([root], SpeedMetric.Output)[0];
         var entry = new BoardEntry(BoardEntryKind.Group, "r", group, root, 1, 0, 38) { TwoLine = true };
@@ -297,18 +298,18 @@ public class BoardLiveMetricsTests
         Assert.Equal("129", row.Intelligence);
         Assert.Equal(AgentIntelligenceForm.Live, row.Form);
         Assert.Equal(En.Format("a11y.agent.intel", "129"), row.Spoken);
-        Assert.Equal(
-            [
-                En.Format("intel.tooltip", "129", "25%"), En.Format("intel.grade", "124", En["intel.class.flagship"]), En["intel.disclaimer"],
-            ],
-            row.TooltipLines);
+        Assert.Equal([En["task.state.passing"], En["intel.disclaimer"]], row.TooltipLines);
         Assert.Empty(CostLines(row.TooltipLines));
         // The row's label names no cost: it ends with the 智力 words.
         Assert.Equal(En.Format("a11y.board.row", 1, root.Project, SpeedFormat.Speed(group.Live)) + ", " + row.Spoken,
             BoardAccessibility.Row(entry with { Readout = row }, En));
 
-        // An idle group: its root's grade at rest.
-        var idle = root with { Live = Rate.Zero, Intelligence = new AgentIntelligence(IntelligenceSums.Zero, root.Grade) };
+        // An idle group: its root's last task score at rest.
+        var idle = root with
+        {
+            Live = Rate.Zero,
+            Intelligence = new AgentIntelligence(IntelligenceSums.Zero with { Score = TestSums.Resting(124) }, TestSums.Resting(124), TaskState.Passing),
+        };
         var resting = BoardGrouping.Group([idle], SpeedMetric.Output)[0];
         var quiet = texts.Row(new BoardEntry(BoardEntryKind.Group, "r", resting, idle, 1, 0, 38), BoardReadouts.All)!;
         Assert.Equal(("124", AgentIntelligenceForm.Resting), (quiet.Intelligence, quiet.Form));
@@ -360,7 +361,8 @@ public class BoardLiveMetricsTests
         }
 
         Assert.Equal("707", tick.ValueText);
-        Assert.Equal(("123", "174"), (tick.Gauge.Intelligence, tick.Gauge.Thinking));
+        // The simulation's highest task score (a demo value per agent id) over the team's thinking rate.
+        Assert.Equal(("88", "174"), (tick.Gauge.Intelligence, tick.Gauge.Thinking));
         Assert.Equal(("0.024", BoardMoneyState.Value), (tick.Gauge.Cost.Number, tick.Gauge.Cost.State));
         Assert.All(tick.Entries.Where(e => e.Kind == BoardEntryKind.Group), e => Assert.Empty(CostLines(e.Readout!.TooltipLines)));
 
@@ -404,11 +406,11 @@ public class BoardLiveMetricsTests
         var feed = new BoardLiveFeed(board);
         feed.Configure(board, SpeedMetric.Output, 2000, 0);
         var texts = new BoardTexts(En, TitleTheme.Vehicles, new CostDisplay(En));
-        var thinking = Agent("a", 300) with { Intelligence = new AgentIntelligence(new IntelligenceSums(900, 900 * 110, 0, 900), null) };
+        var thinking = Agent("a", 300) with { Intelligence = new AgentIntelligence(TestSums.Of(900, 110, 0, 900), TestSums.Live(110)) };
         var snapshot = BoardLiveFeedTests.Snapshot(0, thinking) with
         {
             Sources = [.. BoardLiveFeedTests.Snapshot(0, thinking).Sources.Select(s => s with { Intelligence = s.Kind == SourceKind.ClaudeCode
-                ? new IntelligenceSums(900, 900 * 110, 0, 900) : IntelligenceSums.Zero })],
+                ? TestSums.Of(900, 110, 0, 900) : IntelligenceSums.Zero })],
         };
         var first = feed.Update(snapshot, 0, texts);
         Assert.Equal(BoardReadouts.All, first.Readouts);

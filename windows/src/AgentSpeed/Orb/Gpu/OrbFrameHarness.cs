@@ -209,11 +209,18 @@ internal static class OrbFrameHarness
     /// contrast (<c>orb-lines.png</c>); and the intelligence readout alone, a short and a long reading at 112, 148 and 196 pt
     /// (<c>orb-intel-dark|light.png</c>, a row per style) with each size's fit in the report.
     /// </summary>
+    /// <summary>A live reading: window output and reasoning tokens with a task score.</summary>
+    private static Core.Intelligence.IntelligenceSums HarnessIntelligence(double output, double thinking, double score) =>
+        new(output, thinking, output)
+        {
+            Score = new Core.Tasks.TaskSetValue(Core.Tasks.TaskValueForm.Live, score, Core.Tasks.TaskRounding.HalfAwayFromZero(score), "harness"),
+        };
+
     private static void LineSheets(GpuDevice device, OffscreenTarget target, OrbStyle[] styles, double scale, OrbReadoutStrings strings,
         string info, Localizer loc, string directory, System.Text.StringBuilder report)
     {
         var traffic = OrbLinesText.Traffic(new Core.Traffic.TrafficRate(1_280_000, 64_000), false, loc);
-        var intelligence = OrbLinesText.Intelligence(new Core.Intelligence.IntelligenceSums(1200, 1200 * 124, 528, 1200), true, loc);
+        var intelligence = OrbLinesText.Intelligence(HarnessIntelligence(1200, 528, 74.25), true, loc);
         var lines = new List<List<BitmapSource>>();
         foreach (var (dark, highContrast) in new[] { (true, false), (false, false), (true, true) })
         {
@@ -242,7 +249,7 @@ internal static class OrbFrameHarness
         // 61 over 5.0 tok/s, and 133 over 176 tok/s.
         var readings = new[]
         {
-            OrbLinesText.Intelligence(new Core.Intelligence.IntelligenceSums(400, 400 * 60, 15, 400), true, loc),
+            OrbLinesText.Intelligence(HarnessIntelligence(400, 15, 6.5), true, loc),
             intelligence,
         };
         var sizes = new[] { 112.0, 148, 196 };
@@ -303,7 +310,7 @@ internal static class OrbFrameHarness
     private static void ThinkingZeroSheets(GpuDevice device, OffscreenTarget target, OrbStyle[] styles, double scale, OrbReadoutStrings strings,
         string info, Localizer loc, string directory, System.Text.StringBuilder report, OrbLinesSample live)
     {
-        var zero = OrbLinesText.Intelligence(new Core.Intelligence.IntelligenceSums(400, 400 * 125, 0, 400), true, loc);
+        var zero = OrbLinesText.Intelligence(HarnessIntelligence(400, 0, 61.25), true, loc);
         var hold = ThinkingZeroHold.Seconds;
         (OrbLinesSample Sample, double Seconds)[] moments =
             [(live, 2.4), (zero, 2.4), (zero, hold + OrbThinkingFade.Glide / 2), (zero, hold + 2 * OrbThinkingFade.Glide)];

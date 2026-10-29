@@ -90,23 +90,14 @@ public sealed class BoardTexts
         var spoken = !readouts.Intelligence ? string.Empty : intelligence.Form switch
         {
             AgentIntelligenceForm.Live => Localizer.Format("a11y.agent.intel", text),
-            AgentIntelligenceForm.Resting => Localizer.Format("a11y.agent.grade", text),
+            AgentIntelligenceForm.Resting => Localizer.Format("a11y.task.idle", Localizer.Format("a11y.agent.intel", text)),
             _ => string.Empty,
         };
 
         var lines = new List<string>(4);
-        if (group && readouts.Intelligence)
+        if (group && readouts.Intelligence && intelligence.State is { } state)
         {
-            if (intelligence.Form == AgentIntelligenceForm.Live)
-            {
-                var share = intelligence.Sums.ThinkingBasis > 0 ? HistoryText.Percent(intelligence.ThinkingShare) : BoardHeroReadouts.Dash;
-                lines.Add(Localizer.Format("intel.tooltip", text, share));
-            }
-
-            if (entry.Group.Root.Grade is { } grade)
-            {
-                lines.Add(IntelligenceText.Grade(grade, Localizer));
-            }
+            lines.Add(Localizer["task.state." + Core.Tasks.TaskStateNames.Name(state)]);
         }
 
         if (group && readouts.Intelligence)

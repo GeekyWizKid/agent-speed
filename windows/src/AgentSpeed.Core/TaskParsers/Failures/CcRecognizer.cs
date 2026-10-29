@@ -1,0 +1,133 @@
+using System.Text.RegularExpressions;
+
+namespace AgentSpeed.Core.TaskParsers;
+
+/// <summary>
+/// C and C++ compilers, linkers and make (TASK-PARSERS 5.3): compiler errors in C-family files, undefined symbols and
+/// references (code <c>ld</c>), and the <c>N errors generated.</c> totals.
+/// </summary>
+internal sealed partial class CcRecognizer(FailureFound found) : FailureRecognizer(found)
+{
+    private bool symbols;
+
+    [GeneratedRegex("""\A(?:[ \t]+\"(.+)\", referenced from:)\z""", RegexOptions.CultureInvariant)]
+    private static partial Regex LdSymbolShared();
+
+
+    private static Regex LdSymbol() => ThreadRegex.Of(LdSymbolShared());
+
+    [GeneratedRegex("""\A(?:(.+?\.(?:c|cc|cpp|cxx|c\+\+|C|h|hh|hpp|hxx|h\+\+|m|mm|cu|cuh|ino|S|s|ipp|tpp|inl)):([0-9]+)(?::([0-9]+))?: (?:fatal )?error: (.+?)(?: \[([^\]]+)\])?)\z""", RegexOptions.CultureInvariant)]
+    private static partial Regex CcErrorShared();
+
+
+    private static Regex CcError() => ThreadRegex.Of(CcErrorShared());
+
+    [GeneratedRegex("""\A(?:(.+?\.(?:c|cc|cpp|cxx|c\+\+|C|h|hh|hpp|hxx|h\+\+|m|mm|cu|cuh|ino|S|s|ipp|tpp|inl)):([0-9]+)(?::([0-9]+))?: (?:warning|note): .*)\z""", RegexOptions.CultureInvariant)]
+    private static partial Regex CcWarningShared();
+
+
+    private static Regex CcWarning() => ThreadRegex.Of(CcWarningShared());
+
+    [GeneratedRegex("""\A(?:In file included from .*|[ \t]+from .*|.+?: In (?:function|member function|constructor|destructor|instantiation of|static member function) .*:)\z""", RegexOptions.CultureInvariant)]
+    private static partial Regex CcContextShared();
+
+
+    private static Regex CcContext() => ThreadRegex.Of(CcContextShared());
+
+    [GeneratedRegex("""\A(?:([0-9]+) errors? generated\.)\z""", RegexOptions.CultureInvariant)]
+    private static partial Regex CcGeneratedShared();
+
+
+    private static Regex CcGenerated() => ThreadRegex.Of(CcGeneratedShared());
+
+    [GeneratedRegex("""\A(?:Undefined symbols for architecture [^ ]+:)\z""", RegexOptions.CultureInvariant)]
+    private static partial Regex LdUndefinedArchShared();
+
+
+    private static Regex LdUndefinedArch() => ThreadRegex.Of(LdUndefinedArchShared());
+
+    [GeneratedRegex("""undefined reference to [`'\u2018](.+?)['\u2019]""", RegexOptions.CultureInvariant)]
+    private static partial Regex LdReferenceShared();
+
+
+    private static Regex LdReference() => ThreadRegex.Of(LdReferenceShared());
+
+    [GeneratedRegex("""\A(?:(?:[^ ]*/)?ld(?:\.[a-z]+)?: .*|collect2: error: ld returned [0-9]+ exit status|clang(?:\+\+)?: error: linker command failed.*|[ \t]+(?:_?[A-Za-z0-9_]+(?:\(.*\))? in .+\.o|in function .*))\z""", RegexOptions.CultureInvariant)]
+    private static partial Regex LdNoiseShared();
+
+
+    private static Regex LdNoise() => ThreadRegex.Of(LdNoiseShared());
+
+    [GeneratedRegex("""\A(?:g?make(?:\[[0-9]+\])?: \*\*\* .*|g?make(?:\[[0-9]+\])?: (?:Entering|Leaving) directory .*)\z""", RegexOptions.CultureInvariant)]
+    private static partial Regex MakeNoiseShared();
+
+
+    private static Regex MakeNoise() => ThreadRegex.Of(MakeNoiseShared());
+
+    public override int Step(string[] lines, int i)
+    {
+        var line = lines[i];
+        Match r;
+        if (symbols)
+        {
+            r = LdSymbol().Match(line);
+            if (r.Success)
+            {
+                Found.Error("cc", "", "ld", "undefined symbol " + G(r, 1));
+                return 1;
+            }
+
+            if (StartsIndented(line))
+            {
+                return 1;
+            }
+
+            symbols = false;
+        }
+
+        r = Has(line, "error: ") ? CcError().Match(line) : Match.Empty;
+        if (r.Success)
+        {
+            Found.Error("cc", G(r, 1), CcCode(G(r, 5)), G(r, 4));
+            return 1;
+        }
+
+        if (((Has(line, "warning: ") || Has(line, "note: ")) && CcWarning().IsMatch(line)) || CcContext().IsMatch(line))
+        {
+            return 1;
+        }
+
+        r = CcGenerated().Match(line);
+        if (r.Success)
+        {
+            Found.Summary("cc", FailureFamily.Error, N(r, 1), null, FailureMode.Sum);
+            return 1;
+        }
+
+        if (LdUndefinedArch().IsMatch(line))
+        {
+            symbols = true;
+            return 1;
+        }
+
+        r = LdReference().Match(line);
+        if (r.Success)
+        {
+            Found.Error("cc", "", "ld", "undefined reference to " + G(r, 1));
+            return 1;
+        }
+
+        return LdNoise().IsMatch(line) || MakeNoise().IsMatch(line) ? 1 : 0;
+    }
+
+    /// <summary>The bracketed flag with <c>-Werror,</c> removed and <c>-Werror=</c> read as <c>-W</c>.</summary>
+    private static string CcCode(string flag)
+    {
+        if (flag.StartsWith("-Werror,", StringComparison.Ordinal))
+        {
+            flag = flag["-Werror,".Length..];
+        }
+
+        return flag.StartsWith("-Werror=", StringComparison.Ordinal) ? "-W" + flag["-Werror=".Length..] : flag;
+    }
+}

@@ -12,7 +12,7 @@ namespace AgentSpeed.Presentation.Tests.Gpu;
 public partial class OrbLinesTests
 {
     /// <summary>125 over 0 tok/s: a source that never reports reasoning.</summary>
-    private static readonly IntelligenceSums Unthinking = new(400, 400 * 125, 0, 400);
+    private static readonly IntelligenceSums Unthinking = TestSums.Of(400, 125, 0, 400);
 
     [Fact]
     public void TheThinkingLineHoldsThreeSecondsThenFadesAsTheIntelligenceLineGlides()
@@ -110,8 +110,8 @@ public partial class OrbLinesTests
     public void ARateThatShowsAsZeroCountsAsZero()
     {
         // 0.1 reasoning tokens in the 3 s window read 0.0 tok/s; 0.3 read 0.1.
-        Assert.True(Intelligence(new IntelligenceSums(400, 400 * 125, 0.1, 400)).Content!.ThinkingZero);
-        Assert.False(Intelligence(new IntelligenceSums(400, 400 * 125, 0.3, 400)).Content!.ThinkingZero);
+        Assert.True(Intelligence(TestSums.Of(400, 125, 0.1, 400)).Content!.ThinkingZero);
+        Assert.False(Intelligence(TestSums.Of(400, 125, 0.3, 400)).Content!.ThinkingZero);
         Assert.True(Intelligence(Unthinking).Content!.ThinkingZero);
         Assert.False(Intelligence(Long).Content!.ThinkingZero);
     }

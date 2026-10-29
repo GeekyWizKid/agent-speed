@@ -6,34 +6,20 @@ using AgentSpeed.Core.Pricing;
 
 namespace AgentSpeed.Core.Tests;
 
-/// <summary>The live intelligence index (METRICS 6.9) against <c>spec/fixtures/intelligence-cases.json</c>.</summary>
-public sealed class IntelligenceCaseTests
+/// <summary>
+/// The live thinking line (METRICS 6.9 <i>Live thinking</i>) against the <c>thinking</c> section of
+/// <c>spec/fixtures/task-score-cases.json</c>: the window sums of a set, of every agent and of every board group.
+/// </summary>
+public sealed class ThinkingCaseTests
 {
-    private static readonly Lazy<JsonElement> Document = new(() =>
-        JsonDocument.Parse(File.ReadAllBytes(FixtureLocator.PathOf("intelligence-cases.json"))).RootElement);
-
-    private static readonly Lazy<PriceTable> Table = new(() =>
-        PriceTable.Load(File.ReadAllBytes(FixtureLocator.PathOf(Document.Value.GetProperty("table").GetString()!))).Table!);
-
-    public static TheoryData<string> GradeNames() => Names("grades");
+    private static readonly Lazy<JsonElement> Section = new(() =>
+        JsonDocument.Parse(File.ReadAllBytes(FixtureLocator.PathOf("task-score-cases.json"))).RootElement.GetProperty("thinking"));
 
     public static TheoryData<string> WindowNames() => Names("windows");
 
     public static TheoryData<string> AgentWindowNames() => Names("agentWindows");
 
     public static TheoryData<string> GroupWindowNames() => Names("groupWindows");
-
-    [Theory]
-    [MemberData(nameof(GradeNames))]
-    public void GradeMatches(string name)
-    {
-        var item = Case("grades", name);
-        var expect = item.GetProperty("expect");
-        var grade = ModelGrade.Of(Table.Value, Text(item, "model"), Text(item, "provider"), Text(item, "effort"));
-        Assert.Equal(expect.GetProperty("class").GetInt32(), grade.ClassPoints);
-        Assert.Equal(expect.GetProperty("level").GetInt32(), grade.Level);
-        Assert.Equal(expect.GetProperty("grade").GetInt32(), grade.Value);
-    }
 
     [Theory]
     [MemberData(nameof(WindowNames))]
@@ -45,7 +31,7 @@ public sealed class IntelligenceCaseTests
         {
             var nowMs = query.GetProperty("nowMs").GetInt64();
             var frame = engine.Compute(nowMs, 0, observeLive: false);
-            var members = query.TryGetProperty("sources", out var sources)
+            var members = query.TryGetProperty("sources", out var sources) && sources.ValueKind == JsonValueKind.Array
                 ? SourceSet.From(sources.EnumerateArray().Select(s => EngineCaseTests.ParseSource(s.GetString()!)))
                 : SourceSet.Everything;
             var sums = members.Aggregate(IntelligenceSums.Zero, (total, kind) => total + frame.SourceIntelligence[(int)kind]);
@@ -70,31 +56,10 @@ public sealed class IntelligenceCaseTests
             var expected = query.GetProperty("agents").EnumerateObject().ToDictionary(p => p.Name, p => p.Value);
             Assert.Equal(expected.Keys.Order(StringComparer.Ordinal), frame.Agents.Select(a => a.Info.Id).Order(StringComparer.Ordinal));
             var added = frame.Agents.Aggregate(IntelligenceSums.Zero, (total, agent) => total + agent.Intelligence.Sums);
-            EngineCaseTests.AssertClose(set.Output, added.Output, at + " agents' output");
-            EngineCaseTests.AssertClose(set.Graded, added.Graded, at + " agents' graded output");
-            EngineCaseTests.AssertClose(set.Thinking, added.Thinking, at + " agents' reasoning");
-            EngineCaseTests.AssertClose(set.ThinkingBasis, added.ThinkingBasis, at + " agents' reasoning basis");
-
+            AssertAdded(set, added, at + " agents'");
             foreach (var agent in frame.Agents)
             {
-                var want = expected[agent.Info.Id];
-                var label = $"{at} {agent.Info.Id}";
-                var intelligence = agent.Intelligence;
-                Assert.True(want.GetProperty("form").GetString() == Form(intelligence.Form), $"{label} form {intelligence.Form}");
-                Assert.Equal(NullableInt(want, "grade"), agent.Grade?.Value);
-                Assert.Equal(agent.Grade, intelligence.Grade);
-                Assert.Equal(NullableInt(want, "shown"), intelligence.Shown);
-                if (want.GetProperty("intelligence").ValueKind == JsonValueKind.Null)
-                {
-                    Assert.Null(intelligence.Value);
-                }
-                else
-                {
-                    EngineCaseTests.AssertClose(want.GetProperty("intelligence").GetDouble(), intelligence.Value!.Value, label + " intelligence");
-                }
-
-                EngineCaseTests.AssertClose(want.GetProperty("liveThinking").GetDouble(), intelligence.LiveThinking, label + " liveThinking");
-                EngineCaseTests.AssertClose(want.GetProperty("thinkingShare").GetDouble(), intelligence.ThinkingShare, label + " thinkingShare");
+                AssertSums(expected[agent.Info.Id], agent.Intelligence.Sums, $"{at} {agent.Info.Id}");
             }
         }
     }
@@ -115,7 +80,7 @@ public sealed class IntelligenceCaseTests
 
             // Groups as a board forms them: a root (no listed parent) and every listed descendant, root first, depth first.
             var statuses = frame.Agents.Select(a => new AgentStatus(a.Info.Id, a.Info.Source, a.Info.Project ?? string.Empty, a.Info.Model, a.Phase,
-                a.Info.IsSubagent, a.Live, a.RecentSpeed, DateTimeOffset.UnixEpoch, a.ParentId) { Grade = a.Grade, Intelligence = a.Intelligence })
+                a.Info.IsSubagent, a.Live, a.RecentSpeed, DateTimeOffset.UnixEpoch, a.ParentId) { Intelligence = a.Intelligence })
                 .ToArray();
             var groups = Groups(statuses);
             var expected = query.GetProperty("groups").EnumerateObject().ToDictionary(p => p.Name, p => p.Value);
@@ -124,100 +89,45 @@ public sealed class IntelligenceCaseTests
             foreach (var (rootId, members) in groups)
             {
                 var want = expected[rootId];
-                var label = $"{at} group {rootId}";
                 Assert.Equal(want.GetProperty("members").EnumerateArray().Select(e => e.GetString()!), members.Select(m => m.Id));
                 var intelligence = AgentIntelligence.Group(members[0], members.Skip(1).ToArray());
                 added += intelligence.Sums;
-                Assert.True(want.GetProperty("form").GetString() == Form(intelligence.Form), $"{label} form {intelligence.Form}");
-                Assert.Equal(NullableInt(want, "grade"), intelligence.Grade?.Value);
-                Assert.Equal(NullableInt(want, "shown"), intelligence.Shown);
-                if (want.GetProperty("intelligence").ValueKind == JsonValueKind.Null)
-                {
-                    Assert.Null(intelligence.Value);
-                }
-                else
-                {
-                    EngineCaseTests.AssertClose(want.GetProperty("intelligence").GetDouble(), intelligence.Value!.Value, label + " intelligence");
-                }
-
-                EngineCaseTests.AssertClose(want.GetProperty("liveThinking").GetDouble(), intelligence.LiveThinking, label + " liveThinking");
-                EngineCaseTests.AssertClose(want.GetProperty("thinkingShare").GetDouble(), intelligence.ThinkingShare, label + " thinkingShare");
+                AssertSums(want, intelligence.Sums, $"{at} group {rootId}");
             }
 
             // The groups partition the agents, so their sums add up to the set's.
-            EngineCaseTests.AssertClose(set.Output, added.Output, at + " groups' output");
-            EngineCaseTests.AssertClose(set.Graded, added.Graded, at + " groups' graded output");
-            EngineCaseTests.AssertClose(set.Thinking, added.Thinking, at + " groups' reasoning");
-            EngineCaseTests.AssertClose(set.ThinkingBasis, added.ThinkingBasis, at + " groups' reasoning basis");
+            AssertAdded(set, added, at + " groups'");
         }
-    }
-
-    [Fact]
-    public void AnAgentCarriesTheGradeOfItsCurrentModelAndEffort()
-    {
-        var engine = new SpeedEngine(0, new PriceBook([Table.Value]));
-        engine.UpdateAgent(new AgentInfo("a", SourceKind.ClaudeCode, null, "claude-opus-5-5", false, AgentPhase.Tools, null, 1000)
-        {
-            Modes = Effort("xhigh"),
-        });
-        var agent = Assert.Single(engine.Compute(2000, 0, observeLive: false).Agents);
-        Assert.Equal(new ModelGrade(ModelClass.Flagship, 4), agent.Grade);
-        Assert.Equal(124, agent.Grade!.Value.Value);
-        Assert.Equal(AgentIntelligenceForm.Resting, agent.Intelligence.Form);
-        Assert.Equal(124, agent.Intelligence.Shown);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public void AnAgentWithoutAModelHasNoGradeButItsEstimateStillWeighsAsAnUnknownModel(string? model)
-    {
-        var engine = new SpeedEngine(0, new PriceBook([Table.Value]));
-        engine.UpdateAgent(new AgentInfo("idle", SourceKind.ClaudeCode, null, model, false, AgentPhase.Idle, null, 1000));
-        engine.UpdateAgent(new AgentInfo("busy", SourceKind.ClaudeCode, null, model, false, AgentPhase.Generating, 1000, 1000));
-        engine.Upsert(Response("r", "other", "plain-model-1", 0, 1000, 100), isCompletion: true, seeded: true);
-        var frame = engine.Compute(2000, 0, observeLive: false);
-        var idle = frame.Agents.Single(a => a.Info.Id == "idle");
-        Assert.Null(idle.Grade);
-        Assert.Equal(AgentIntelligenceForm.None, idle.Intelligence.Form);
-        Assert.Null(idle.Intelligence.Shown);
-        var busy = frame.Agents.Single(a => a.Info.Id == "busy");
-        Assert.Null(busy.Grade);
-        Assert.Equal(AgentIntelligenceForm.Live, busy.Intelligence.Form);
-        Assert.Equal(ModelGrade.Unknown.Value, busy.Intelligence.Shown);
     }
 
     [Fact]
     public void ASubAgentsOutputNeverCountsForItsParent()
     {
-        var engine = new SpeedEngine(0, new PriceBook([Table.Value]));
-        engine.UpdateAgent(new AgentInfo("parent", SourceKind.ClaudeCode, null, "claude-opus-5-5", false, AgentPhase.Tools, null, 4000)
-        {
-            Modes = Effort("xhigh"),
-        });
+        var engine = new SpeedEngine(0, new PriceBook());
+        engine.UpdateAgent(new AgentInfo("parent", SourceKind.ClaudeCode, null, "claude-opus-5-5", false, AgentPhase.Tools, null, 4000));
         engine.UpdateAgent(new AgentInfo("child", SourceKind.ClaudeCode, null, "claude-haiku-5", true, AgentPhase.Idle, null, 4000, "parent"));
-        engine.Upsert(Response("r", "child", "claude-haiku-5", 1000, 4000, 300), isCompletion: true, seeded: true);
+        engine.Upsert(new ParsedResponse("r", SourceKind.ClaudeCode, "child", "claude-haiku-5", 1000, 4000,
+            new TokenCounts(Input: 1000, Output: 300, Reasoning: 120), true), isCompletion: true, seeded: true);
         var frame = engine.Compute(4000, 0, observeLive: false);
         var parent = frame.Agents.Single(a => a.Info.Id == "parent");
         var child = frame.Agents.Single(a => a.Info.Id == "child");
-        Assert.Equal(AgentIntelligenceForm.Resting, parent.Intelligence.Form);
         Assert.Equal(IntelligenceSums.Zero, parent.Intelligence.Sums);
-        Assert.Equal(AgentIntelligenceForm.Live, child.Intelligence.Form);
-        Assert.Equal(frame.SourceIntelligence[(int)SourceKind.ClaudeCode], child.Intelligence.Sums);
+        Assert.Equal(frame.SourceIntelligence[(int)SourceKind.ClaudeCode].Thinking, child.Intelligence.Sums.Thinking);
+        Assert.True(child.Intelligence.Sums.IsActive);
     }
 
     [Fact]
-    public void ReasoningTokensWithoutOutputAndNothingInTheWindowLeaveTheIndexEmpty()
+    public void ReasoningTokensWithoutOutputAddNothing()
     {
-        var sums = IntelligenceSums.Zero.Add(SourceKind.Codex, 0, 50, ModelGrade.Unknown);
+        var sums = IntelligenceSums.Zero.Add(SourceKind.Codex, 0, 50);
         Assert.Equal(IntelligenceSums.Zero, sums);
-        Assert.Null(sums.Index);
         Assert.Equal(0, sums.ThinkingShare);
+        Assert.Equal(0, sums.LiveThinking);
     }
 
     private static SpeedEngine Engine(JsonElement item)
     {
-        var engine = new SpeedEngine(0, new PriceBook([Table.Value]));
+        var engine = new SpeedEngine(0, new PriceBook());
         foreach (var agent in item.GetProperty("agents").EnumerateArray())
         {
             engine.UpdateAgent(new AgentInfo(
@@ -256,21 +166,19 @@ public sealed class IntelligenceCaseTests
         return engine;
     }
 
+    /// <summary><c>liveThinking</c>, <c>thinkingShare</c> and <c>weight</c> (Σ w, tokens generating in the window).</summary>
     private static void AssertSums(JsonElement expect, IntelligenceSums sums, string at)
     {
-        if (expect.GetProperty("intelligence").ValueKind == JsonValueKind.Null)
-        {
-            Assert.Null(sums.Index);
-            Assert.Null(sums.Shown);
-        }
-        else
-        {
-            EngineCaseTests.AssertClose(expect.GetProperty("intelligence").GetDouble(), sums.Index!.Value, at + " intelligence");
-            Assert.Equal(expect.GetProperty("shown").GetInt32(), sums.Shown);
-        }
-
         EngineCaseTests.AssertClose(expect.GetProperty("liveThinking").GetDouble(), sums.LiveThinking, at + " liveThinking");
         EngineCaseTests.AssertClose(expect.GetProperty("thinkingShare").GetDouble(), sums.ThinkingShare, at + " thinkingShare");
+        EngineCaseTests.AssertClose(expect.GetProperty("weight").GetDouble(), sums.Output, at + " weight");
+    }
+
+    private static void AssertAdded(IntelligenceSums set, IntelligenceSums added, string label)
+    {
+        EngineCaseTests.AssertClose(set.Output, added.Output, label + " output");
+        EngineCaseTests.AssertClose(set.Thinking, added.Thinking, label + " reasoning");
+        EngineCaseTests.AssertClose(set.ThinkingBasis, added.ThinkingBasis, label + " reasoning basis");
     }
 
     // Root id → the root, then its descendants depth first in list order (a parent that is not listed makes a root).
@@ -297,26 +205,13 @@ public sealed class IntelligenceCaseTests
         return groups;
     }
 
-    private static ParsedResponse Response(string key, string agentId, string model, long startMs, long endMs, long output) =>
-        new(key, SourceKind.ClaudeCode, agentId, model, startMs, endMs, new TokenCounts(Input: 1000, Output: output), true);
-
-    private static string Form(AgentIntelligenceForm form) => form switch
-    {
-        AgentIntelligenceForm.Live => "live",
-        AgentIntelligenceForm.Resting => "resting",
-        _ => "none",
-    };
-
-    private static int? NullableInt(JsonElement element, string name) =>
-        element.GetProperty(name).ValueKind == JsonValueKind.Null ? null : element.GetProperty(name).GetInt32();
-
     private static ExecutionModes Effort(string? effort) =>
         ExecutionModes.Of(ExecutionModeNative.Effort(effort, ExecutionModeEvidence.Recorded, ExecutionModeScope.Request));
 
     private static TheoryData<string> Names(string group)
     {
         var data = new TheoryData<string>();
-        foreach (var item in Document.Value.GetProperty(group).EnumerateArray())
+        foreach (var item in Section.Value.GetProperty(group).EnumerateArray())
         {
             data.Add(item.GetProperty("name").GetString()!);
         }
@@ -325,7 +220,7 @@ public sealed class IntelligenceCaseTests
     }
 
     private static JsonElement Case(string group, string name) =>
-        Document.Value.GetProperty(group).EnumerateArray().Single(c => c.GetProperty("name").GetString() == name);
+        Section.Value.GetProperty(group).EnumerateArray().Single(c => c.GetProperty("name").GetString() == name);
 
     private static string? Text(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
