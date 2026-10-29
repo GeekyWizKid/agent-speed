@@ -5,7 +5,8 @@ import AppKit
 /// Glass and neon ranking rows (the prototypes' `.row` grid: 16 pt rank, 10 pt badge, name, capsule column, 46 pt
 /// value, 8 pt gaps, 6 pt padding), with the share underline from the name to the value. With the live metrics
 /// (DESIGN 2c *Ranking rows*): the 智力 cell before a 44 pt value and the captions line over the ranking. At M and L
-/// each group row has a second line: the detail under the name, running to the value's edge.
+/// each group row has a second line, the detail under the name, and its figures (智力 and the value) 2 pt larger,
+/// centred on the row; their columns widen to fit them.
 @MainActor
 struct BoardListRows {
     let style: BoardStyle
@@ -13,8 +14,10 @@ struct BoardListRows {
     let palette: BoardPalette
     let capsules: BoardCapsuleDrawing
     let geometry: BoardGeometry
-    /// The 智力 cell's width: at least as wide as `888` in its font and as the caption.
+    /// The 智力 cell's width: at least as wide as `888` in its font (a two-line group row's) and as the caption.
     let intelCell: CGFloat
+    /// The value column: at least as wide as the widest value in a two-line group row's font.
+    let valueWidth: CGFloat
 
     init(style: BoardStyle, size: BoardSize, palette: BoardPalette, capsules: BoardCapsuleDrawing,
          geometry: BoardGeometry? = nil, caption: String = "") {
@@ -24,18 +27,21 @@ struct BoardListRows {
         self.capsules = capsules
         let geometry = geometry ?? BoardGeometry(style, size)
         self.geometry = geometry
+        let large = geometry.twoLine
         if geometry.hasIntelligence {
-            let digits = BoardLabel("888", Self.intelFont(style: style, sub: false, live: true), color: palette.ink).width
+            let digits = BoardLabel("888", Self.intelFont(style: style, sub: false, live: true, large: large), color: palette.ink).width
             let label = BoardLabel(caption, Self.captionFont(style), color: palette.ink3).width
             intelCell = max(CGFloat(geometry.intelligenceColumn), digits.rounded(.up), label.rounded(.up))
         } else {
             intelCell = 0
         }
+        let font = Self.valueFont(style: style, sub: false, idle: false, large: large)
+        let widest = large ? BoardFigures.widest(font, color: palette.ink) : 0
+        valueWidth = max(CGFloat(geometry.valueColumn), widest)
     }
 
     private var neon: Bool { style == .neon }
     var compact: Bool { size == .small }
-    private var valueWidth: CGFloat { CGFloat(geometry.valueColumn) }
 
     /// The row's frame inside the board: the rows area spans the board less `pad − 6` on each side.
     func frame(_ row: BoardPlannedRow, rowsTop: CGFloat, pad: CGFloat) -> CGRect {
@@ -59,6 +65,19 @@ struct BoardListRows {
     /// Line 1's baseline in a two-line group row, else nil (the row's lines centre).
     private func firstBaseline(_ model: BoardRowModel) -> CGFloat? {
         model.twoLine && model.rank != nil ? CGFloat(BoardGeometry.firstLineBaseline) : nil
+    }
+
+    /// A two-line group row's figures: larger, on one baseline centred on the row (nil: a one-line row's own).
+    private func figures(_ model: BoardRowModel) -> BoardFigures? {
+        guard model.twoLine, model.rank != nil else { return nil }
+        let intel = model.intel.map { Self.intelFont(style: style, sub: false, live: $0.live, large: true) }
+        return BoardFigures(centre: CGFloat(geometry.figureCentre), fonts: [Self.valueFont(style: style, sub: false, idle: model.idle,
+                                                                                            large: true)] + (intel.map { [$0] } ?? []))
+    }
+
+    /// Where line 2 ends: the first figure column's left edge (the figures, centred on the row, hold their columns).
+    func figuresLeft(_ width: CGFloat) -> CGFloat {
+        intelCell > 0 ? intelRight(width) - intelCell : valueRight(width) - valueWidth
     }
 
     // MARK: Items
@@ -95,14 +114,16 @@ struct BoardListRows {
             items.append(item)
         }
 
+        let figures = self.figures(model)
+        let figureLine = figures?.baseline
         let valueFrame = CGRect(x: frame.maxX - 76, y: frame.minY, width: 76, height: frame.height)
         var value = BoardContentItem(key: key + "#value", frame: valueFrame,
                                      revision: AnyHashable([AnyHashable(model.value), AnyHashable(model.idle), AnyHashable(model.heat),
-                                                            AnyHashable(line1), look])) { context, box in
-            rows.drawValue(model, sub: sub, right: box.width - 6, midY: box.height / 2, baseline: line1, hot: false, in: context)
+                                                            AnyHashable(figureLine), look])) { context, box in
+            rows.drawValue(model, sub: sub, right: box.width - 6, midY: box.height / 2, baseline: figureLine, hot: false, in: context)
         }
         value.hot = BoardContentDrawing { context, box in
-            rows.drawValue(model, sub: sub, right: box.width - 6, midY: box.height / 2, baseline: line1, hot: true, in: context)
+            rows.drawValue(model, sub: sub, right: box.width - 6, midY: box.height / 2, baseline: figureLine, hot: true, in: context)
         }
         switch accents.change {
         case .rise: value.accents.append(.warm)
@@ -111,35 +132,42 @@ struct BoardListRows {
         }
         if let event = accents.event, event.from > event.to {
             value.accents.append(.decal(BoardRowDecals.chip(style: style, climbed: event.from - event.to, rowRight: 76,
-                                                            midY: line1.map { $0 - 4.5 } ?? frame.height / 2, palette: palette)))
+                                                            midY: figures.map { $0.centre } ?? frame.height / 2, palette: palette)))
         }
         items.append(value)
         if let intel = model.intel {
-            items.append(intelItem(intel, model: model, sub: sub, key: key, frame: frame, baseline: line1, accents: accents,
+            items.append(intelItem(intel, model: model, sub: sub, key: key, frame: frame, baseline: figureLine, accents: accents,
                                    look: look))
         }
         return items
     }
 
     /// The 智力 cell: right-aligned on the value's baseline; live one step quieter than the value, resting and `–`
-    /// quieter still. Its text changes in place; live ↔ resting crossfades.
-    private func intelItem(_ text: String, model: BoardRowModel, sub: Bool, key: String, frame: CGRect, baseline: CGFloat?,
+    /// quieter still, the proof mark under an unproven score (drawn in the cell's cached image). Its text changes in
+    /// place; a fall, live ↔ resting and the proof mark crossfade.
+    private func intelItem(_ score: BoardRowScore, model: BoardRowModel, sub: Bool, key: String, frame: CGRect, baseline: CGFloat?,
                            accents: BoardRowAccents, look: AnyHashable) -> BoardContentItem {
         let palette = self.palette, neon = self.neon
         let right = intelRight(frame.width)
         let cell = CGRect(x: right - intelCell - 4, y: 0, width: intelCell + 8, height: frame.height)
-        let live = model.intelLive
-        let font = Self.intelFont(style: style, sub: sub, live: live)
-        let valueFont = valueFont(sub: sub, idle: false)
+        let live = score.live
+        let large = baseline != nil
+        let font = Self.intelFont(style: style, sub: sub, live: live, large: large)
+        let valueFont = Self.valueFont(style: style, sub: sub, idle: false, large: large)
+        let text = score.text
         var item = BoardContentItem.part(key + "#iq", of: frame, rect: cell.insetBy(dx: neon ? -8 : 0, dy: 0), motion: .row,
-                                         revision: AnyHashable([AnyHashable(text), AnyHashable(live), AnyHashable(sub),
-                                                                AnyHashable(baseline), look])) { context in
-            let label = BoardLabel(text, font, color: live ? (neon ? palette.led.opacity(0.78) : palette.ink2) : palette.quiet)
+                                         revision: AnyHashable([AnyHashable(score), AnyHashable(sub), AnyHashable(baseline), look])) { context in
+            let color = live ? (neon ? palette.led.opacity(0.78) : palette.ink2) : palette.quiet
+            let label = BoardLabel(text, font, color: color)
             let line = baseline ?? BoardLabel(text, valueFont, color: palette.ink).baseline(centeredOn: frame.height / 2)
             let glow = neon && live && palette.dark && palette.glows ? BoardPalette.ledGlow : nil
             label.draw(in: context, x: right - label.width, baseline: line, glow: glow, blur: 6)
+            if score.unproven {
+                BoardScoreNumber.drawUnderline(in: context, x: right - label.width, baseline: line, width: label.width,
+                                               textSize: font.size, color: color, highContrast: palette.highContrast)
+            }
         }
-        if accents.intelChanged { item.accents.append(.crossfade(0.2)) }
+        if let fade = accents.intelFade { item.accents.append(.crossfade(fade)) }
         return item
     }
 
@@ -170,8 +198,9 @@ struct BoardListRows {
             : BoardFont(size: 9, weight: .semibold, tracking: 0.06)
     }
 
-    static func intelFont(style: BoardStyle, sub: Bool, live: Bool) -> BoardFont {
-        let size: CGFloat = style == .neon ? (sub ? 10 : 11) : (sub ? 10.5 : 11)
+    /// `large`: a two-line group row's, 2 pt larger.
+    static func intelFont(style: BoardStyle, sub: Bool, live: Bool, large: Bool = false) -> BoardFont {
+        let size: CGFloat = (style == .neon ? (sub ? 10 : 11) : (sub ? 10.5 : 11)) + (large ? CGFloat(BoardGeometry.figureGrowth) : 0)
         return style == .neon ? BoardFont(family: .mono, size: size, weight: .semibold, tracking: -0.02)
             : BoardFont(size: size, weight: live ? .semibold : .medium, tabular: true)
     }
@@ -228,7 +257,7 @@ struct BoardListRows {
             // the capsule sits in line 1's 16 pt band.
             name.truncated(to: nameWidth).draw(in: context, x: nameX, baseline: line1)
             if !detail.isEmpty {
-                detail.truncated(to: max(0, valueRight(box.width) - nameX))
+                detail.truncated(to: max(0, figuresLeft(box.width) - nameX))
                     .draw(in: context, x: nameX, baseline: CGFloat(geometry.secondLineBaseline))
             }
         } else {
@@ -307,7 +336,13 @@ struct BoardListRows {
     }
 
     private func valueFont(sub: Bool, idle: Bool) -> BoardFont {
-        let size: CGFloat = sub ? (neon ? 11 : 11.5) : 13
+        Self.valueFont(style: style, sub: sub, idle: idle)
+    }
+
+    /// `large`: a two-line group row's, 2 pt larger.
+    static func valueFont(style: BoardStyle, sub: Bool, idle: Bool, large: Bool = false) -> BoardFont {
+        let neon = style == .neon
+        let size: CGFloat = (sub ? (neon ? 11 : 11.5) : 13) + (large ? CGFloat(BoardGeometry.figureGrowth) : 0)
         let weight: NSFont.Weight = idle ? .medium : sub && !neon ? .semibold : neon ? .bold : .semibold
         return neon ? BoardFont(family: .mono, size: size, weight: weight, tracking: -0.02)
             : BoardFont(size: size, weight: weight, tabular: true)
@@ -315,7 +350,7 @@ struct BoardListRows {
 
     private func drawValue(_ model: BoardRowModel, sub: Bool, right: CGFloat, midY: CGFloat, baseline line: CGFloat? = nil, hot: Bool,
                            in context: CGContext) {
-        let font = valueFont(sub: sub, idle: model.idle)
+        let font = Self.valueFont(style: style, sub: sub, idle: model.idle, large: line != nil)
         let color = model.idle ? palette.ink3
             : model.heatFraction > 0.45 ? palette.heatText(model.heatFraction)
             : sub ? palette.ink2 : palette.ink

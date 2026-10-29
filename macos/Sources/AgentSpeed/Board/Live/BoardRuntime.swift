@@ -53,7 +53,7 @@ final class BoardRuntime {
         gauge.ingest(frame.value, now: now)
         let readouts = config.readouts
         let sums = frame.intelligence
-        thinkingFold.update(eligible: readouts.thinkingMayHide, quiet: sums.shownIndex == nil,
+        thinkingFold.update(eligible: readouts.thinkingMayHide, quiet: !(sums.output > 0),
                             shown: SpeedFormat.speed(sums.thinking), at: now)
         tick = makeTick(model: model, snapshot: snapshot, previewing: previewing)
         onTick?(self)
@@ -130,8 +130,8 @@ final class BoardRuntime {
         }
         // The preview has no prices: its costs read `–`.
         let hero = cost.map(format.money) ?? BoardMoney(number: "–", unit: "", state: .unknown)
-        tick.metrics = .make(readouts: readouts, intelligence: frame.intelligence, cost: hero, costUnit: format.unit,
-                             thinkingHidden: thinkingFold.hidden)
+        tick.metrics = .make(readouts: readouts, intelligence: frame.intelligence, agents: frame.groups.flatMap(\.members),
+                             cost: hero, costUnit: format.unit, thinkingHidden: thinkingFold.hidden)
         return tick
     }
 

@@ -246,6 +246,8 @@ final class AppModel {
         historyStartTimer = nil
         let service = HistoryService(store: history, configuration: settings.monitorConfiguration, liveStore: store,
                                      pricing: priceBook)
+        // The history's calibration drives the live predictions (METRICS 6.11).
+        history.taskModelsHandler = { [weak self] models in self?.monitor?.setTaskModels(models) }
         historyService = service
         service.start()
     }

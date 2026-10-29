@@ -107,6 +107,13 @@ public enum JSONParser {
         try parse(Data(text.utf8), maxDepth: maxDepth)
     }
 
+    /// The first value after leading whitespace, ignoring whatever follows it (Python `JSONDecoder.raw_decode`).
+    public static func parseLeading(_ data: Data, maxDepth: Int = defaultMaxDepth) throws(JSONParseError) -> JSONValue {
+        var parser = Cursor(bytes: [UInt8](data), maxDepth: maxDepth, exact: false)
+        parser.skipWhitespace()
+        return try parser.value(depth: 0)
+    }
+
     private struct Cursor {
         let bytes: [UInt8]
         let maxDepth: Int

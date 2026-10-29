@@ -121,6 +121,13 @@ public final class HistoryStore {
     public private(set) var state: HistoryState = .notLoaded
     /// Every stored day of every source, sorted by day then source.
     public private(set) var days: [DailyUsage] = []
+    /// The complete task records of the enabled scored sources (METRICS 6.11), without their feature rows: what
+    /// `taskComparison` compares.
+    public private(set) var taskRecords: [TaskRecord] = []
+    /// Each scored source's prediction coefficients from the last analysis (METRICS 6.11 *Calibration*).
+    public private(set) var taskModels: [SourceKind: TaskModels] = [:]
+    /// Called on the main actor whenever `taskModels` changes (the live monitor's predictions use them).
+    @ObservationIgnored public var taskModelsHandler: (@MainActor ([SourceKind: TaskModels]) -> Void)?
 
     /// Called with whether the run shows its progress (`.analyzing`) regardless of its size.
     @ObservationIgnored public var refreshHandler: (@MainActor (_ showsProgress: Bool) -> Void)?
@@ -133,6 +140,19 @@ public final class HistoryStore {
         if let days {
             self.days = days
         }
+    }
+
+    public func publish(taskRecords: [TaskRecord], taskModels: [SourceKind: TaskModels]) {
+        self.taskRecords = taskRecords
+        guard taskModels != self.taskModels else { return }
+        self.taskModels = taskModels
+        taskModelsHandler?(taskModels)
+    }
+
+    /// The Usage History window's task performance over [`first`, `last`] (`YYYY-MM-DD`), every scored source or only
+    /// `source` (METRICS 6.11 *Comparison*).
+    public func taskComparison(first: String, last: String, source: SourceKind? = nil) -> TaskComparison {
+        TaskComparison.compare(taskRecords, first: first, last: last, source: source)
     }
 
     /// Analyses new and changed logs now; a quiet refresh (`showsProgress: false`) only reports progress for a large

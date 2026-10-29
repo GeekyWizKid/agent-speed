@@ -29,6 +29,9 @@ final class BoardTimingContent: BoardContentBuilding {
     private var big: CGFloat { size == .small ? 30 : size == .medium ? 36 : 42 }
 
     var wakeAt: TimeInterval? { box.narrowsAt }
+    var reduceMotion = false
+
+    func climbsUntil(after now: TimeInterval) -> TimeInterval? { box.climbsUntil(after: now) }
 
     func layout(_ tick: BoardTick) -> BoardContentLayout {
         memory.begin(tick)
@@ -53,16 +56,24 @@ final class BoardTimingContent: BoardContentBuilding {
                                        unit: l10n("unit.tokS").uppercased(with: locale)))
         }
         var anchors: [String: (row: CGRect, rank: CGPoint)] = [:]
+        var subRows: [String: CGRect] = [:]
         for (index, row) in tick.rows.enumerated() {
             let frame = rows.frame(row, rowsTop: rowsTop, pad: pad)
-            if case .group(let group) = row.kind { anchors[tick.groups[group].id] = (frame, rows.rankCenter(frame)) }
+            switch row.kind {
+            case .group(let group): anchors[tick.groups[group].id] = (frame, rows.rankCenter(frame))
+            case .sub: subRows[row.key] = frame
+            case .moreSubs, .moreGroups: break
+            }
             items += rows.items(models[index], key: row.key, frame: frame, column: column,
-                                accents: BoardRowAccents(row, live: lives[index], tick: tick, memory: memory, model: models[index]))
+                                accents: BoardRowAccents(row, live: lives[index], tick: tick, memory: memory, model: models[index],
+                                                         reduceMotion: reduceMotion))
         }
         items.append(footer(tick))
         memory.end(tick, rows: zip(tick.rows, lives).map { ($0.key, $1) },
-                   liveIntel: Set(zip(tick.rows, models).compactMap { $1.intelLive ? $0.key : nil }))
-        return BoardContentLayout(items: items, groupRows: anchors, number: number)
+                   scores: Dictionary(zip(tick.rows, models).compactMap { row, model in model.intel.map { (row.key, $0) } },
+                                      uniquingKeysWith: { a, _ in a }))
+        let scoreArea = geometry.hasGauge && tick.metrics.readouts.intelligence ? box.scoreArea : nil
+        return BoardContentLayout(items: items, groupRows: anchors, number: number, subRows: subRows, scoreArea: scoreArea)
     }
 
     /// The slab's 135° hatch, and the heat rail along the top edge as an item of its own (a new heat redraws only the
@@ -186,7 +197,8 @@ final class BoardTimingContent: BoardContentBuilding {
         var items = [hero, meta, bars, dot] + number.items(memory: memory, decals: decals)
         if geometry.hasGauge {
             items += box.items(tick.metrics, in: BoardGaugeFrame(top: CGFloat(geometry.bandTop), height: CGFloat(geometry.bandHeight),
-                                                                  right: side - pad, memory: memory, now: now))
+                                                                  right: side - pad, memory: memory, now: now,
+                                                                    reduceMotion: reduceMotion))
         }
         return (items.inHero(), number.rect)
     }

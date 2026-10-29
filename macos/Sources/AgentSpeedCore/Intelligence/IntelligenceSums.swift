@@ -1,18 +1,19 @@
 import Foundation
 
-/// The live intelligence sums of METRICS 6.9 for one set of responses and agents, per second of the live window.
-/// Additive over sources, so an orb adds those of its own (6.8).
+/// What the 智力 readout of a set shows (METRICS 6.9): the highest task score of its agents (*Sets and groups*) and the
+/// live thinking sums (*Live thinking*), per second of the live window. The thinking sums are additive over sources
+/// and agents; the score combines by the highest-score rule, so an orb or a group adds the values of its own sources or
+/// members (6.8).
 public struct IntelligenceSums: Equatable, Sendable {
-    static let thinkingBonus = 20.0
-
-    /// Output tok/s in the window (`Σ w`).
+    /// Output tok/s in the window (`Σ w` ÷ window seconds).
     public var output = 0.0
-    /// Output weighted by the grade that produced it (`Σ w × g`).
-    public var gradedOutput = 0.0
     /// Reasoning tok/s (`Σ ρ`): `liveThinking`.
     public var thinking = 0.0
     /// Output tok/s of the sources that record reasoning apart from output (`Σ w'`).
     public var thinkingBase = 0.0
+    /// The highest task score of the set (live, else resting, else none), naming the agent that supplied it; an agent's
+    /// own sums carry its own value.
+    public var score = TaskSetValue.empty
 
     public init() {}
 
@@ -20,18 +21,13 @@ public struct IntelligenceSums: Equatable, Sendable {
 
     public var thinkingShare: Double { thinkingBase > 0 ? thinking / thinkingBase : 0 }
 
-    /// The index; nil when nothing generated in the window.
-    public var index: Double? {
-        output > 0 ? gradedOutput / output + Self.thinkingBonus * thinkingShare : nil
-    }
+    /// The score as shown: an integer rounded half away from zero; nil for none. Live and resting alike (`score.form`
+    /// tells them apart).
+    public var shownIndex: Int? { score.shown }
 
-    /// The index as shown: rounded half away from zero.
-    public var shownIndex: Int? { index.map { Int($0.rounded()) } }
-
-    /// One contribution: `output` tokens of `source` at `grade`, `reasoning` of them reasoning.
-    mutating func add(output: Double, reasoning: Double, grade: IntelligenceGrade, from source: SourceKind) {
+    /// One contribution: `output` tokens of `source`, `reasoning` of them reasoning.
+    mutating func add(output: Double, reasoning: Double, from source: SourceKind) {
         self.output += output
-        gradedOutput += output * Double(grade.value)
         guard source.recordsReasoningApart else { return }
         thinking += reasoning
         thinkingBase += output
@@ -39,15 +35,14 @@ public struct IntelligenceSums: Equatable, Sendable {
 
     public mutating func add(_ other: IntelligenceSums) {
         output += other.output
-        gradedOutput += other.gradedOutput
         thinking += other.thinking
         thinkingBase += other.thinkingBase
+        score = score.merged(with: other.score)
     }
 
     func scaled(by factor: Double) -> IntelligenceSums {
         var scaled = self
         scaled.output *= factor
-        scaled.gradedOutput *= factor
         scaled.thinking *= factor
         scaled.thinkingBase *= factor
         return scaled
@@ -55,7 +50,7 @@ public struct IntelligenceSums: Equatable, Sendable {
 }
 
 extension SourceKind {
-    /// DeepSeek Harness counts reasoning inside its output (METRICS 4.3): its tokens add their grade to the index but
-    /// nothing to the thinking share.
+    /// DeepSeek Harness counts reasoning inside its output (METRICS 4.3): its tokens add their weight but nothing to the
+    /// thinking share.
     public var recordsReasoningApart: Bool { self != .deepseek }
 }

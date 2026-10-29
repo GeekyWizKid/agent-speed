@@ -28,6 +28,14 @@ struct BoardContentItem {
     /// An arc revealed up to `fraction` of its sweep by a mask the layer animates (glass's dial, 0.24 s): the image
     /// holds the whole arc. Item points, y down; angles in radians, clockwise on screen.
     struct Sweep: Equatable {
+        /// A dotted arc (the proof mark): dots every `pitch` points of arc from the start, `radius` each; the reveal
+        /// stops after the last whole dot that keeps `clearance` points from the value's end (the tip ring sits there).
+        struct Dots: Equatable {
+            var pitch: CGFloat
+            var radius: CGFloat
+            var clearance: CGFloat
+        }
+
         var center: CGPoint
         var radius: CGFloat
         /// The mask's width (the stroke and its glow).
@@ -35,6 +43,7 @@ struct BoardContentItem {
         var start: CGFloat
         var sweep: CGFloat
         var fraction: Double
+        var dots: Dots?
 
         /// The mask's centre line over the whole sweep, from a little before the start so the arc's round start cap
         /// and glow stay whole; its end (under the dial's tip) is flat.
@@ -45,11 +54,22 @@ struct BoardContentItem {
             return path
         }
 
+        /// The angle revealed for `fraction`: its share of the sweep, or for a dotted arc the end of its last whole dot
+        /// before the tip, so no dot is ever cut.
+        func revealed(_ fraction: Double) -> CGFloat {
+            let angle = sweep * CGFloat(min(1, max(0, fraction)))
+            guard let dots, angle > 0, radius > 0, dots.pitch > 0 else { return angle }
+            let last = ((angle * radius - dots.clearance - dots.radius) / dots.pitch).rounded(.down)
+            guard last >= 0 else { return 0 }
+            let gap = max(0, dots.pitch - 2 * dots.radius)
+            return min(angle, (last * dots.pitch + dots.radius + min(0.5, gap / 2)) / radius)
+        }
+
         /// The mask's share of `maskLine` that reveals `fraction` of the sweep (a stroke end).
         func strokeEnd(_ fraction: Double) -> CGFloat {
             let lead = width / (2 * max(1, radius))
-            let shown = CGFloat(min(1, max(0, fraction)))
-            return shown > 0 ? (lead + sweep * shown) / (lead + sweep) : 0
+            let shown = revealed(fraction)
+            return shown > 0 ? (lead + shown) / (lead + sweep) : 0
         }
     }
 

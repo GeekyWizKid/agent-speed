@@ -14,6 +14,9 @@ struct ProbeArguments {
         case syncPrices(directory: String)
         /// One real exchange-rate round into a scratch folder (NETWORK 4).
         case syncRates(directory: String, currency: String)
+        /// The task records, calibration and comparison of every log read whole (METRICS 6.11), as
+        /// `reference.py --dump-tasks`.
+        case dumpTasks(first: String?, last: String?, source: SourceKind?)
     }
 
     var mode: Mode
@@ -28,6 +31,8 @@ struct ProbeArguments {
     var trafficInterval: Int?
     /// `--no-live`: traffic without the live transcript monitor (no per-agent attribution), to measure its own cost.
     var noLive = false
+    /// `--now MS`: `--dump-today` evaluates the task values at this Unix ms instead of the capture time.
+    var now: Int64?
 
     /// The range and source of `--dump-unpriced`.
     struct UnpricedOptions: Equatable {
@@ -41,7 +46,8 @@ struct ProbeArguments {
     }
 
     static let usage = """
-        usage: AgentSpeedProbe (--dump-today | --dump-history [--utc] [--history-store PATH]
+        usage: AgentSpeedProbe (--dump-today [--now MS] | --dump-history [--utc] [--history-store PATH]
+                                | --dump-tasks [--utc] [--first YYYY-MM-DD --last YYYY-MM-DD] [--source ID]
                                 | --dump-unpriced [--days N | --first YYYY-MM-DD --last YYYY-MM-DD | --live]
                                   [--source ID] [--history-store PATH] | --watch SECONDS
                                 | --traffic SECONDS [--traffic-interval 0|1|5] [--no-live] [--history-store PATH])
@@ -62,6 +68,8 @@ struct ProbeArguments {
         var noLive = false
         var unpriced = UnpricedOptions()
         var dumpsUnpriced = false
+        var dumpsTasks = false
+        var now: Int64?
         var iterator = arguments.makeIterator()
         while let argument = iterator.next() {
             switch argument {
@@ -71,6 +79,11 @@ struct ProbeArguments {
                 mode = .dumpHistory
             case "--dump-unpriced":
                 dumpsUnpriced = true
+            case "--dump-tasks":
+                dumpsTasks = true
+            case "--now":
+                guard let value = iterator.next(), let ms = Int64(value) else { return nil }
+                now = ms
             case "--days":
                 guard let value = iterator.next(), let days = Int(value), days >= 1, days <= 1_000_000 else { return nil }
                 unpriced.days = days
@@ -175,7 +188,12 @@ struct ProbeArguments {
             }
         }
         let usesUnpricedOptions = unpriced != UnpricedOptions()
-        if dumpsUnpriced {
+        if dumpsTasks {
+            guard mode == nil, !dumpsUnpriced, unpriced.days == nil, !unpriced.live,
+                  (unpriced.first == nil) == (unpriced.last == nil), unpriced.first.map({ $0 <= unpriced.last! }) ?? true,
+                  unpriced.source.map(TaskScoring.scores) ?? true else { return nil }
+            mode = .dumpTasks(first: unpriced.first, last: unpriced.last, source: unpriced.source)
+        } else if dumpsUnpriced {
             guard mode.map({ _ in false }) ?? true, (unpriced.first == nil) == (unpriced.last == nil),
                   unpriced.first.map({ $0 <= unpriced.last! }) ?? true,
                   unpriced.days == nil || unpriced.first == nil,
@@ -185,8 +203,11 @@ struct ProbeArguments {
             return nil
         }
         guard let mode else { return nil }
+        if now != nil {
+            guard case .dumpToday = mode else { return nil }
+        }
         return ProbeArguments(mode: mode, configuration: configuration, utc: utc, historyStore: historyStore, prices: prices,
-                              trafficInterval: trafficInterval, noLive: noLive)
+                              trafficInterval: trafficInterval, noLive: noLive, now: now)
     }
 }
 
