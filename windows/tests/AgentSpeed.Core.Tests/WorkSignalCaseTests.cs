@@ -1,3 +1,4 @@
+using AgentSpeed.Core.Droid;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -69,6 +70,7 @@ public sealed class WorkSignalCaseTests
             "codex" => line => CodexLineReader.Read(line).Tools,
             "omp" => line => OmpLineReader.Read(line).Tools,
             "pi" => line => PiLineReader.Read(line).Tools,
+            "droid" => line => DroidLineReader.Read(line).Tools,
             var format => throw new ArgumentOutOfRangeException(nameof(name), format, null),
         };
         var log = new WorkLog();

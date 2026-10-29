@@ -81,7 +81,7 @@ public sealed class BoardDemoFeed
         var texts = Texts();
         var entries = BoardReadoutRows.Word(BoardLayoutPlan.Arrange(ranked, BoardSizes.Limits(size), BoardMetrics.For(style, size, readouts), Metric,
             expanded), readouts, texts);
-        var gauge = texts.Hero(agents.Aggregate(IntelligenceSums.Zero, (sum, a) => sum + a.Intelligence.Sums), Cost());
+        var gauge = texts.Hero(agents.Aggregate(IntelligenceSums.Zero, (sum, a) => sum + a.Intelligence.Sums), BoardFeed.Highest(agents), Cost());
         _thinking.Update(readouts, gauge, Sim.Time);
         Events += result.Events.Count;
         var total = Sim.Total;

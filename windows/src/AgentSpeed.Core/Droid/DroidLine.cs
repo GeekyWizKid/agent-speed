@@ -64,4 +64,14 @@ internal struct DroidLine
 
     /// <summary><c>session_start.callingSessionId</c> when it is a session id (a Task-tool worker).</summary>
     public string? CallingSessionId;
+
+    /// <summary>An assistant message's <c>tool_use</c> blocks and a user message's <c>tool_result</c> blocks (METRICS 6.10).</summary>
+    public Work.LineTools Tools;
+
+    /// <summary>The composer counts this line (METRICS 6.9 <i>Composing the stream</i>).</summary>
+    public bool TaskTracked;
+
+    /// <summary>What the line gives the task composer; null when nothing.</summary>
+    public Tasks.TaskLine? Task;
+
 }

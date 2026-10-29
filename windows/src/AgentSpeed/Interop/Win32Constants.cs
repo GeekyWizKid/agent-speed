@@ -194,6 +194,7 @@ internal static class DWMWA
     public const int BORDER_COLOR = 34;
     public const int SYSTEMBACKDROP_TYPE = 38;
     public const int CLOAKED = 14;
+    public const int EXTENDED_FRAME_BOUNDS = 9;
 }
 
 internal static class DWMWCP

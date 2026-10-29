@@ -142,12 +142,14 @@ internal sealed class TimingBoardPainter : BoardStylePainter
             return;
         }
 
-        // The leader's word; the scene composes the other rows' intervals from glyphs.
+        // The leader's word; the scene composes the other rows' intervals from glyphs. In a two-line row it is a figure, its cap
+        // height centred on the row's centre line like the intervals'.
         var scene = row.Scene;
-        var edge = scene.Metrics.IntelligenceColumn ? width - (float)(scene.Columns.IntervalRight - ValueWidth(scene.Size)) : width - 7;
+        var edge = scene.Metrics.IntelligenceColumn ? (float)(scene.Metrics.ListWidth - scene.Columns.IntervalRight) : width - 7;
         var room = scene.Metrics.IntelligenceColumn ? (float)scene.Columns.Interval : 38;
+        var centre = (float)BoardRowFigures.Centre(height);
         using var brush = BoardPaint.Brush(context, palette.HighContrast ? palette.Ink3 : Gold);
-        Text.Draw(context, row.Interval, LeaderGap, edge, two ? CenterOnBaseline(LeaderGap, (float)BoardScene.FirstBaseline) : mid, brush, room,
+        Text.Draw(context, row.Interval, LeaderGap, edge, two ? CenterOnBaseline(LeaderGap, centre + Text.CapHeight(LeaderGap) / 2) : mid, brush, room,
             right: true);
     }
 
@@ -170,7 +172,8 @@ internal sealed class TimingBoardPainter : BoardStylePainter
     {
         var palette = row.Palette;
         var group = row.Entry.Kind == BoardEntryKind.Group;
-        var mid = row.Entry.TwoLine ? 11.5f : group ? (height - 1) / 2 : height / 2;
+        // A two-line row's dot keeps to its value, centred on the row.
+        var mid = row.Entry.TwoLine ? (float)BoardRowFigures.Centre(height) : group ? (height - 1) / 2 : height / 2;
         if (group)
         {
             BoardPaint.FillRound(context, Bleed, height - 1, width - Bleed, 1, 0, palette.Line);

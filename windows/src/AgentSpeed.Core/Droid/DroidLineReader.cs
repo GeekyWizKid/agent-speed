@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AgentSpeed.Core.Parsing;
+using AgentSpeed.Core.Work;
 
 namespace AgentSpeed.Core.Droid;
 
@@ -76,7 +77,7 @@ internal static class DroidLineReader
                     ClearMessage(ref result);
                     if (hasMessage)
                     {
-                        ReadMessage(ref reader, ref result);
+                        ReadMessage(ref reader, ref result, line);
                     }
                     else
                     {
@@ -116,6 +117,11 @@ internal static class DroidLineReader
         }
 
         result.Kind = type == DroidLineKind.Message && !hasMessage ? DroidLineKind.Other : type;
+
+        // Calls are the assistant's, results the user's (METRICS 6.10).
+        result.Tools = result.Kind != DroidLineKind.Message ? default : new LineTools(
+            result.Role == DroidRole.Assistant ? result.Tools.Calls : null,
+            result.Role == DroidRole.User ? result.Tools.Outcomes : null);
         return result;
     }
 
@@ -130,9 +136,10 @@ internal static class DroidLineReader
         result.ModelId = null;
         result.Effort = null;
         result.HasToolUse = false;
+        result.Tools = default;
     }
 
-    private static void ReadMessage(ref Utf8JsonReader reader, ref DroidLine result)
+    private static void ReadMessage(ref Utf8JsonReader reader, ref DroidLine result, ReadOnlySpan<byte> line)
     {
         while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
         {
@@ -164,8 +171,16 @@ internal static class DroidLineReader
             else if (reader.ValueTextEquals("content"u8))
             {
                 reader.Read();
-                result.HasToolUse = reader.TokenType == JsonTokenType.StartArray && HasToolUse(ref reader);
-                JsonScan.SkipValue(ref reader);
+                if (reader.TokenType == JsonTokenType.StartArray)
+                {
+                    (result.HasToolUse, result.Tools) = ReadContent(ref reader, line);
+                }
+                else
+                {
+                    result.HasToolUse = false;
+                    result.Tools = default;
+                    JsonScan.SkipValue(ref reader);
+                }
             }
             else
             {
@@ -175,10 +190,16 @@ internal static class DroidLineReader
         }
     }
 
-    // Leaves the reader on the array's EndArray.
-    private static bool HasToolUse(ref Utf8JsonReader reader)
+    /// <summary>
+    /// Whether the content holds a <c>tool_use</c> block, and its <c>tool_use</c> calls and <c>tool_result</c> results
+    /// (METRICS 6.10: <c>input</c> only as its digest; failed when <c>is_error</c> is <c>true</c>). Leaves the reader on the
+    /// array's EndArray.
+    /// </summary>
+    private static (bool ToolUse, LineTools Tools) ReadContent(ref Utf8JsonReader reader, ReadOnlySpan<byte> line)
     {
         var found = false;
+        List<ToolCall>? calls = null;
+        List<ToolOutcome>? outcomes = null;
         while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
         {
             if (reader.TokenType != JsonTokenType.StartObject)
@@ -187,22 +208,62 @@ internal static class DroidLineReader
                 continue;
             }
 
-            var toolUse = false;
+            bool toolUse = false, toolResult = false, isError = false;
+            string? id = null, name = null, toolUseId = null;
+            var input = ActionDigest.Empty;
             while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
             {
-                var isType = reader.ValueTextEquals("type"u8);
-                reader.Read();
-                if (isType)
+                if (reader.ValueTextEquals("type"u8))
                 {
+                    reader.Read();
                     toolUse = reader.TokenType == JsonTokenType.String && reader.ValueTextEquals("tool_use"u8);
+                    toolResult = reader.TokenType == JsonTokenType.String && reader.ValueTextEquals("tool_result"u8);
+                    JsonScan.SkipValue(ref reader);
                 }
-
-                JsonScan.SkipValue(ref reader);
+                else if (reader.ValueTextEquals("id"u8))
+                {
+                    reader.Read();
+                    id = JsonScan.ReadToken(ref reader);
+                }
+                else if (reader.ValueTextEquals("name"u8))
+                {
+                    reader.Read();
+                    name = JsonScan.ReadToken(ref reader);
+                }
+                else if (reader.ValueTextEquals("input"u8))
+                {
+                    reader.Read();
+                    input = ActionDigest.ReadInput(ref reader, line);
+                }
+                else if (reader.ValueTextEquals("tool_use_id"u8))
+                {
+                    reader.Read();
+                    toolUseId = JsonScan.ReadToken(ref reader);
+                }
+                else if (reader.ValueTextEquals("is_error"u8))
+                {
+                    reader.Read();
+                    isError = reader.TokenType == JsonTokenType.True;
+                    JsonScan.SkipValue(ref reader);
+                }
+                else
+                {
+                    reader.Read();
+                    JsonScan.SkipValue(ref reader);
+                }
             }
 
             found |= toolUse;
+            if (toolUse && id is not null)
+            {
+                (calls ??= []).Add(new ToolCall(id, name, input));
+            }
+            else if (toolResult && toolUseId is not null)
+            {
+                (outcomes ??= []).Add(new ToolOutcome(toolUseId, isError));
+            }
         }
 
-        return found;
+        return (found, LineTools.Of(calls, outcomes));
     }
 }

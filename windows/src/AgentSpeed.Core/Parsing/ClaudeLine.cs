@@ -74,6 +74,12 @@ internal struct ClaudeLine
     /// <summary>An assistant line's <c>tool_use</c> blocks and a user line's <c>tool_result</c> blocks (METRICS 6.10).</summary>
     public LineTools Tools;
 
+    /// <summary>The composer counts this line (METRICS 6.9 <i>Composing the stream</i>).</summary>
+    public bool TaskTracked;
+
+    /// <summary>What the line gives the task composer; null when nothing.</summary>
+    public Tasks.TaskLine? Task;
+
     public readonly string? Key => MessageId ?? RequestId ?? Uuid;
 
     /// <summary>A user line a person typed (an interrupt marker included), not a tool result or a meta line.</summary>

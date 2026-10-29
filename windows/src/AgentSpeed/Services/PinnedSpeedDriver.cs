@@ -1,7 +1,7 @@
 using System.Windows.Threading;
 using AgentSpeed.Core;
 using AgentSpeed.Core.Intelligence;
-using AgentSpeed.Core.Pricing;
+using AgentSpeed.Core.Tasks;
 
 namespace AgentSpeed.Services;
 
@@ -87,15 +87,15 @@ internal sealed class PinnedSpeedDriver : IDisposable
         var agents = Agents.Select(a =>
         {
             var live = a.Share * speed;
-            var grade = a.Model is null ? (ModelGrade?)null : ModelGrade.Of(PriceBook.Bundled, a.Model, null, a.Effort);
             var window = live * WindowSeconds;
-            var sums = IntelligenceSums.Zero.Add(a.Source, window, Reasoning ? window * a.Thinking : 0, grade ?? ModelGrade.Unknown);
+            var task = a.Task;
+            var score = TaskSetValue.Of(a.Id, 0, task);
+            var sums = IntelligenceSums.Zero.Add(a.Source, window, Reasoning ? window * a.Thinking : 0) with { Score = score };
             return new AgentStatus(a.Id, a.Source, a.Project, a.Model, a.Phase, a.ParentId is not null, new Rate(live, live * 24),
                 live > 0 ? live : null, now, a.ParentId)
             {
                 Modes = a.Modes,
-                Grade = grade,
-                Intelligence = new AgentIntelligence(sums, grade),
+                Intelligence = new AgentIntelligence(sums, score, task.State),
             };
         }).ToArray();
         var today = new TokenTotals(120, 4_800_000, 4_100_000, 0, 96_000, 0);
@@ -132,6 +132,25 @@ internal sealed class PinnedSpeedDriver : IDisposable
         string Id, SourceKind Source, string Project, string? Model, AgentPhase Phase, double Share, string? Effort, string? Speed,
         double Thinking, string? ParentId = null)
     {
+        /// <summary>A pinned task score (METRICS 6.9) by the model's position in the list: none without a model.</summary>
+        public TaskValue Task => Model is null ? TaskValue.None : new TaskValue(
+            Phase == AgentPhase.Idle ? TaskValueForm.Resting : TaskValueForm.Live, Score, TaskRounding.HalfAwayFromZero(Score),
+            Score >= 50 ? TaskState.Passing : TaskState.Unverified);
+
+        private double Score => Math.Round(HashScore(Id) * 4) / 4;
+
+        // FNV-1a over the id's UTF-16 units: the same score on every run.
+        private static double HashScore(string id)
+        {
+            var hash = 2166136261u;
+            foreach (var c in id)
+            {
+                hash = (hash ^ c) * 16777619u;
+            }
+
+            return hash % 9600 / 100.0 + 4;
+        }
+
         public ExecutionModes Modes { get; } = new ExecutionModes(new[]
         {
             ExecutionModeNative.Effort(Effort, ExecutionModeEvidence.Recorded, ExecutionModeScope.Request),

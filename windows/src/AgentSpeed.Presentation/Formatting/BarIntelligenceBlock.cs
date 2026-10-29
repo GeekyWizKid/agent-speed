@@ -2,6 +2,7 @@ using AgentSpeed.Core;
 using AgentSpeed.Core.Intelligence;
 using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Settings;
+using AgentSpeed.Presentation.TaskScore;
 
 namespace AgentSpeed.Presentation.Formatting;
 
@@ -15,85 +16,117 @@ public readonly record struct BarIntelligenceCells(double Label, double Number, 
     public double Width => Label + LabelGap + Number + UnitGap + Unit;
 }
 
+/// <summary>One dot of the proof mark, its box on the device pixel grid (DIP).</summary>
+public readonly record struct BarProofDot(double X, double Y, double Diameter);
+
 /// <summary>
-/// The taskbar intelligence block (DESIGN 10, Menu bar and taskbar): after the value, <c>智力 125</c> over
-/// <c>思考 10 tok/s</c> — the live intelligence of all sources (METRICS 6.9). Labels sit in a column, both numbers
-/// right-aligned in one cell as wide as <c>8.88k</c>, so the block's width depends on the language only. It never hides
-/// while chosen: with nothing generated in the window both numbers read <c>–</c> and <c>tok/s</c> stays. A thinking rate
-/// that reads 0 for 3 s under a live value leaves line 1 alone, centred in the same cells. It needs neither network
-/// measuring nor the helper.
+/// The taskbar intelligence block (DESIGN 10, Menu bar and taskbar): after the value, the money block and the network block,
+/// <c>智力 86</c> over
+/// <c>思考 128 tok/s</c>. 智力 is the highest task score among the agents of all enabled sources, live before resting
+/// (DESIGN 12; METRICS 6.9, <i>Sets and groups</i>): live in the label color at 85 %, resting and <c>–</c> in the secondary
+/// color, on the dotted proof mark while unproven. Labels sit in a column, both numbers right-aligned in one cell as wide
+/// as <c>8.88k</c>, so the block's width depends on the language only. It never hides while chosen: with nothing generated
+/// in the window the thinking number reads <c>–</c> and <c>tok/s</c> stays, while 智力 keeps its own form. Once the thinking
+/// rate has read 0 for 3 s under a score, line 1 stands alone, centred in the same cells. Every change replaces characters
+/// in place, a drop included: the widget is one image. It needs neither network measuring nor the helper.
 /// </summary>
-/// <param name="ThinkingDim">The thinking number takes the secondary color: <c>–</c>, or a zero rate under a live value.</param>
+/// <param name="Form">智力's form: live, resting (pale) or none (<c>–</c>).</param>
+/// <param name="ThinkingDim">The thinking number takes the secondary color: <c>–</c>, or a rate that reads 0.</param>
 /// <param name="Spoken">
-/// <c>a11y.orb.intel</c>, <c>a11y.orb.intel.only</c> with line 2 hidden, or <c>intel.none</c> while quiet: read after the
-/// value and in the tooltip.
+/// <c>a11y.orb.intel</c> with the score words, <c>a11y.orb.intel.only</c> while line 2 is hidden or reads <c>–</c>; while
+/// none <c>intel.none</c> takes the 智力 words' place. Read after the value and in the tooltip's first line.
 /// </param>
 public sealed record BarIntelligenceBlock(
-    string Label, string ThinkingLabel, string Index, string Thinking, string Unit, bool Quiet, bool ThinkingDim, string Spoken)
+    string Label, string ThinkingLabel, string Index, string Thinking, string Unit, TaskForm Form, bool ThinkingDim, string Spoken)
 {
-    public const string Dash = "–";
+    public const string Dash = TaskScoreText.Dash;
 
     /// <summary>The widest METRICS 7 form below 1 M tok/s; <c>888</c> fits in it too.</summary>
     public const string WidestNumber = "8.88k";
 
+    /// <summary>A live score in the label color at this share (high contrast: the full label color, DESIGN 12 <i>Platform details</i>).</summary>
+    public const double LiveOpacity = 0.85;
+
     /// <summary>The language whose UI face draws the labels.</summary>
     public string LanguageCode { get; init; } = LanguageCodes.ZhHant;
 
-    /// <summary>Line 2 is not drawn: its rate has read 0 for 3 s under a live value (DESIGN 10, Thinking hidden at zero).</summary>
+    /// <summary>The supplying agent's state is unverified or pending: the proof mark goes under 智力 (DESIGN 12).</summary>
+    public bool Unproven { get; init; }
+
+    /// <summary>The tooltip's second line, <c>task.tooltip.top</c>: the score and its supplying agent; null while none.</summary>
+    public string? Top { get; init; }
+
+    /// <summary>Line 2 is not drawn: its rate has read 0 for 3 s under a score (DESIGN 10, Thinking hidden at zero).</summary>
     public bool ThinkingHidden { get; init; }
 
-    /// <summary>The thinking rate reads 0 under a live value: line 2 hides after its hold.</summary>
-    public bool ThinkingZero => !Quiet && ThinkingDim;
+    /// <summary>The words for line 1 alone (<c>a11y.orb.intel.only</c>, or <c>intel.none</c>).</summary>
+    public string SpokenAlone { get; init; } = string.Empty;
 
-    /// <summary>Null unless the intelligence block is chosen and the widget shows a value (not glyph only).</summary>
+    /// <summary>智力 has a value, live or resting.</summary>
+    public bool HasScore => Form != TaskForm.None;
+
+    /// <summary>智力's number takes the secondary color: resting or <c>–</c>.</summary>
+    public bool IndexDim => Form != TaskForm.Live;
+
+    /// <summary>The thinking rate reads 0 (or nothing was generated) under a score: line 2 hides after its hold.</summary>
+    public bool ThinkingZero => HasScore && ThinkingDim;
+
+    /// <summary>Null unless <c>settings.bar.intelligence</c> is on and the widget shows a value (not glyph only).</summary>
     public static BarIntelligenceBlock? From(AppSettings settings, SpeedSnapshot snapshot, Localizer localizer)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(snapshot);
-        return settings.Traffic.Bar != BarTraffic.Intelligence || settings.BarMode == BarDisplayMode.GlyphOnly
-            ? null
-            : Of(OrbSubset.Reading(snapshot, null).Intelligence, localizer);
+        if (!settings.BarIntelligence || settings.BarMode == BarDisplayMode.GlyphOnly)
+        {
+            return null;
+        }
+
+        var reading = OrbSubset.Reading(snapshot, null);
+        return Of(reading.Intelligence, reading.Agents, localizer);
     }
 
     /// <summary>
     /// The block with the thinking line's hold applied at <paramref name="time"/> (seconds): line 2 hidden once its rate has
-    /// read 0 for 3 s under a live value. Feed every update through the same <paramref name="hold"/>.
+    /// read 0 for 3 s under a score. Feed every update through the same <paramref name="hold"/>.
     /// </summary>
     public static BarIntelligenceBlock? From(AppSettings settings, SpeedSnapshot snapshot, Localizer localizer, ThinkingZeroHold hold,
         double time)
     {
         ArgumentNullException.ThrowIfNull(hold);
         var block = From(settings, snapshot, localizer);
-        return hold.Hides(block?.ThinkingZero == true, time) ? block!.HidingThinking(localizer) : block;
+        return hold.Hides(block?.ThinkingZero == true, time) ? block!.HidingThinking() : block;
     }
 
-    public static BarIntelligenceBlock Of(IntelligenceSums sums, Localizer localizer)
-    {
-        ArgumentNullException.ThrowIfNull(localizer);
-        var label = localizer["intel.glyph"];
-        var thinkingLabel = localizer["intel.thinking.glyph"];
-        var unit = localizer["unit.tokS"];
-        if (sums.Shown is not { } shown)
-        {
-            return new BarIntelligenceBlock(label, thinkingLabel, Dash, Dash, unit, Quiet: true, ThinkingDim: true, localizer["intel.none"])
-            {
-                LanguageCode = localizer.LanguageCode,
-            };
-        }
+    public static BarIntelligenceBlock Of(IntelligenceSums sums, Localizer localizer) => Of(sums, [], localizer);
 
-        var index = shown.ToString(localizer.Culture);
+    /// <summary>The block for the window <paramref name="sums"/> of all enabled sources and their <paramref name="agents"/>.</summary>
+    public static BarIntelligenceBlock Of(IntelligenceSums sums, IEnumerable<AgentStatus> agents, Localizer localizer)
+    {
+        ArgumentNullException.ThrowIfNull(agents);
+        return Of(TaskSetReading.Of(sums, agents), sums, localizer);
+    }
+
+    public static BarIntelligenceBlock Of(TaskSetReading score, IntelligenceSums sums, Localizer localizer)
+    {
+        ArgumentNullException.ThrowIfNull(score);
+        ArgumentNullException.ThrowIfNull(localizer);
+
+        // Nothing generated in the window (Σ w = 0): the thinking number is `–` (DESIGN 10, Quiet state).
         var zero = ThinkingZeroHold.ReadsZero(sums.LiveThinking);
-        var thinking = zero ? "0" : SpeedFormat.Speed(sums.LiveThinking);
-        return new BarIntelligenceBlock(label, thinkingLabel, index, thinking, unit, Quiet: false, zero,
-            localizer.Format("a11y.orb.intel", index, thinking)) { LanguageCode = localizer.LanguageCode };
+        var thinking = !sums.IsActive ? Dash : zero ? "0" : SpeedFormat.Speed(sums.LiveThinking);
+        var alone = score.Sentence(null, localizer);
+        return new BarIntelligenceBlock(localizer["intel.glyph"], localizer["intel.thinking.glyph"], score.Number, thinking,
+            localizer["unit.tokS"], score.Form, thinking == Dash || zero, thinking == Dash ? alone : score.Sentence(thinking, localizer))
+        {
+            LanguageCode = localizer.LanguageCode,
+            Unproven = score.IsUnproven,
+            Top = score.Tooltip(localizer),
+            SpokenAlone = alone,
+        };
     }
 
-    /// <summary>Line 1 alone: line 2 not drawn and the label reads <c>a11y.orb.intel.only</c>; a block whose rate is not 0 stays.</summary>
-    public BarIntelligenceBlock HidingThinking(Localizer localizer)
-    {
-        ArgumentNullException.ThrowIfNull(localizer);
-        return ThinkingZero ? this with { ThinkingHidden = true, Spoken = localizer.Format("a11y.orb.intel.only", Index) } : this;
-    }
+    /// <summary>Line 1 alone: line 2 not drawn and the label reads its words alone; a block whose rate is not 0 stays.</summary>
+    public BarIntelligenceBlock HidingThinking() => ThinkingZero ? this with { ThinkingHidden = true, Spoken = SpokenAlone } : this;
 
     /// <summary>
     /// Line 1's baseline in a block centred on <paramref name="centerY"/> with lines <paramref name="pitch"/> apart (line 2
@@ -115,4 +148,27 @@ public sealed record BarIntelligenceBlock(
             Math.Max(number(WidestNumber), Math.Max(number(Index), number(Thinking))),
             text(Unit));
     }
+
+    /// <summary>
+    /// The proof mark under line 1's number (DESIGN 12, <i>Proof mark</i>), its advance <paramref name="width"/> starting at
+    /// <paramref name="left"/> on <paramref name="baseline"/> at text size <paramref name="size"/>: dots centred 0.17 × the size
+    /// below the baseline (the room line 2 leaves), each box on the device pixel grid so the 1 px dots stay round and even.
+    /// Empty unless unproven.
+    /// </summary>
+    public IReadOnlyList<BarProofDot> ProofDots(double left, double width, double baseline, double size, double pixelsPerDip,
+        bool highContrast)
+    {
+        if (!Unproven)
+        {
+            return [];
+        }
+
+        var mark = TaskProofMark.Underline(size, width, pixelsPerDip, barBlock: true, highContrast);
+        var scale = double.IsFinite(pixelsPerDip) && pixelsPerDip > 0 ? pixelsPerDip : 1;
+        var d = mark.Diameter;
+        var top = Snap(baseline + mark.Below - d / 2, scale);
+        return [.. mark.Centers.Select(center => new BarProofDot(Snap(left + center - d / 2, scale), top, d))];
+    }
+
+    private static double Snap(double value, double scale) => Math.Round(value * scale) / scale;
 }

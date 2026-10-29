@@ -1,13 +1,13 @@
 namespace AgentSpeed.Presentation.Boards.Live;
 
-/// <summary>Puts each row's live metrics (its 智力 cell, a group's tooltip lines) on the entries of a layout plan.</summary>
+/// <summary>Puts each row's 智力 (its cell and words) on the entries of a layout plan while the column shows.</summary>
 public static class BoardReadoutRows
 {
     public static IReadOnlyList<BoardEntry> Word(IReadOnlyList<BoardEntry> entries, BoardReadouts readouts, BoardTexts texts)
     {
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(texts);
-        if (readouts.IsNone)
+        if (!readouts.Intelligence)
         {
             return entries;
         }

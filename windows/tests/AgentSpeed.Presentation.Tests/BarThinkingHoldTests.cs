@@ -11,13 +11,13 @@ public class BarThinkingHoldTests
 {
     private static readonly Localizer En = new(Localizer.LoadEmbeddedTable(), LanguageCodes.En);
     private static readonly Localizer ZhHant = new(Localizer.LoadEmbeddedTable(), LanguageCodes.ZhHant);
-    private static readonly AppSettings Chosen = AppSettings.Default with { Traffic = TrafficSettings.Default with { Bar = BarTraffic.Intelligence } };
+    private static readonly AppSettings Chosen = AppSettings.Default with { BarIntelligence = true };
 
     /// <summary>125 over 0 tok/s.</summary>
-    private static readonly IntelligenceSums Unthinking = new(300, 300 * 125, 0, 300);
+    private static readonly IntelligenceSums Unthinking = TestSums.Of(300, 125, 0, 300);
 
     /// <summary>125 over 10 tok/s.</summary>
-    private static readonly IntelligenceSums Thinking = new(300, 300 * 123, 30, 300);
+    private static readonly IntelligenceSums Thinking = TestSums.Of(300, 125, 30, 300);
 
     [Fact]
     public void TheHoldHidesARateThatReadsZeroForThreeSeconds()
@@ -57,7 +57,7 @@ public class BarThinkingHoldTests
     }
 
     [Fact]
-    public void AQuietBlockNeverHidesItsLineTwo()
+    public void ABlockWithoutAScoreNeverHidesItsLineTwo()
     {
         var hold = new ThinkingZeroHold();
         foreach (var time in new[] { 0.0, 5, 10 })
@@ -69,7 +69,7 @@ public class BarThinkingHoldTests
         }
 
         var dash = BarIntelligenceBlock.Of(IntelligenceSums.Zero, En);
-        Assert.Same(dash, dash.HidingThinking(En));
+        Assert.Same(dash, dash.HidingThinking());
 
         // A block that is not chosen drops its hold: chosen again, it holds 3 s from there.
         var later = new ThinkingZeroHold();
@@ -87,10 +87,10 @@ public class BarThinkingHoldTests
     public void TheLabelReadsTheIndexAloneWhileLineTwoIsHidden(string language, string spoken)
     {
         var localizer = new Localizer(Localizer.LoadEmbeddedTable(), language);
-        var block = BarIntelligenceBlock.Of(Unthinking, localizer).HidingThinking(localizer);
+        var block = BarIntelligenceBlock.Of(Unthinking, localizer).HidingThinking();
         Assert.True(block.ThinkingHidden);
         Assert.Equal(spoken, block.Spoken);
-        Assert.False(BarIntelligenceBlock.Of(Thinking, localizer).HidingThinking(localizer).ThinkingHidden);
+        Assert.False(BarIntelligenceBlock.Of(Thinking, localizer).HidingThinking().ThinkingHidden);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class BarThinkingHoldTests
         static double Number(string text) => text.Sum(c => char.IsDigit(c) ? 6.0 : c switch { '.' => 2.5, 'k' => 5.5, _ => 6 });
         static double Text(string text) => text.Length * 7.0;
         var shown = BarIntelligenceBlock.Of(Unthinking, ZhHant);
-        var hidden = shown.HidingThinking(ZhHant);
+        var hidden = shown.HidingThinking();
         Assert.Equal(shown.Cells(Text, Number), hidden.Cells(Text, Number));
 
         // Two lines 12 px apart about the centre; alone, line 1 sits halfway between their baselines.

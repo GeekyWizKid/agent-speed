@@ -1,5 +1,6 @@
 using AgentSpeed.Core;
 using AgentSpeed.Core.Intelligence;
+using AgentSpeed.Core.Tasks;
 using AgentSpeed.Presentation.Hero;
 
 namespace AgentSpeed.Presentation.Boards.Demo;
@@ -182,13 +183,14 @@ public sealed class BoardSim
             var a = _agents[i];
             var activity = epoch.AddSeconds(a.LastActive);
             // A sub-agent's label stands in its project, which is what tells it apart on a sub row.
-            var (grade, intelligence, _) = Measure(a);
+            var (intelligence, _) = Measure(a);
+            var task = Task(a);
+            var score = TaskSetValue.Of(a.Id, (long)(a.LastActive * 1000), task);
             list[i] = new AgentStatus(a.Id, a.Source, a.ParentId is null ? a.Project : a.Label, a.Model, a.Phase, a.ParentId is not null,
                 new Rate(a.Live, a.Live * 4), null, activity, a.ParentId)
             {
                 Modes = Modes(a),
-                Grade = grade,
-                Intelligence = new AgentIntelligence(intelligence, grade),
+                Intelligence = new AgentIntelligence(intelligence with { Score = score }, score, task.State),
             };
         }
 
@@ -209,27 +211,42 @@ public sealed class BoardSim
     }
 
     /// <summary>
-    /// sim.js <c>measure</c>: the agent's grade (class + 6 × effort level), its reasoning (by effort, breathing ±20 % over ~7 s;
-    /// none for DeepSeek, which reports reasoning inside its output) as window sums, and its live cost (Ultrafast has no list
-    /// price; Fast bills 2×). Derived from the state only, never from the random sequence.
+    /// A demo task score (METRICS 6.9) from the agent's id alone: about one agent in six has none yet, the rest a score in
+    /// quarter points (the dimensions' steps), passing from 50 up; resting while idle.
     /// </summary>
-    private (ModelGrade Grade, IntelligenceSums Sums, LiveCost Cost) Measure(BoardSimAgent a)
+    private static TaskValue Task(BoardSimAgent a)
+    {
+        var seed = HashUnit(a.Id + "#task");
+        if (seed < 0.16)
+        {
+            return new TaskValue(TaskValueForm.None, null, null, TaskState.None);
+        }
+
+        var score = Math.Round(seed * 400) / 4;
+        var form = a.Phase == AgentPhase.Idle ? TaskValueForm.Resting : TaskValueForm.Live;
+        return new TaskValue(form, score, TaskRounding.HalfAwayFromZero(score), score >= 50 ? TaskState.Passing : TaskState.Unverified);
+    }
+
+    /// <summary>
+    /// sim.js <c>measure</c>: the agent's reasoning (by effort, breathing ±20 % over ~7 s; none for DeepSeek, which reports
+    /// reasoning inside its output) as window sums, and its live cost (Ultrafast has no list price; Fast bills 2×). Derived
+    /// from the state only, never from the random sequence.
+    /// </summary>
+    private (IntelligenceSums Sums, LiveCost Cost) Measure(BoardSimAgent a)
     {
         var level = a.Effort is { } effort && EffortLevels.TryGetValue(effort, out var l) ? l + (effort is "ultra" or "ultracode" ? 1 : 0) : 2;
         var price = Prices.GetValueOrDefault(a.Model);
-        var klass = !Prices.ContainsKey(a.Model) ? ModelClass.Standard : price >= 15 ? ModelClass.Flagship : price >= 3 ? ModelClass.Standard : ModelClass.Light;
-        var grade = new ModelGrade(klass, level);
         var seed = HashUnit(a.Id);
         var records = IntelligenceSums.RecordsReasoning(a.Source) && !NoReasoning;
         var breath = 0.8 + 0.4 * (0.5 + 0.5 * Math.Sin(Time * 0.9 + seed * 6.283));
         var thinking = records ? a.Live * (0.07 + 0.05 * level) * (0.7 + 0.6 * seed) * breath : 0;
         var window = WindowSeconds * a.Live;
-        var sums = window > 0 ? new IntelligenceSums(window, window * grade.Value, thinking * WindowSeconds, IntelligenceSums.RecordsReasoning(a.Source) ? window : 0)
+        var sums = window > 0 ? new IntelligenceSums(window, thinking * WindowSeconds, IntelligenceSums.RecordsReasoning(a.Source) ? window : 0)
             : IntelligenceSums.Zero;
         var priced = a.SpeedMode != "ultrafast";
         var bolts = a.SpeedMode is "fast" or "highspeed" ? 1 : a.SpeedMode == "ultrafast" ? 2 : 0;
         var rate = priced ? a.Live * price * (1.3 + 0.6 * seed) * (bolts > 0 ? 2 : 1) : 0;
-        return (grade, sums, new LiveCost(rate, priced ? a.Live : 0));
+        return (sums, new LiveCost(rate, priced ? a.Live : 0));
     }
 
     /// <summary>The engine's live window in seconds (the sums are tokens over it).</summary>

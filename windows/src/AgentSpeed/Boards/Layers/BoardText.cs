@@ -26,6 +26,7 @@ internal sealed class BoardText : IDisposable
 {
     private readonly Dictionary<(BoardFont, float, FontWeight), IDWriteTextFormat> _formats = [];
     private readonly Dictionary<BoardFont, string> _families = [];
+    private readonly Dictionary<(BoardFont, FontWeight), float> _caps = [];
     private IDWriteFactory? _factory;
     private string _locale = "en-US";
 
@@ -107,6 +108,31 @@ internal sealed class BoardText : IDisposable
         var top = baseline - (lines.Length > 0 ? lines[0].Baseline : style.Size * 0.8f);
         context.DrawTextLayout(new Vector2(right ? x - width : x, top), layout, brush, DrawTextOptions.EnableColorFont | DrawTextOptions.Clip);
         return width;
+    }
+
+    /// <summary>The cap height of <paramref name="style"/>'s font at its size, from the font's own metrics.</summary>
+    public float CapHeight(in BoardTextStyle style)
+    {
+        var key = (style.Font, style.Weight);
+        if (!_caps.TryGetValue(key, out var share))
+        {
+            share = (float)Presentation.Boards.BoardRowFigures.NominalCapShare;
+            using var collection = Factory.GetSystemFontCollection(false);
+            if (collection.FindFamilyName(Family(style.Font), out var index))
+            {
+                using var family = collection.GetFontFamily(index);
+                using var font = family.GetFirstMatchingFont(style.Weight, FontStretch.Normal, Vortice.DirectWrite.FontStyle.Normal);
+                var metrics = font.Metrics;
+                if (metrics.DesignUnitsPerEm > 0 && metrics.CapHeight > 0)
+                {
+                    share = (float)metrics.CapHeight / metrics.DesignUnitsPerEm;
+                }
+            }
+
+            _caps[key] = share;
+        }
+
+        return share * style.Size;
     }
 
     /// <summary>The y at which a layout's top lands so its first line's glyph box is centered on <paramref name="centerY"/>.</summary>

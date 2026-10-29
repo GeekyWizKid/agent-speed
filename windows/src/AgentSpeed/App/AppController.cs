@@ -576,7 +576,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
         if (_tooltipShown)
         {
-            _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(snapshot, _loc));
+            _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(snapshot, _loc), TooltipTop());
         }
 
         if (!_historyStarted && snapshot.State.Kind != MonitorStateKind.Starting && _historyStartFallback is not null)
@@ -645,6 +645,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _dashboardModel.TitleTheme = _titles.General;
         _dashboardModel.TitleSlides = !_theme.ReduceMotion && Settings.Effects != EffectsIntensity.Off;
         _dashboardModel.CapsuleAppearance = CapsuleAppearance;
+        _dashboardModel.TransparencyEnabled = _theme.TransparencyEnabled;
         _dashboardModel.LiveUnit = Settings.Cost.LiveUnit;
         _dashboardModel.Update(snapshot, _speed.Value, _speed.Title, _speed.Redline, _speed.Metric, _loc, _theme.IsDark);
         var peak = snapshot.PeakToday.ValueFor(_speed.Metric);
@@ -728,17 +729,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             accessible = $"{accessible}{SpokenSeparator}{secondary.Spoken}";
         }
 
+        // DESIGN 10: the network block's words first, then the intelligence block's.
         var traffic = BarTrafficBlock.From(s, _traffic.Snapshot, _loc);
-        if (traffic?.Spoken is { } spokenTraffic)
-        {
-            accessible = $"{accessible}{SpokenSeparator}{spokenTraffic}";
-        }
-
         var intelligence = BarIntelligence();
-        if (intelligence is not null)
-        {
-            accessible = $"{accessible}{SpokenSeparator}{intelligence.Spoken}";
-        }
+        accessible = BarReadouts.Append(accessible, SpokenSeparator, traffic, intelligence);
 
         _lastTaskbarState = new TaskbarState(
             s.ShowOnTaskbar,
@@ -765,6 +759,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     /// <summary>The taskbar intelligence block, its thinking line hidden after 3 s at 0 (DESIGN 10).</summary>
     private BarIntelligenceBlock? BarIntelligence() => BarIntelligenceBlock.From(Settings, _speed.Snapshot, _loc, _barThinking, _speed.Now);
 
+    /// <summary>The tooltip's second line while the intelligence block shows a score: <c>task.tooltip.top</c> (DESIGN 10).</summary>
+    private string? TooltipTop() => BarIntelligence()?.Top;
+
     /// <summary>The taskbar money block (DESIGN 3): the live rate and today's total after tok/s with the live value "tok/s + cost".</summary>
     private BarSecondary? BarSecondaryValue()
     {
@@ -786,7 +783,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
     /// <summary>
     /// The taskbar and tray tooltip line: tok/s or money, the second value when shown (DESIGN 3), the title, then the
-    /// readout block's words (DESIGN 10): network speed or the live intelligence.
+    /// readout blocks' words (DESIGN 10): network speed, then 智力.
     /// </summary>
     private string LiveLine()
     {
@@ -795,9 +792,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             ? $"{money.NumberText} {money.Unit}"
             : $"{SpeedFormat.Speed(_speed.Value)} {_loc["unit.tokS"]}";
         var line = BarSecondaryValue() is { } secondary ? $"{main} · {secondary.Spoken} · {title}" : $"{main} · {title}";
-        var readout = BarTrafficBlock.From(Settings, _traffic.Snapshot, _loc)?.Spoken
-            ?? BarIntelligence()?.Spoken;
-        return readout is not null ? $"{line} · {readout}" : line;
+        return BarReadouts.Append(line, " · ", BarTrafficBlock.From(Settings, _traffic.Snapshot, _loc), BarIntelligence());
     }
 
     // ---- Traffic ----
@@ -816,7 +811,8 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             UpdateTaskbar();
             if (_tooltipShown)
             {
-                _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(_speed.Snapshot, _loc));
+                _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(_speed.Snapshot, _loc),
+                    TooltipTop());
             }
         }
 
@@ -971,7 +967,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _tooltipShown = true;
         _tooltip.Language = AppFonts.XmlLanguageFor(_loc.LanguageCode);
         var summary = LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(_speed.Snapshot, _loc);
-        _tooltip.ShowFor(bounds, LiveLine(), summary, _theme.ReduceMotion, _loc["taskbar.dragHint"]);
+        _tooltip.ShowFor(bounds, LiveLine(), summary, _theme.ReduceMotion, _loc["taskbar.dragHint"], TooltipTop());
     }
 
     /// <summary>The user dragged the taskbar widget along the taskbar (DESIGN 3, Position on the taskbar).</summary>
@@ -1028,7 +1024,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _historyStarted = true;
         try
         {
-            _historyService = new HistoryService(_historyHub, Settings.ToMonitorConfiguration(), pricing: _cost.Book);
+            _historyService = new HistoryService(_historyHub, Settings.ToMonitorConfiguration(), pricing: _cost.Book)
+            {
+                CalibrationUpdated = models => _monitor?.SetTaskCalibration(models),
+            };
             _historyService.Start();
         }
         catch (Exception ex)

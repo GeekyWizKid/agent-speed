@@ -1,6 +1,5 @@
 using AgentSpeed.Presentation.Boards.Gpu;
 using AgentSpeed.Presentation.Colors;
-using AgentSpeed.Presentation.Motion;
 using AgentSpeed.Presentation.Orb.Gpu;
 
 namespace AgentSpeed.Presentation.Boards.Scene;
@@ -19,10 +18,11 @@ public enum BoardGaugePart
 
 /// <summary>
 /// The hero's sub-gauge of layout B (DESIGN 2c, Live metrics): 智力 large — glass's pearl arc, neon's LED digits and 12-segment
-/// meter, timing's data box — with 思考 and 費用 smaller beneath it. Its numbers roll with the hero's (0.24 s), the arc's end
-/// moves and the meter's segments crossfade in the same 0.24 s; 思考 folds away after reading 0 for 3 s. Labels, units,
-/// <c>≥</c> and the tag are cached text layers; numbers are value glyphs; the arc, meter and box are instanced shapes.
-/// Nothing allocates per frame.
+/// meter, timing's data box — with 思考 and 費用 smaller beneath it. 智力 is the board's task score (DESIGN 12): it counts up on
+/// a climb with the arc's end and the meter following, crossfades on a fall, rests pale and carries the proof mark while
+/// unproven (<see cref="BoardHeroScore"/>, <see cref="BoardScoreDraw"/>); the other numbers roll with the hero's (0.24 s); 思考
+/// folds away after reading 0 for 3 s. Labels, units, <c>≥</c> and the tag are cached text layers; numbers are value glyphs;
+/// the arc, meter, dots and box are instanced shapes. Nothing allocates per frame.
 /// </summary>
 public sealed class BoardGauge
 {
@@ -35,27 +35,18 @@ public sealed class BoardGauge
     /// <summary>A wider value widens its cell at once and it narrows this long after the last value that needed it.</summary>
     public const double WideHoldSeconds = 6;
 
-    public const double ArcSeconds = 0.24;
-    public const double MeterSeconds = 0.24;
-
     private static readonly string[] Keys = ["#g.li", "#g.lt", "#g.lc", "#g.ut", "#g.uc", "#g.ge", "#g.tag"];
 
-    private readonly BoardReadoutNumber _main = new();
+    private readonly BoardHeroScore _score = new();
     private readonly BoardReadoutNumber _thinking = new();
     private readonly BoardReadoutNumber _cost = new();
     private readonly BoardThinkingFold _fold = new();
-    private double _arcFrom;
-    private double _arcTo;
-    private double _arcStart = double.NegativeInfinity;
-    private int _litFrom;
-    private int _litTo;
-    private double _litStart = double.NegativeInfinity;
     private bool _tag;
     private double _tagStart = double.NegativeInfinity;
     private double _wide;
     private double _wideAt = double.NegativeInfinity;
-    private bool _shown;
     private BoardHeroReadouts _readouts = BoardHeroReadouts.Empty;
+    private RectBounds? _scoreArea;
 
     /// <summary>The layer key of a part.</summary>
     public static string KeyOf(BoardGaugePart part) => Keys[(int)part];
@@ -64,6 +55,15 @@ public sealed class BoardGauge
 
     /// <summary>The readouts on display.</summary>
     public BoardHeroReadouts Readouts => _readouts;
+
+    /// <summary>The 智力 on display, with its motion.</summary>
+    public BoardHeroScore Score => _score;
+
+    /// <summary>
+    /// Where hovering opens the hero's score card (DESIGN 2c, Tooltip and score card), in canvas points as last drawn: glass's
+    /// dial, neon's digits and meter, timing's 智力 row; null without 智力.
+    /// </summary>
+    public RectBounds? ScoreArea => _scoreArea;
 
     /// <summary>The width the sub-gauge takes beyond its measured cells while a wider value holds its cell (the hero's left column gives way).</summary>
     public double Extra { get; private set; }
@@ -74,7 +74,8 @@ public sealed class BoardGauge
         ArgumentNullException.ThrowIfNull(tick);
         var readouts = tick.Gauge;
         _readouts = readouts;
-        _main.Set(readouts.Intelligence, now, animate, reduceMotion);
+        // A hidden 智力 takes its value without motion, so it asks for no frames.
+        _score.Apply(readouts.Score, now, animate && tick.Readouts.Intelligence, reduceMotion);
         _thinking.Set(readouts.Thinking, now, animate, reduceMotion);
         var tag = readouts.Cost.State == BoardMoneyState.Tag;
         _cost.Set(tag ? string.Empty : readouts.Cost.Number, now, animate && !tag && !_tag, reduceMotion);
@@ -84,50 +85,25 @@ public sealed class BoardGauge
             _tagStart = animate ? now : double.NegativeInfinity;
         }
 
-        var f = readouts.Shown is { } shown ? Math.Clamp((shown - BoardGaugeSpec.IndexFloor) / BoardGaugeSpec.IndexSpan, 0, 1) : 0;
-        if (Math.Abs(f - _arcTo) > 1e-9)
-        {
-            _arcFrom = animate && !reduceMotion ? Arc(now) : f;
-            _arcTo = f;
-            _arcStart = animate && !reduceMotion ? now : double.NegativeInfinity;
-        }
-
-        var lit = readouts.Shown is { } index
-            ? Math.Clamp((int)Math.Floor((index - BoardGaugeSpec.IndexFloor) / 8.0 + 0.5), 0, BoardGaugeSpec.Segments)
-            : 0;
-        if (lit != _litTo)
-        {
-            _litFrom = _litTo;
-            _litTo = lit;
-            _litStart = animate && !reduceMotion ? now : double.NegativeInfinity;
-        }
-
-        _shown = readouts.Shown is not null;
         _fold.Set(tick.ThinkingHidden && tick.Readouts.Thinking, now, animate && !reduceMotion);
     }
 
     public void Settle()
     {
-        _main.Settle();
+        _score.Settle();
         _thinking.Settle();
         _cost.Settle();
         _fold.Settle();
-        _arcStart = double.NegativeInfinity;
-        _litStart = double.NegativeInfinity;
         _tagStart = double.NegativeInfinity;
     }
 
-    /// <summary>A roll, the arc, the meter, the tag's crossfade or the fold runs (60 fps; they share the hero roll's frames).</summary>
+    /// <summary>
+    /// 智力's count-up or crossfade, a roll, the tag's crossfade or the fold runs (60 fps; a count-up at most 0.8 s, the rest
+    /// within the hero roll's frames).
+    /// </summary>
     public bool Animating(double now) =>
-        _main.Animating(now) || _thinking.Animating(now) || _cost.Animating(now) || _fold.Moving(now) || now - _arcStart < ArcSeconds ||
-        now - _litStart < MeterSeconds || now - _tagStart < BoardReadoutNumber.FadeSeconds;
-
-    /// <summary>The arc's value fraction on display.</summary>
-    public double Arc(double now)
-    {
-        var t = (now - _arcStart) / ArcSeconds;
-        return t is >= 0 and < 1 ? _arcFrom + (_arcTo - _arcFrom) * Easing.CubicBezier(0.2, 0.8, 0.2, 1, t) : _arcTo;
-    }
+        _score.Animating(now) || _thinking.Animating(now) || _cost.Animating(now) || _fold.Moving(now) ||
+        now - _tagStart < BoardReadoutNumber.FadeSeconds;
 
     /// <summary>The cells measured from the layers (labels, <c>≥</c>, units) and the number glyphs, the wider value held 6 s.</summary>
     public BoardGaugeCells Cells(BoardStyle style, BoardSize size, BoardReadouts readouts, IBoardLayers layers, double now)
@@ -175,6 +151,7 @@ public sealed class BoardGauge
         ArgumentNullException.ThrowIfNull(list);
         ArgumentNullException.ThrowIfNull(hero);
         ArgumentNullException.ThrowIfNull(palette);
+        _scoreArea = null;
         if (!readouts.Hero || alpha <= 0.002)
         {
             return;
@@ -202,37 +179,38 @@ public sealed class BoardGauge
         var neon = style == BoardStyle.Neon;
         if (readouts.Intelligence)
         {
+            var (live, proof) = _score.Look(now);
             if (!neon)
             {
-                Dial(list, spec, cx, y + p.DialCenterY, palette, alpha, now);
+                BoardScoreDraw.Dial(list, spec, cx, y + p.DialCenterY, palette, _score.Sweep(now), live, proof, alpha);
             }
 
             Place(list, layers, BoardGaugePart.LabelIntelligence, cx, 0, y + p.MainLabelBaseline, palette.Quiet, alpha);
-            var quiet = !_shown;
             var mainTracking = (neon ? -0.03 : -0.02) * spec.MainSize;
             if (neon)
             {
                 if (palette.Glows || palette.Ghost.A > 0)
                 {
-                    Ghost(list, layers, cx, y + p.MainBaseline, mainTracking, palette.Ghost, alpha);
+                    Ghost(list, layers, cx, y + p.MainBaseline, mainTracking, palette.Ghost, alpha, now);
                 }
 
-                _main.Emit(list, layers, quiet || !palette.Glows ? BoardValueSet.GaugeMainPlain : BoardValueSet.GaugeMain, cx, 0, y + p.MainBaseline,
-                    spec.MainSize, mainTracking, quiet ? palette.Quiet : palette.Number, quiet || !palette.Glows ? 1 : 0, alpha, now);
-                Meter(list, spec, cx, y + p.MeterTop, palette, alpha, now);
+                EmitScore(list, layers, style, palette, cx, 0, y + p.MainBaseline, spec.MainSize, mainTracking, alpha, now);
+                BoardScoreDraw.Meter(list, spec, cx, y + p.MeterTop, palette, _score.Meter(now), live, proof, alpha);
             }
             else
             {
-                _main.Emit(list, layers, BoardValueSet.GaugeMain, cx, 0, y + p.MainBaseline, spec.MainSize, mainTracking,
-                    quiet ? palette.Quiet : palette.Number, 1, alpha, now);
+                EmitScore(list, layers, style, palette, cx, 0, y + p.MainBaseline, spec.MainSize, mainTracking, alpha, now);
             }
+
+            // Glass: the dial box; neon: the digits and the meter (the label's top to the meter's bottom).
+            _scoreArea = RectBounds.From(cx - spec.Dial / 2, y + p.Top, spec.Dial, spec.MainHeight);
         }
 
         var tracking = TableTracking(style, spec);
         if (readouts.Thinking)
         {
             var a = alpha * p.ThinkingAlpha;
-            var thinkingQuiet = !_shown || _readouts.ThinkingZero;
+            var thinkingQuiet = _readouts.Quiet || _readouts.ThinkingZero;
             Place(list, layers, BoardGaugePart.LabelThinking, x + p.TableLeft, -1, y + p.ThinkingBaseline, palette.Quiet, a);
             TableNumber(list, layers, _thinking, neon, palette, thinkingQuiet, x + p.NumberRight, y + p.ThinkingBaseline, spec.TableSize, tracking, a, now);
             Place(list, layers, BoardGaugePart.UnitThinking, x + p.UnitLeft, -1, y + p.ThinkingBaseline, palette.Quiet, a);
@@ -282,9 +260,9 @@ public sealed class BoardGauge
         if (readouts.Intelligence)
         {
             Place(list, layers, BoardGaugePart.LabelIntelligence, tabX, 0, top + p.MainRow / 2, palette.TabMainInk, alpha, centred: true);
-            var quiet = !_shown;
-            _main.Emit(list, layers, BoardValueSet.GaugeMain, right - spec.RightPad - spec.UnitGap, 1, y + p.MainBaseline, spec.MainSize,
-                -0.04 * spec.MainSize, quiet ? palette.Quiet : palette.Number, 1, alpha, now);
+            EmitScore(list, layers, BoardStyle.Timing, palette, right - spec.RightPad - spec.UnitGap, 1, y + p.MainBaseline, spec.MainSize,
+                -0.04 * spec.MainSize, alpha, now);
+            _scoreArea = RectBounds.From(left, top, p.Width, p.MainRow);
         }
 
         if (readouts.Thinking)
@@ -299,7 +277,7 @@ public sealed class BoardGauge
 
             var sep = separator ? 1 : 0;
             Place(list, layers, BoardGaugePart.LabelThinking, tabX, 0, rowTop + sep + (p.SmallRow - sep) / 2, palette.TabInk, a, centred: true);
-            var quiet = !_shown || _readouts.ThinkingZero;
+            var quiet = _readouts.Quiet || _readouts.ThinkingZero;
             _thinking.Emit(list, layers, BoardValueSet.GaugeTable, x + p.NumberRight, 1, y + p.ThinkingBaseline, spec.TableSize, tracking,
                 quiet ? palette.Quiet : palette.Number, 1, a, now);
             Place(list, layers, BoardGaugePart.UnitThinking, x + p.UnitLeft, -1, y + p.ThinkingBaseline, palette.Quiet, a);
@@ -365,101 +343,59 @@ public sealed class BoardGauge
         return number.Emit(list, layers, set, right, 1, baseline, size, tracking, quiet ? palette.Quiet : palette.Number, baked ? 0 : 1, alpha, now);
     }
 
-    // Glass's pearl arc: the track over the whole sweep, the value's first f in the pearl gradient with its glow, and the tip.
-    private void Dial(BoardDrawList list, BoardGaugeSpec spec, double cx, double cy, BoardGaugePalette palette, double alpha, double now)
+    // 智力's number: the shown integer (a count-up's), the outgoing one while a crossfade runs, each in its live or resting color
+    // (neon live: the baked LED digits with their glow), with the dotted underline of an unproven score.
+    private void EmitScore(BoardDrawList list, IBoardLayers layers, BoardStyle style, BoardGaugePalette palette, double x, int align, double baseline,
+        double size, double tracking, double alpha, double now)
     {
-        var r = spec.ArcRadius;
-        var stroke = spec.ArcStroke;
-        list.Add(OrbGpuInstance.BandArc(cx, cy, r, stroke, BoardGaugeSpec.ArcStart, BoardGaugeSpec.ArcSweep, palette.Track.MultiplyAlpha(alpha),
-            roundCaps: true));
-        if (!_shown)
+        var (outgoing, incoming) = _score.Fade(now);
+        var has = _score.HasScore;
+        ScoreText(list, layers, style, palette, _score.Text(now), has ? _score.Liveness(now) : 0, has ? _score.Proof(now) : 0, x, align, baseline, size,
+            tracking, alpha * incoming);
+        if (_score.Outgoing(now) is { } old)
+        {
+            var number = !string.Equals(old, BoardHeroReadouts.Dash, StringComparison.Ordinal);
+            ScoreText(list, layers, style, palette, old, number && _score.OutgoingLive ? 1 : 0, number && _score.OutgoingUnproven ? 1 : 0, x, align,
+                baseline, size, tracking, alpha * outgoing);
+        }
+    }
+
+    private static void ScoreText(BoardDrawList list, IBoardLayers layers, BoardStyle style, BoardGaugePalette palette, string text, double live,
+        double proof, double x, int align, double baseline, double size, double tracking, double alpha)
+    {
+        if (alpha <= 0.002)
         {
             return;
         }
 
-        var f = Arc(now);
-        var sweep = BoardGaugeSpec.ArcSweep * f;
-        var tipAngle = BoardGaugeSpec.ArcStart + sweep;
-        var (tx, ty) = (cx + r * Math.Cos(tipAngle * Math.PI / 180), cy + r * Math.Sin(tipAngle * Math.PI / 180));
-        if (sweep > 0.05)
+        var color = Rgba.Lerp(palette.Quiet, palette.Number, live);
+        var plain = style == BoardStyle.Neon ? BoardValueSet.GaugeMainPlain : BoardValueSet.GaugeMain;
+        double width;
+        if (style == BoardStyle.Neon && palette.Glows)
         {
-            if (palette.Glows)
-            {
-                list.Add(OrbGpuInstance.BandArc(cx, cy, r, stroke, BoardGaugeSpec.ArcStart, sweep, palette.PearlB.WithAlpha(1), roundCaps: true, core: 0,
-                    glow: OrbGpuInstance.Glow(1.5), glowAlpha: 0.6 * alpha));
-            }
-
-            // The gradient across the dial box (lower left → upper right) in pieces of at most 60°, butt-joined, round caps at both ends.
-            var pieces = Math.Max(1, (int)Math.Ceiling(sweep / 60));
-            var step = sweep / pieces;
-            for (var i = 0; i < pieces; i++)
-            {
-                var a0 = BoardGaugeSpec.ArcStart + i * step;
-                list.Add(OrbGpuInstance.BandArc(cx, cy, r, stroke, a0, step, Pearl(palette, a0 + step, alpha), Pearl(palette, a0, alpha)));
-            }
-
-            var (sx, sy) = (cx + r * Math.Cos(BoardGaugeSpec.ArcStart * Math.PI / 180), cy + r * Math.Sin(BoardGaugeSpec.ArcStart * Math.PI / 180));
-            list.Add(OrbGpuInstance.Circle(sx, sy, stroke / 2, Pearl(palette, BoardGaugeSpec.ArcStart, alpha)));
-            list.Add(OrbGpuInstance.Circle(tx, ty, stroke / 2, Pearl(palette, tipAngle, alpha)));
-        }
-
-        var tip = spec.TipRadius;
-        if (palette.Glows && palette.Dark)
-        {
-            list.Add(OrbGpuInstance.Circle(tx, ty, tip, palette.PearlB, 0, OrbGpuInstance.Glow(1.5), alpha));
-            list.Add(OrbGpuInstance.Circle(tx, ty, tip, Rgba.White.WithAlpha(alpha)));
+            width = BoardValueGlyphs.EmitOnBaseline(list, layers, text, BoardValueSet.GaugeMain, x, align, baseline, tracking, palette.Number, 0,
+                alpha * live);
+            BoardValueGlyphs.EmitOnBaseline(list, layers, text, plain, x, align, baseline, tracking, palette.Quiet, 1, alpha * (1 - live));
         }
         else
         {
-            list.Add(OrbGpuInstance.Circle(tx, ty, tip, (palette.Glows ? palette.PearlB : palette.Number).MultiplyAlpha(alpha)));
-        }
-    }
-
-    // The pearl gradient at an angle of the arc: the SVG's objectBoundingBox gradient from the lower left to the upper right of
-    // the arc's box (x ± r, y from −r to +r/2).
-    private static Rgba Pearl(BoardGaugePalette palette, double degrees, double alpha)
-    {
-        if (!palette.Glows)
-        {
-            return palette.PearlA.MultiplyAlpha(alpha);
+            width = BoardValueGlyphs.EmitOnBaseline(list, layers, text, plain, x, align, baseline, tracking, color, 1, alpha);
         }
 
-        var radians = degrees * Math.PI / 180;
-        var u = (Math.Cos(radians) + 1) / 2;
-        var v = (Math.Sin(radians) + 1) / 1.5;
-        var t = Math.Clamp((u + 1 - v) / 2, 0, 1);
-        var color = t < 0.5 ? Rgba.Lerp(palette.PearlC, palette.PearlA, t * 2) : Rgba.Lerp(palette.PearlA, palette.PearlB, (t - 0.5) * 2);
-        return color.WithAlpha(alpha);
-    }
-
-    // Neon's 12 segments: lit from the left in the mind color (glowing on dark), the change crossfading in 0.24 s.
-    private void Meter(BoardDrawList list, BoardGaugeSpec spec, double cx, double top, BoardGaugePalette palette, double alpha, double now)
-    {
-        var width = spec.Dial;
-        var segment = (width - (BoardGaugeSpec.Segments - 1) * BoardGaugeSpec.SegmentGap) / BoardGaugeSpec.Segments;
-        var left = cx - width / 2;
-        var cy = top + BoardGaugeSpec.SegmentHeight / 2;
-        var t = Math.Clamp((now - _litStart) / MeterSeconds, 0, 1);
-        for (var i = 0; i < BoardGaugeSpec.Segments; i++)
+        if (proof > 0.002 && width > 0 && !string.Equals(text, BoardHeroReadouts.Dash, StringComparison.Ordinal))
         {
-            var sx = left + i * (segment + BoardGaugeSpec.SegmentGap) + segment / 2;
-            var was = i < _litFrom ? 1.0 : 0;
-            var now1 = i < _litTo ? 1.0 : 0;
-            var lit = was + (now1 - was) * t;
-            list.Add(OrbGpuInstance.RoundedRect(sx, cy, segment / 2, BoardGaugeSpec.SegmentHeight / 2, 0, 1, palette.Unlit.MultiplyAlpha(alpha * (1 - lit))));
-            if (lit > 0.002)
-            {
-                list.Add(OrbGpuInstance.RoundedRect(sx, cy, segment / 2, BoardGaugeSpec.SegmentHeight / 2, 0, 1, palette.Mind.MultiplyAlpha(alpha * lit), 1,
-                    palette.Glows ? OrbGpuInstance.Glow(2.5) : 0, palette.Glows ? 0.8 * alpha * lit : 0));
-            }
+            var left = align < 0 ? x : align == 0 ? x - width / 2 : x - width;
+            // Windows high contrast: the dots in the text color, whatever the number's form.
+            BoardScoreDraw.Underline(list, left, width, baseline, size, palette.HighContrast ? palette.Number : color, alpha * proof,
+                palette.HighContrast);
         }
     }
 
     // As many ghost 8s as the number has digits, behind it.
-    private void Ghost(BoardDrawList list, IBoardLayers layers, double cx, double baseline, double tracking, Rgba ghost, double alpha)
+    private void Ghost(BoardDrawList list, IBoardLayers layers, double cx, double baseline, double tracking, Rgba ghost, double alpha, double now)
     {
         var digits = 0;
-        foreach (var c in _main.Text)
+        foreach (var c in _score.Text(now))
         {
             digits += c is >= '0' and <= '9' ? 1 : 0;
         }

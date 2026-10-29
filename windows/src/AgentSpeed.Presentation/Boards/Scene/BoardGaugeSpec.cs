@@ -73,10 +73,10 @@ public sealed record BoardGaugeSpec(
 
     public const double ArcSweep = 240;
 
-    /// <summary>The index range the arc and the meter span: 60 (light, level 0, no reasoning) to 156.</summary>
-    public const double IndexFloor = 60;
+    /// <summary>The range the arc and the meter span: the task score, 0 to 100 (METRICS 6.9).</summary>
+    public const double IndexFloor = 0;
 
-    public const double IndexSpan = 96;
+    public const double IndexSpan = 100;
 
     /// <summary>Timing's 智力 row height and the small rows' (with their 1 pt separator).</summary>
     public double TimingMainRow => MainHeight;

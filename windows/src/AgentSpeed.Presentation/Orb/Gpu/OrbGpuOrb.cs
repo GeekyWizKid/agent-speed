@@ -523,8 +523,8 @@ public sealed class OrbGpuOrb
     }
 
     /// <summary>
-    /// The readout fades (quiet rule), its thinking line fades as the intelligence line glides, or it fades back after the
-    /// pill (DESIGN 10): frames at 30 fps.
+    /// The readout fades (quiet rule), its thinking line fades as the intelligence line glides, 智力 counts up, crossfades or
+    /// changes its color or proof mark (DESIGN 12, Motion), or it fades back after the pill (DESIGN 10): frames at 30 fps.
     /// </summary>
     private bool LinesMoving(double now)
     {
@@ -545,6 +545,7 @@ public sealed class OrbGpuOrb
         }
 
         return reading.Thinking.IsMoving(now, reduce)
+            || reading.Score.IsMoving(now, reduce)
             || (Scene.PeakAge is { } age && age >= OrbScene.PeakPillDuration && age < OrbScene.PeakPillDuration + OrbLinesDraw.PillFade + 0.05);
     }
 

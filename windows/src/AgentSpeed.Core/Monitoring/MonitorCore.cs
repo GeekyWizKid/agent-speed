@@ -29,6 +29,9 @@ internal sealed partial class MonitorCore : IDisposable
     public const long LargeFileTailBytes = 64L * 1024 * 1024;
     public const long RecentWriteWindowMs = 2 * 60_000;
 
+    /// <summary>From this much to read at once, readers borrow their own pattern copies (<c>ThreadRegex</c>).</summary>
+    private const long OwnPatternsBytes = 64L * 1024 * 1024;
+
     /// <summary>A conversation database that keeps changing is read at most this often (METRICS 5.4).</summary>
     public static readonly TimeSpan DatabaseReadInterval = TimeSpan.FromMilliseconds(500);
 
@@ -58,6 +61,9 @@ internal sealed partial class MonitorCore : IDisposable
     private int _responsesSeen;
     private bool _partialHistory;
     private long? _observedAtMs;
+    private bool _keepEveryTask;
+    private IReadOnlyDictionary<SourceKind, Tasks.TaskModels> _taskModels = new Dictionary<SourceKind, Tasks.TaskModels>();
+    private long _seededFiles;
 
     public MonitorCore(
         MonitorConfiguration configuration,
@@ -281,7 +287,7 @@ internal sealed partial class MonitorCore : IDisposable
                     continue;
                 }
 
-                var tracked = new TrackedFile(root, file.Path, _deduper);
+                var tracked = NewTrackedFile(root, file.Path);
                 _files[file.Path] = tracked;
                 if (PlanInitialRead(tracked, file, todayStartMs) is { } plan)
                 {
@@ -680,7 +686,7 @@ internal sealed partial class MonitorCore : IDisposable
                 a.Live,
                 a.RecentSpeed,
                 UnixTime.FromMs(a.Info.LastLineMs ?? nowMs),
-                a.ParentId) { Modes = a.Info.Modes, Grade = a.Grade, Intelligence = a.Intelligence, Work = a.Work })
+                a.ParentId) { Modes = a.Info.Modes, Intelligence = a.Intelligence, Task = a.Info.Task, Work = a.Work })
             .ToList();
 
         var sources = Enum.GetValues<SourceKind>()
@@ -893,6 +899,9 @@ internal sealed partial class MonitorCore : IDisposable
 
         var totalBytes = Math.Max(1, plans.Sum(p => Math.Max(0, p.ExpectedLength - p.StartOffset)));
         var degree = Math.Clamp(Environment.ProcessorCount - 1, 1, 8);
+
+        // A large backlog read on several threads matches the task parsers' patterns with borrowed copies (no contention).
+        var ownPatterns = degree > 1 && totalBytes >= OwnPatternsBytes;
         var inFlight = new Queue<(ReadPlan Plan, Task<Prepared> Task)>();
         long doneBytes = 0, bytesRead = 0;
         var filesRead = 0;
@@ -906,7 +915,8 @@ internal sealed partial class MonitorCore : IDisposable
                 {
                     var plan = plans[next++];
                     plan.File.Tailer.StartAt(plan.StartOffset, plan.Align);
-                    inFlight.Enqueue((plan, Task.Run(() => Prepare(plan.File, cancellationToken), cancellationToken)));
+                    inFlight.Enqueue((plan, Task.Run(() => ownPatterns ? PrepareOwn(plan.File, cancellationToken) : Prepare(plan.File, cancellationToken),
+                        cancellationToken)));
                 }
 
                 var (current, task) = inFlight.Dequeue();
@@ -930,6 +940,7 @@ internal sealed partial class MonitorCore : IDisposable
                     continue;
                 }
 
+                current.File.SeedOrder ??= ++_seededFiles;
                 filesRead++;
                 bytesRead += prepared.Result.BytesRead;
                 doneBytes += Math.Max(0, current.ExpectedLength - current.StartOffset);
@@ -948,9 +959,20 @@ internal sealed partial class MonitorCore : IDisposable
                 {
                 }
             }
+
+            if (ownPatterns)
+            {
+                TaskParsers.ThreadRegex.ReleasePool();
+            }
         }
 
         return (filesRead, bytesRead);
+    }
+
+    private static Prepared PrepareOwn(TrackedFile tracked, CancellationToken cancellationToken)
+    {
+        using var lease = TaskParsers.ThreadRegex.Borrow();
+        return Prepare(tracked, cancellationToken);
     }
 
     private static Prepared Prepare(TrackedFile tracked, CancellationToken cancellationToken)
@@ -1105,7 +1127,7 @@ internal sealed partial class MonitorCore : IDisposable
             return false;
         }
 
-        var tracked = new TrackedFile(root, file.Path, _deduper);
+        var tracked = NewTrackedFile(root, file.Path);
         _files[file.Path] = tracked;
         if (PlanInitialRead(tracked, file, todayStartMs) is not { } plan)
         {
@@ -1153,8 +1175,39 @@ internal sealed partial class MonitorCore : IDisposable
             parser.Phase,
             parser.InFlightStartMs,
             parser.LastLineMs,
-            _parents.GetValueOrDefault(parser.AgentId)) { Modes = parser.Modes, Work = parser.WorkActions });
+            _parents.GetValueOrDefault(parser.AgentId)) { Modes = parser.Modes, Work = parser.WorkActions, Task = TaskStatusOf(parser) });
     }
+
+    /// <summary>
+    /// The coefficients the predictions of each scored source use (METRICS 6.11 <i>Calibration</i>, from the history);
+    /// a source without an entry uses the priors. Every scored agent is evaluated again with the new models.
+    /// </summary>
+    internal void SetTaskModels(IReadOnlyDictionary<SourceKind, Tasks.TaskModels> models)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+        if (ReferenceEquals(models, _taskModels))
+        {
+            return;
+        }
+
+        _taskModels = models;
+        foreach (var tracked in _files.Values)
+        {
+            if (tracked.Parser.Tasks is not null)
+            {
+                tracked.PushedVersion = -1;
+                PushAgent(tracked);
+            }
+        }
+
+        RepushOpenClawAgents();
+    }
+
+    /// <summary>The agent's current task, evaluated over everything read (METRICS 6.9 <i>Event stream</i>).</summary>
+    private Tasks.AgentTaskStatus? TaskStatusOf(TranscriptParser parser) =>
+        parser.Tasks is { } tasks
+            ? Tasks.AgentTaskStatus.Of(tasks.Events, _taskModels.GetValueOrDefault(parser.Source) ?? Tasks.TaskModels.Prior)
+            : null;
 
     /// <summary>Applies one read of the OpenCode database; true when anything changed.</summary>
     private bool ApplyOpenCode(OpenCodeUpdate update, bool seeded)
@@ -1213,6 +1266,49 @@ internal sealed partial class MonitorCore : IDisposable
     /// </summary>
     private static string? DisplayProject(TranscriptParser parser) =>
         parser is AntigravityParser ? AntigravityPaths.StoreNameOf(parser.AgentId) : null;
+
+    /// <summary>
+    /// Keep every task's events instead of each agent's current task (the probe's dumps evaluate at any instant); set
+    /// before seeding.
+    /// </summary>
+    internal bool KeepEveryTask
+    {
+        get => _keepEveryTask;
+        set
+        {
+            _keepEveryTask = value;
+            if (_openClaw is { } openClaw)
+            {
+                openClaw.KeepEveryTask = value;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The transcripts of the sources with a task score (METRICS 6.9) that seeding read, in startup order, with their
+    /// composers: the seeded agents of <c>--dump-today</c>. Files seeding started at the end of are left out, and so are
+    /// OpenClaw windows, which the dump reads whole per database like the reference.
+    /// </summary>
+    internal IEnumerable<TranscriptParser> TaskAgents =>
+        _files.Values.Where(f => f.SeedOrder is not null && f.Parser.Tasks is not null).OrderBy(f => f.SeedOrder).Select(f => f.Parser);
+
+    /// <summary>An agent's parent link (METRICS 6.7) as last resolved; null for none.</summary>
+    internal string? ParentOf(string agentId)
+    {
+        ResolveParents();
+        return _parents.GetValueOrDefault(agentId);
+    }
+
+    private TrackedFile NewTrackedFile(SourceRoot root, string path)
+    {
+        var tracked = new TrackedFile(root, path, _deduper);
+        if (_keepEveryTask)
+        {
+            tracked.Parser.KeepEveryTask();
+        }
+
+        return tracked;
+    }
 
     /// <summary>Re-resolves parent links over the engine's agents after any of them changed (METRICS 6.7).</summary>
     private void ResolveParents()

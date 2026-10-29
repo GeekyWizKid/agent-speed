@@ -72,6 +72,7 @@ internal sealed class HistoryController : IDisposable
                 () => Prices?.Current ?? Core.Pricing.PriceBook.Bundled, AppPaths.Version);
             model.SetSource(source);
             model.RememberModeKind(_settings.Current.HistoryModeKind, kind => _settings.Update(s => s with { HistoryModeKind = kind }));
+            model.RememberTaskPair(_settings.Current.HistoryTaskPair, pair => _settings.Update(s => s with { HistoryTaskPair = pair }));
             var window = new HistoryWindow(model, Appearance)
             {
                 Language = AppFonts.XmlLanguageFor(_loc.LanguageCode),

@@ -28,6 +28,9 @@ public sealed record OrbLinesContent(OrbLinesKind Kind, OrbLine First, OrbLine S
 
     /// <summary>Intelligence: what the label adds while the thinking line is hidden (<c>a11y.orb.intel.only</c>).</summary>
     public string? SpokenAlone { get; init; }
+
+    /// <summary>Intelligence: the score on the first line, its form and its proof mark (DESIGN 12).</summary>
+    public OrbLineScore Score { get; init; } = OrbLineScore.None;
 }
 
 /// <summary>
@@ -49,6 +52,9 @@ public readonly record struct OrbLinesReading(OrbLinesContent Content, double Sh
 
     /// <summary>Intelligence: the thinking line's hold, fade and glide while its value reads 0.</summary>
     public OrbThinkingFade Thinking { get; init; }
+
+    /// <summary>Intelligence: how the score moves when it changes (DESIGN 12, <i>Motion</i>).</summary>
+    public OrbScoreMotion Score { get; init; }
 
     /// <summary>What the orb's label adds at <paramref name="time"/>: the intelligence alone once the thinking line hides.</summary>
     public string Spoken(double time) => Content.SpokenAlone is { } alone && Thinking.Hides(time) ? alone : Content.Spoken;
@@ -80,7 +86,7 @@ public readonly record struct OrbLinesReading(OrbLinesContent Content, double Sh
 
 /// <summary>
 /// The quiet rule of the two-line readout (DESIGN 10): visible while samples are loud (traffic of at least 1 KB/s; for
-/// intelligence an agent generating or output in the window); 10 s after the last loud one it fades out (0.6 s) and
+/// intelligence a score, live or resting, or an agent generating); 10 s after the last loud one it fades out (0.6 s) and
 /// returns (0.25 s) with the next. Quiet samples of a gone readout change nothing, so a quiet orb renders no frames.
 /// </summary>
 public sealed class OrbLinesQuietRule
@@ -105,12 +111,21 @@ public sealed class OrbLinesQuietRule
         if (current is not { } shown || shown.IsGone(time))
         {
             return sample.Loud && sample.Content is { } content
-                ? new OrbLinesReading(content, time, time + QuietAfter) { Thinking = default(OrbThinkingFade).Next(content.ThinkingZero, time) }
+                ? new OrbLinesReading(content, time, time + QuietAfter)
+                {
+                    Thinking = default(OrbThinkingFade).Next(content.ThinkingZero, time),
+                    Score = OrbScoreMotion.Start(content.Score),
+                }
                 : current;
         }
 
         var next = sample.Content is { } update
-            ? shown with { Content = update, Thinking = shown.Thinking.Next(update.ThinkingZero, time) }
+            ? shown with
+            {
+                Content = update,
+                Thinking = shown.Thinking.Next(update.ThinkingZero, time),
+                Score = shown.Score.Next(update.Score, time),
+            }
             : shown;
         if (!sample.Loud)
         {

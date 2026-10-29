@@ -3,10 +3,7 @@ namespace AgentSpeed.Core.Engine;
 /// <param name="ParentId">The parent's id when the parent is listed too (METRICS 6.7).</param>
 internal sealed record AgentFrame(AgentInfo Info, AgentPhase Phase, Rate Live, double? RecentSpeed, string? ParentId = null)
 {
-    /// <summary>The grade of the agent's current model and effort (METRICS 6.9); null without a model.</summary>
-    public Intelligence.ModelGrade? Grade { get; init; }
-
-    /// <summary>The agent's own intelligence (METRICS 6.9, Agent intelligence).</summary>
+    /// <summary>The agent's 智力 (METRICS 6.9 <i>Values</i>): its task score by phase and its own thinking sums.</summary>
     public Intelligence.AgentIntelligence Intelligence { get; init; }
 
     /// <summary>What the agent's recent tool calls say (METRICS 6.10).</summary>

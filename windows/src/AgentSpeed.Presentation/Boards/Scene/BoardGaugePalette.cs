@@ -5,7 +5,8 @@ namespace AgentSpeed.Presentation.Boards.Scene;
 /// <summary>
 /// The sub-gauge's tokens per style and appearance (DESIGN 2c, Live metrics: Sub-gauge): glass's pearl arc and its track,
 /// timing's data box, neon's LED digits, ghost segments and meter. Windows high contrast keeps no glows or ghosts: numbers
-/// in the text color, the arc and lit segments full strength, labels, units, tracks and quiet values in the dimmer ink, no fills.
+/// in the text color, the arc and lit segments full strength, labels, units and quiet values (a resting arc or segment too)
+/// in the dimmer ink, the track and unlit segments in the ink-3 token below it, no fills.
 /// </summary>
 /// <param name="Number">Numbers (glass, timing: ink; neon: <c>led</c>).</param>
 /// <param name="Quiet">Labels, units and quiet values (<c>–</c>, <c>0</c>, the tag): <c>ink-3</c>.</param>
@@ -46,17 +47,25 @@ public sealed record BoardGaugePalette(
     /// <summary>The dark appearance (glass's tip is white with a glow on dark, <c>pearl-b</c> without one on light).</summary>
     public bool Dark { get; init; }
 
+    /// <summary>Windows high contrast: solid inks, the proof mark's dots at 100 % and thicker, a resting look in the quiet ink.</summary>
+    public bool HighContrast { get; init; }
+
     public static BoardGaugePalette For(BoardStyle style, BoardPalette palette)
     {
         ArgumentNullException.ThrowIfNull(palette);
         var dark = palette.Dark;
         if (palette.HighContrast)
         {
+            // The track and the unlit segments keep the ink-3 token itself, under the strengthened quiet ink that a resting arc
+            // or segment takes, so values, resting values and the proof mark's dots all stand apart from them (DESIGN 12,
+            // Platform details: Board under Increase Contrast).
             var ink = palette.Ink;
             var dim = palette.Ink3;
-            return new BoardGaugePalette(ink, dim, dim, ink, ink, ink, default, dim, default, dim, ink, default, ink, dim, false)
+            var track = ink.WithAlpha(BoardPalette.For(style, dark).Ink3.A);
+            return new BoardGaugePalette(ink, dim, track, ink, ink, ink, default, dim, default, dim, ink, default, ink, track, false)
             {
                 Dark = dark,
+                HighContrast = true,
                 RowLive = ink,
                 RowQuiet = dim,
             };

@@ -30,6 +30,12 @@ internal sealed class BoardPainters : IBoardLayerPainter, IDisposable
     public void Paint(Vortice.Direct2D1.ID2D1DeviceContext context, in BoardLayerRequest request, in BoardLayerSpec spec) =>
         For(request.Scene.Style).Paint(context, request, spec);
 
+    public BoardRowFigures Figures(Presentation.Boards.Scene.BoardScene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        return For(scene.Style).Figures(scene);
+    }
+
     public void Dispose()
     {
         foreach (var painter in _painters)
