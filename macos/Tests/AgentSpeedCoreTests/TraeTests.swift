@@ -404,6 +404,39 @@ struct TraeTests {
         #expect(afterRestart.agents.first?.agent.referenceResponses.isEmpty == true)
     }
 
+    @Test func asynchronousReadsCoalesceAndRejectStaleCompletions() async throws {
+        let temp = try TempDirectory()
+        let root = try Self.physicalURL(temp.path)
+        try Self.install("timing-valid", at: root)
+        let path = root.appendingPathComponent("ModularData/ai-agent/database.db")
+        let source = TraeSource(roots: [root.path], fileID: -3, clock: { Self.now })
+        var deduper = Deduper()
+        #expect(source.seed(todayStartMs: Self.dayStart, deduper: &deduper).upserts.count == 3)
+        var jobs: [TraeSource.ReadJob] = []
+        source.backgroundReads = { jobs.append($0) }
+        #expect(source.seed(todayStartMs: Self.dayStart, deduper: &deduper).isEmpty)
+        #expect(jobs.count == 1)
+        let first = jobs[0].perform()
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_792_497_800)], ofItemAtPath: path.path)
+        for _ in 0..<4 {
+            #expect(source.refreshIfChanged(deduper: &deduper) == nil)
+            #expect(source.refresh(deduper: &deduper).isEmpty)
+        }
+        #expect(jobs.count == 1, "a slow read never creates a backlog")
+        let replacement = TraeSource(roots: [root.path], fileID: -3)
+        #expect(replacement.complete(first, deduper: &deduper) == nil, "a restarted source rejects old jobs")
+        #expect(source.complete(first, deduper: &deduper)?.upserts.isEmpty == true)
+        #expect(source.complete(first, deduper: &deduper) == nil, "completion applies only once")
+        try await Task.sleep(for: .milliseconds(1100))
+        #expect(source.refreshIfChanged(deduper: &deduper)?.isEmpty == true)
+        #expect(jobs.count == 2, "changes during a read are picked up once it finishes")
+        let second = jobs[1].perform()
+        try FileManager.default.removeItem(at: path)
+        let removed = try #require(source.complete(second, deduper: &deduper))
+        #expect(removed.upserts.isEmpty && !removed.removedAgents.isEmpty)
+        #expect(source.activeSessionCount(todayStartMs: Self.dayStart) == 0)
+    }
+
     @Test func lateExactUsageAndRotatedLogsPreserveStableResponseIdentities() throws {
         let temp = try TempDirectory()
         let root = try Self.physicalURL(temp.path)

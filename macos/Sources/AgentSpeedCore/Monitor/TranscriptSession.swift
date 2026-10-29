@@ -901,6 +901,12 @@ final class TranscriptSession {
     }
 
     @discardableResult
+    func completeTraeRead(_ result: TraeSource.ReadResult) -> Bool {
+        guard let update = trae?.complete(result, deduper: &deduper) else { return false }
+        return apply(update, live: !result.isSeed)
+    }
+
+    @discardableResult
     private func apply(_ update: TraeSource.Update, live: Bool) -> Bool {
         for (upsert, project) in update.upserts { deliver(upsert, project: project, live: live) }
         for id in update.removedAgents { engine.removeAgent(id: id) }

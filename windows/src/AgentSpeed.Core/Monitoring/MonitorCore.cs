@@ -141,7 +141,7 @@ internal sealed partial class MonitorCore : IDisposable
     internal OpenCodeSource? OpenCode => _openCode;
 
     /// <summary>
-    /// While running, whole-file reads (<c>.jsonl.zst</c>, legacy Gemini <c>.json</c>) happen on the pool and are applied
+    /// While running, whole-file reads (<c>.jsonl.zst</c>, legacy Gemini <c>.json</c>, Trae stores and logs) happen on the pool and are applied
     /// later by <see cref="ApplyCompletedReads"/>, so the live loop never waits for them (METRICS 5.3).
     /// </summary>
     public bool ReadWholeFilesInBackground { get; set; }
@@ -152,7 +152,7 @@ internal sealed partial class MonitorCore : IDisposable
     /// <summary>Runs on the pool thread right before a background read (tests use it to make a read slow).</summary>
     internal Action<string>? BeforeBackgroundRead { get; set; }
 
-    public int PendingReadCount => _wholeReads.Count;
+    public int PendingReadCount => _wholeReads.Count + _traeReads.Count;
 
     /// <summary>The live clock for live reporting's counting rule (METRICS 11.4); tests replace it.</summary>
     internal Func<long> Clock { get; set; } = static () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -209,11 +209,11 @@ internal sealed partial class MonitorCore : IDisposable
     public void Dispose()
     {
         _backgroundStop.Cancel();
-        if (_wholeReads.Count > 0)
+        if (PendingReadCount > 0)
         {
             try
             {
-                Task.WaitAll([.. _wholeReads.Values.Select(r => r.Task)], TimeSpan.FromSeconds(5));
+                Task.WaitAll([.. _wholeReads.Values.Select(r => (Task)r.Task), .. _traeReads.Values.Select(r => r.Task)], TimeSpan.FromSeconds(5));
             }
             catch (AggregateException)
             {
@@ -221,6 +221,7 @@ internal sealed partial class MonitorCore : IDisposable
         }
 
         _wholeReads.Clear();
+        _traeReads.Clear();
         _openCode?.Dispose();
         foreach (var tracked in _files.Values)
         {
@@ -233,12 +234,12 @@ internal sealed partial class MonitorCore : IDisposable
     /// <summary>Applies whole-file reads that finished in the background, each in one step; true when anything changed.</summary>
     public bool ApplyCompletedReads()
     {
+        var changed = ApplyCompletedTraeReads();
         if (_wholeReads.Count == 0)
         {
-            return false;
+            return changed;
         }
 
-        var changed = false;
         foreach (var (tracked, read) in _wholeReads.Where(r => r.Value.Task.IsCompleted).ToList())
         {
             _wholeReads.Remove(tracked);

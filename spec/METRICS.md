@@ -1911,6 +1911,11 @@ Log signatures refresh live/history timing without recounting. Surviving session
 when native rows change; deleted rows can reduce that aggregate, while wholly disappeared sessions retain stored
 history under the common history policy. Projected graph caches reuse stable files and evict rotated entries.
 
+After startup, native snapshots and log parsing run outside the live monitor's publishing loop. Only one Trae read
+may be pending per source; changes during that read are coalesced and detected on the next poll. The monitor commits
+the projected result and deduplication changes on its own queue, rejects results from replaced sessions, and keeps
+publishing other sources and aging stale activity while Trae is being read.
+
 Shared fixtures cover plain/encrypted/committed-WAL stores, 50 timing/accounting scenarios and 22 lifecycle scenarios.
 Both platform suites test real engine estimation, no-reference behavior, transitions, late metadata/logs, copied
 stores, stale state and persistence. The independent Python/OpenSSL reference checks accounting/timing and is part

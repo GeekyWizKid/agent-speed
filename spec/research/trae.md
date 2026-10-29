@@ -119,6 +119,13 @@ an immutable per-request billing ledger.
 
 ## Reader and discovery
 
+An extended macOS run on 2026-10-29 exposed a refresh stall as native logs grew. Process sampling placed the live
+monitor queue in Trae graph parsing, predominantly the retry-marker regular expression over large log messages.
+The Swift reader now compiles that expression once with ICU while preserving retry word boundaries. Both live
+monitors prepare Trae snapshots off their publishing loop, allow one pending read per source, and apply results
+only on the owning monitor. Slow-reader regressions check that unrelated source updates and periodic snapshots
+continue during a blocked read. Startup and command-line accounting retain their synchronous snapshot semantics.
+
 Both platforms check the application data folders `Trae`, `Trae CN`, `TRAE SOLO`, and `TRAE SOLO CN`. The current
 `ModularData/ai-agent/database.db` takes precedence over legacy `ModularData/ai-chat/database.db`; they are not
 summed. A selected root replaces automatic discovery and accepts the app folder, containing database folder, or

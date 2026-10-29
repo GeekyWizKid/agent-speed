@@ -42,6 +42,18 @@ enum TraeTiming {
     private static let http = "byted_aha_ffi::aha_net::http"
     private static let stream = "ai_agent::infrastructure::aha_net::stream"
     private static let plan = "ai_agent::domain::plan::simple_service_v2"
+    // String.range(.regularExpression) can run through Swift's Unicode regex engine on newer macOS versions.
+    // Scanning every large log message that way can monopolize the monitor for tens of seconds. Compile once
+    // with ICU and explicit letter/number/underscore boundaries. ICU's \b also treats connector punctuation as
+    // word characters, which would miss some unsafe markers previously detected by Swift's regex engine.
+    // Feature flags such as enable_retry_after_content_loop remain excluded.
+    private static let retryPattern = try! NSRegularExpression(
+        pattern: #"(?<![\p{L}\p{N}_])(?:retry|retried)(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])reconnect"#,
+        options: [.caseInsensitive])
+
+    static func isRetryEvent(_ message: String) -> Bool {
+        retryPattern.firstMatch(in: message, range: NSRange(location: 0, length: (message as NSString).length)) != nil
+    }
     private static let cache = OSAllocatedUnfairLock(initialState: [String: Cached]())
     private struct Parsed: Sendable { var stat: FileStat; var decodedBytes: Int; var graph: Graph }
     private struct Cached: Sendable { var files: [LogFile]; var parsed: [String: Parsed] }
@@ -244,7 +256,7 @@ enum TraeTiming {
                     } else if target == plan, message.hasPrefix("TimingCost: TimingCostOriginEvent { data: ") {
                         if let timing = Self.timing(message) { event.kind = .timing(timing.0, timing.1) }
                         else { event.bad = true }
-                    } else if message.range(of: #"\bretry\b|\bretried\b|\breconnect"#, options: [.regularExpression, .caseInsensitive]) != nil { event.bad = true }
+                    } else if TraeTiming.isRetryEvent(message) { event.bad = true }
                     // No arbitrary message text, paths, request headers or body are retained.
                     events.append(event)
                 }
