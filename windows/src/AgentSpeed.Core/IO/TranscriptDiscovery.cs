@@ -33,6 +33,7 @@ internal enum TranscriptNaming
     ZCodeDatabase,
     KimiSession,
     GrokBuildSession,
+    TraeDatabase,
 }
 
 /// <summary>Recursive transcript enumeration that never follows reparse points or symlinks (METRICS 2).</summary>
@@ -52,7 +53,7 @@ internal static class TranscriptDiscovery
             TranscriptNaming.CodexRollout => fileName.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase)
                 || fileName.EndsWith(".jsonl.zst", StringComparison.OrdinalIgnoreCase),
             TranscriptNaming.GeminiSession => Gemini.GeminiDiscovery.IsSessionFileName(fileName),
-            TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase => false,
+            TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase or TranscriptNaming.TraeDatabase => false,
             TranscriptNaming.KimiSession => fileName.SequenceEqual("wire.jsonl"),
             TranscriptNaming.GrokBuildSession => fileName.SequenceEqual("updates.jsonl"),
             TranscriptNaming.OmpSession => Omp.OmpDiscovery.IsSessionFileName(fileName),
@@ -94,7 +95,7 @@ internal static class TranscriptDiscovery
             return Gemini.GeminiDiscovery.Enumerate(root, limit, cancellationToken);
         }
 
-        if (naming is TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase)
+        if (naming is TranscriptNaming.OpenCodeDatabase or TranscriptNaming.ZCodeDatabase or TranscriptNaming.TraeDatabase)
         {
             return [];
         }

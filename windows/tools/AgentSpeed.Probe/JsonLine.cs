@@ -91,6 +91,7 @@ internal sealed class JsonLine
         SourceKind.ZCode => "zcode",
         SourceKind.Kimi => "kimi",
         SourceKind.GrokBuild => "grokBuild",
+        SourceKind.Trae => "trae",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 

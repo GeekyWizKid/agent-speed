@@ -172,6 +172,9 @@ internal sealed class SettingsViewModel : ObservableObject
         ChangeGrokBuildCommand = new RelayCommand(() => ChangeFolder(GrokBuildPath, (s, path) => s with { GrokBuildRoot = path }));
         ResetGrokBuildCommand = new RelayCommand(() => _settings.Update(s => s with { GrokBuildRoot = null }),
             () => _settings.Current.GrokBuildRoot is not null);
+        ChangeTraeCommand = new RelayCommand(() => ChangeFolder(TraeFolders.FirstOrDefault() ?? string.Empty, (s, path) => s with { TraeRoot = path }));
+        ResetTraeCommand = new RelayCommand(() => _settings.Update(s => s with { TraeRoot = null }),
+            () => _settings.Current.TraeRoot is not null);
         OpenHistoryCommand = new RelayCommand(openHistory);
         ClearHistoryCommand = new RelayCommand(() =>
         {
@@ -324,6 +327,10 @@ internal sealed class SettingsViewModel : ObservableObject
     public RelayCommand ChangeGrokBuildCommand { get; }
 
     public RelayCommand ResetGrokBuildCommand { get; }
+
+    public RelayCommand ChangeTraeCommand { get; }
+
+    public RelayCommand ResetTraeCommand { get; }
 
     public RelayCommand OpenHistoryCommand { get; }
 
@@ -544,6 +551,12 @@ internal sealed class SettingsViewModel : ObservableObject
 
     public string GrokBuildStatus => StatusFor(SourceKind.GrokBuild);
 
+    public IReadOnlyList<string> TraeFolders => SourceFolders.Antigravity(S.TraeRoot, LiveMonitor.DefaultTraeFolders, Directory.Exists);
+
+    public string TraePath => string.Join(Environment.NewLine, TraeFolders);
+
+    public string TraeStatus => StatusFor(SourceKind.Trae);
+
     public string CodexStatus => StatusFor(SourceKind.Codex);
 
     public string DshStatus => StatusFor(SourceKind.DeepSeek);
@@ -701,6 +714,8 @@ internal sealed class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(ZCodeStatus));
         OnPropertyChanged(nameof(KimiStatus));
         OnPropertyChanged(nameof(GrokBuildStatus));
+        OnPropertyChanged(nameof(TraeStatus));
+        OnPropertyChanged(nameof(TraePath));
         OnPropertyChanged(nameof(UpdateLastCheckedText));
     }
 

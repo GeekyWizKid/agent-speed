@@ -18,6 +18,8 @@ public enum SourceKind: String, CaseIterable, Codable, Sendable, Identifiable {
     case zcode
     case kimi
     case grokBuild
+    /// Trae local usage database.
+    case trae
 
     public var id: String { rawValue }
 }
@@ -371,6 +373,8 @@ public struct MonitorConfiguration: Equatable, Sendable {
     public var zcodeRoot: URL?
     public var kimiRoot: URL?
     public var grokBuildRoot: URL?
+    /// One Trae data folder or database; nil discovers the supported local editions.
+    public var traeRoot: URL?
     /// Tests: replaces the automatic roots of a family that are otherwise derived from the environment and the home
     /// folder (omp `sessions` roots, Antigravity store folders, WorkBuddy data folders).
     var automaticRoots: [TranscriptFamily: [URL]] = [:]
@@ -388,7 +392,8 @@ public struct MonitorConfiguration: Equatable, Sendable {
         workbuddyAiRoot: URL? = nil,
         zcodeRoot: URL? = nil,
         kimiRoot: URL? = nil,
-        grokBuildRoot: URL? = nil
+        grokBuildRoot: URL? = nil,
+        traeRoot: URL? = nil
     ) {
         self.enabledSources = enabledSources
         self.codexRoot = codexRoot
@@ -403,5 +408,6 @@ public struct MonitorConfiguration: Equatable, Sendable {
         self.zcodeRoot = zcodeRoot
         self.kimiRoot = kimiRoot
         self.grokBuildRoot = grokBuildRoot
+        self.traeRoot = traeRoot
     }
 }

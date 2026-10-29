@@ -86,6 +86,8 @@ struct AgentState: Equatable, Sendable {
     var inFlightStartMs: Int64?
     var lastLineMs: Int64?
     var malformedLines = 0
+    /// Completed calls of an unfinished turn, used only to seed live estimates.
+    var referenceResponses: [ResponseRecord] = []
 
     init(source: SourceKind, isSubagent: Bool = false) {
         self.source = source

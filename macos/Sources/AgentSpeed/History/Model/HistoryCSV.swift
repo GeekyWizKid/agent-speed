@@ -36,6 +36,7 @@ enum HistoryCSV {
         case .zcode: "zcode"
         case .kimi: "kimi"
         case .grokBuild: "grokBuild"
+        case .trae: "trae"
         }
     }
 

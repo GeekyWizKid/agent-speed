@@ -20,7 +20,13 @@ struct SessionTests {
             opencodeRoot: directory.file("opencode"),
             geminiRoot: directory.file("gemini"),
             ompRoot: directory.file("missing-omp"),
-            antigravityRoot: directory.file("missing-antigravity")
+            antigravityRoot: directory.file("missing-antigravity"),
+            workbuddyRoot: directory.file("missing-workbuddy"),
+            workbuddyAiRoot: directory.file("missing-workbuddy-ai"),
+            zcodeRoot: directory.file("missing-zcode"),
+            kimiRoot: directory.file("missing-kimi"),
+            grokBuildRoot: directory.file("missing-grok"),
+            traeRoot: directory.file("missing-trae")
         )
         return (directory, configuration)
     }

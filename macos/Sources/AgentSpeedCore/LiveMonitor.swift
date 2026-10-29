@@ -63,6 +63,8 @@ public final class LiveMonitor {
         TranscriptLocations.defaultClaudeRoot
     }
 
+    public nonisolated static var defaultTraeRoots: [URL] { TranscriptLocations.defaultTraeRoots }
+
     public nonisolated static var defaultZcodeRoot: URL { TranscriptLocations.defaultZcodeRoot }
     public nonisolated static var defaultKimiRoot: URL { TranscriptLocations.defaultKimiRoot }
     public nonisolated static var defaultGrokBuildRoot: URL { TranscriptLocations.defaultGrokBuildRoot }

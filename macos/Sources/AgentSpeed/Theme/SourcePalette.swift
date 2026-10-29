@@ -17,6 +17,7 @@ extension SourceKind {
         case .zcode: RGBColor(hex: 0x466BFF)
         case .kimi: RGBColor(hex: 0xE16F8A)
         case .grokBuild: RGBColor(hex: 0x8290A6)
+        case .trae: RGBColor(hex: 0x40E0B0)
         }
     }
 

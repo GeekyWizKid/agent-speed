@@ -29,6 +29,7 @@ internal enum RootFamily
     ZCode,
     Kimi,
     GrokBuild,
+    Trae,
 }
 
 /// <summary>Per-family file rules: names, parser and the sources it can produce (METRICS 2 and 4).</summary>
@@ -53,6 +54,7 @@ internal static class Families
         RootFamily.ZCode => TranscriptNaming.ZCodeDatabase,
         RootFamily.Kimi => TranscriptNaming.KimiSession,
         RootFamily.GrokBuild => TranscriptNaming.GrokBuildSession,
+        RootFamily.Trae => TranscriptNaming.TraeDatabase,
         _ => TranscriptNaming.Jsonl,
     };
 
@@ -92,6 +94,7 @@ internal static class Families
         RootFamily.ZCode => enabled.Contains(SourceKind.ZCode),
         RootFamily.Kimi => enabled.Contains(SourceKind.Kimi),
         RootFamily.GrokBuild => enabled.Contains(SourceKind.GrokBuild),
+        RootFamily.Trae => enabled.Contains(SourceKind.Trae),
         _ => false,
     };
 
@@ -108,6 +111,7 @@ internal static class Families
         SourceKind.ZCode => RootFamily.ZCode,
         SourceKind.Kimi => RootFamily.Kimi,
         SourceKind.GrokBuild => RootFamily.GrokBuild,
+        SourceKind.Trae => RootFamily.Trae,
         _ => RootFamily.Claude,
     };
 }

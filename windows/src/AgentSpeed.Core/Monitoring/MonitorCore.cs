@@ -94,6 +94,7 @@ internal sealed partial class MonitorCore : IDisposable
         }
 
         InitializeZCode(locations);
+        InitializeTrae(locations);
         OpenCodeRootPath = locations.OpenCodeRoot;
         _ompAutomatic = locations.OmpAutomatic;
         RefreshAvailability();
@@ -134,9 +135,9 @@ internal sealed partial class MonitorCore : IDisposable
 
     /// <summary>Every folder a file watcher should observe, including the OpenCode database folder.</summary>
     public IEnumerable<SourceRoot> WatchRoots => (_zcodeRoot is { } zcode ? _roots.Append(zcode) : _roots)
-        .Concat(OpenCodeRoot is { } openCode ? [openCode] : []);
+        .Concat(OpenCodeRoot is { } openCode ? [openCode] : []).Concat(_traeRoots);
 
-    public bool AnyEnabledRootAvailable => _roots.Any(r => r.Enabled && r.Available) || OpenCodeRoot?.Available == true || _zcodeRoot?.Available == true;
+    public bool AnyEnabledRootAvailable => _roots.Any(r => r.Enabled && r.Available) || OpenCodeRoot?.Available == true || _zcodeRoot?.Available == true || _traeRoots.Any(root => root.Available);
 
     public int TrackedFileCount => _files.Count;
 
@@ -149,6 +150,7 @@ internal sealed partial class MonitorCore : IDisposable
     public void RefreshAvailability()
     {
         RefreshZCodeAvailability();
+        RefreshTraeAvailability();
         foreach (var root in _roots)
         {
             root.Available = SafeDirectoryExists(root.DetectionPath);
@@ -287,6 +289,7 @@ internal sealed partial class MonitorCore : IDisposable
         }
 
         SeedZCode(todayStartMs);
+        SeedTrae(todayStartMs);
         return new SeedReport(stopwatch.ElapsedMilliseconds, discovered, filesRead, bytesRead, _responsesSeen);
     }
 
@@ -296,6 +299,7 @@ internal sealed partial class MonitorCore : IDisposable
         var changed = false;
         var openCodeChanged = false;
         var zcodeChanged = false;
+        var traeChanged = false;
         foreach (var incoming in paths)
         {
             var path = incoming;
@@ -307,6 +311,11 @@ internal sealed partial class MonitorCore : IDisposable
                 {
                     path = updates;
                 }
+            }
+            if (_trae.Any(source => source.IsWatchedPath(path)))
+            {
+                traeChanged = true;
+                continue;
             }
             if (_zcode?.IsWatchedPath(path) == true)
             {
@@ -345,6 +354,8 @@ internal sealed partial class MonitorCore : IDisposable
             }
         }
 
+        if (traeChanged && _traeSeeded) changed |= RefreshTrae();
+
         if (zcodeChanged && _zcodeSeeded)
         {
             changed |= RefreshZCode();
@@ -364,6 +375,7 @@ internal sealed partial class MonitorCore : IDisposable
         var cutoff = DateTime.UnixEpoch.AddMilliseconds(nowMs - RecentWriteWindowMs);
         var changed = _openCodeSeeded && _openCode?.RefreshIfChanged() is { } update && ApplyOpenCode(update, seeded: false);
         changed |= _zcodeSeeded && RefreshZCode();
+        changed |= _traeSeeded && RefreshTrae();
         _connections.CloseIdle();
         List<TrackedFile>? due = null;
         foreach (var tracked in _files.Values)
@@ -409,10 +421,13 @@ internal sealed partial class MonitorCore : IDisposable
         }
 
         RefreshZCodeAvailability();
+        RefreshTraeAvailability();
         if (_zcodeSeeded)
         {
             changed |= RefreshZCode();
         }
+
+        if (_traeSeeded) changed |= RefreshTrae();
 
         AddNewOmpRoots();
         foreach (var root in _roots.ToList())
@@ -474,6 +489,8 @@ internal sealed partial class MonitorCore : IDisposable
             return _zcode?.ActiveSessionCount(todayStartMs) ?? 0;
         }
 
+        if (kind == SourceKind.Trae) return _trae.Sum(source => source.ActiveSessionCount(todayStartMs));
+
         var mainOnly = WorkBuddyPaths.IsWorkBuddy(kind) || kind is SourceKind.Kimi or SourceKind.GrokBuild;
         var count = 0;
         foreach (var tracked in _files.Values)
@@ -491,7 +508,7 @@ internal sealed partial class MonitorCore : IDisposable
     public IReadOnlyList<MonitorWarning> Warnings(int unfinalizedToday = 0)
     {
         var warnings = new List<MonitorWarning>();
-        if (_partialHistory)
+        if (PartialHistory)
         {
             warnings.Add(new MonitorWarning.PartialHistory());
         }
@@ -512,6 +529,8 @@ internal sealed partial class MonitorCore : IDisposable
         {
             warnings.Add(new MonitorWarning.UnfinalizedUsage(unfinalizedToday));
         }
+
+        if (_trae.Any(source => source.Unsupported)) warnings.Add(new MonitorWarning.UnsupportedFormat(SourceKind.Trae));
 
         if (_zcode?.Unsupported == true)
         {
@@ -537,9 +556,9 @@ internal sealed partial class MonitorCore : IDisposable
     public long OversizedLineCount => _removedOversizedLines + _files.Values.Sum(f => f.Tailer.OversizedLines);
 
     public int UnreadableFileCount =>
-        _files.Values.Count(f => f.Unreadable) + (_openCode?.Status == OpenCodeStatus.Unreadable ? 1 : 0) + (_zcode?.Unreadable == true ? 1 : 0);
+        _files.Values.Count(f => f.Unreadable) + (_openCode?.Status == OpenCodeStatus.Unreadable ? 1 : 0) + (_zcode?.Unreadable == true ? 1 : 0) + _trae.Count(source => source.Unreadable);
 
-    public bool PartialHistory => _partialHistory;
+    public bool PartialHistory => _partialHistory || _trae.Any(source => source.PartialHistory);
 
     /// <param name="subsets">Source sets whose measured peak today the snapshot reports in <see cref="SpeedSnapshot.SubsetPeaks"/>.</param>
     public (SpeedSnapshot Snapshot, IReadOnlyList<SpeedEvent> Events) BuildSnapshot(
@@ -642,7 +661,13 @@ internal sealed partial class MonitorCore : IDisposable
         var enabled = _enabled.Contains(kind);
         string path;
         bool available, rootEnabled;
-        if (kind == SourceKind.ZCode)
+        if (kind == SourceKind.Trae)
+        {
+            path = string.Join(Environment.NewLine, _traeStores);
+            available = _traeStores.Any(store => File.Exists(Trae.TraePaths.DatabasePath(store)));
+            rootEnabled = _trae.Count > 0;
+        }
+        else if (kind == SourceKind.ZCode)
         {
             path = _zcodeRootPath;
             available = _zcodeRoot?.Available ?? File.Exists(ZCode.ZCodeDatabase.DatabasePath(_zcodeRootPath));

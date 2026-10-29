@@ -74,6 +74,7 @@ final class TranscriptSession {
     /// Deduplication owner of every OpenCode row; transcript files count up from 0.
     static let opencodeFileID: FileID = -1
     static let zcodeFileID: FileID = -2
+    static let traeFileID: FileID = -3
 
     let enabledSources: Set<SourceKind>
     let limits: ReadingLimits
@@ -94,6 +95,8 @@ final class TranscriptSession {
     /// The OpenCode database, when that source is enabled (METRICS 4.5, 5.2).
     let opencode: OpencodeSource?
     let zcode: ZcodeSource?
+    let trae: TraeSource?
+    private var traeNeedsSeed = false
     private let zcodeRoot: String
     private var zcodeNeedsSeed = false
     private var zcodeLinks: [String: String] = [:]
@@ -128,12 +131,13 @@ final class TranscriptSession {
         opencode = configuration.readsOpencode ? OpencodeSource(root: opencodeRoot, fileID: Self.opencodeFileID) : nil
         zcodeRoot = configuration.resolvedZcodeRoot
         zcode = configuration.readsZcode ? ZcodeSource(root: zcodeRoot, fileID: Self.zcodeFileID) : nil
+        trae = configuration.readsTrae ? TraeSource(roots: configuration.resolvedTraeRoots, fileID: Self.traeFileID, clock: clock) : nil
         refreshAvailability()
     }
 
     // MARK: - Roots
 
-    var hasAvailableRoot: Bool { roots.contains { $0.enabled && $0.detected } || opencode?.isReady == true || zcode?.isReady == true }
+    var hasAvailableRoot: Bool { roots.contains { $0.enabled && $0.detected } || opencode?.isReady == true || zcode?.isReady == true || trae?.exists == true }
 
     var watchedPaths: [String] {
         var paths = roots.filter { $0.enabled && $0.available }.map(\.canonicalPath)
@@ -141,8 +145,11 @@ final class TranscriptSession {
             paths.append(directory)
         }
         if let directory = zcode?.watchedDirectory, !paths.contains(directory) { paths.append(directory) }
+        for directory in trae?.watchedDirectories ?? [] where !paths.contains(directory) { paths.append(directory) }
         return paths
     }
+
+    var traeLocation: (path: String, available: Bool) { (trae?.rootPath ?? TranscriptLocations.defaultTraeRoots[0].path, trae?.exists ?? false) }
 
     var zcodeLocation: (path: String, available: Bool) { (zcodeRoot, zcode?.exists ?? false) }
 
@@ -162,6 +169,10 @@ final class TranscriptSession {
         if let zcode, zcode.refreshAvailability() {
             changed = true
             zcodeNeedsSeed = true
+        }
+        if let trae, trae.refreshAvailability() {
+            changed = true
+            traeNeedsSeed = true
         }
         for index in roots.indices {
             let available = roots[index].readable && TranscriptDiscovery.isAvailable(root: roots[index].path)
@@ -266,6 +277,15 @@ final class TranscriptSession {
             zcodeNeedsSeed = false
             apply(zcode.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false)
         }
+        if let trae, trae.exists {
+            summary.filesDiscovered += trae.existingPaths.count
+            traeNeedsSeed = false
+            apply(trae.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false)
+            if trae.isReady {
+                summary.filesRead += trae.existingPaths.count
+                summary.bytesRead += trae.databaseSize
+            }
+        }
         summary.partialHistory = partialHistory
         summary.durationMs = Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
         return summary
@@ -340,6 +360,9 @@ final class TranscriptSession {
         if let zcode, paths.contains(where: zcode.matches(canonicalPath:)) {
             changed = apply(zcode.refresh(deduper: &deduper), live: true) || changed
         }
+        if let trae, paths.contains(where: trae.matches(canonicalPath:)) {
+            changed = apply(trae.refresh(deduper: &deduper), live: true) || changed
+        }
         var handled: Set<String> = []
         for path in paths.sorted() {
             guard let (localPath, root) = localPath(forCanonical: path), handled.insert(localPath).inserted else { continue }
@@ -384,6 +407,7 @@ final class TranscriptSession {
             changed = apply(update, live: true)
         }
         if let update = zcode?.refreshIfChanged(deduper: &deduper) { changed = apply(update, live: true) || changed }
+        if let update = trae?.refreshIfChanged(deduper: &deduper) { changed = apply(update, live: true) || changed }
         let hot = files.values.filter { nowMs - $0.lastStat.modifiedMs <= Self.hotWindowMs }
         for file in hot.sorted(by: { $0.path < $1.path }) {
             guard let stat = file.family.stat(file.path) else {
@@ -446,6 +470,14 @@ final class TranscriptSession {
                 zcodeNeedsSeed = false
                 changed = apply(zcode.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false) || changed
             } else if let update = zcode.refreshIfChanged(deduper: &deduper) {
+                changed = apply(update, live: true) || changed
+            }
+        }
+        if let trae {
+            if traeNeedsSeed {
+                traeNeedsSeed = false
+                changed = apply(trae.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false) || changed
+            } else if let update = trae.refreshIfChanged(deduper: &deduper) {
                 changed = apply(update, live: true) || changed
             }
         }
@@ -593,7 +625,7 @@ final class TranscriptSession {
         files.values.reduce(removedMalformedLines) { $0 + $1.parser.state.malformedLines } + (opencode?.malformedRows ?? 0)
     }
 
-    var unreadableFileCount: Int { unreadablePaths.count + (opencode?.status == .unreadable ? 1 : 0) + (zcode?.status == .unreadable ? 1 : 0) }
+    var unreadableFileCount: Int { unreadablePaths.count + (opencode?.status == .unreadable ? 1 : 0) + (zcode?.status == .unreadable ? 1 : 0) + (trae?.status == .unreadable ? 1 : 0) }
 
     /// Antigravity databases whose connection is open.
     var openDatabaseCount: Int {
@@ -605,6 +637,7 @@ final class TranscriptSession {
         var sources: [SourceKind] = []
         if opencode?.status == .unsupported { sources.append(.opencode) }
         if zcode?.status == .unsupported { sources.append(.zcode) }
+        if trae?.status == .unsupported { sources.append(.trae) }
         if enabledSources.contains(.antigravity), files.values.contains(where: { $0.family.isDatabase && $0.parser.isUnsupported }) {
             sources.append(.antigravity)
         }
@@ -624,6 +657,7 @@ final class TranscriptSession {
             counts[.opencode] = opencode.activeSessionCount(todayStartMs: todayStartMs)
         }
         if let zcode { counts[.zcode] = zcode.activeSessionCount(todayStartMs: todayStartMs) }
+        if let trae { counts[.trae] = trae.activeSessionCount(todayStartMs: todayStartMs) }
         return counts
     }
 
@@ -695,6 +729,17 @@ final class TranscriptSession {
             zcodeLinks = links
             parentLinksAreStale = true
         }
+        return !update.isEmpty
+    }
+
+    @discardableResult
+    private func apply(_ update: TraeSource.Update, live: Bool) -> Bool {
+        for (upsert, project) in update.upserts { deliver(upsert, project: project, live: live) }
+        for id in update.removedAgents { engine.removeAgent(id: id) }
+        for (id, state) in update.agents {
+            if state.lastLineMs != nil { engine.setAgent(EngineAgent(id: id, state: state, parentId: nil)) }
+        }
+        partialHistory = partialHistory || trae?.partialHistory == true
         return !update.isEmpty
     }
 

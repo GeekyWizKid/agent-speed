@@ -706,6 +706,7 @@ internal static class SourceNames
         SourceKind.ZCode => "zcode",
         SourceKind.Kimi => "kimi",
         SourceKind.GrokBuild => "grokBuild",
+        SourceKind.Trae => "trae",
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 
@@ -724,6 +725,7 @@ internal static class SourceNames
         "zcode" => SourceKind.ZCode,
         "kimi" => SourceKind.Kimi,
         "grokBuild" => SourceKind.GrokBuild,
+        "trae" => SourceKind.Trae,
         _ => null,
     };
 }
