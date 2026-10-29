@@ -27,9 +27,11 @@ extension ReportController {
 
     static var previewDiscovery: ReportDiscovery { discovery(websocket: nil) }
 
-    /// The example service; `websocket` adds the WebSocket capability with these settings (METRICS 11.9).
+    /// The example service, which also advertises the task score (METRICS 11.10); `websocket` adds the WebSocket
+    /// capability with these settings (METRICS 11.9).
     static func discovery(websocket: String?) -> ReportDiscovery {
-        let stream = websocket.map { #","extensions":{"reportWebSocket":1},"websocket":\#($0)"# } ?? ""
+        let extensions = (websocket == nil ? "" : #""reportWebSocket":1,"#) + #""taskScore":1"#
+        let stream = websocket.map { #","websocket":\#($0)"# } ?? ""
         let document = """
         {"protocol":"agent-speed-report","versions":[1],
          "service":{"name":"Example Leaderboard","description":"Live token speed of AI coding agents, updated every few seconds.",
@@ -38,7 +40,7 @@ extension ReportController {
          "api":"https://api.example.com/agent-speed","apiKey":{"mode":"optional","url":"https://example.com/account/keys"},
          "username":{"minLength":2,"maxLength":24,"charset":"unicode","spaces":true},
          "limits":{"intervalSeconds":5,"heartbeatSeconds":60,"maxAgeSeconds":30,"maxBodyBytes":16384,"maxModels":16},
-         "sections":["sources","models","cost","traffic"]\(stream)}
+         "sections":["sources","models","cost","traffic"],"extensions":{\(extensions)}\(stream)}
         """
         return try! ReportDiscovery.parse(Data(document.utf8), service: previewService).get()
     }
@@ -119,7 +121,8 @@ extension ReportController {
             p50: slow ? 236 : 38, p95: slow ? 412 : 87)
     }
 
-    /// Three agents of two sources and two models, as in the spec's active example.
+    /// Three agents of two sources and two models, as in the spec's active example, with the task score of its
+    /// `taskScore` example (spec/fixtures/report-examples/report-taskscore.json).
     static var previewSample: ReportSample {
         var counters = ReportCounters()
         counters.add(ReportUsage(requests: 3, output: 1500, input: 800_000, cachedInput: 780_000, cacheWriteInput: 12_050,
@@ -128,12 +131,21 @@ extension ReportController {
         counters.add(ReportUsage(requests: 1, output: 340, input: 112_400, cachedInput: 100_120, reasoning: 310,
                                  measuredOutput: 302, measuredMs: 820, costMicroUsd: 3000),
                      to: ReportModelKey(modelId: "gpt-5.5", source: .codex))
+        func value(_ id: String, _ form: TaskValueForm, _ score: Double) -> TaskSetValue {
+            TaskSetValue(id: id, lastLineMs: nil, value: TaskAgentValue(form: form, score: score,
+                                                                         shown: taskRoundHalfAway(score), state: nil))
+        }
+        let task = ReportTaskFacts(
+            value: value("a1", .live, 91.5), thinking: 38.64,
+            models: ["claude-opus-5-5": ReportTaskModel(value: value("a1", .live, 91.5), liveSources: [.claudeCode]),
+                     "gpt-5.5": ReportTaskModel(value: value("a3", .live, 63.75), thinking: 38.64, liveSources: [.codex]),
+                     "claude-sonnet-5-5": ReportTaskModel(value: value("a6", .resting, 23))])
         let facts = ReportLiveFacts(
             agents: [.codex: ReportAgentCounts(generating: 1, active: 2),
                      .claudeCode: ReportAgentCounts(generating: 2, tools: 1, active: 3)],
             generatingModels: [ReportModelKey(modelId: "claude-opus-5-5", source: .claudeCode): 2,
                                ReportModelKey(modelId: "gpt-5.5", source: .codex): 1],
-            counters: counters)
+            counters: counters, task: task)
         return ReportSample(
             live: Rate(output: 412.6, total: 182_340.2), estimatedShare: 0.215,
             liveCost: LiveCost(microUsdPerSecond: 4213, knownOutput: 412.6),

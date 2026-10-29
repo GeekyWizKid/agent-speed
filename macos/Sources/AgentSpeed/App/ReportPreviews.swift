@@ -4,10 +4,10 @@ import SwiftUI
 
 /// Live reporting for `--render-previews` (group `report`, DESIGN 11): Settings → API, the consent sheet and the
 /// dashboard invitation in all four languages, light and dark, plus the off, paused, attention, set-up-failed and
-/// review states, the invitation's done line, the preview window's content (also before the document is known), the
-/// dashboard footer's indicator and the quick menu item, and the WebSocket transport (streaming with its stats in
-/// every language, throttled, unsupported, reconnecting, replaced, and its preview). Nothing is created, stored or
-/// sent.
+/// review states, the invitation's done line, the preview window's content (also before the document is known, and
+/// that body in full down to its `taskScore` objects), the dashboard footer's indicator and the quick menu item, and
+/// the WebSocket transport (streaming with its stats in every language, throttled, unsupported, reconnecting,
+/// replaced, and its preview). Nothing is created, stored or sent.
 @MainActor
 enum ReportPreviews {
     static let languages: [(String, LanguagePreference, String)] = [
@@ -83,6 +83,10 @@ enum ReportPreviews {
                 ReportPreviewBox(model: model, preview: model.report.preview(), showsRequest: true, maxHeight: 900)
                     .frame(width: 528).padding(Spacing.m).appEnvironment(model),
                 dark: dark, to: directory.appendingPathComponent("report-preview-window-assumed-\(scheme).png"))
+            PreviewSnapshot.writeHosted(
+                ReportPreviewBox(model: model, preview: model.report.preview(), showsRequest: true, maxHeight: 6000)
+                    .frame(width: 528).padding(Spacing.m).appEnvironment(model),
+                dark: dark, to: directory.appendingPathComponent("report-preview-body-assumed-\(scheme).png"))
             for (state, label) in [(ReportController.PreviewState.reporting, "on"), (.paused, "paused"),
                                    (.attention, "attention"), (.setupFailed, "setupfailed")] {
                 model.report.preview(state, username: "小明的 MacBook Pro")
