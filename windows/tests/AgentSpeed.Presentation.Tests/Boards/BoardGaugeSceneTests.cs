@@ -211,8 +211,10 @@ public class BoardGaugeSceneTests
         Assert.NotEmpty(baselines);
         foreach (var row in scene.Rows.Where(r => r.Entry.Kind == BoardEntryKind.Group))
         {
+            // The figures leave line 1 for their shared baseline centred on the row, clear of line 2.
             var top = m + scene.Metrics.ListTop + row.Y;
-            Assert.Contains(baselines, b => Math.Abs(b - (top + BoardScene.FirstBaseline)) < 1e-3);
+            Assert.Contains(baselines, b => Math.Abs(b - (top + scene.FigureBaseline(row.Entry))) < 1e-3);
+            Assert.DoesNotContain(baselines, b => Math.Abs(b - (top + BoardScene.FirstBaseline)) < 1e-3);
             Assert.DoesNotContain(baselines, b => Math.Abs(b - (top + BoardScene.SecondBaseline(style))) < 1.5);
         }
     }

@@ -16,7 +16,9 @@ namespace AgentSpeed.Boards.Harness;
 /// <c>AGENT_SPEED_BOARD_FRAMES_SCORES=1</c> with the frame harness: the task score on the boards (DESIGN 12; 2c, Live metrics) —
 /// per style and appearance a sheet <c>scores-STYLE-THEME.png</c> (rows S, M, L; columns <see cref="States"/>) and each cell as
 /// <c>scores-STYLE-SIZE-THEME-STATE.png</c>, after the team story's 40 ticks with the hero's 智力 set to the state (the rows keep
-/// the demo's own scores: those below 50 are unverified and carry the proof mark).
+/// the demo's own scores: those below 50 are unverified and carry the proof mark). The report gives each size's measured
+/// two-line row figures (DESIGN 2c, The second line): widths, cap heights, the widened columns and each figure's cap centre from
+/// the row's centre line (within 0.4 pt).
 /// </summary>
 internal static class BoardScoreFrames
 {
@@ -50,6 +52,7 @@ internal static class BoardScoreFrames
                 foreach (var size in BoardSizes.All)
                 {
                     var row = new List<BitmapSource>();
+                    var reported = false;
                     foreach (var state in States)
                     {
                         var name = $"{BoardStyles.Key(style)} {(dark ? "dark" : "light")} {BoardSizes.Key(size)} {state.Name}";
@@ -79,6 +82,12 @@ internal static class BoardScoreFrames
                         {
                             report.AppendLine(CultureInfo.InvariantCulture, $"{name}: the device failed");
                             continue;
+                        }
+
+                        if (!reported)
+                        {
+                            reported = true;
+                            report.AppendLine(Figures(rig.Scene));
                         }
 
                         byte[]? bytes = null;
@@ -112,5 +121,21 @@ internal static class BoardScoreFrames
 
         File.WriteAllText(reportPath, report.ToString());
         return 0;
+    }
+
+    // A size's two-line row figures as the painter measured them, or that S has none.
+    private static string Figures(Presentation.Boards.Scene.BoardScene scene)
+    {
+        var head = $"{BoardStyles.Key(scene.Style)} {BoardSizes.Key(scene.Size)} figures:";
+        if (!scene.Metrics.TwoLineRows)
+        {
+            return head + " one-line rows";
+        }
+
+        var f = scene.Figures;
+        var c = scene.Columns;
+        var height = scene.Metrics.GroupHeight;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{head} 888 {f.Intelligence:0.00} wide, widest value {f.Value:0.00}; caps 智力 {f.IntelligenceCap:0.00}, value {f.ValueCap:0.00}, interval {f.IntervalCap:0.00}; columns 智力 {c.Intelligence:0.#}, value {c.Value:0.#}; baseline {f.Baseline(height, true):0.00} under the top, cap centres from the centre line {BoardRowFigures.Centre(height):0.#}: 智力 {f.Offset(height, true, f.IntelligenceCap):+0.000;-0.000}, value {f.Offset(height, true, f.ValueCap):+0.000;-0.000} (alone {f.Offset(height, false, f.ValueCap):+0.000;-0.000}), interval {f.IntervalBaseline(height) - f.IntervalCap / 2 - BoardRowFigures.Centre(height):+0.000;-0.000}");
     }
 }

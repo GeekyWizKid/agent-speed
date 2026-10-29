@@ -64,6 +64,7 @@ public sealed class BoardScene
     private double _ambience;
     private double _punchStart = double.NegativeInfinity;
     private bool _dark = true;
+    private BoardRowFigures _figures = BoardRowFigures.Nominal;
 
     public BoardScene(BoardStyle style, BoardSize size, uint seed = 1)
     {
@@ -114,6 +115,24 @@ public sealed class BoardScene
     /// <summary>The rows' right-hand columns.</summary>
     public BoardRowColumns Columns { get; private set; } = BoardRowColumns.For(BoardStyle.Glass, BoardSize.M, BoardReadouts.None);
 
+    /// <summary>
+    /// The two-line group rows' figures as the platform measured them in the style's fonts (DESIGN 2c, The second line): their
+    /// widest widths, which the columns widen to fit, and the cap heights that centre them on the row. Set before the layers are
+    /// brought up to date; <see cref="BoardRowFigures.Nominal"/> until then.
+    /// </summary>
+    public BoardRowFigures Figures
+    {
+        get => _figures;
+        set
+        {
+            if (value != _figures)
+            {
+                _figures = value;
+                Columns = BoardRowColumns.For(Style, Size, Readouts, value);
+            }
+        }
+    }
+
     /// <summary>The number on display (its glyphs are composed every frame).</summary>
     public string NumberText => _number.Text;
 
@@ -153,7 +172,7 @@ public sealed class BoardScene
     {
         Metrics = BoardMetrics.For(Style, Size, Readouts);
         Hero = BoardHeroLayout.For(Style, Size, Readouts);
-        Columns = BoardRowColumns.For(Style, Size, Readouts);
+        Columns = BoardRowColumns.For(Style, Size, Readouts, _figures);
     }
 
     /// <summary>Applies an engine tick: rows move to their plan places, enter or leave, values flash, events fire effects.</summary>
@@ -360,8 +379,9 @@ public sealed class BoardScene
                 var intervalRight = left + metrics.ListWidth - (metrics.IntelligenceColumn ? Columns.IntervalRight : BoardValueGlyphs.IntervalRight);
                 if (twoLine)
                 {
-                    BoardValueGlyphs.EmitOnBaseline(list, layers, row.IntervalText, BoardValueSet.Interval, intervalRight, 1, top + FirstBaseline, 0,
-                        palette.Ink3, 1, alpha, clip);
+                    // A figure too, centred on the row at its own size on its own baseline.
+                    BoardValueGlyphs.EmitOnBaseline(list, layers, row.IntervalText, BoardValueSet.Interval, intervalRight, 1,
+                        top + _figures.IntervalBaseline(height), 0, palette.Ink3, 1, alpha, clip);
                 }
                 else
                 {
@@ -432,6 +452,13 @@ public sealed class BoardScene
     {
         ArgumentNullException.ThrowIfNull(entry);
         return entry.Kind == BoardEntryKind.Group && Style != BoardStyle.Timing && !entry.TwoLine ? entry.Height - 2 : entry.Height;
+    }
+
+    /// <summary>A two-line group row's figures' shared baseline under its top (the 智力 cell joins the value while the column shows).</summary>
+    public double FigureBaseline(BoardEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return _figures.Baseline(RowHeight(entry), Metrics.IntelligenceColumn);
     }
 
     /// <summary>The hero's opacity while a switch change crossfades it.</summary>
@@ -660,7 +687,7 @@ public sealed class BoardScene
     }
 
     // A row's value from the value glyphs, in its color, its warm flash or its dim; returns its baseline (a two-line row's
-    // value sits on the first line's).
+    // figures share one baseline centred on the row, 2 pt larger).
     private double Value(BoardDrawList list, IBoardLayers layers, BoardRowMotion row, double right, double top, double height, double alpha, double now,
         RectBounds clip)
     {
@@ -675,10 +702,10 @@ public sealed class BoardScene
 
         if (row.Entry.TwoLine)
         {
-            var first = top + FirstBaseline;
-            BoardValueGlyphs.EmitOnBaseline(list, layers, row.ValueText, set, right - BoardValueGlyphs.Inset(Style), 1, first,
-                BoardValueGlyphs.Tracking(Style, sub), color, 1, alpha * dim, clip);
-            return first;
+            var baseline = top + FigureBaseline(row.Entry);
+            BoardValueGlyphs.EmitOnBaseline(list, layers, row.ValueText, set, right - BoardValueGlyphs.Inset(Style), 1, baseline,
+                BoardValueGlyphs.Tracking(Style, sub, twoLine: true), color, 1, alpha * dim, clip);
+            return baseline;
         }
 
         var center = top + (Style == BoardStyle.Timing && !sub ? (height - 1) / 2 : height / 2);
@@ -699,7 +726,7 @@ public sealed class BoardScene
         var sub = row.Entry.Kind == BoardEntryKind.Sub;
         var x = right - Columns.IntelligenceRight;
         var live = row.IntelLive(now);
-        var size = BoardRowColumns.IntelligenceSize(Style, sub);
+        var size = BoardRowColumns.IntelligenceSize(Style, sub, row.Entry.TwoLine);
         var tracking = Style == BoardStyle.Glass ? 0 : -0.02 * size;
         var (outgoing, incoming) = row.IntelFade(now);
         var gauge = GaugePalette;

@@ -429,10 +429,12 @@ public class BoardTaskScoreTests
         var row = scene.Rows.Single(r => r.Key == "a");
         Assert.Equal(1, row.IntelProof(100));
         var top = BoardCanvas.Margin + scene.Metrics.ListTop + row.Y;
-        var size = BoardRowColumns.IntelligenceSize(BoardStyle.Glass, sub: false);
+        // A two-line row's 智力 is 13 pt on the figures' centred baseline.
+        var size = BoardRowColumns.IntelligenceSize(BoardStyle.Glass, sub: false, twoLine: true);
+        Assert.Equal(13, size);
         var d = TaskProofMark.Diameter(size, 1);
         var dots = list.Instances.ToArray().Where(i => Is(i, OrbShape.Circle) && Math.Abs(i.B.X - d / 2) < 1e-4 &&
-            Math.Abs(i.A.Y - (top + BoardScene.FirstBaseline + 0.22 * size)) <= 0.51).ToArray();
+            Math.Abs(i.A.Y - (top + scene.FigureBaseline(row.Entry) + 0.22 * size)) <= 0.51).ToArray();
         // "86" is 14 wide in the test's glyphs: n = ⌊(14 − 1) / 2.4⌋ + 1.
         Assert.Equal(6, dots.Length);
         var right = BoardCanvas.Margin + scene.Metrics.ListLeft + scene.Metrics.ListWidth - scene.Columns.IntelligenceRight;

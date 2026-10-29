@@ -1,3 +1,4 @@
+using AgentSpeed.Presentation.Boards;
 using AgentSpeed.Presentation.Boards.Scene;
 using Vortice.Direct2D1;
 
@@ -70,4 +71,10 @@ internal interface IBoardLayerPainter
 
     /// <summary>Draws the layer in points from its top-left corner; the box is already clear.</summary>
     void Paint(ID2D1DeviceContext context, in BoardLayerRequest request, in BoardLayerSpec spec);
+
+    /// <summary>
+    /// The two-line group rows' figures measured in the style's fonts at the scene's size (DESIGN 2c, The second line): the widest
+    /// 智力 and value at their new sizes, and the cap heights that centre them on the row.
+    /// </summary>
+    BoardRowFigures Figures(BoardScene scene);
 }

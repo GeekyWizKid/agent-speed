@@ -117,20 +117,24 @@ public class BoardLiveMetricsTests
         Assert.Equal(style == BoardStyle.Timing && size != BoardSize.S ? 38 : 0, plain.Interval, 6);
     }
 
-    // The second line holds only the detail: it runs from under the name to the value's right edge, past the capsule and 智力 columns.
+    // The second line holds only the detail: from under the name, under the capsule column, up to the first figure column's
+    // left edge — the figures, centred on the row, hold their columns on both lines.
     [Theory]
     [InlineData(BoardStyle.Glass, BoardSize.M)]
     [InlineData(BoardStyle.Timing, BoardSize.L)]
     [InlineData(BoardStyle.Neon, BoardSize.M)]
-    public void TheDetailRunsToTheValuesRightEdge(BoardStyle style, BoardSize size)
+    public void TheDetailStopsAtTheFirstFigureColumn(BoardStyle style, BoardSize size)
     {
         var metrics = BoardMetrics.For(style, size, BoardReadouts.All);
-        foreach (var readouts in new[] { BoardReadouts.All, BoardReadouts.None })
+        foreach (var readouts in new[] { BoardReadouts.All, BoardReadouts.None, BoardReadouts.All with { Intelligence = false } })
         {
             var columns = BoardRowColumns.For(style, size, readouts);
             var width = metrics.ListWidth;
-            Assert.Equal(width - columns.ValueRight, columns.DetailRight(width), 6);
-            Assert.True(columns.DetailRight(width) > width - columns.CapsuleRight);
+            var first = columns.Interval > 0 ? columns.IntervalRight + columns.Interval
+                : columns.Intelligence > 0 ? columns.IntelligenceRight + columns.Intelligence
+                : columns.ValueRight + columns.Value;
+            Assert.Equal(width - first, columns.DetailRight(width), 6);
+            Assert.True(columns.DetailRight(width) > width - columns.CapsuleRight, "under the capsule column");
         }
     }
 
