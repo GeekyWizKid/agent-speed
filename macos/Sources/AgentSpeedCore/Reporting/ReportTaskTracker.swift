@@ -61,7 +61,7 @@ public struct ReportTaskTracker: Equatable, Sendable {
     public private(set) var epoch: Int?
     private var lastEpoch = 0
     /// What the watch is on for (the service); a change is a break followed by a new watch.
-    private var watchKey: String?
+    public private(set) var watchKey: String?
     private var logId: UInt64?
     private var lastIndex = 0
 

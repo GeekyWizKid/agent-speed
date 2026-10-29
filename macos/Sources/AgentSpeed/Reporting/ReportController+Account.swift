@@ -24,6 +24,7 @@ extension ReportController {
         } else {
             post(.stop)
             updatePreferences { $0.enabled = false }
+            updateTaskWatch()
             if consent != nil { cancelConsent() }
             endSetup()
         }
@@ -63,6 +64,7 @@ extension ReportController {
         retryReason = nil
         rateLimitedUntil = nil
         loadSecrets()
+        updateTaskWatch()
         guard let identity else {
             if wasEnabled { beginConsent(review: false) } else { checkService() }
             return
@@ -79,6 +81,8 @@ extension ReportController {
             if on { preferences.sections.insert(section) } else { preferences.sections.remove(section) }
         }
         clearRejection()
+        // The models switch carries the task score: off is a break (METRICS 11.10).
+        updateTaskWatch()
     }
 
     func pause(for duration: TimeInterval?) {

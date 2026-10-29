@@ -194,6 +194,7 @@ final class AppModel {
         appliedConfiguration = settings.monitorConfiguration
         monitor.setSubsets(orbSubsets.union(boardSubsets))
         monitor.start()
+        report.taskWatchHandler = { [weak monitor] epoch in monitor?.setReportWatch(epoch) }
         report.activate()
         loops.append(ObservationLoop { [weak self] in
             guard let self else { return }

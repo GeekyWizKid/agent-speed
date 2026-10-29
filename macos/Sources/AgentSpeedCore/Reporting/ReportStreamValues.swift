@@ -23,6 +23,18 @@ public struct ReportStreamValues: Equatable, Sendable {
         active = min(agents.reduce(0) { $0 + $1.active }, ReportBody.maxCount)
     }
 
+    /// The tick is changed against the last built report's values (METRICS 11.9): a live value differs, or, with the
+    /// `taskScore` extension, the top-level object or an entry's object the report would carry differs from the last
+    /// report's object for the same id (11.10 *WebSocket*). An entry that is no longer carried changes nothing.
+    public func changed(since last: ReportStreamValues?) -> Bool {
+        guard let last else { return true }
+        if outputTokS != last.outputTokS || totalTokS != last.totalTokS || estimatedShare != last.estimatedShare
+            || generating != last.generating || tools != last.tools || active != last.active { return true }
+        guard let taskScore else { return false }
+        guard let previous = last.taskScore else { return true }
+        return taskScore.top != previous.top || taskScore.entries.contains { previous.entries[$0.key] != $0.value }
+    }
+
     private static func tokS(_ value: Double) -> Double {
         ReportBody.rounded(min(max(value.isFinite ? value : 0, 0), ReportBody.maxTokS), 1)
     }

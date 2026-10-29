@@ -175,6 +175,25 @@ import Testing
         #expect(ReportBody.taskScoreValues(content, sample, inactive) == nil)
     }
 
+    @Test func theChangedRuleComparesTheObjectsTheReportWouldCarry() {
+        func value(_ score: Double, _ thinking: Double) -> ReportTaskScoreValue {
+            ReportTaskScoreValue(TaskSetValue(id: "a", lastLineMs: nil, value: TaskAgentValue(
+                form: .live, score: score, shown: taskRoundHalfAway(score), state: nil)), thinking: thinking)
+        }
+        func values(top: ReportTaskScoreValue, _ entries: [String: ReportTaskScoreValue]) -> ReportStreamValues {
+            ReportStreamValues(ReportSample(), taskScore: ReportTaskScoreValues(top: top, entries: entries))
+        }
+        let last = values(top: value(80, 1.04), ["a": value(80, 1.04), "b": value(40, 0)])
+        #expect(values(top: value(80, 1.04), [:]).changed(since: nil))
+        #expect(!values(top: value(80.2, 1.01), ["a": value(79.9, 0.96)]).changed(since: last),
+                "rounded as sent; an entry no longer carried changes nothing")
+        #expect(values(top: value(80, 1.06), ["a": value(80, 1.04)]).changed(since: last), "thinking 1.0 → 1.1")
+        #expect(values(top: value(80, 1.04), ["a": value(81, 1.04)]).changed(since: last), "a test result moved it")
+        #expect(values(top: value(80, 1.04), ["c": value(10, 0)]).changed(since: last), "a newly listed model")
+        #expect(values(top: value(80, 1.04), [:]).changed(since: ReportStreamValues(ReportSample())), "turned on")
+        #expect(!ReportStreamValues(ReportSample()).changed(since: last), "inactive: nothing of the extension")
+    }
+
     // MARK: - Ledger
 
     /// The `ledger` events through the watch marks (monitor), the completion log (engine) and the tracker (controller).
