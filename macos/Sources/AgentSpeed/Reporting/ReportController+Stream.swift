@@ -41,8 +41,9 @@ extension ReportController: ReportStreamSessionDelegate {
 
     // MARK: - Ticks
 
-    /// One tick of the stream scheduler: a snapshot, a user event or (`wake`) a wake-up it asked for.
-    func streamTick(_ sample: ReportSample, now: Int64, wake: Bool) {
+    /// One tick of the stream scheduler: a snapshot, a user event or (`wake`) a wake-up it asked for. `completed`: the
+    /// task ledger received a completion at this tick (METRICS 11.10 *WebSocket*).
+    func streamTick(_ sample: ReportSample, now: Int64, wake: Bool, completed: Bool = false) {
         startStreamIfNeeded(sample)
         let events = pendingEvents
         pendingEvents.removeAll()
@@ -51,8 +52,10 @@ extension ReportController: ReportStreamSessionDelegate {
         guard var stream else { return }
         let working = sample.facts.agents.values.contains { $0.generating + $0.tools > 0 } || sample.live.output > 0
         let active = wake ? stream.lastActive : working || stream.window.hasTokenIncrement(sample)
-        let changed = !wake && (stream.window.hasIncrement(sample, traffic: effectiveSections.contains(.traffic))
-            || ReportStreamValues(sample) != stream.lastBuilt)
+        let changed = !wake && (completed
+            || stream.window.hasIncrement(sample, traffic: effectiveSections.contains(.traffic))
+            || ReportStreamValues(sample, taskScore: streamTaskScoreValues(stream.window, sample))
+                .changed(since: stream.lastBuilt))
         stream.lastActive = active
         stream.windowStarted = false
         stream.title.update(value: sample.value(for: settings.metric), redline: settings.redline, now: Double(now) / 1000)
@@ -131,16 +134,17 @@ extension ReportController: ReportStreamSessionDelegate {
         guard var stream, stream.session === session, let identity, let username = identity.username,
               let document = identity.discovery else { return nil }
         let sample = lastSample
-        let content = stream.window.take(sample)
-        stream.lastBuilt = ReportStreamValues(sample)
+        var content = stream.window.take(sample)
+        var options = options(for: document)
+        options.messageLimit = session.scheduler.limits.maxMessageBytes
+        content.taskStats = takeTaskStats(options)
+        stream.lastBuilt = ReportStreamValues(sample, taskScore: ReportBody.taskScoreValues(content, sample, options))
         stream.windowStarted = true
         self.stream = stream
         let envelope = ReportEnvelope(
             client: client, deviceId: identity.deviceId, username: username, runId: session.runId, seq: ticket.seq,
             sentAtMs: ReportClock.unixMs + clockCorrection * 1000, windowMs: ticket.windowMs, activity: ticket.activity,
             titleLevel: stream.title.level, realtime: ReportRealtime(observationAgeMs: ticket.observationAgeMs))
-        var options = options(for: document)
-        options.messageLimit = session.scheduler.limits.maxMessageBytes
         return ReportBody.fitted(envelope, content, sample, options).data
     }
 
@@ -190,7 +194,9 @@ extension ReportController: ReportStreamSessionDelegate {
 
     func streamSessionWake(_ session: ReportStreamSession) {
         guard stream?.session === session else { return }
-        streamTick(lastSample, now: ReportClock.monotonicMs, wake: true)
+        let sample = lastSample
+        _ = beginTaskTick(sample)
+        streamTick(sample, now: ReportClock.monotonicMs, wake: true)
     }
 
     // MARK: - After each step

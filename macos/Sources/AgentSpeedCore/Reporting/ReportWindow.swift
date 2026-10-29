@@ -120,6 +120,8 @@ public struct ReportWindowContent: Equatable, Sendable {
     public var peak: Rate
     public var peakCost: Double
     public var peakRate: TrafficRate?
+    /// The task ledger's rows a build takes with the window (METRICS 11.10); the window itself never holds them.
+    public var taskStats: ReportTaskStats = [:]
 }
 
 /// The open window of a run: a baseline of the cumulative counters and the peaks since the window started.

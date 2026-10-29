@@ -11,10 +11,17 @@ extension ReportController {
 
     func handleLive(_ snapshot: SpeedSnapshot) {
         monitorRunning = snapshot.state == .running
-        guard monitorRunning else { return }
+        guard monitorRunning else {
+            // Seeding again: its tasks are history, and the ledger goes (METRICS 11.10 *Watch*).
+            updateTaskWatch()
+            return
+        }
         lastSnapshot = snapshot
         // Off and unwatched: nothing to compute until reporting or a preview needs this tick.
-        guard run != nil || stream != nil || preferences.enabled || previewWindow != nil else { return }
+        guard run != nil || stream != nil || preferences.enabled || previewWindow != nil else {
+            if taskTracker.epoch != nil { updateTaskWatch() }
+            return
+        }
         if let observed = snapshot.observedAtMs { pendingObservation = min(pendingObservation ?? observed, observed) }
         tick()
     }
@@ -44,18 +51,21 @@ extension ReportController {
         return !isDiscoveryStale
     }
 
-    /// Picks the transport by the effective one (METRICS 11.9); a run left on the other one is replaced first.
+    /// Picks the transport by the effective one (METRICS 11.9); a run left on the other one is replaced first. The
+    /// task score's watch follows each tick's actions, so a leaving report takes the ledger before a break.
     func tick() {
         let effective = effectiveTransport
         if (run != nil && effective == .websocket) || (stream != nil && effective == .http) {
             transportChanged()
             return
         }
+        defer { updateTaskWatch() }
         let sample = lastSample
         let now = ReportClock.monotonicMs
         previewWindow?.observe(sample)
+        let completed = beginTaskTick(sample)
         if effective == .websocket {
-            streamTick(sample, now: now, wake: false)
+            streamTick(sample, now: now, wake: false, completed: completed)
             return
         }
         startRunIfNeeded(sample)
@@ -132,12 +142,14 @@ extension ReportController {
 
     func build(_ ticket: ReportScheduler.Ticket, sample: ReportSample) {
         guard var run, let identity, let username = identity.username, let document = identity.discovery else { return }
-        let content = run.window.take(sample)
+        var content = run.window.take(sample)
+        let options = options(for: document)
+        content.taskStats = takeTaskStats(options)
         let envelope = ReportEnvelope(
             client: client, deviceId: identity.deviceId, username: username, runId: run.id, seq: ticket.seq,
             sentAtMs: ReportClock.unixMs + clockCorrection * 1000, windowMs: ticket.windowMs, activity: ticket.activity,
             titleLevel: run.title.level)
-        run.bodies[ticket.seq] = ReportBody.data(envelope, content, sample, options(for: document))
+        run.bodies[ticket.seq] = ReportBody.data(envelope, content, sample, options)
         self.run = run
     }
 

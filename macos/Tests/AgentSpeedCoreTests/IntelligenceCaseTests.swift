@@ -19,6 +19,7 @@ struct IntelligenceCaseTests {
     static var windowNames: [String] { names("windows") }
     static var agentWindowNames: [String] { names("agentWindows") }
     static var groupWindowNames: [String] { names("groupWindows") }
+    static var modelWindowNames: [String] { names("modelWindows") }
 
     /// The case's agents and responses in an engine without a price table (nothing here depends on prices).
     static func engine(_ group: String, _ name: String) throws -> (SpeedEngine, [[String: Any]]) {
@@ -84,6 +85,32 @@ struct IntelligenceCaseTests {
         #expect(Self.windowNames.count >= 6)
         #expect(Self.agentWindowNames.count >= 5)
         #expect(Self.groupWindowNames.count >= 2)
+        #expect(Self.modelWindowNames.count >= 2)
+    }
+
+    /// The model sums (for live reporting): a response counts for its own model, an in-flight estimate for its agent's
+    /// current model, keyed by the raw model ("" when unknown); they add up to the set's sums, and the snapshot's
+    /// per-id thinking (METRICS 11.10) adds up to the set's thinking.
+    @Test(arguments: modelWindowNames)
+    func modelWindow(_ name: String) throws {
+        var (engine, queries) = try Self.engine("modelWindows", name)
+        for query in queries {
+            let now = try #require(query.int64("nowMs"))
+            var byModel: [String: IntelligenceSums] = [:]
+            for (key, sums) in engine.liveModelSums(nowMs: now) { byModel[key.model ?? "", default: .zero].add(sums) }
+            let snapshot = Self.snapshot(&engine, now)
+            Self.expect(snapshot.intelligence, try #require(query["expect"] as? [String: Any]), "\(name) @ \(now)")
+            Self.expectAddUp(Array(byModel.values), snapshot.intelligence, "\(name) @ \(now) models add up")
+            let expected = try #require(query["models"] as? [String: [String: Any]])
+            #expect(Set(byModel.keys) == Set(expected.keys), "\(name) @ \(now) models")
+            for (model, values) in expected {
+                Self.expect(byModel[model] ?? .zero, values, "\(name) @ \(now) \(model)")
+            }
+            let task = snapshot.report.task
+            EngineCaseTests.expectClose(task.models.values.reduce(0) { $0 + $1.thinking }, snapshot.intelligence.thinking,
+                                        "\(name) @ \(now) resolved ids add up")
+            EngineCaseTests.expectClose(task.thinking, snapshot.intelligence.thinking, "\(name) @ \(now) all sources")
+        }
     }
 
     /// The set's sums, and an orb's own sources' sums.

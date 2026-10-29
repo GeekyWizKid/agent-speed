@@ -30,6 +30,8 @@ final class MonitorCore: @unchecked Sendable {
     private var session: TranscriptSession?
     /// The latest prediction coefficients (METRICS 6.11), applied to every session this core creates.
     private var taskModels: [SourceKind: TaskModels] = [:]
+    /// Live reporting's watch epoch (METRICS 11.10), applied to every session this core creates.
+    private var reportWatch: Int?
     private var watcher: DirectoryWatcher?
     private var watchedPaths: [String] = []
     private var timers: [DispatchSourceTimer] = []
@@ -86,6 +88,15 @@ final class MonitorCore: @unchecked Sendable {
         }
     }
 
+    /// Live reporting's watch (METRICS 11.10 *Watch*): the epoch new tasks are marked with, nil while it is off.
+    func setReportWatch(_ epoch: Int?) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            reportWatch = epoch
+            session?.setReportWatch(epoch)
+        }
+    }
+
     func setSubsets(_ sets: Set<SourceSet>) {
         let changed = subsets.withLock { current in
             guard current != sets else { return false }
@@ -103,6 +114,7 @@ final class MonitorCore: @unchecked Sendable {
         let session = TranscriptSession(configuration: configuration, pricing: pricing)
         session.wholeFileReads = { [weak self] job in self?.scheduleWholeFileRead(job) }
         session.setTaskModels(taskModels)
+        session.setReportWatch(reportWatch)
         self.session = session
         guard session.hasAvailableRoot else {
             publishPlaceholder(.noSources, session: session)

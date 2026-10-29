@@ -86,7 +86,10 @@ extension ReportController {
         var options = options(for: document)
         options.sections = sections.intersection(document.sections)
         if websocket { options.messageLimit = (document.websocket ?? .standard).maxMessageBytes }
-        let (body, data) = ReportBody.fitted(envelope, window.content(sample), sample, options)
+        var content = window.content(sample)
+        // The completions the next build takes (METRICS 11.10); none before the consent sheet's Start.
+        if draft == nil, options.taskScoreActive { content.taskStats = taskTracker.pending }
+        let (body, data) = ReportBody.fitted(envelope, content, sample, options)
         let hasKey = draft.map { !$0.apiKey.isEmpty } ?? (apiKey != nil)
         if websocket {
             return Preview(body: body, requestLine: "GET \(document.api.streamURL.absoluteString) HTTP/1.1",

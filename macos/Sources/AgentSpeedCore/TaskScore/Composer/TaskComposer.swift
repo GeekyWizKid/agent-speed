@@ -6,7 +6,8 @@ import Foundation
 /// which call a result completes (first result only), and the sessions stitched back (TASK-PARSERS 4.3).
 ///
 /// `keepsEveryTask` (history) keeps the whole stream for the records of 6.11; otherwise (the live engine) the events
-/// before the current task are dropped once no withdrawal can bring them back.
+/// before the current task are dropped once no withdrawal can bring them back, and a watched task among them completes
+/// for live reporting (METRICS 11.10 *Counting*).
 struct TaskComposer: Sendable {
     private struct CallRef: Sendable {
         /// Index of the action in the whole stream (`base` + position).
@@ -47,6 +48,14 @@ struct TaskComposer: Sendable {
     private(set) var stitched = 0
     /// Bumped on every change of `events`.
     private(set) var version = 0
+    /// Live reporting's watch while lines are fed (METRICS 11.10 *Watch*); nil while it is off or seeding runs.
+    var watch: ReportTaskWatchContext?
+    /// Watched tasks by the stream index of their first event.
+    private var marks = ReportTaskWatchMarks<Int>()
+    /// Watched tasks that completed, until the owner takes them.
+    private(set) var completions: [TaskCompletion] = []
+    /// `notes.count` when `startCandidate` was set: the start line's note comes next (live trimming of the notes).
+    private var startCandidateNotes = 0
 
     init(source: SourceKind, keepsEveryTask: Bool) {
         self.source = source
@@ -58,6 +67,7 @@ struct TaskComposer: Sendable {
     @discardableResult
     mutating func feed(_ line: TaskLine, isDuplicate: (String) -> Bool) -> Int64? {
         guard case .line(let t, let ops) = line else { return nil }
+        for index in completions.indices { completions[index].awaitsNote = false }
         var duplicate = false
         for op in ops {
             switch op {
@@ -65,7 +75,7 @@ struct TaskComposer: Sendable {
                 lineKind(kind, t: at, continuation: continuation)
             case .plainPrompt(let at, let continuation):
                 prompt(at, continuation: continuation)
-                if !continuation { startCandidate = base + events.count - 1 }
+                if !continuation { setStartCandidate(base + events.count - 1) }
             case .assistant(let key):
                 duplicate = key.map { !$0.isEmpty && isDuplicate($0) } ?? false
                 if pending != nil, duplicate { withdraw() }
@@ -90,8 +100,13 @@ struct TaskComposer: Sendable {
         return t
     }
 
-    /// Notes the agent's model and effort after a line of the stream (history only).
+    /// Notes the agent's model and effort after a line of the stream. A task the line completed takes this note's
+    /// model when it is the last one at most its end.
     mutating func note(t: Int64, model: String?, effort: String?) {
+        for index in completions.indices where completions[index].awaitsNote {
+            completions[index].awaitsNote = false
+            if t <= completions[index].endMs { completions[index].model = model }
+        }
         if let last = notes.last, TaskPythonText.same(last.model, model), TaskPythonText.same(last.effort, effort),
            t >= last.t { return }
         notes.append(TaskModelNote(t: t, model: model, effort: effort))
@@ -109,7 +124,7 @@ struct TaskComposer: Sendable {
             prompt(t, continuation: isContinuation)
             let index = base + events.count - 1
             pending = (kind, index)
-            if !isContinuation { startCandidate = index }
+            if !isContinuation { setStartCandidate(index) }
         case .commandOutput:
             if pending?.kind == .command { withdraw() }
             pending = nil
@@ -117,18 +132,29 @@ struct TaskComposer: Sendable {
     }
 
     private mutating func prompt(_ t: Int64, continuation: Bool) {
+        let starts = !continuation || events.isEmpty
         events.append(.prompt(t, continuation: continuation))
         version &+= 1
+        if starts { marks.started(base + events.count - 1, firstEventMs: t, context: watch) }
+    }
+
+    private mutating func setStartCandidate(_ index: Int) {
+        startCandidate = index
+        startCandidateNotes = notes.count
     }
 
     private mutating func withdraw() {
         guard let pending else { return }
         let local = pending.index - base
+        // A withdrawn prompt never started a task; the previous task keeps its own watch.
+        marks.unwatch(pending.index)
         if startCandidate == pending.index { startCandidate = nil }
         guard local >= 0, local < events.count else { return }
         events.remove(at: local)
         version &+= 1
+        defer { if startCandidate == nil, !keepsEveryTask { settleEarlierPrompt() } }
         guard local < events.count else { return }
+        marks.rekey { $0 > pending.index ? $0 - 1 : $0 }
         // Not the last event (never expected): later stream indices move down by one.
         func shift(_ ref: inout CallRef) { if ref.index > pending.index { ref.index -= 1 } }
         for (id, entry) in calls {
@@ -151,8 +177,10 @@ struct TaskComposer: Sendable {
     // MARK: - Calls and results
 
     private mutating func add(_ call: TaskPreparedCall) -> CallRef {
+        let starts = events.isEmpty
         events.append(.action(call.t, call.action))
         version &+= 1
+        if starts { marks.started(base + events.count - 1, firstEventMs: call.t, context: watch) }
         return CallRef(index: base + events.count - 1, info: call.info, continues: call.continues, cwd: call.cwd)
     }
 
@@ -216,14 +244,17 @@ struct TaskComposer: Sendable {
 
     // MARK: - Live trimming
 
-    /// Drops the events before the current task once its prompt can no longer be withdrawn.
+    /// Drops the events before the current task once its prompt can no longer be withdrawn; the watched tasks among
+    /// them complete (METRICS 11.10 *Counting*, rule 1), and the notes no remaining task can take go with them.
     private mutating func trimIfPossible() {
         guard !keepsEveryTask, pending == nil, let start = startCandidate else { return }
         let local = start - base
         guard local > 0, local < events.count else { return }
+        if !marks.isEmpty { complete(Array(events[..<local]), firstIndex: base, awaitsNote: true) }
         events.removeFirst(local)
         base = start
         startCandidate = nil
+        notes.removeFirst(min(notes.count, max(0, startCandidateNotes - 1)))
         // What only the dropped tasks still need: their calls without results, scripts and sessions.
         calls = calls.filter { _, entry in
             switch entry {
@@ -233,4 +264,56 @@ struct TaskComposer: Sendable {
         }
         sessions = sessions.filter { $0.value.index >= start }
     }
+
+    // MARK: - Live reporting (METRICS 11.10)
+
+    /// After a withdrawal left no start candidate: the latest task-starting prompt still kept is no longer withdrawable,
+    /// so the tasks before it may complete.
+    private mutating func settleEarlierPrompt() {
+        guard let local = events.lastIndex(where: { $0.body == .prompt(continuation: false) }), local > 0 else { return }
+        startCandidate = base + local
+        startCandidateNotes = 0
+    }
+
+    var hasWatchedTasks: Bool { !marks.isEmpty }
+
+    /// The agent has been quiet for 30 minutes (METRICS 11.10 *Counting*, rule 2): every watched task completes.
+    mutating func completeWatchedTasks() {
+        guard !marks.isEmpty else { return }
+        complete(events, firstIndex: base, awaitsNote: false)
+    }
+
+    /// A break: every task is unwatched and the completions not taken yet are dropped.
+    mutating func clearWatch() {
+        marks.clear()
+        completions.removeAll()
+    }
+
+    mutating func takeCompletions() -> [TaskCompletion] {
+        defer { completions.removeAll() }
+        return completions
+    }
+
+    /// The watched tasks among `events` (whose first has stream index `firstIndex`) complete: each is unwatched, and one
+    /// with an action is evaluated as its 6.11 record, with the model of the last note at most its end.
+    private mutating func complete(_ events: [TaskEvent], firstIndex: Int, awaitsNote: Bool) {
+        for task in TaskSplit.split(events) {
+            guard let epoch = marks.complete(firstIndex + task.events.startIndex),
+                  task.events.contains(where: { !$0.isPrompt }) else { continue }
+            let end = TaskSplit.end(task)
+            let model = notes.last(where: { $0.t <= end })?.model
+            completions.append(TaskCompletion(epoch: epoch, model: model, record: ReportTaskRecord(events: task.events),
+                                              endMs: end, awaitsNote: awaitsNote))
+        }
+    }
+}
+
+/// A watched task that completed (METRICS 11.10 *Counting*): its record so far and the raw model of its last note.
+struct TaskCompletion: Equatable, Sendable {
+    var epoch: Int
+    var model: String?
+    var record: ReportTaskRecord
+    var endMs: Int64
+    /// Completed by the line just fed: the note after it may still name the model.
+    var awaitsNote = false
 }

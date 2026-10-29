@@ -13,6 +13,8 @@ public final class LiveMonitor {
     private var mailbox: SnapshotMailbox?
     /// The prediction coefficients from the history's calibration (METRICS 6.11), kept across restarts.
     public private(set) var taskModels: [SourceKind: TaskModels] = [:]
+    /// Live reporting's watch epoch (METRICS 11.10), kept across restarts.
+    public private(set) var reportWatch: Int?
 
     public init(store: SpeedStore, configuration: MonitorConfiguration = MonitorConfiguration(), pricing: PriceBook? = nil) {
         self.store = store
@@ -33,6 +35,15 @@ public final class LiveMonitor {
         self.core = core
         core.start()
         if !taskModels.isEmpty { core.setTaskModels(taskModels) }
+        if reportWatch != nil { core.setReportWatch(reportWatch) }
+    }
+
+    /// Live reporting's watch (METRICS 11.10 *Watch*): tasks whose first event is read from now on are marked with
+    /// `epoch` and count when they complete; nil turns it off and unwatches every task.
+    public func setReportWatch(_ epoch: Int?) {
+        guard epoch != reportWatch else { return }
+        reportWatch = epoch
+        core?.setReportWatch(epoch)
     }
 
     /// New calibrations for the live predictions (METRICS 6.11).

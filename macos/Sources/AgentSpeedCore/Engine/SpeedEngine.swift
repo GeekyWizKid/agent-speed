@@ -36,6 +36,8 @@ struct SpeedEngine: Sendable {
     private var reportLedger = ReportLedger()
     /// The provider of each agent's latest response, for the model id of a generating agent (METRICS 11.2).
     private var agentProviders: [String: String] = [:]
+    /// Completed watched tasks for live reporting (METRICS 11.10), fed whatever reporting does.
+    private var taskCompletions = ReportTaskCompletionLog()
 
     init(pricing: PriceBook? = nil) {
         self.pricing = pricing
@@ -111,7 +113,7 @@ struct SpeedEngine: Sendable {
         let references = SpeedReferences(timed: measured, nowMs: nowMs)
         let window = LiveWindow(
             nowMs: nowMs, measured: measured, unmeasured: unmeasured, agents: agents,
-            latestEnds: latestEndsByAgent(), references: references
+            latestEnds: latestEndsByAgent(), references: references, providers: agentProviders
         )
         let history = Self.history(nowMs: nowMs, measured: measured, estimates: window.estimates)
 
@@ -140,6 +142,8 @@ struct SpeedEngine: Sendable {
         previousPeakOutput = peak.output
 
         let listing = agentList(nowMs: nowMs, window: window, references: references)
+        var report = reportFacts(nowMs: nowMs)
+        report.task = taskFacts(listing.agents, window: window, all: listing.intelligence)
 
         var subsetPeaks = [SourceSet: Double](minimumCapacity: subsets.count)
         for set in subsets {
@@ -175,7 +179,7 @@ struct SpeedEngine: Sendable {
             todayStartMs: todayStartMs,
             lastResponse: lastResponse,
             events: events,
-            report: reportFacts(nowMs: nowMs)
+            report: report
         )
     }
 
@@ -210,6 +214,48 @@ struct SpeedEngine: Sendable {
                 break
             }
             facts.agents[agent.source] = counts
+        }
+        return facts
+    }
+
+    /// The model sums of the live window at `nowMs` (METRICS 6.9 *Model sums*), as `advance` computes them.
+    func liveModelSums(nowMs: Int64) -> [LiveModelKey: IntelligenceSums] {
+        let timed = recentTimedResponses(nowMs: nowMs)
+        let measured = timed.filter(\.record.isFinal)
+        return LiveWindow(
+            nowMs: nowMs, measured: measured, unmeasured: timed.filter { !$0.record.isFinal }, agents: agents,
+            latestEnds: latestEndsByAgent(), references: SpeedReferences(timed: measured, nowMs: nowMs),
+            providers: agentProviders
+        ).intelligenceByModel
+    }
+
+    /// Counts a completed watched task (METRICS 11.10 *Counting*) under the resolved id of its model and its agent's
+    /// source; a task without actions adds nothing.
+    mutating func recordTaskCompletion(_ completion: TaskCompletion, agentId: String, source: SourceKind) {
+        guard let row = ReportTaskRow(completion.record) else { return }
+        let id = currentTable.reportModelId(model: completion.model, provider: agentProviders[agentId])
+        taskCompletions.append(epoch: completion.epoch, modelId: id, source: source, row: row)
+    }
+
+    /// The task score of all enabled sources and of each resolved model id: the set value of the listed agents whose
+    /// current model resolves to it, and the model sums of the raw models that do (METRICS 11.10 *Body*).
+    private func taskFacts(_ listed: [EngineAgentStatus], window: LiveWindow, all: IntelligenceSums) -> ReportTaskFacts {
+        var facts = ReportTaskFacts(value: all.score, thinking: all.thinking, completions: taskCompletions)
+        let table = currentTable
+        var resolved: [LiveModelKey: String] = [:]
+        func id(_ key: LiveModelKey) -> String {
+            if let id = resolved[key] { return id }
+            let id = table.reportModelId(model: key.model, provider: key.provider)
+            resolved[key] = id
+            return id
+        }
+        for (key, sums) in window.intelligenceByModel where sums.thinking != 0 {
+            facts.models[id(key), default: ReportTaskModel()].thinking += sums.thinking
+        }
+        for row in listed where row.intelligence.score.form != .none {
+            let modelId = id(LiveModelKey(model: row.agent.model, provider: agentProviders[row.agent.id]))
+            facts.models[modelId, default: ReportTaskModel()].value.merge(row.intelligence.score)
+            if row.intelligence.score.form == .live { facts.models[modelId]?.liveSources.insert(row.agent.source) }
         }
         return facts
     }
