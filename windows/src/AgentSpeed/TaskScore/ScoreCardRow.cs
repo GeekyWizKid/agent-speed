@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using AgentSpeed.Interop;
@@ -71,10 +72,18 @@ internal static class ScoreCardRow
         return new TaskCardRequest(card, source.CardKey, frame, top, GetHost(row));
     }
 
-    /// <summary>Puts the row's card text into its help text (DESIGN 12, <i>Accessibility</i>: the card is the row's extra content).</summary>
+    /// <summary>
+    /// Puts the row's card text into its help text (DESIGN 12, <i>Accessibility</i>: the card is the row's extra content),
+    /// unless the row binds its help text itself.
+    /// </summary>
     public static void Describe(FrameworkElement row)
     {
         ArgumentNullException.ThrowIfNull(row);
+        if (BindingOperations.IsDataBound(row, AutomationProperties.HelpTextProperty))
+        {
+            return;
+        }
+
         var text = GetSource(row)?.Card?.FullDescription ?? string.Empty;
         if (!string.Equals(AutomationProperties.GetHelpText(row), text, StringComparison.Ordinal))
         {
