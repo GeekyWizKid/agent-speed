@@ -19,6 +19,7 @@ using AgentSpeed.Presentation.Orb;
 using AgentSpeed.Presentation.Orb.Lines;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Presentation.Settings.Orbs;
+using AgentSpeed.Presentation.TaskScore;
 using AgentSpeed.Presentation.Titles;
 using AgentSpeed.Services;
 using AgentSpeed.Theme;
@@ -371,7 +372,7 @@ internal sealed class OrbManager : IDisposable
             && (mode == OrbTraffic.Machine || (mode == OrbTraffic.Sources && _traffic.ProcessState.UnavailableReason is null));
         OrbLinesSample? sample = mode switch
         {
-            OrbTraffic.Intelligence => OrbLinesText.Intelligence(entry.Feed.Reading.Intelligence, entry.Feed.Reading.GeneratingSources.Count > 0, _loc),
+            OrbTraffic.Intelligence => IntelligenceSample(entry.Feed.Reading),
             OrbTraffic.Machine when network => OrbLinesText.Traffic(_traffic.MachineLive ?? TrafficRate.Zero, settings.Bits, _loc),
             OrbTraffic.Sources when network => OrbLinesText.Traffic(
                 _traffic.Live(entry.Definition.TrackedSources, settings.IncludeTools) ?? TrafficRate.Zero, settings.Bits, _loc),
@@ -379,6 +380,14 @@ internal sealed class OrbManager : IDisposable
         };
         entry.Window.Surface.SetLines(sample, sample is not null);
     }
+
+    /// <summary>
+    /// 智力 of the orb's agents <c>A</c> (METRICS 6.8, 6.9 <i>Sets and groups</i>): the highest score, live before resting,
+    /// with the supplying agent's state and N, over the thinking rate of the orb's sources.
+    /// </summary>
+    private OrbLinesSample IntelligenceSample(SubsetReading reading) =>
+        OrbLinesText.Intelligence(TaskSetReading.Of(reading.Intelligence, reading.Agents), reading.Intelligence,
+            reading.GeneratingSources.Count > 0, _loc);
 
     /// <summary>
     /// Some visible orb shows its sources' traffic right now (until its readout has faded out): per-source sampling runs

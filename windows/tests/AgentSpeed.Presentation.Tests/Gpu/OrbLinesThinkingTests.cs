@@ -88,10 +88,10 @@ public partial class OrbLinesTests
         Assert.True(rule.Apply(Intelligence(Unthinking), 1));
         Assert.Equal(4, rule.Reading!.Value.Thinking.HideAt);
 
-        // The same zero again keeps the hold, and so does a sample without a value.
+        // The same zero again keeps the hold, and so does a quiet sample, which carries nothing.
         rule.Apply(Intelligence(Unthinking), 1.5);
         Assert.Equal(4, rule.Reading!.Value.Thinking.HideAt);
-        rule.Apply(OrbLinesText.Intelligence(IntelligenceSums.Zero, generating: true, En), 2);
+        rule.Apply(OrbLinesText.Intelligence(Presentation.TaskScore.TaskSetReading.None, IntelligenceSums.Zero, generating: false, En), 2);
         Assert.Equal(4, rule.Reading!.Value.Thinking.HideAt);
         rule.Apply(Intelligence(Long), 2.5);
         Assert.Null(rule.Reading!.Value.Thinking.HideAt);
