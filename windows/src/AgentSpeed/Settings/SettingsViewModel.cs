@@ -461,6 +461,16 @@ internal sealed class SettingsViewModel : ObservableObject
         set => Apply(s => s with { BarShowUnit = value });
     }
 
+    /// <summary><c>settings.bar.intelligence</c>: the 智力 block after the network block (DESIGN 10).</summary>
+    public bool BarIntelligence
+    {
+        get => S.BarIntelligence;
+        set => Apply(s => s with { BarIntelligence = value });
+    }
+
+    /// <summary>The switch's caption while it is on: <c>settings.bar.intelligence.hint</c>; none while off.</summary>
+    public string BarIntelligenceHint => S.BarIntelligence ? _loc["settings.bar.intelligence.hint"] : string.Empty;
+
     /// <summary>Back to the default spot next to the notification area (DESIGN 3, Position on the taskbar); disabled while there.</summary>
     public RelayCommand ResetTaskbarPositionCommand { get; }
 

@@ -9,9 +9,10 @@ namespace AgentSpeed.Presentation.Boards.Live;
 
 /// <summary>
 /// What assistive technology reads of a board (DESIGN 2c Accessibility): the board as a list labelled <c>a11y.board</c>
-/// (sources, value, title) and each group row as an item labelled <c>a11y.board.row</c>, followed by the root's effort
-/// and speed (as the dashboard's rows) and <c>boards.subCount</c> when the group has sub-agents; the live metrics add their
-/// words to both (DESIGN 2c, Live metrics: Accessibility).
+/// (sources, value, title) and each group row as an item labelled <c>a11y.board.row</c>, followed by its 智力 words
+/// (<c>a11y.agent.intel</c>, while the column shows), the root's effort and speed (as the dashboard's rows) and
+/// <c>boards.subCount</c> when the group has sub-agents; the live metrics add their words to both (DESIGN 2c, Live metrics:
+/// Accessibility). A row's score card is its help text (<see cref="BoardScoreCards.Description"/>).
 /// </summary>
 public static class BoardAccessibility
 {
@@ -24,9 +25,9 @@ public static class BoardAccessibility
 
     /// <summary>
     /// The board's label with what is switched on of its live metrics, in order: <c>a11y.orb.intel</c> (智力 and a shown 思考),
-    /// <c>a11y.orb.intel.only</c> (思考 off or hidden) or <c>a11y.board.thinking</c> (智力 off), <c>intel.none</c> in place of
-    /// either intelligence form while quiet; then <c>a11y.board.cost</c>, <c>a11y.board.costUnknown</c> or
-    /// <c>cost.subscriptionOnly</c>.
+    /// <c>a11y.orb.intel.only</c> (思考 off or hidden) or <c>a11y.board.thinking</c> (智力 off), with the score words of DESIGN 12
+    /// (unproven, idle, the highest of N agents) and <c>intel.none</c> in place of the 智力 words while none; then
+    /// <c>a11y.board.cost</c>, <c>a11y.board.costUnknown</c> or <c>cost.subscriptionOnly</c>.
     /// </summary>
     public static string Board(BoardDefinition board, BoardTick tick, string spokenTitle, Localizer loc)
     {
@@ -43,13 +44,11 @@ public static class BoardAccessibility
         var thinking = readouts.Thinking && !tick.ThinkingHidden;
         if (readouts.Intelligence)
         {
-            parts.Add(gauge.Shown is null ? loc["intel.none"]
-                : thinking ? loc.Format("a11y.orb.intel", gauge.Intelligence, gauge.Thinking)
-                : loc.Format("a11y.orb.intel.only", gauge.Intelligence));
+            parts.Add(gauge.Score.Sentence(thinking ? gauge.SpokenThinking : null, loc));
         }
         else if (thinking)
         {
-            parts.Add(loc.Format("a11y.board.thinking", gauge.Shown is null ? "0" : gauge.Thinking));
+            parts.Add(loc.Format("a11y.board.thinking", gauge.SpokenThinking));
         }
 
         if (readouts.Cost)

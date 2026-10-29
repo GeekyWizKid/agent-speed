@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using AgentSpeed.Core.Tasks;
 using AgentSpeed.Core.Unpriced;
 
 namespace AgentSpeed.Core;
@@ -75,6 +77,9 @@ public readonly record struct HistoryState(
 /// </summary>
 public sealed class HistoryHub
 {
+    private static readonly IReadOnlyDictionary<SourceKind, TaskModels> NoCalibration =
+        ReadOnlyDictionary<SourceKind, TaskModels>.Empty;
+
     private readonly SynchronizationContext? _context;
 
     public HistoryHub(SynchronizationContext? context = null)
@@ -86,6 +91,15 @@ public sealed class HistoryHub
 
     /// <summary>Every stored day of every source, sorted by day then source.</summary>
     public IReadOnlyList<DailyUsage> Days { get; private set; } = [];
+
+    /// <summary>The stored task records of the enabled sources (METRICS 6.11), by agent id then ordinal.</summary>
+    public IReadOnlyList<TaskRecord> TaskRecords { get; private set; } = [];
+
+    /// <summary>
+    /// Per scored source with records, its models calibrated on them by the last completed analysis (METRICS 6.11
+    /// <i>Calibration</i>); a source without an entry uses <see cref="TaskModels.Prior"/>.
+    /// </summary>
+    public IReadOnlyDictionary<SourceKind, TaskModels> TaskCalibration { get; private set; } = NoCalibration;
 
     public event EventHandler? Changed;
 
@@ -103,6 +117,31 @@ public sealed class HistoryHub
 
         Changed?.Invoke(this, EventArgs.Empty);
     });
+
+    /// <summary>The days together with the task records and their calibration (METRICS 6.11).</summary>
+    public void Publish(
+        HistoryState state,
+        IReadOnlyList<DailyUsage> days,
+        IReadOnlyList<TaskRecord> taskRecords,
+        IReadOnlyDictionary<SourceKind, TaskModels> taskCalibration)
+    {
+        ArgumentNullException.ThrowIfNull(days);
+        ArgumentNullException.ThrowIfNull(taskRecords);
+        ArgumentNullException.ThrowIfNull(taskCalibration);
+        Post(() =>
+        {
+            State = state;
+            Days = days;
+            TaskRecords = taskRecords;
+            TaskCalibration = taskCalibration;
+            Changed?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    /// <summary>The task performance of [<paramref name="first"/>, <paramref name="last"/>] (METRICS 6.11 <i>Comparison</i>).</summary>
+    /// <param name="source">Only this source's records; every source when null.</param>
+    public TaskComparisonResult CompareTasks(string first, string last, SourceKind? source = null) =>
+        TaskComparison.Compare(TaskRecords, first, last, source);
 
     public void Refresh() => RefreshHandler?.Invoke();
 

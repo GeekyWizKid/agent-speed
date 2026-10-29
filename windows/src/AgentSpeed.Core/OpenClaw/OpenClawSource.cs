@@ -57,6 +57,9 @@ internal sealed class OpenClawSource
     /// <summary>A state folder (or the folder or file of the setting) exists (METRICS 2).</summary>
     public bool Available => Roots.Any(OpenClawPaths.Exists);
 
+    /// <summary>Windows keep every task's events (the probe's dumps); set before the first read.</summary>
+    internal bool KeepEveryTask { get; set; }
+
     public IEnumerable<OpenClawParser> Parsers => _databases.Values.SelectMany(d => d.Windows.Values).Select(w => w.Parser);
 
     public IReadOnlyCollection<string> DatabasePaths => _databases.Keys;
@@ -220,6 +223,7 @@ internal sealed class OpenClawSource
                 }
 
                 var parser = new OpenClawParser(path, window, deduper);
+                parser.KeepEveryTask();
                 parsers.Add(parser);
                 var sink = sinkFor(parser);
                 var stop = stopAfter is { } at && at.Session == window.SessionId;
@@ -227,7 +231,7 @@ internal sealed class OpenClawSource
                 {
                     parser.Apply(in line, sink);
                     return !(stop && seq == stopAfter!.Value.Seq);
-                });
+                }, parser.TaskReader);
                 windowDone?.Invoke(parser);
                 if (stop)
                 {
@@ -339,7 +343,13 @@ internal sealed class OpenClawSource
             var generation = generations.GetValueOrDefault(window.SessionId);
             if (!tracked.Windows.TryGetValue(window.SessionId, out var state))
             {
-                state = new WindowState(new OpenClawParser(tracked.Path, window, _deduper)) { Generation = generation, UpdatedMs = window.UpdatedMs };
+                var parser = new OpenClawParser(tracked.Path, window, _deduper);
+                if (KeepEveryTask)
+                {
+                    parser.KeepEveryTask();
+                }
+
+                state = new WindowState(parser) { Generation = generation, UpdatedMs = window.UpdatedMs };
                 tracked.Windows[window.SessionId] = state;
                 if (first && (window.UpdatedMs ?? long.MinValue) < _thresholdMs)
                 {
@@ -393,6 +403,7 @@ internal sealed class OpenClawSource
             // An older window read from its end: its header first, as omp does for a file read from an offset (4.7).
             state.NeedsHeader = false;
             var header = database.Header(state.Parser.SessionId);
+            PiTaskFacts.Read(state.Parser.TaskReader, [], ref header);
             state.Parser.Apply(in header, update);
         }
 
@@ -401,7 +412,7 @@ internal sealed class OpenClawSource
         {
             state.Parser.Apply(in line, update);
             return true;
-        });
+        }, state.Parser.TaskReader);
         update.Changed |= state.Parser.Version != before;
     }
 

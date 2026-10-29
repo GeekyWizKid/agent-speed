@@ -196,11 +196,12 @@ public static class BoardValueGlyphs
     /// <summary>Timing's interval: the gap to the group above (−29 when behind by 29, +20 when ahead inside the 10 % band).</summary>
     public static string Interval(double above, double live) => (above - live >= 0 ? "−" : "+") + SpeedFormat.Speed(Math.Abs(above - live));
 
-    /// <summary>The value's font size: 13 pt, a sub row's 11 pt (glass 11.5).</summary>
-    public static double Size(BoardStyle style, bool sub) => !sub ? 13 : style == BoardStyle.Glass ? 11.5 : 11;
+    /// <summary>The value's font size: 13 pt (a two-line group row's 15), a sub row's 11 pt (glass 11.5).</summary>
+    public static double Size(BoardStyle style, bool sub, bool twoLine = false) =>
+        sub ? style == BoardStyle.Glass ? 11.5 : 11 : 13 + (twoLine ? BoardRowFigures.Growth : 0);
 
     /// <summary>The CSS letter spacing of −0.02 em between glyphs.</summary>
-    public static double Tracking(BoardStyle style, bool sub) => -0.02 * Size(style, sub);
+    public static double Tracking(BoardStyle style, bool sub, bool twoLine = false) => -0.02 * Size(style, sub, twoLine);
 
     /// <summary>The value's right edge inside the row (the row's right padding).</summary>
     public static double Inset(BoardStyle style) => style == BoardStyle.Timing ? 4 : 6;

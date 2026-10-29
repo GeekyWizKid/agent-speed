@@ -43,6 +43,7 @@ public static class SettingsSerializer
             w.WriteBoolean("coloredGlyph", s.BarColoredGlyph);
             w.WriteBoolean("showUnit", s.BarShowUnit);
             w.WriteBoolean("secondary", s.BarSecondary);
+            w.WriteBoolean("intelligence", s.BarIntelligence);
             w.WriteNumber("offset", s.TaskbarOffset);
             w.WriteEndObject();
 
@@ -144,6 +145,14 @@ public static class SettingsSerializer
             }
 
             w.WriteString("modeKind", s.HistoryModeKind == ExecutionModeKind.Speed ? "speed" : "effort");
+            if (s.HistoryTaskPair is { IsValid: true } pair)
+            {
+                w.WriteStartArray("taskPair");
+                w.WriteStringValue(Orbs.OrbSources.KeyOf(pair.A));
+                w.WriteStringValue(Orbs.OrbSources.KeyOf(pair.B));
+                w.WriteEndArray();
+            }
+
             w.WriteEndObject();
 
             w.WriteStartObject("cost");
@@ -225,6 +234,10 @@ public static class SettingsSerializer
         var traffic = Child(root, "traffic");
         var report = Child(root, "report");
 
+        // DESIGN 10: an earlier build's `traffic.bar = intelligence` becomes the network block off and the 智力 switch on.
+        var storedBar = ReadString(traffic, "bar");
+        var legacyIntelligence = storedBar == TrafficSettings.LegacyIntelligenceKey;
+
         var settings = new AppSettings
         {
             Appearance = ReadEnum(root, "appearance", d.Appearance),
@@ -237,6 +250,7 @@ public static class SettingsSerializer
             BarColoredGlyph = ReadBool(taskbar, "coloredGlyph", d.BarColoredGlyph),
             BarShowUnit = ReadBool(taskbar, "showUnit", d.BarShowUnit),
             BarSecondary = ReadBool(taskbar, "secondary", d.BarSecondary),
+            BarIntelligence = legacyIntelligence || ReadBool(taskbar, "intelligence", d.BarIntelligence),
             TaskbarOffset = ReadDouble(taskbar, "offset", d.TaskbarOffset),
             ShowOrb = ReadBool(orb, "show", d.ShowOrb),
             ShowOrbs = ReadBool(root, "showOrbs", ReadBool(orb, "show", d.ShowOrb)),
@@ -286,6 +300,7 @@ public static class SettingsSerializer
             DroidRoot = ReadString(sources, "droidRoot"),
             HistoryWindow = ReadWindowFrame(history is { } h ? Child(h, "window") : null),
             HistoryModeKind = ReadString(history, "modeKind") == "speed" ? ExecutionModeKind.Speed : ExecutionModeKind.Effort,
+            HistoryTaskPair = ReadTaskPair(history is { } th && th.TryGetProperty("taskPair", out var taskPair) ? taskPair : null),
             ChartSeconds = (int)Math.Round(ReadDouble(dashboard, "chartSeconds", d.ChartSeconds)),
             AgentsExpanded = ReadBool(dashboard, "agentsExpanded", d.AgentsExpanded),
             HeroLastTitle = ReadString(dashboard, "heroLastTitle"),
@@ -300,7 +315,7 @@ public static class SettingsSerializer
                 Enabled = ReadBool(traffic, "enabled", TrafficSettings.Default.Enabled),
                 IncludeTools = ReadBool(traffic, "includeTools", TrafficSettings.Default.IncludeTools),
                 Unit = ReadString(traffic, "unit") == "bits" ? TrafficUnit.Bits : TrafficUnit.Bytes,
-                Bar = TrafficSettings.ParseBar(ReadString(traffic, "bar")),
+                Bar = TrafficSettings.ParseBar(storedBar),
             },
             Report = ReportSettingsJson.Read(report),
         };
@@ -421,6 +436,26 @@ public static class SettingsSerializer
         return DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var value)
             ? value.ToUniversalTime()
             : null;
+    }
+
+    /// <summary>The history's remembered task pair: two different scored source keys, else null.</summary>
+    private static History.Tasks.TaskPair? ReadTaskPair(JsonElement? pair)
+    {
+        if (pair is not { ValueKind: JsonValueKind.Array } array || array.GetArrayLength() != 2)
+        {
+            return null;
+        }
+
+        var a = array[0];
+        var b = array[1];
+        if (a.ValueKind != JsonValueKind.String || b.ValueKind != JsonValueKind.String
+            || !Orbs.OrbSources.TryParseKey(a.GetString(), out var first) || !Orbs.OrbSources.TryParseKey(b.GetString(), out var second))
+        {
+            return null;
+        }
+
+        var parsed = new History.Tasks.TaskPair(first, second);
+        return parsed.IsValid ? parsed : null;
     }
 
     private static WindowFrame? ReadWindowFrame(JsonElement? window)

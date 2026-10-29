@@ -6,6 +6,7 @@
         xmlns:controls="clr-namespace:AgentSpeed.Controls"
         xmlns:dash="clr-namespace:AgentSpeed.Dashboard"
         xmlns:modes="clr-namespace:AgentSpeed.Modes"
+        xmlns:task="clr-namespace:AgentSpeed.TaskScore"
         Title="{loc:Loc app.name}"
         Width="368"
         WindowStyle="SingleBorderWindow"
@@ -325,12 +326,19 @@
                          between modes. It reaches 20 DIP into the right padding, where its scroll bar has a gutter of its own. -->
                     <ScrollViewer x:Name="AgentsViewport" Style="{StaticResource GutterScrollViewer}" Margin="0,0,-20,0"
                                   VerticalScrollBarVisibility="Hidden" PanningMode="VerticalOnly" PreviewMouseWheel="OnAgentsWheel">
-                        <ItemsControl x:Name="AgentsItems" ItemsSource="{Binding Agents}" Focusable="False" VerticalAlignment="Top">
+                        <!-- Rows that show a score take keyboard focus (DESIGN 12, Keyboard): Tab enters the list once, the arrow keys
+                             move between rows, Space shows the focused row's score card and Esc closes it. -->
+                        <ItemsControl x:Name="AgentsItems" ItemsSource="{Binding Agents}" Focusable="False" VerticalAlignment="Top"
+                                      KeyboardNavigation.TabNavigation="Once" KeyboardNavigation.DirectionalNavigation="Contained">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type dash:AgentRow}">
                                     <!-- Rows stack without gaps so each row's connector piece joins its neighbors. -->
+                                    <!-- The row's tooltip is its score card (DESIGN 12), beside the panel; the card's text is its help text. -->
                                     <Grid Height="{x:Static dash:DashboardViewModel.AgentRowHeight}" AutomationProperties.Name="{Binding AccessibleName}"
-                                          Background="Transparent" ToolTip="{Binding Tooltip}">
+                                          AutomationProperties.HelpText="{Binding CardDescription}" Background="Transparent"
+                                          FocusVisualStyle="{StaticResource RoundedFocusVisual}"
+                                          task:ScoreCardRow.Host="Dashboard" task:ScoreCardRow.Source="{Binding}"
+                                          task:ScoreCardRow.Presenter="{Binding ScoreCards, RelativeSource={RelativeSource AncestorType=Window}}">
                                         <dash:TreeConnectors Guides="{Binding Guides}" Stroke="{DynamicResource DividerStrokeColorDefaultBrush}" />
                                         <Grid Margin="{Binding Indent}">
                                             <Grid.ColumnDefinitions>
@@ -361,8 +369,11 @@
                                                                      Compact="{Binding DataContext.CapsuleColumn.Compact, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                      Appearance="{Binding DataContext.CapsuleAppearance, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                      LanguageCode="{Binding DataContext.LanguageCode, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                            <!-- The fixed intelligence cell, 6 DIP before the live value: live, resting grade or dash (DESIGN 4). -->
+                                            <!-- The fixed 智力 cell, 6 DIP before the live value: the task score, pale resting, or a dash, with the proof
+                                                 mark under an unproven score (DESIGN 4, DESIGN 12). -->
                                             <dash:IntelligenceCell Grid.Column="3" Text="{Binding IntelligenceText}" Form="{Binding IntelligenceForm}" Margin="0,0,6,0"
+                                                                   Value="{Binding IntelligenceShown}" Unproven="{Binding IntelligenceUnproven}"
+                                                                   ReduceMotion="{Binding DataContext.ReduceMotion, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                    Width="{Binding DataContext.IntelligenceWidth, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                    HighContrast="{Binding DataContext.CapsuleAppearance.HighContrast, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                    AutomationProperties.Name="{Binding IntelligenceAccessibleName}" />

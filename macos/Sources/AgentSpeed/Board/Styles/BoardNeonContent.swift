@@ -28,6 +28,9 @@ final class BoardNeonContent: BoardContentBuilding {
     private var big: CGFloat { size == .small ? 34 : size == .medium ? 40 : 46 }
 
     var wakeAt: TimeInterval? { gauge.narrowsAt }
+    var reduceMotion = false
+
+    func climbsUntil(after now: TimeInterval) -> TimeInterval? { gauge.climbsUntil(after: now) }
 
     func layout(_ tick: BoardTick) -> BoardContentLayout {
         memory.begin(tick)
@@ -48,17 +51,25 @@ final class BoardNeonContent: BoardContentBuilding {
                                        intel: l10n("intel.glyph"), unit: l10n("unit.tokS")))
         }
         var anchors: [String: (row: CGRect, rank: CGPoint)] = [:]
+        var subRows: [String: CGRect] = [:]
         for (index, row) in tick.rows.enumerated() {
             let frame = rows.frame(row, rowsTop: rowsTop, pad: pad)
-            if case .group(let group) = row.kind { anchors[tick.groups[group].id] = (frame, rows.rankCenter(frame)) }
+            switch row.kind {
+            case .group(let group): anchors[tick.groups[group].id] = (frame, rows.rankCenter(frame))
+            case .sub: subRows[row.key] = frame
+            case .moreSubs, .moreGroups: break
+            }
             items += rows.items(models[index], key: row.key, frame: frame, column: column,
-                                accents: BoardRowAccents(row, live: lives[index], tick: tick, memory: memory, model: models[index]))
+                                accents: BoardRowAccents(row, live: lives[index], tick: tick, memory: memory, model: models[index],
+                                                         reduceMotion: reduceMotion))
         }
         items.append(footer(tick))
         items += tube(tick)
         memory.end(tick, rows: zip(tick.rows, lives).map { ($0.key, $1) },
-                   liveIntel: Set(zip(tick.rows, models).compactMap { $1.intelLive ? $0.key : nil }))
-        return BoardContentLayout(items: items, groupRows: anchors, number: number)
+                   scores: Dictionary(zip(tick.rows, models).compactMap { row, model in model.intel.map { (row.key, $0) } },
+                                      uniquingKeysWith: { a, _ in a }))
+        let scoreArea = geometry.hasGauge && tick.metrics.readouts.intelligence ? gauge.scoreArea : nil
+        return BoardContentLayout(items: items, groupRows: anchors, number: number, subRows: subRows, scoreArea: scoreArea)
     }
 
     /// The deck: a 22 pt grid, and the heat's light from the top right as a soft item of its own.
@@ -165,7 +176,8 @@ final class BoardNeonContent: BoardContentBuilding {
         items += number.items(memory: memory, decals: decals)
         if geometry.hasGauge {
             items += gauge.items(tick.metrics, in: BoardGaugeFrame(top: frame.minY, height: CGFloat(geometry.gaugeArea),
-                                                                    right: side - pad, memory: memory, now: now))
+                                                                    right: side - pad, memory: memory, now: now,
+                                                                    reduceMotion: reduceMotion))
         }
         return (items.inHero(), number.rect)
     }

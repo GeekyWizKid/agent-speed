@@ -8,6 +8,7 @@ using AgentSpeed.Orb.Gpu;
 using AgentSpeed.Orb.Render;
 using AgentSpeed.Presentation.Boards;
 using AgentSpeed.Presentation.Boards.Effects;
+using AgentSpeed.Presentation.Boards.Live;
 using AgentSpeed.Presentation.Boards.Scene;
 using AgentSpeed.Presentation.Layout;
 using AgentSpeed.Presentation.Motion;
@@ -54,6 +55,7 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
     private PointD _moveTarget;
     private bool _moving;
     private double _lastFrame;
+    private string? _hovered;
     private bool _closed;
 
     public GpuBoardWindow(string boardId, GpuDevice device, OrbClock orbClock, BoardStyle style, BoardSize size, IBoardLayerPainter painter, uint seed = 1)
@@ -93,7 +95,10 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
 
     public event EventHandler? DashboardRequested;
 
-    /// <summary>The group row under the cursor changed (the tooltip, the expansion's interaction).</summary>
+    /// <summary>
+    /// What the cursor is over changed (the tooltip or score card, the expansion's interaction): a group or sub row's key, the
+    /// hero's 智力 (<see cref="BoardScoreCards.HeroKey"/>), or null.
+    /// </summary>
     public event EventHandler<string?>? HoveredRowChanged;
 
     /// <summary>A click without a drag on a group row (its key): the group's sub-agents expand or collapse.</summary>
@@ -104,7 +109,53 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
 
     public IRawElementProviderSimple? AutomationProvider => _automation;
 
-    /// <summary>A shown row's rectangle in screen pixels, or null.</summary>
+    /// <summary>The board's rounded square in screen pixels (the window less its bloom margin), or null.</summary>
+    public RECT? SquareRect()
+    {
+        if (_host.Handle == 0 || !User32.GetWindowRect(_host.Handle, out var window))
+        {
+            return null;
+        }
+
+        var margin = (int)Math.Round(BoardCanvas.Margin * DisplayScale);
+        return new RECT(window.Left + margin, window.Top + margin, window.Right - margin, window.Bottom - margin);
+    }
+
+    /// <summary>The hero's 智力 as last drawn (glass: the dial; neon: digits and meter; timing: its row) in screen pixels, or null.</summary>
+    public RECT? ScoreRect()
+    {
+        if (_surface.Scene.Gauge.ScoreArea is not { } area || _host.Handle == 0 || !User32.GetWindowRect(_host.Handle, out var window))
+        {
+            return null;
+        }
+
+        return new RECT((int)Math.Round(window.Left + area.Left * DisplayScale), (int)Math.Round(window.Top + area.Top * DisplayScale),
+            (int)Math.Round(window.Left + area.Right * DisplayScale), (int)Math.Round(window.Top + area.Bottom * DisplayScale));
+    }
+
+    /// <summary>
+    /// Hit-tests the cursor again where it rests, so a hover follows the row that the ranking moved under it (called on each
+    /// tick while a tooltip or card is up or due).
+    /// </summary>
+    public void RefreshHover()
+    {
+        if (_dragging || _closed || _options.ClickThrough || _host.Handle == 0 || !User32.GetCursorPos(out var cursor) ||
+            !User32.GetWindowRect(_host.Handle, out var rect))
+        {
+            return;
+        }
+
+        var (x, y) = (cursor.X - rect.Left, cursor.Y - rect.Top);
+        if (cursor.X < rect.Left || cursor.X >= rect.Right || cursor.Y < rect.Top || cursor.Y >= rect.Bottom || !IsOnDisc(x, y))
+        {
+            SetHovered(null, null);
+            return;
+        }
+
+        Hover(x, y, atRest: true);
+    }
+
+    /// <summary>A shown row's rectangle in screen pixels where it is heading (a moving row: its new place), or null.</summary>
     public RECT? RowRect(string key)
     {
         if (_host.Handle == 0 || !User32.GetWindowRect(_host.Handle, out var window))
@@ -119,7 +170,7 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
             {
                 var metrics = scene.Metrics;
                 var left = window.Left + (BoardCanvas.Margin + metrics.ListLeft) * DisplayScale;
-                var top = window.Top + (BoardCanvas.Margin + metrics.ListTop + row.Y) * DisplayScale;
+                var top = window.Top + (BoardCanvas.Margin + metrics.ListTop + row.Target) * DisplayScale;
                 return new RECT((int)Math.Round(left), (int)Math.Round(top), (int)Math.Round(left + metrics.ListWidth * DisplayScale),
                     (int)Math.Round(top + row.Entry.Height * DisplayScale));
             }
@@ -206,7 +257,7 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
 
         if (!IsOnDisc(x, y))
         {
-            SetHovered(null);
+            SetHovered(null, null);
             if (!_options.ClickThrough)
             {
                 SetPassThrough(true);
@@ -215,15 +266,14 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
             return;
         }
 
-        var row = _surface.Scene.HitRow(x / DisplayScale, y / DisplayScale);
-        SetHovered(row is { Entry.Kind: BoardEntryKind.Group } ? row.Key : null);
+        Hover(x, y);
     }
 
     public void OnMouseLeave()
     {
         if (!_dragging)
         {
-            SetHovered(null);
+            SetHovered(null, null);
         }
     }
 
@@ -341,7 +391,7 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
             _dragMoved = true;
             _followX = new CriticalSpring(DragSettle, _center.X);
             _followY = new CriticalSpring(DragSettle, _center.Y);
-            SetHovered(null);
+            SetHovered(null, null);
         }
 
         _dragTarget = new PointD(_dragStartCenter.X + dx, _dragStartCenter.Y + dy);
@@ -451,12 +501,30 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
 
     // ---- Hover and click-through ----
 
-    private void SetHovered(string? key)
+    // A window point (pixels): the hero's 智力, a group or sub row (a group row's tint lifts), or nothing; `atRest` tests where the
+    // rows are heading.
+    private void Hover(int x, int y, bool atRest = false)
     {
-        if (!string.Equals(_surface.Scene.Hovered, key, StringComparison.Ordinal))
+        var scene = _surface.Scene;
+        var (px, py) = (x / DisplayScale, y / DisplayScale);
+        if (scene.HitScore(px, py))
         {
-            _surface.SetHovered(key);
-            HoveredRowChanged?.Invoke(this, key);
+            SetHovered(null, BoardScoreCards.HeroKey);
+            return;
+        }
+
+        var row = scene.HitRow(px, py, atRest);
+        SetHovered(row is { Entry.Kind: BoardEntryKind.Group } ? row.Key : null,
+            row is { Entry.Kind: BoardEntryKind.Group or BoardEntryKind.Sub } ? row.Key : null);
+    }
+
+    private void SetHovered(string? tint, string? target)
+    {
+        _surface.SetHovered(tint);
+        if (!string.Equals(_hovered, target, StringComparison.Ordinal))
+        {
+            _hovered = target;
+            HoveredRowChanged?.Invoke(this, target);
         }
     }
 
@@ -501,7 +569,7 @@ internal sealed class GpuBoardWindow : IOrbHostInput, IDisposable
         _host.Transparent = enabled;
         if (enabled)
         {
-            SetHovered(null);
+            SetHovered(null, null);
         }
     }
 

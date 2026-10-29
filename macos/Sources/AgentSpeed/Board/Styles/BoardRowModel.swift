@@ -28,11 +28,8 @@ struct BoardRowModel: Hashable {
     var heat = 0
     /// Timing's interval column: `boards.leader` on the first group, else the gap to the group above.
     var interval = ""
-    /// The 智力 cell (DESIGN 2c Live metrics, *Ranking rows*): the shown index or grade, `–` for none; nil without the
-    /// column (switched off, more rows).
-    var intel: String?
-    /// Live (the index) rather than resting (the grade) or none: one step brighter.
-    var intelLive = false
+    /// The 智力 cell (DESIGN 2c Live metrics, *Ranking rows*); nil without the column (switched off, more rows).
+    var intel: BoardRowScore?
     /// A group row's second line (M and L): the detail moves under the name.
     var twoLine = false
 
@@ -45,6 +42,29 @@ struct BoardRowModel: Hashable {
     var source: SourceKind? { sources.first }
     var shareFraction: Double { Double(share) / 200 }
     var heatFraction: Double { Double(heat) / 100 }
+}
+
+/// A row's 智力 (DESIGN 2c *Ranking rows*; DESIGN 12 *Values and forms*): a group row's highest member score, a sub
+/// row's own; live in the style's live row color, resting and none (`–`) in its resting color, the proof mark under an
+/// unverified or pending score (a group's follows the member that supplies it).
+struct BoardRowScore: Hashable {
+    var shown: Int?
+    var live: Bool
+    var unproven: Bool
+
+    static let none = BoardRowScore(shown: nil, live: false, unproven: false)
+
+    init(shown: Int?, live: Bool, unproven: Bool) {
+        self.shown = shown
+        self.live = shown != nil && live
+        self.unproven = shown != nil && unproven
+    }
+
+    init(_ reading: TaskSetReading) {
+        self.init(shown: reading.shown, live: reading.form == .live, unproven: reading.isUnproven)
+    }
+
+    var text: String { shown.map(String.init) ?? "–" }
 }
 
 @MainActor
@@ -61,10 +81,9 @@ enum BoardRowModels {
             agent.project.isEmpty ? l10n(agent.source.titleKey) : agent.project
         }
         let intelligence = tick.metrics.readouts.intelligence
-        func intel(_ form: AgentIntelligence, into model: inout BoardRowModel) {
+        func intel(_ reading: TaskSetReading, into model: inout BoardRowModel) {
             guard intelligence else { return }
-            model.intel = form.shown.map(String.init) ?? "–"
-            model.intelLive = form.isLive
+            model.intel = BoardRowScore(reading)
         }
 
         return tick.rows.map { row in
@@ -81,7 +100,7 @@ enum BoardRowModels {
                 var model = BoardRowModel(kind: .group(rank: index + 1), name: name(root), detail: detail, value: text, idle: idle,
                                           phase: group.generating > 0 ? .generating : root.phase, sources: [root.source],
                                           modes: root.modes, share: share(group.live), heat: heat(group.live), interval: interval)
-                intel(group.intelligence, into: &model)
+                intel(group.intelligenceReading, into: &model)
                 model.twoLine = twoLine
                 return model
             case .sub(let index, let subIndex):
@@ -93,7 +112,7 @@ enum BoardRowModels {
                 let model = agent.model.flatMap { $0.isEmpty || $0 == root.model ? nil : $0 } ?? ""
                 var row = BoardRowModel(kind: .sub, name: name(agent), detail: model, value: text, idle: idle, phase: agent.phase,
                                         sources: [agent.source], modes: agent.modes, share: share(live), heat: heat(live))
-                intel(agent.intelligenceForm, into: &row)
+                intel(TaskSetReading(agent: agent), into: &row)
                 return row
             case .moreSubs(let index, let count, let live):
                 return BoardRowModel(kind: .more, name: l10n("boards.moreSubs", count, SpeedFormat.speed(live)),

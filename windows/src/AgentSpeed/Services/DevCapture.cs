@@ -18,7 +18,8 @@ namespace AgentSpeed.Services;
 /// <c>menu-tray name</c>, <c>menu-orb name</c>, <c>badge-sheet name [dark|light]</c> (the hero title badge of every theme
 /// but Vehicles at idle and levels 1–13), <c>badge-strip name [dark|light]</c> (its transitions at fixed τ),
 /// <c>dashboard name [#backdrop]</c> (the open dashboard's content) and <c>taskbar name [#backdrop] [dark|light] [2x]</c>
-/// (the widget as it draws now, rendered again in-process, optionally on a dark or light taskbar and at a given scale).
+/// (the widget as it draws now, rendered again in-process, optionally on a dark or light taskbar and at a given scale),
+/// <c>taskcard name [#backdrop] [2x]</c> and <c>taskhistory name [#backdrop] [2x]</c> (the task score's sample sheets).
 /// </summary>
 internal sealed partial class DevCapture
 {
@@ -113,6 +114,9 @@ internal sealed partial class DevCapture
                         Save(OnBackdrop(bar, options.FirstOrDefault(o => o.StartsWith('#')) ?? "#202020"), parts[1]);
                     }
 
+                    break;
+                case "taskcard" or "taskhistory":
+                    CaptureTaskScore(parts[0], parts[1], parts.Length > 2 ? parts[2] : string.Empty);
                     break;
                 case "badge-sheet" or "badge-strip" when Badges?.Invoke() is { } source:
                     var dark = !(parts.Length > 2 && string.Equals(parts[2], "light", StringComparison.OrdinalIgnoreCase));

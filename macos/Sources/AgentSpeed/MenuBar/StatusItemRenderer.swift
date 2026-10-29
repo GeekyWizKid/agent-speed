@@ -35,13 +35,16 @@ final class StatusItemRenderer {
                 _ = (self.model.snapshot.sources, self.model.cost.currency, self.model.cost.rate, settings.billableSources)
             }
             _ = settings.liveUnit
-            _ = (settings.trafficEnabled, settings.barTraffic, settings.trafficUnit)
+            _ = (settings.trafficEnabled, settings.barTraffic, settings.trafficUnit, settings.barIntelligence)
             if settings.trafficEnabled, settings.barTraffic.isNetwork {
                 let traffic = self.model.visibleTraffic
                 _ = (traffic.machineLive, traffic.sources, settings.trafficIncludeTools)
             }
-            // The intelligence block follows every engine tick and the end of the thinking hold (DESIGN 10).
-            if settings.barTraffic == .intelligence { _ = (self.model.snapshot.intelligence, self.model.barThinking.hidden) }
+            // The intelligence block follows every engine tick (the score, its supplying agent's state for the proof
+            // mark) and the end of the thinking hold (DESIGN 10, 12).
+            if settings.barIntelligence {
+                _ = (self.model.snapshot.intelligence, self.model.snapshot.agents, self.model.barThinking.hidden)
+            }
             self.render()
         }
     }

@@ -4338,13 +4338,13 @@
     "en": "Network speed: agents only",
     "ja": "ネットワーク速度：agent のみ"
   },
-  "settings.bar.traffic.intelligence": {
-    "zh-Hant": "即時智力",
-    "zh-Hans": "实时智力",
-    "en": "Live intelligence",
-    "ja": "リアルタイム知能"
+  "settings.bar.intelligence": {
+    "zh-Hant": "顯示智力",
+    "zh-Hans": "显示智力",
+    "en": "Show IQ",
+    "ja": "知能を表示"
   },
-  "settings.bar.traffic.hint.intel": {
+  "settings.bar.intelligence.hint": {
     "zh-Hant": "在數值旁顯示所有 agent 中最高的任務評分（智力，0–100）與每秒思考 token 數；沒有分數時顯示「–」。分數依工具紀錄估算，不是模型能力測驗。",
     "zh-Hans": "在数值旁显示所有 agent 中最高的任务评分（智力，0–100）与每秒思考 token 数；没有分数时显示“–”。分数依工具记录估算，不是模型能力测试。",
     "en": "Shows the highest task score (intelligence, 0–100) among all agents and their thinking tokens per second next to the value, and – when no task has a score. Estimated from tool records, not a model benchmark.",

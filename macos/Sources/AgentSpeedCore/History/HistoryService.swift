@@ -66,6 +66,8 @@ public final class HistoryService {
         guard worker == nil else { return }
         let worker = HistoryWorker(storePath: storeURL.path, configuration: configuration, pricing: pricing) { [weak store] state, days in
             store?.publish(state: state, days: days)
+        } tasks: { [weak store] records, models in
+            store?.publish(taskRecords: records, taskModels: models)
         }
         self.worker = worker
         store.refreshHandler = { [weak self] showsProgress in self?.refresh(showsProgress: showsProgress) }
@@ -125,6 +127,7 @@ public final class HistoryService {
 /// generation, which are locked.
 final class HistoryWorker: @unchecked Sendable {
     typealias Publisher = @MainActor @Sendable (HistoryState, [DailyUsage]?) -> Void
+    typealias TaskPublisher = @MainActor @Sendable ([TaskRecord], [SourceKind: TaskModels]) -> Void
 
     /// Runs touching at least this much are shown as `.analyzing` even when they were not asked for.
     static let visibleRunBytes: Int64 = 256 << 20
@@ -146,6 +149,9 @@ final class HistoryWorker: @unchecked Sendable {
     private let storePath: String
     private let pricing: PriceBook
     private let publisher: Publisher
+    private let taskPublisher: TaskPublisher
+    /// The analyzer's `taskVersion` last published; nil before the first.
+    private var publishedTasks: Int?
     /// A binding save is queued (bindings arrive in bursts while a day's responses are priced).
     private let bindingSaveQueued = OSAllocatedUnfairLock(initialState: false)
     private let queue = DispatchQueue(label: "app.agentspeed.history", qos: .utility)
@@ -157,11 +163,13 @@ final class HistoryWorker: @unchecked Sendable {
     private var midnightTimer: DispatchSourceTimer?
     private var lastState: HistoryState = .notLoaded
 
-    init(storePath: String, configuration: MonitorConfiguration, pricing: PriceBook, publisher: @escaping Publisher) {
+    init(storePath: String, configuration: MonitorConfiguration, pricing: PriceBook, publisher: @escaping Publisher,
+         tasks taskPublisher: @escaping TaskPublisher = { _, _ in }) {
         self.storePath = storePath
         self.configuration = configuration
         self.pricing = pricing
         self.publisher = publisher
+        self.taskPublisher = taskPublisher
     }
 
     deinit {
@@ -174,6 +182,7 @@ final class HistoryWorker: @unchecked Sendable {
         queue.async { [self] in
             guard openAnalyzer() != nil else { return }
             post(.analyzing(progress: 0, filesDone: 0, filesTotal: 0), days: true)
+            postTasks()
             scheduleTimers()
         }
         requestRun(visible: true)
@@ -206,6 +215,7 @@ final class HistoryWorker: @unchecked Sendable {
     func update(configuration: MonitorConfiguration) {
         queue.async { [self] in
             self.configuration = configuration
+            publishedTasks = nil
             if analyzer != nil { post(lastState, days: true) }
         }
         requestRun(visible: true)
@@ -219,6 +229,7 @@ final class HistoryWorker: @unchecked Sendable {
         queue.async { [self] in
             control.withLock { $0.pendingClears -= 1 }
             analyzer = nil
+            publishedTasks = nil
             pricing.clearBindings()
             HistoryDatabase.delete(at: storePath)
             guard openAnalyzer() != nil else { return }
@@ -294,6 +305,7 @@ final class HistoryWorker: @unchecked Sendable {
             }
             guard !report.cancelled else { return }
             post(.ready(updatedAt: Date()), days: true)
+            postTasks()
             if report.bytesAnalyzed >= Self.visibleRunBytes { malloc_zone_pressure_relief(nil, 0) }
         } catch {
             post(.failed("The usage history could not be updated."), days: true)
@@ -308,6 +320,20 @@ final class HistoryWorker: @unchecked Sendable {
         DispatchQueue.main.async {
             guard !control.withLock({ $0.stopped }) else { return }
             MainActor.assumeIsolated { publisher(state, days) }
+        }
+    }
+
+    /// The comparison records and calibration (METRICS 6.11), when records were written since the last publication.
+    private func postTasks() {
+        guard let analyzer, publishedTasks != analyzer.taskVersion else { return }
+        guard let models = try? analyzer.taskCalibration(),
+              let records = try? analyzer.comparisonRecords(sources: configuration.enabledSources) else { return }
+        publishedTasks = analyzer.taskVersion
+        let publisher = taskPublisher
+        let control = self.control
+        DispatchQueue.main.async {
+            guard !control.withLock({ $0.stopped }) else { return }
+            MainActor.assumeIsolated { publisher(records, models) }
         }
     }
 

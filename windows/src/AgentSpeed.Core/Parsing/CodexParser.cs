@@ -32,6 +32,7 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
     {
         _pathIsSubagent = PathText.HasDirectoryComponent(agentId, "subagents");
         SetSubagent(_pathIsSubagent);
+        EnableTasks(new global::AgentSpeed.Core.Tasks.CodexTaskReader(), SourceKind.Codex);
     }
 
     /// <summary>Time of the first <c>session_meta</c>, i.e. when the rollout was created.</summary>
@@ -61,6 +62,15 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
     }
 
     public override void Apply(in CodexLine line, IResponseSink sink)
+    {
+        ApplyLine(in line, sink);
+        if (line.TaskTracked)
+        {
+            ComposeTask(line.Task, line.TimestampMs);
+        }
+    }
+
+    private void ApplyLine(in CodexLine line, IResponseSink sink)
     {
         if (line.Status == LineStatus.Malformed)
         {
@@ -111,7 +121,12 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
         }
     }
 
-    protected override CodexLine Extract(ReadOnlySpan<byte> line) => CodexLineReader.Read(line);
+    protected override CodexLine Extract(ReadOnlySpan<byte> line)
+    {
+        var parsed = CodexLineReader.Read(line);
+        (TaskReader as global::AgentSpeed.Core.Tasks.CodexTaskReader)?.Read(line, ref parsed);
+        return parsed;
+    }
 
     // Only the first session_meta applies; sub-agents copy their parent's afterwards.
     private void ApplySessionMeta(in CodexLine line, long ts)

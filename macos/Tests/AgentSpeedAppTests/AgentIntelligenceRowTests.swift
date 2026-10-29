@@ -1,27 +1,34 @@
 import AgentSpeedCore
+import AgentSpeedOrbModel
 import Foundation
 import Testing
 @testable import AgentSpeed
 
-/// DESIGN 4, Intelligence column: the fixed cell, the name room it takes, and the row's tooltip and accessibility
-/// lines for every form.
+/// DESIGN 4, 智力 column: the fixed cell, the name room it takes, the row's score words and its score card for every
+/// form (DESIGN 12).
 @Suite("Agent intelligence column")
 @MainActor
 struct AgentIntelligenceRowTests {
-    static func agent(_ source: SourceKind = .claudeCode, model: String? = "claude-opus-5-5", grade: IntelligenceGrade?,
-                      output: Double = 0, index: Double = 0, thinkingShare: Double = 0) -> AgentStatus {
+    /// `score`: the agent's task score (METRICS 6.9), live while it generates, resting otherwise.
+    static func agent(_ source: SourceKind = .claudeCode, model: String? = "claude-opus-5-5", score: Double?,
+                      output: Double = 0, thinkingShare: Double = 0, state: TaskState = .passing,
+                      task: AgentTaskStatus? = nil) -> AgentStatus {
         var sums = IntelligenceSums()
         if output > 0 {
             sums.output = output
-            sums.gradedOutput = output * (index - 20 * thinkingShare)
             if source.recordsReasoningApart {
                 sums.thinking = output * thinkingShare
                 sums.thinkingBase = output
             }
         }
+        if let score {
+            let value = TaskAgentValue(form: output > 0 ? .live : .resting, score: score, shown: taskRoundHalfAway(score),
+                                       state: state)
+            sums.score = TaskSetValue(id: "a", lastLineMs: nil, value: value)
+        }
         return AgentStatus(id: "a", source: source, project: "p", model: model, phase: output > 0 ? .generating : .idle,
                            isSubagent: false, live: Rate(output: output, total: output), recentSpeed: nil,
-                           lastActivity: Date(), grade: grade, intelligence: sums)
+                           lastActivity: Date(), intelligence: sums, task: task)
     }
 
     // MARK: Cell
@@ -53,40 +60,81 @@ struct AgentIntelligenceRowTests {
         #expect(!shallow.compact)
     }
 
-    // MARK: Tooltip and accessibility
+    // MARK: Accessibility
 
-    @Test func liveRowsSayTheValueAndThinkingShareThenTheGrade() {
+    @Test func rowsSayTheirScoreWordsAfterTheLiveValue() {
         let l10n = Localizer(preference: .zhHant)
-        let grade = IntelligenceGrade(modelClass: .standard, level: 4)
-        let agent = Self.agent(grade: grade, output: 40, index: 105, thinkingShare: 0.245)
-        #expect(agent.intelligenceForm.shown == 105)
-        #expect(AgentSignalText.intelligence(agent, l10n) == ["智力 105 · 思考 25%", "等級 104 · 標準"])
-        #expect(AgentSignalText.intelligenceAccessibility(agent.intelligenceForm, l10n) == "智力 105")
+        let live = Self.agent(score: 92.5, output: 40, thinkingShare: 0.245)
+        #expect(TaskSetReading(agent: live).shown == 93)
+        #expect(AgentSignalText.intelligenceAccessibility(TaskSetReading(agent: live), l10n) == "智力 93")
+        let resting = Self.agent(score: 73.75)
+        #expect(TaskSetReading(agent: resting).isResting)
+        #expect(AgentSignalText.intelligenceAccessibility(TaskSetReading(agent: resting), l10n) == "智力 74，閒置中")
     }
 
-    @Test func aSourceWithoutSeparateReasoningShowsADashForTheShare() {
-        let l10n = Localizer(preference: .en)
-        let agent = Self.agent(.deepseek, model: "deepseek-v4-pro", grade: IntelligenceGrade(modelClass: .light, level: 3),
-                               output: 50, index: 78)
-        #expect(AgentSignalText.intelligence(agent, l10n).first == "Intelligence 78 · thinking –")
+    @Test func unprovenScoresSayWhatWouldProveThem() {
+        let l10n = Localizer(preference: .zhHant)
+        let unverified = Self.agent(score: 9, output: 30, state: .unverified, task: Self.task(.unverified, 9))
+        #expect(TaskSetReading(agent: unverified).isUnproven)
+        #expect(AgentSignalText.intelligenceAccessibility(TaskSetReading(agent: unverified), l10n) == "智力 9，尚未驗證")
+        let pending = Self.agent(score: 34, state: .pending, task: Self.task(.pending, 34))
+        #expect(AgentSignalText.intelligenceAccessibility(TaskSetReading(agent: pending), Localizer(preference: .en))
+            == "intelligence 34, re-check pending, idle")
     }
 
-    @Test func restingRowsSayOnlyTheGrade() {
+    @Test func rowsWithoutAScoreSayNothing() {
         let l10n = Localizer(preference: .zhHant)
-        let grade = IntelligenceGrade(modelClass: .flagship, level: 4)
-        let agent = Self.agent(grade: grade)
-        #expect(AgentSignalText.intelligence(agent, l10n) == ["等級 124 · 旗艦"])
-        #expect(AgentSignalText.intelligenceAccessibility(agent.intelligenceForm, l10n) == "等級 124")
-        #expect(AgentSignalText.intelligenceAccessibility(agent.intelligenceForm, Localizer(preference: .en)) == "grade 124")
+        let quiet = Self.agent(model: nil, score: nil)
+        #expect(TaskSetReading(agent: quiet) == .none)
+        #expect(AgentSignalText.intelligenceAccessibility(TaskSetReading(agent: quiet), l10n) == nil)
+        let deepseek = Self.agent(.deepseek, model: "deepseek-v4-pro", score: nil, output: 50)
+        #expect(AgentSignalText.intelligenceAccessibility(TaskSetReading(agent: deepseek), l10n) == nil)
     }
 
-    @Test func modelLessRowsSayNothingWhileQuietAndNoGradeWhileLive() {
-        let l10n = Localizer(preference: .zhHant)
-        let quiet = Self.agent(model: nil, grade: nil)
-        #expect(AgentSignalText.intelligence(quiet, l10n).isEmpty)
-        #expect(AgentSignalText.intelligenceAccessibility(quiet.intelligenceForm, l10n) == nil)
-        let live = Self.agent(.gemini, model: nil, grade: nil, output: 20, index: 97, thinkingShare: 0.25)
-        #expect(AgentSignalText.intelligence(live, l10n) == ["智力 97 · 思考 25%"])
+    // MARK: Score card
+
+    static func task(_ state: TaskState, _ score: Double?) -> AgentTaskStatus {
+        var models = TaskModelFlags.prior
+        models.success = TaskModelFlag(calibrated: true, tasks: 120)
+        // An evaluation without events stands in for the shape; its facts are set below.
+        var result = TaskResult(TaskEvaluation([], now: 0))
+        result.state = state
+        result.score = score
+        result.shown = score.map(taskRoundHalfAway)
+        result.dims = TaskDimensions(v: state == .passing ? 40 : 0, c: 20, r: 11, e: (score ?? 0) - (state == .passing ? 71 : 31), k: 0)
+        if state == .pending {
+            result.vHeld = 40
+            result.lastPass = TaskLastPass(suite: "pytest", commandClass: .test, key: TaskDigest(value: 0), buildOnly: false)
+        }
+        if state == .failing {
+            result.openFailure = TaskOpenFailure(suite: nil, commandClass: .build, key: TaskDigest(value: 0), errors: 3, peak: 9,
+                                                 counted: true, edited: false)
+        }
+        return AgentTaskStatus(taskStartMs: 0, result: result, predictions: nil, models: models)
+    }
+
+    @Test func theCardMapsTheAgentsTask() {
+        let failing = Self.agent(score: 41, output: 30, state: .failing, task: Self.task(.failing, 41))
+        let card = TaskScoreCardModel(agent: failing, facts: ["推理強度：high"])
+        guard case .scored(let score) = card.body else {
+            Issue.record("a scored source has a scored card")
+            return
+        }
+        #expect(score.form == .live)
+        #expect(score.state == .failing)
+        #expect(score.shown == 41)
+        #expect(score.openFailure?.check == TaskCheckName(suite: nil, kind: .build))
+        #expect(TaskScoreCardText.status(score, Localizer(preference: .zhHant)).plain == "建置：還有 3 個錯誤（最多時 9 個）")
+        #expect(card.facts == ["推理強度：high"])
+        let pending = TaskScoreCardModel(agent: Self.agent(score: 34, state: .pending, task: Self.task(.pending, 34)), facts: [])
+        #expect(pending.score?.form == .resting)
+        #expect(pending.score?.heldCredit == 40)
+        #expect(pending.score?.lastPass?.check.suite == "pytest")
+    }
+
+    @Test func aSourceWithoutScoresGetsTheUnsupportedCard() {
+        let deepseek = Self.agent(.deepseek, model: "deepseek-v4-pro", score: nil, output: 50)
+        #expect(TaskScoreCardModel(agent: deepseek, facts: []).body == .unsupported)
     }
 
     @Test func percentRoundsHalfAwayFromZero() {

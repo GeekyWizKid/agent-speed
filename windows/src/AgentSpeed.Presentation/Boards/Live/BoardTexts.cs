@@ -1,12 +1,11 @@
-using System.Globalization;
 using AgentSpeed.Core;
 using AgentSpeed.Core.Intelligence;
 using AgentSpeed.Core.Money;
 using AgentSpeed.Presentation.Cost;
 using AgentSpeed.Presentation.Formatting;
 using AgentSpeed.Presentation.Heat;
-using AgentSpeed.Presentation.History;
 using AgentSpeed.Presentation.Localization;
+using AgentSpeed.Presentation.TaskScore;
 using AgentSpeed.Presentation.Titles;
 
 namespace AgentSpeed.Presentation.Boards.Live;
@@ -46,12 +45,14 @@ public sealed class BoardTexts
     public SourceSet Billable => Cost?.Billable ?? SourceSet.Everything;
 
     /// <summary>
-    /// The hero's 智力, 思考 and 費用 (DESIGN 2c, Live metrics: Values): the index rounded half away from zero, METRICS 7 of the
-    /// thinking rate, both <c>–</c> while quiet; the cost of the billable sources in the section 9 rate form, <c>≥</c> when partly
-    /// priced, <c>–</c> when nothing is, the subscription tag when every source is excluded, a real 0 otherwise.
+    /// The hero's 智力, 思考 and 費用 (DESIGN 2c, Live metrics: Values): the board's task score (<paramref name="score"/>, its own
+    /// form whatever the window holds), METRICS 7 of the thinking rate (<c>–</c> while nothing generates); the cost of the billable
+    /// sources in the section 9 rate form, <c>≥</c> when partly priced, <c>–</c> when nothing is, the subscription tag when every
+    /// source is excluded, a real 0 otherwise.
     /// </summary>
-    public BoardHeroReadouts Hero(IntelligenceSums sums, CostReading cost)
+    public BoardHeroReadouts Hero(IntelligenceSums sums, TaskSetReading score, CostReading cost)
     {
+        ArgumentNullException.ThrowIfNull(score);
         ArgumentNullException.ThrowIfNull(cost);
         var money = cost.State switch
         {
@@ -60,61 +61,43 @@ public sealed class BoardTexts
             _ => Money(cost.MicroUsdPerSecond, cost.State == CostState.Partial),
         };
 
-        if (sums.Shown is not { } shown)
+        if (!sums.IsActive)
         {
-            return new BoardHeroReadouts(BoardHeroReadouts.Dash, null, BoardHeroReadouts.Dash, true, false, money);
+            return new BoardHeroReadouts(score, BoardHeroReadouts.Dash, true, false, money);
         }
 
         var thinking = sums.LiveThinking;
-        return new BoardHeroReadouts(shown.ToString(CultureInfo.InvariantCulture), shown, SpeedFormat.Speed(thinking), false,
-            ThinkingZeroHold.ReadsZero(thinking), money);
+        return new BoardHeroReadouts(score, SpeedFormat.Speed(thinking), false, ThinkingZeroHold.ReadsZero(thinking), money);
     }
 
     /// <summary>
-    /// A row's 智力 cell, with the tooltip lines of a group row while 智力 is on (DESIGN 2c, Ranking rows and Tooltip). Neither
-    /// names a cost: 費用 is the board's only live cost.
+    /// A row's 智力 cell (DESIGN 2c, Ranking rows): a group row's highest member score (METRICS 6.9, <i>Sets and groups</i>), a sub
+    /// row's own value, with <c>a11y.agent.intel</c> and the score words while the column shows. It names no cost: 費用 is the
+    /// board's only live cost.
     /// </summary>
     public BoardRowReadout? Row(BoardEntry entry, BoardReadouts readouts)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        if (entry.Kind is not (BoardEntryKind.Group or BoardEntryKind.Sub))
+        TaskSetReading score;
+        switch (entry.Kind)
         {
-            return null;
+            case BoardEntryKind.Group:
+                var group = entry.Group;
+                score = TaskSetReading.Of(group.Intelligence.Score, [group.Root, .. group.Subs]);
+                break;
+            case BoardEntryKind.Sub when entry.Agent is { } agent:
+                score = TaskSetReading.Of(agent.Intelligence.Score, [agent]);
+                break;
+            case BoardEntryKind.Sub:
+                score = TaskSetReading.None;
+                break;
+            default:
+                return null;
         }
 
-        var group = entry.Kind == BoardEntryKind.Group;
-        var agent = group ? entry.Group.Root : entry.Agent;
-        var intelligence = group ? entry.Group.Intelligence : agent?.Intelligence ?? AgentIntelligence.None;
-        var text = intelligence.Shown is { } shown ? shown.ToString(CultureInfo.InvariantCulture) : BoardHeroReadouts.Dash;
         // The 智力 words follow the speed only while the column shows.
-        var spoken = !readouts.Intelligence ? string.Empty : intelligence.Form switch
-        {
-            AgentIntelligenceForm.Live => Localizer.Format("a11y.agent.intel", text),
-            AgentIntelligenceForm.Resting => Localizer.Format("a11y.agent.grade", text),
-            _ => string.Empty,
-        };
-
-        var lines = new List<string>(4);
-        if (group && readouts.Intelligence)
-        {
-            if (intelligence.Form == AgentIntelligenceForm.Live)
-            {
-                var share = intelligence.Sums.ThinkingBasis > 0 ? HistoryText.Percent(intelligence.ThinkingShare) : BoardHeroReadouts.Dash;
-                lines.Add(Localizer.Format("intel.tooltip", text, share));
-            }
-
-            if (entry.Group.Root.Grade is { } grade)
-            {
-                lines.Add(IntelligenceText.Grade(grade, Localizer));
-            }
-        }
-
-        if (group && readouts.Intelligence)
-        {
-            lines.Add(Localizer["intel.disclaimer"]);
-        }
-
-        return new BoardRowReadout(text, intelligence.Form, spoken, lines);
+        var spoken = readouts.Intelligence && score.Words(Localizer) is { } words ? Localizer.Format("a11y.agent.intel", words) : string.Empty;
+        return new BoardRowReadout(score, spoken);
     }
 
     private BoardMoney Money(double microUsdPerSecond, bool partial)

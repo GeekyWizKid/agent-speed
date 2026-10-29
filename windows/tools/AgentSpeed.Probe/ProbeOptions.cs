@@ -2,6 +2,7 @@ using System.Globalization;
 using AgentSpeed.Core;
 using AgentSpeed.Core.Monitoring;
 using AgentSpeed.Core.Pricing;
+using AgentSpeed.Core.Tasks;
 
 namespace AgentSpeed.Probe;
 
@@ -10,6 +11,7 @@ internal enum ProbeMode
     DumpToday,
     DumpHistory,
     DumpUnpriced,
+    DumpTasks,
     Watch,
     SyncPrices,
     SyncRates,
@@ -56,8 +58,9 @@ internal sealed record ProbeOptions(
     string? DroidRoot = null)
 {
     public const string Usage =
-        "usage: AgentSpeed.Probe (--dump-today [--since UNIXMS] | --dump-history [--utc] [--history-store PATH] | " +
+        "usage: AgentSpeed.Probe (--dump-today [--since UNIXMS] [--now UNIXMS] | --dump-history [--utc] [--history-store PATH] | " +
         "--dump-unpriced [--days N | --first YYYY-MM-DD --last YYYY-MM-DD | --live] [--source ID] [--history-store PATH] | " +
+        "--dump-tasks [--utc] [--first YYYY-MM-DD] [--last YYYY-MM-DD] [--source ID] [--now UNIXMS] | " +
         "--watch N | --sync-prices DIR | --sync-rates DIR CURRENCY) [--prices PATH] " +
         "[--codex PATH] [--claude PATH] [--dsh PATH] [--opencode PATH] [--gemini PATH]... [--omp PATH]... [--antigravity PATH]... " +
         "[--workbuddy PATH] [--workbuddy-ai PATH] [--zcode PATH] [--kimi PATH] [--grok-build PATH] [--pi PATH] [--openclaw PATH] [--hermes PATH] [--droid PATH]";
@@ -73,8 +76,14 @@ internal sealed record ProbeOptions(
     /// <summary><c>--live</c> of <c>--dump-unpriced</c>: today's engine responses instead of the history.</summary>
     public bool Live { get; init; }
 
-    /// <summary><c>--source ID</c> of <c>--dump-unpriced</c>: one source (METRICS 1).</summary>
+    /// <summary><c>--source ID</c> of <c>--dump-unpriced</c> (one source, METRICS 1) or <c>--dump-tasks</c> (one scored source).</summary>
     public SourceKind? Source { get; init; }
+
+    /// <summary>
+    /// <c>--now UNIXMS</c>: the instant <c>--dump-today</c> evaluates the task values at (default: the capture time), or the
+    /// <c>analysisMs</c> of <c>--dump-tasks</c> (default: the wall clock).
+    /// </summary>
+    public long? NowMs { get; init; }
 
     public MonitorConfiguration Configuration => new(
         new HashSet<SourceKind>(Enum.GetValues<SourceKind>()),
@@ -149,7 +158,7 @@ internal sealed record ProbeOptions(
         var utc = false;
         string? codex = null, claude = null, dsh = null, opencode = null, store = null, prices = null, sync = null, currency = null;
         string? workBuddy = null, workBuddyAi = null, zcode = null, kimi = null, grokBuild = null, pi = null, openClaw = null, hermes = null, droid = null;
-        long? since = null;
+        long? since = null, nowMs = null;
         int? days = null;
         string? first = null, last = null, sourceId = null;
         var live = false;
@@ -168,6 +177,13 @@ internal sealed record ProbeOptions(
                     break;
                 case "--dump-unpriced":
                     mode = ProbeMode.DumpUnpriced;
+                    break;
+                case "--dump-tasks":
+                    mode = ProbeMode.DumpTasks;
+                    break;
+                case "--now" when i + 1 < args.Length && long.TryParse(args[i + 1], NumberStyles.None, CultureInfo.InvariantCulture, out var at):
+                    nowMs = at;
+                    i++;
                     break;
                 case "--days" when i + 1 < args.Length && int.TryParse(args[i + 1], NumberStyles.None, CultureInfo.InvariantCulture, out var count):
                     days = count;
@@ -268,7 +284,7 @@ internal sealed record ProbeOptions(
 
         if (mode is null)
         {
-            error = "missing --dump-today, --dump-history, --dump-unpriced, --watch N, --sync-prices DIR or --sync-rates DIR CURRENCY";
+            error = "missing --dump-today, --dump-history, --dump-unpriced, --dump-tasks, --watch N, --sync-prices DIR or --sync-rates DIR CURRENCY";
             return null;
         }
 
@@ -276,6 +292,12 @@ internal sealed record ProbeOptions(
         if (mode == ProbeMode.DumpUnpriced && UnpricedRangeError(days, first, last, live, sourceId, out source) is { } rangeError)
         {
             error = rangeError;
+            return null;
+        }
+
+        if (mode == ProbeMode.DumpTasks && TasksRangeError(first, last, sourceId, out source) is { } tasksError)
+        {
+            error = tasksError;
             return null;
         }
 
@@ -288,6 +310,7 @@ internal sealed record ProbeOptions(
             Last = last,
             Live = live,
             Source = source,
+            NowMs = nowMs,
         };
     }
 
@@ -321,6 +344,27 @@ internal sealed record ProbeOptions(
             if (source is null)
             {
                 return "--source takes a source id: " + string.Join(", ", Enum.GetValues<SourceKind>().Select(JsonLine.SourceName));
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The checks of <c>reference.py --dump-tasks</c>, with dates checked as in <c>--dump-unpriced</c>.</summary>
+    private static string? TasksRangeError(string? first, string? last, string? sourceId, out SourceKind? source)
+    {
+        source = null;
+        if ((first is not null && !IsDate(first)) || (last is not null && !IsDate(last)))
+        {
+            return "dates are YYYY-MM-DD";
+        }
+
+        if (sourceId is not null)
+        {
+            source = TaskSetView.ScoredSources.Cast<SourceKind?>().FirstOrDefault(k => JsonLine.SourceName(k!.Value) == sourceId);
+            if (source is null)
+            {
+                return "--source takes a scored source id: " + string.Join(", ", TaskSetView.ScoredSources.Select(JsonLine.SourceName));
             }
         }
 

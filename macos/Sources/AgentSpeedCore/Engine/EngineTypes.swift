@@ -17,6 +17,8 @@ struct EngineAgent: Equatable, Sendable {
     var parentId: String?
     /// Its recent tool calls (METRICS 6.10), oldest first.
     var actions: [ToolAction] = []
+    /// Its current task (METRICS 6.9), for an agent of a scored source.
+    var task: AgentTaskStatus?
 
     init(
         id: String,
@@ -96,9 +98,7 @@ struct EngineAgentStatus: Equatable, Sendable {
     var recentSpeed: Double?
     /// The parent's id when the parent is listed too; nil for a root.
     var parentId: String?
-    /// Its current model and effort's grade (METRICS 6.9); nil without a model.
-    var grade: IntelligenceGrade?
-    /// Its own live intelligence sums (METRICS 6.9, Agent intelligence).
+    /// Its own thinking sums and task score value (METRICS 6.9 *Values*, *Live thinking*).
     var intelligence: IntelligenceSums = .zero
     var signals: WorkSignals = .none
 }
@@ -114,7 +114,7 @@ struct EngineOutput: Sendable {
     /// The live cost rate (METRICS 9.5), in total and per source.
     var liveCost: LiveCost = .zero
     var sourceLiveCost: [SourceKind: LiveCost] = [:]
-    /// The live intelligence sums (METRICS 6.9), in total and per source.
+    /// The thinking sums and the highest task score of the listed agents (METRICS 6.9), in total and per source.
     var intelligence: IntelligenceSums = .zero
     var sourceIntelligence: [SourceKind: IntelligenceSums] = [:]
     var agents: [EngineAgentStatus]

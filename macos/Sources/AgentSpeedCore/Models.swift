@@ -116,10 +116,12 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
     public var parentId: String?
     /// The full working directory the transcript names (METRICS 10.6); nil when it names none.
     public var cwdPath: String?
-    /// The grade of its current model and effort (METRICS 6.9); nil while its model is unknown.
-    public var grade: IntelligenceGrade?
-    /// Its own live intelligence sums (METRICS 6.9, Agent intelligence).
+    /// Its own thinking sums and task score value (METRICS 6.9 *Values*, *Live thinking*): `intelligence.score` is the
+    /// agent's value, live or resting by its phase.
     public var intelligence: IntelligenceSums
+    /// Its current task's evaluation and predictions (the score card, METRICS 6.9 *Task facts*, 6.11); nil for a source
+    /// without a task score.
+    public var task: AgentTaskStatus?
     /// What its recent tool calls say (METRICS 6.10).
     public var signals: WorkSignals
 
@@ -136,8 +138,8 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
         parentId: String? = nil,
         cwdPath: String? = nil,
         modes: ExecutionModes = .empty,
-        grade: IntelligenceGrade? = nil,
         intelligence: IntelligenceSums = .zero,
+        task: AgentTaskStatus? = nil,
         signals: WorkSignals = .none
     ) {
         self.id = id
@@ -152,13 +154,13 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
         self.lastActivity = lastActivity
         self.parentId = parentId
         self.cwdPath = cwdPath
-        self.grade = grade
         self.intelligence = intelligence
+        self.task = task
         self.signals = signals
     }
 
-    /// Live, resting or none (METRICS 6.9, Agent intelligence).
-    public var intelligenceForm: AgentIntelligence { AgentIntelligence(intelligence, grade: grade) }
+    /// Live, resting or none (METRICS 6.9 *Values*).
+    public var intelligenceForm: AgentIntelligence { AgentIntelligence(intelligence.score) }
 }
 
 public struct SourceStatus: Identifiable, Equatable, Sendable {
@@ -183,7 +185,7 @@ public struct SourceStatus: Identifiable, Equatable, Sendable {
     public var unpricedModels: [String]
     /// Today's unpriced facts (METRICS 9.6, 9.10 *Live*), in the fact order.
     public var unpricedFacts: [UnpricedFact]
-    /// The live intelligence sums (METRICS 6.9).
+    /// The thinking sums and the highest task score of the source's listed agents (METRICS 6.9).
     public var intelligence: IntelligenceSums
 
     public init(
@@ -302,7 +304,7 @@ public struct SpeedSnapshot: Equatable, Sendable {
     public var liveCost: LiveCost
     /// Today's cost of every source (METRICS 9.6).
     public var todayCost: CostTally
-    /// The live intelligence sums of every source (METRICS 6.9).
+    /// The thinking sums and the highest task score of every listed agent (METRICS 6.9).
     public var intelligence: IntelligenceSums
     /// Live reporting's agent counts and cumulative ledger (METRICS 11.2, 11.4).
     public var report: ReportLiveFacts

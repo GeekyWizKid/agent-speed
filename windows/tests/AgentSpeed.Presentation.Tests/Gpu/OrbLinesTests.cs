@@ -9,6 +9,7 @@ using AgentSpeed.Presentation.Orb.Gpu;
 using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Orb.Lines;
 using AgentSpeed.Presentation.Settings;
+using AgentSpeed.Presentation.TaskScore;
 
 namespace AgentSpeed.Presentation.Tests.Gpu;
 
@@ -34,13 +35,13 @@ public partial class OrbLinesTests
     private static OrbLinesSample Traffic(double rx, double tx, bool bits = false) => OrbLinesText.Traffic(new TrafficRate(rx, tx), bits, En);
 
     /// <summary>133 over 176 tok/s.</summary>
-    private static readonly IntelligenceSums Long = new(1200, 1200 * 124, 528, 1200);
+    private static readonly IntelligenceSums Long = TestSums.Of(1200, 132.8, 528, 1200);
 
     /// <summary>69 over 59 tok/s.</summary>
-    private static readonly IntelligenceSums Short = new(400, 400 * 60, 177, 400);
+    private static readonly IntelligenceSums Short = TestSums.Of(400, 68.85, 177, 400);
 
     private static OrbLinesSample Intelligence(IntelligenceSums sums, Localizer? localizer = null) =>
-        OrbLinesText.Intelligence(sums, generating: true, localizer ?? En);
+        OrbLinesText.Intelligence(TaskSetReading.Of(sums, []), sums, generating: true, localizer ?? En);
 
     /// <param name="Pieces">Quads in the line: glyph, each character and the unit.</param>
     /// <param name="Snapped">Every piece starts on a device pixel (2 px per point).</param>
@@ -145,28 +146,30 @@ public partial class OrbLinesTests
     }
 
     [Fact]
-    public void IntelligenceIsLoudWhileGeneratingAndKeepsItsLastValueWhileQuiet()
+    public void IntelligenceIsLoudWhileItHasAScoreOrAnAgentGeneratesAndKeepsItsLastValueWhileQuiet()
     {
         var rule = new OrbLinesQuietRule();
-        var active = new IntelligenceSums(Output: 400, Graded: 400 * 124, Thinking: 176, ThinkingBasis: 400);
-        Assert.True(rule.Apply(OrbLinesText.Intelligence(active, generating: true, En), 1));
+        var active = TestSums.Of(400, 132.8, 176, 400);
+        Assert.True(rule.Apply(Intelligence(active), 1));
         var shown = rule.Reading!.Value.Content;
         Assert.Equal(OrbLinesKind.Intelligence, shown.Kind);
         Assert.Equal(new OrbLine(En["intel.glyph"], "133", string.Empty), shown.First);
         Assert.Equal(new OrbLine(En["intel.thinking.glyph"], "59", En["unit.tokS"]), shown.Second);
         Assert.Equal(En.Format("a11y.orb.intel", "133", "59"), shown.Spoken);
-        Assert.StartsWith(En.Format("intel.tooltip", "133", "44%"), shown.Detail, StringComparison.Ordinal);
+        Assert.Equal(En["intel.disclaimer"], shown.Detail);
 
-        // Generating before the first output in the window keeps the readout up with its last values.
-        Assert.True(rule.Apply(OrbLinesText.Intelligence(IntelligenceSums.Zero, generating: true, En), 5));
-        Assert.Equal(shown, rule.Reading!.Value.Content);
+        // Agents that generate before any task has a score: `–`, never 0.
+        Assert.True(rule.Apply(OrbLinesText.Intelligence(TaskSetReading.None, IntelligenceSums.Zero, generating: true, En), 5));
+        Assert.Equal("–", rule.Reading!.Value.Content.First.Number);
         Assert.Equal(15, rule.Reading!.Value.QuietAt);
 
-        // Nothing at all: it fades 10 s after the last activity and a quiet sample of a gone readout changes nothing.
-        Assert.False(rule.Apply(OrbLinesText.Intelligence(IntelligenceSums.Zero, generating: false, En), 6));
+        // Nothing at all: it keeps its last value, fades 10 s after the last loud sample, and a quiet sample of a gone
+        // readout changes nothing.
+        var quiet = OrbLinesText.Intelligence(TaskSetReading.None, IntelligenceSums.Zero, generating: false, En);
+        Assert.False(rule.Apply(quiet, 6));
         Assert.True(rule.Reading!.Value.IsGone(15.6));
-        Assert.False(rule.Apply(OrbLinesText.Intelligence(IntelligenceSums.Zero, generating: false, En), 16));
-        Assert.False(new OrbLinesQuietRule().Apply(OrbLinesText.Intelligence(IntelligenceSums.Zero, generating: true, En), 0));
+        Assert.False(rule.Apply(quiet, 16));
+        Assert.False(new OrbLinesQuietRule().Apply(quiet, 0));
     }
 
     [Fact]
@@ -174,8 +177,8 @@ public partial class OrbLinesTests
     {
         var rule = new OrbLinesQuietRule();
         rule.Apply(Traffic(50_000, 0), 0);
-        var intelligence = new IntelligenceSums(Output: 300, Graded: 300 * 92);
-        Assert.True(rule.Apply(OrbLinesText.Intelligence(intelligence, generating: true, En), 1));
+        var intelligence = TestSums.Of(300, 92);
+        Assert.True(rule.Apply(Intelligence(intelligence), 1));
         Assert.Equal((OrbLinesKind.Intelligence, 1.0), (rule.Reading!.Value.Content.Kind, rule.Reading!.Value.ShownAt));
         Assert.True(rule.Apply(Traffic(0, 0), 2));
         Assert.Null(rule.Reading);
@@ -231,7 +234,7 @@ public partial class OrbLinesTests
         var before = Drawn(orb, OrbStyle.Led, 196);
 
         // 132 over 412 tok/s: the same digit counts, so neither line moves.
-        orb.SetLines(1, Intelligence(new IntelligenceSums(2000, 2000 * 120, 1236, 2000)), true);
+        orb.SetLines(1, Intelligence(TestSums.Of(2000, 132.36, 1236, 2000)), true);
         var same = Drawn(orb, OrbStyle.Led, 196);
         Assert.Equal(("132", "412"), (orb.LinesReading!.Value.Content.First.Number, orb.LinesReading!.Value.Content.Second.Number));
         Assert.Equal(before.Select(l => l.Left), same.Select(l => l.Left));

@@ -31,6 +31,7 @@ namespace AgentSpeed.Boards.Harness;
 /// <c>AGENT_SPEED_BOARD_FRAMES_METRICS=1</c> renders the live metrics instead (DESIGN 2c, Live metrics): per style and appearance a
 /// sheet <c>metrics-STYLE-THEME.png</c> (rows S, M, L; columns <see cref="MetricsStates"/>) and each cell as
 /// <c>metrics-STYLE-SIZE-THEME-STATE.png</c>, after the team story's 40 ticks at rest, like the prototype's shots.
+/// <c>AGENT_SPEED_BOARD_FRAMES_SCORES=1</c> renders the task score's forms instead (<see cref="BoardScoreFrames"/>).
 /// </para>
 /// </summary>
 internal static class BoardFrameHarness
@@ -108,6 +109,11 @@ internal static class BoardFrameHarness
         if (Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_FRAMES_METRICS") == "1")
         {
             return Metrics(directory, reportPath, device, target, styles, themes, scale, loc, report);
+        }
+
+        if (Environment.GetEnvironmentVariable("AGENT_SPEED_BOARD_FRAMES_SCORES") == "1")
+        {
+            return BoardScoreFrames.Run(directory, reportPath, device, target, styles, themes, scale, loc, report, WriteSheet, Save);
         }
 
         foreach (var style in styles)

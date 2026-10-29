@@ -4,9 +4,10 @@ import AppKit
 
 /// The orb's two-line readout (DESIGN 10, Floating orb readout and Intelligence readout). Network speed draws download
 /// over upload in fixed cells sharing their left edge, the block centered on the orb; the intelligence readout draws
-/// a larger `智力 133` line over a `思考 412 tok/s` line, each centred on the orb on its own. Characters are replaced in
-/// place (no animation); the block fades by the quiet rule and steps aside for the new-peak pill. Drawn from the
-/// shared glyph atlas, so drawing never allocates once the glyphs of a size exist.
+/// a larger `智力 86` line over a `思考 412 tok/s` line, each centred on the orb on its own, the score moving as DESIGN
+/// 12 *Motion* says and dotted while unproven. Other characters are replaced in place; the block fades by the quiet
+/// rule and steps aside for the new-peak pill. Drawn from the shared glyph atlas, so drawing never allocates once the
+/// glyphs of a size exist.
 @MainActor
 final class OrbLineReadout {
     /// The readout fades out (and back) around the new-peak pill (DESIGN 10).
@@ -52,6 +53,13 @@ final class OrbLineReadout {
         func add(_ texture: OrbTextTexture, x: CGFloat, baseline: CGFloat, color: RGBColor, into scene: inout OrbScene) {
             scene.add(OrbTextDraw(texture, x: x, baseline: baseline, color: color.opacity(alpha),
                                   glow: palette.shadow?.opacity(alpha), glowRadius: palette.shadowRadius, clip: clip))
+        }
+
+        /// The same ink at `share` of its opacity, its shadow included (crossfades).
+        func faded(_ share: Double) -> Ink {
+            var ink = self
+            ink.alpha *= share
+            return ink
         }
     }
 
@@ -115,8 +123,8 @@ final class OrbLineReadout {
         switch reading.content {
         case .traffic(let rx, let tx):
             addTraffic(rx: rx, tx: tx, bits: lines.format == .traffic(bits: true), into: &scene, frame, placement: placement, ink: ink)
-        case .intelligence(let index, let thinking):
-            addIntelligence(index: index, thinking: thinking, line: reading, into: &scene, frame, placement: placement, ink: ink)
+        case .intelligence(_, let thinking):
+            addIntelligence(thinking: thinking, line: reading, into: &scene, frame, placement: placement, ink: ink)
         }
     }
 
@@ -157,7 +165,7 @@ final class OrbLineReadout {
     /// The intelligence line (`p = 1.25 t`) over the thinking line, each centred on the orb on its own. While the
     /// thinking rate reads 0 the thinking line fades out after its hold and the intelligence line glides onto the
     /// single-line position (DESIGN 10, Thinking hidden at zero).
-    private func addIntelligence(index: Int, thinking: String, line reading: OrbLineReading, into scene: inout OrbScene,
+    private func addIntelligence(thinking: String, line reading: OrbLineReading, into scene: inout OrbScene,
                                  _ frame: OrbFrame, placement: OrbLinePlacement, ink: Ink) {
         let language = frame.content.language
         let glyphs = OrbLineGlyphs(language)
@@ -165,14 +173,57 @@ final class OrbLineReadout {
         let p = OrbLinePlacement.intelligenceScale * t
         let baselines = placement.intelligenceBaselines(center: frame.center.y + frame.readoutShift, diameter: frame.s,
                                                         single: single(reading, frame))
-        addCentredLine(glyphs.intelligence, number: String(index), unit: nil, size: p, gap: OrbLinePlacement.intelligenceGap * p,
-                       baseline: baselines.intelligence, frame, into: &scene, ink: ink)
+        let score = reading.scoreMotion.frame(at: frame.time, reduceMotion: frame.effects.reduceMotion)
+        addScoreLine(glyphs.intelligence, score: score, size: p, baseline: baselines.intelligence, frame, into: &scene, ink: ink)
         var thinkingInk = ink
         thinkingInk.alpha *= reading.thinking.alpha(at: frame.time, reduceMotion: frame.effects.reduceMotion)
         guard thinkingInk.alpha > 0.01 else { return }
         let unit = placement.thinkingUnit ? OrbLineMetrics.thinkingUnit : nil
         addCentredLine(glyphs.thinking, number: thinking, unit: unit, size: t, gap: OrbLinePlacement.gap * t,
                        baseline: baselines.thinking, frame, into: &scene, ink: thinkingInk)
+    }
+
+    /// `glyph · gap · score` at `p`, centred by the score as drawn (DESIGN 10; DESIGN 12, *Values and forms*, *Proof
+    /// mark*, *Motion*): live in the number color, resting and `–` in the unit token's, crossfading between them; a
+    /// count-up draws its current integer, a fall or `–` ↔ a number crossfades in place; an unproven score sits on the
+    /// proof mark, which takes no width and fades with the state.
+    private func addScoreLine(_ glyph: String, score: OrbScoreMotion.Frame, size: CGFloat, baseline: CGFloat, _ frame: OrbFrame,
+                              into scene: inout OrbScene, ink: Ink) {
+        let scale = scene.backingScale
+        let style = numberStyle(size)
+        guard let lead = textCache.texture(glyph, style: glyphStyle(size), language: frame.content.language, scale: scale) else { return }
+        let gap = OrbLinePlacement.intelligenceGap * size
+        let width = advance(score.text, style: style, scale: scale)
+        let left = frame.center.x - (lead.advance + gap + width) / 2
+        ink.add(lead, x: snapped(left, scale), baseline: baseline, color: ink.palette.secondary, into: &scene)
+        let numberLeft = left + lead.advance + gap
+        let color = ink.palette.number.mix(ink.palette.secondary, score.pale)
+        if let outgoing = score.outgoing {
+            addDigits(outgoing, x: numberLeft, baseline: baseline, style: style, color: color, into: &scene,
+                      ink: ink.faded(score.outgoingAlpha))
+        }
+        addDigits(score.text, x: numberLeft, baseline: baseline, style: style, color: color, into: &scene, ink: ink.faded(score.alpha))
+        // The mark belongs to a number: under `–` it fades out beneath the number leaving.
+        let marked = score.text == OrbScoreMotion.absent ? score.outgoing.map { advance($0, style: style, scale: scale) } : width
+        let markInk = ink.faded(score.proof)
+        guard let marked, markInk.alpha > 0.01 else { return }
+        let contrast = frame.content.increaseContrast
+        guard let mark = OrbLineProofMark.shared.texture(width: marked, textSize: size, scale: scale, increasedContrast: contrast) else { return }
+        let top = OrbLineProofMark.top(baseline: baseline, textSize: size, scale: scale, increasedContrast: contrast)
+        markInk.add(mark, x: snapped(numberLeft, scale), baseline: top, color: color, into: &scene)
+    }
+
+    /// `text` from `x`, character by character, each on a device pixel.
+    private func addDigits(_ text: String, x: CGFloat, baseline: CGFloat, style: OrbTextStyle, color: RGBColor,
+                           into scene: inout OrbScene, ink: Ink) {
+        guard ink.alpha > 0.01 else { return }
+        let scale = scene.backingScale
+        var x = x
+        for character in text {
+            guard let digit = textCache.texture(character, style: style, language: .en, scale: scale) else { continue }
+            ink.add(digit, x: snapped(x, scale), baseline: baseline, color: color, into: &scene)
+            x += digit.advance
+        }
     }
 
     /// `glyph · gap · number (· gap · unit)` at `size`, centred by its advances. Every piece starts on a device pixel,
@@ -183,20 +234,19 @@ final class OrbLineReadout {
         let style = numberStyle(size)
         guard let lead = textCache.texture(glyph, style: glyphStyle(size), language: frame.content.language, scale: scale) else { return }
         let tail = unit.flatMap { textCache.texture($0, style: unitStyle(size), language: .en, scale: scale) }
-        let width = lead.advance + gap + advance(number, style: style, scale: scale) + (tail.map { gap + $0.advance } ?? 0)
-        func snapped(_ x: CGFloat) -> CGFloat { (x * scale).rounded() / scale }
-        var x = frame.center.x - width / 2
-        ink.add(lead, x: snapped(x), baseline: baseline, color: ink.palette.secondary, into: &scene)
-        x += lead.advance + gap
-        for character in number {
-            guard let digit = textCache.texture(character, style: style, language: .en, scale: scale) else { continue }
-            ink.add(digit, x: snapped(x), baseline: baseline, color: ink.palette.number, into: &scene)
-            x += digit.advance
-        }
+        let numberWidth = advance(number, style: style, scale: scale)
+        let width = lead.advance + gap + numberWidth + (tail.map { gap + $0.advance } ?? 0)
+        let left = frame.center.x - width / 2
+        ink.add(lead, x: snapped(left, scale), baseline: baseline, color: ink.palette.secondary, into: &scene)
+        let numberLeft = left + lead.advance + gap
+        addDigits(number, x: numberLeft, baseline: baseline, style: style, color: ink.palette.number, into: &scene, ink: ink)
         if let tail {
-            ink.add(tail, x: snapped(x + gap), baseline: baseline, color: ink.palette.secondary, into: &scene)
+            ink.add(tail, x: snapped(numberLeft + numberWidth + gap, scale), baseline: baseline, color: ink.palette.secondary,
+                    into: &scene)
         }
     }
+
+    private func snapped(_ x: CGFloat, _ scale: CGFloat) -> CGFloat { (x * scale).rounded() / scale }
 
     /// The advance of `text` drawn character by character from the atlas.
     private func advance(_ text: String, style: OrbTextStyle, scale: CGFloat) -> CGFloat {

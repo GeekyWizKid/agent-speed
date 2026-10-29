@@ -13,10 +13,11 @@ struct BoardTickMemory {
     private(set) var value: Double?
     private var values: [String: Double] = [:]
     private var ranks: [String: Int] = [:]
-    /// The live metrics' texts (智力, 思考, 費用) the last fresh tick showed, for their rolls.
+    /// The table readouts' texts (思考, 費用) the last fresh tick showed, for their rolls (智力 never rolls).
     private var metrics: [String: String] = [:]
-    /// Rows whose 智力 cell showed a live index (not a grade or `–`).
-    private var liveIntel: Set<String> = []
+    /// The rows' 智力 and the hero's on the last fresh tick (their crossfades and the hero's count-up).
+    private var scores: [String: BoardRowScore] = [:]
+    private(set) var heroScore: TaskSetReading?
 
     mutating func begin(_ tick: BoardTick) {
         var hasher = Hasher()
@@ -26,7 +27,9 @@ struct BoardTickMemory {
         hasher.combine(tick.rows.map(\.key))
         hasher.combine(tick.events.map { "\($0.kind.rawValue)\($0.id)\($0.from)\($0.to)" })
         hasher.combine(tick.newPeak)
-        hasher.combine(tick.metrics.intelligence)
+        hasher.combine(tick.metrics.intelligence.shown)
+        hasher.combine(tick.metrics.intelligence.form)
+        hasher.combine(tick.metrics.intelligence.state)
         hasher.combine(tick.metrics.thinking)
         hasher.combine(tick.metrics.cost)
         let signature = hasher.finalize()
@@ -42,10 +45,13 @@ struct BoardTickMemory {
         fresh ? BoardValueChange(from: values[key], to: live) : .steady
     }
 
-    /// The row's 智力 cell turned from live to resting or back since the last fresh tick (its color crossfades).
-    func intelChanged(_ key: String, live: Bool) -> Bool {
-        fresh && number != nil && liveIntel.contains(key) != live
+    /// The row's 智力 on the last fresh tick, while this one is fresh (nil: nothing to change from).
+    func previousScore(_ key: String) -> BoardRowScore? {
+        fresh ? scores[key] : nil
     }
+
+    /// The hero's 智力 on the last fresh tick, while this one is fresh.
+    var previousHeroScore: TaskSetReading? { fresh ? heroScore : nil }
 
     /// The group's previous rank when it moved.
     func rankChange(_ id: String, rank: Int) -> Int? {
@@ -58,9 +64,10 @@ struct BoardTickMemory {
         fresh ? tick.events.first { $0.id == id } : nil
     }
 
-    mutating func end(_ tick: BoardTick, rows: [(key: String, live: Double)], liveIntel: Set<String> = []) {
+    mutating func end(_ tick: BoardTick, rows: [(key: String, live: Double)], scores: [String: BoardRowScore] = [:]) {
         guard fresh || number == nil else { return }
-        self.liveIntel = liveIntel
+        self.scores = scores
+        heroScore = tick.metrics.intelligence
         number = tick.valueText
         value = tick.value
         values = Dictionary(rows.map { ($0.key, $0.live) }, uniquingKeysWith: { a, _ in a })
@@ -68,8 +75,8 @@ struct BoardTickMemory {
         metrics = Self.metricTexts(tick.metrics)
     }
 
-    /// The texts a tick's live metrics show, by readout key.
+    /// The texts a tick's table readouts show, by readout key.
     static func metricTexts(_ metrics: BoardMetricsTick) -> [String: String] {
-        ["intel": metrics.intelligence.map(String.init) ?? "–", "think": metrics.thinking, "cost": metrics.cost.number]
+        ["think": metrics.thinking, "cost": metrics.cost.number]
     }
 }

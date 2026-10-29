@@ -165,7 +165,16 @@ internal sealed partial class MonitorCore
             parser.Phase,
             parser.InFlightStartMs,
             parser.LastLineMs,
-            _parents.GetValueOrDefault(parser.AgentId)) { Modes = parser.Modes, Work = parser.WorkActions });
+            _parents.GetValueOrDefault(parser.AgentId)) { Modes = parser.Modes, Work = parser.WorkActions, Task = TaskStatusOf(parser) });
+    }
+
+    private void RepushOpenClawAgents()
+    {
+        _openClawPushed.Clear();
+        foreach (var parser in _openClaw?.Parsers ?? [])
+        {
+            PushOpenClawAgent(parser);
+        }
     }
 
     /// <summary>The first state folder (or the setting) and whether any of them exists (METRICS 2, detection).</summary>

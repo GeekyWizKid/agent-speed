@@ -37,6 +37,8 @@ internal sealed class BoardFrame : IDisposable
     /// <summary>Builds the frame at <paramref name="now"/>; false when the device failed (the caller recovers it).</summary>
     public bool Build(GpuDevice device, double now, double scale, double opacity = 1)
     {
+        // The figures' widths shape the columns the row layers are laid out in: they come first.
+        Scene.Figures = Layers.Painter.Figures(Scene);
         if (_dirty || Layers.IsStale(device, scale, Scene))
         {
             var start = System.Diagnostics.Stopwatch.GetTimestamp();

@@ -6,20 +6,19 @@ using AgentSpeed.Presentation.Settings.Orbs;
 namespace AgentSpeed.Presentation.Boards.Live;
 
 /// <summary>
-/// The tooltip of a hovered group row (DESIGN 2c Interaction, after 0.35 s): project and source, model, the root's effort
-/// and speed lines (as the dashboard's rows), the group speed with its sub-agents' share, then the live metrics lines of the
-/// switched-on readouts (DESIGN 2c, Live metrics: Tooltip).
+/// The text tooltip of a hovered group row while the board's <c>intelligence</c> readout is off (DESIGN 2c Interaction, after
+/// 0.35 s): project and source, model, the root's effort and speed lines (as the dashboard's rows) and the group speed with its
+/// sub-agents' share. It names no cost. With <c>intelligence</c> on, the row's score card takes its place
+/// (<see cref="BoardScoreCards"/>).
 /// </summary>
 public static class BoardTooltip
 {
     public const double DelaySeconds = 0.35;
 
-    /// <summary>A group row's lines with its live metrics lines (worded on the entry by the tick).</summary>
     public static IReadOnlyList<string> Lines(BoardEntry entry, Localizer loc)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        var lines = Lines(entry.Group, loc);
-        return entry.Readout is { TooltipLines.Count: > 0 } readout ? [.. lines, .. readout.TooltipLines] : lines;
+        return Lines(entry.Group, loc);
     }
 
     public static IReadOnlyList<string> Lines(BoardGroup group, Localizer loc)
@@ -34,9 +33,17 @@ public static class BoardTooltip
         }
 
         lines.AddRange(EffortCapsule.Of(root.Modes).TooltipLines(loc));
-        lines.Add(group.Subs.Count > 0
-            ? loc.Format("win.boards.tip.speedSubs", SpeedFormat.Speed(group.Live), SpeedFormat.Speed(group.SubLive))
-            : loc.Format("win.boards.tip.speed", SpeedFormat.Speed(group.Live)));
+        lines.Add(SpeedLine(group, loc));
         return lines;
+    }
+
+    /// <summary>The group speed, with its sub-agents' share when it has any.</summary>
+    public static string SpeedLine(BoardGroup group, Localizer loc)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+        ArgumentNullException.ThrowIfNull(loc);
+        return group.Subs.Count > 0
+            ? loc.Format("win.boards.tip.speedSubs", SpeedFormat.Speed(group.Live), SpeedFormat.Speed(group.SubLive))
+            : loc.Format("win.boards.tip.speed", SpeedFormat.Speed(group.Live));
     }
 }

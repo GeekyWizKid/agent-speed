@@ -34,6 +34,8 @@ internal sealed class PlaceholderBoardPainter : IBoardLayerPainter, IDisposable
     /// <summary>PHASE 2 SEAM: the effort and speed capsule of group rows (null until execution modes are wired).</summary>
     public IBoardModeCapsule? Capsule { get; set; }
 
+    public BoardRowFigures Figures(Presentation.Boards.Scene.BoardScene scene) => BoardRowFigures.Nominal;
+
     public BoardLayerSpec? Describe(in BoardLayerRequest request)
     {
         var scene = request.Scene;

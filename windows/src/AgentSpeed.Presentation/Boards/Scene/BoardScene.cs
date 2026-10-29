@@ -64,6 +64,7 @@ public sealed class BoardScene
     private double _ambience;
     private double _punchStart = double.NegativeInfinity;
     private bool _dark = true;
+    private BoardRowFigures _figures = BoardRowFigures.Nominal;
 
     public BoardScene(BoardStyle style, BoardSize size, uint seed = 1)
     {
@@ -114,6 +115,24 @@ public sealed class BoardScene
     /// <summary>The rows' right-hand columns.</summary>
     public BoardRowColumns Columns { get; private set; } = BoardRowColumns.For(BoardStyle.Glass, BoardSize.M, BoardReadouts.None);
 
+    /// <summary>
+    /// The two-line group rows' figures as the platform measured them in the style's fonts (DESIGN 2c, The second line): their
+    /// widest widths, which the columns widen to fit, and the cap heights that centre them on the row. Set before the layers are
+    /// brought up to date; <see cref="BoardRowFigures.Nominal"/> until then.
+    /// </summary>
+    public BoardRowFigures Figures
+    {
+        get => _figures;
+        set
+        {
+            if (value != _figures)
+            {
+                _figures = value;
+                Columns = BoardRowColumns.For(Style, Size, Readouts, value);
+            }
+        }
+    }
+
     /// <summary>The number on display (its glyphs are composed every frame).</summary>
     public string NumberText => _number.Text;
 
@@ -153,7 +172,7 @@ public sealed class BoardScene
     {
         Metrics = BoardMetrics.For(Style, Size, Readouts);
         Hero = BoardHeroLayout.For(Style, Size, Readouts);
-        Columns = BoardRowColumns.For(Style, Size, Readouts);
+        Columns = BoardRowColumns.For(Style, Size, Readouts, _figures);
     }
 
     /// <summary>Applies an engine tick: rows move to their plan places, enter or leave, values flash, events fire effects.</summary>
@@ -360,8 +379,9 @@ public sealed class BoardScene
                 var intervalRight = left + metrics.ListWidth - (metrics.IntelligenceColumn ? Columns.IntervalRight : BoardValueGlyphs.IntervalRight);
                 if (twoLine)
                 {
-                    BoardValueGlyphs.EmitOnBaseline(list, layers, row.IntervalText, BoardValueSet.Interval, intervalRight, 1, top + FirstBaseline, 0,
-                        palette.Ink3, 1, alpha, clip);
+                    // A figure too, centred on the row at its own size on its own baseline.
+                    BoardValueGlyphs.EmitOnBaseline(list, layers, row.IntervalText, BoardValueSet.Interval, intervalRight, 1,
+                        top + _figures.IntervalBaseline(height), 0, palette.Ink3, 1, alpha, clip);
                 }
                 else
                 {
@@ -434,6 +454,13 @@ public sealed class BoardScene
         return entry.Kind == BoardEntryKind.Group && Style != BoardStyle.Timing && !entry.TwoLine ? entry.Height - 2 : entry.Height;
     }
 
+    /// <summary>A two-line group row's figures' shared baseline under its top (the 智力 cell joins the value while the column shows).</summary>
+    public double FigureBaseline(BoardEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return _figures.Baseline(RowHeight(entry), Metrics.IntelligenceColumn);
+    }
+
     /// <summary>The hero's opacity while a switch change crossfades it.</summary>
     public double SwitchAlpha(double now)
     {
@@ -441,8 +468,19 @@ public sealed class BoardScene
         return t is >= 0 and < 1 ? Easing.OutQuad(t) : 1;
     }
 
-    /// <summary>The group row under a canvas point, for hover, tooltips and clicks.</summary>
-    public BoardRowMotion? HitRow(double x, double y)
+    /// <summary>
+    /// Whether a canvas point lies on the hero's 智力 (glass: the dial; neon: the digits and meter; timing: the 智力 row), where
+    /// hovering opens the score card (DESIGN 2c, Tooltip and score card).
+    /// </summary>
+    public bool HitScore(double x, double y) =>
+        Readouts.Hero && Readouts.Intelligence && _gauge.ScoreArea is { } area && x >= area.Left && x < area.Right && y >= area.Top &&
+        y < area.Bottom;
+
+    /// <summary>
+    /// The row under a canvas point, for hover, tooltips and clicks; <paramref name="atRest"/> tests the places rows are heading
+    /// for (a hover refreshed on a tick follows the row the ranking moves under a resting cursor before it arrives).
+    /// </summary>
+    public BoardRowMotion? HitRow(double x, double y, bool atRest = false)
     {
         var metrics = Metrics;
         var m = BoardCanvas.Margin;
@@ -454,7 +492,7 @@ public sealed class BoardScene
 
         foreach (var row in _order)
         {
-            var top = m + metrics.ListTop + row.Y;
+            var top = m + metrics.ListTop + (atRest ? row.Target : row.Y);
             if (!row.Leaving && y >= top && y < top + row.Entry.Height)
             {
                 return row;
@@ -649,7 +687,7 @@ public sealed class BoardScene
     }
 
     // A row's value from the value glyphs, in its color, its warm flash or its dim; returns its baseline (a two-line row's
-    // value sits on the first line's).
+    // figures share one baseline centred on the row, 2 pt larger).
     private double Value(BoardDrawList list, IBoardLayers layers, BoardRowMotion row, double right, double top, double height, double alpha, double now,
         RectBounds clip)
     {
@@ -664,10 +702,10 @@ public sealed class BoardScene
 
         if (row.Entry.TwoLine)
         {
-            var first = top + FirstBaseline;
-            BoardValueGlyphs.EmitOnBaseline(list, layers, row.ValueText, set, right - BoardValueGlyphs.Inset(Style), 1, first,
-                BoardValueGlyphs.Tracking(Style, sub), color, 1, alpha * dim, clip);
-            return first;
+            var baseline = top + FigureBaseline(row.Entry);
+            BoardValueGlyphs.EmitOnBaseline(list, layers, row.ValueText, set, right - BoardValueGlyphs.Inset(Style), 1, baseline,
+                BoardValueGlyphs.Tracking(Style, sub, twoLine: true), color, 1, alpha * dim, clip);
+            return baseline;
         }
 
         var center = top + (Style == BoardStyle.Timing && !sub ? (height - 1) / 2 : height / 2);
@@ -676,31 +714,60 @@ public sealed class BoardScene
         return BoardValueGlyphs.TryGet('0', set, layers, out var zero) ? center - zero.Height / 2 + BoardValueGlyphs.Baseline(zero) : center + 4;
     }
 
-    // A row's 智力 cell on the value's baseline (crossfading between its live and resting colors).
+    // A row's 智力 cell on the value's baseline: its digits replaced in place (a fall crossfades), its color crossfading between
+    // live and resting, and the dotted underline of an unproven score with the digits, as part of the row's content.
     private void Readout(BoardDrawList list, IBoardLayers layers, BoardRowMotion row, double right, double baseline, double alpha, double now, RectBounds clip)
     {
-        if (row.Entry.Readout is not { } readout || !Metrics.IntelligenceColumn)
+        if (row.Entry.Readout is null || !Metrics.IntelligenceColumn)
         {
             return;
         }
 
         var sub = row.Entry.Kind == BoardEntryKind.Sub;
-        var gauge = GaugePalette;
         var x = right - Columns.IntelligenceRight;
         var live = row.IntelLive(now);
-        var tracking = Style == BoardStyle.Glass ? 0 : -0.02 * (sub ? 10.5 : 11);
+        var size = BoardRowColumns.IntelligenceSize(Style, sub, row.Entry.TwoLine);
+        var tracking = Style == BoardStyle.Glass ? 0 : -0.02 * size;
+        var (outgoing, incoming) = row.IntelFade(now);
+        var gauge = GaugePalette;
+        var ink = Palette.HighContrast ? Palette.Ink : Rgba.Lerp(gauge.RowQuiet, gauge.RowLive, live);
+        var width = Cell(list, layers, row.IntelText, sub, x, baseline, tracking, live, alpha * incoming, clip);
+        var proof = row.IntelProof(now);
+        if (proof > 0.002 && row.IntelHasScore && width > 0)
+        {
+            BoardScoreDraw.Underline(list, x - width, width, baseline, size, ink, alpha * incoming * proof, Palette.HighContrast, clip);
+        }
+
+        if (row.IntelOutgoing(now) is { } old)
+        {
+            var oldWidth = Cell(list, layers, old, sub, x, baseline, tracking, live, alpha * outgoing, clip);
+            if (row.IntelOutgoingUnproven && oldWidth > 0)
+            {
+                BoardScoreDraw.Underline(list, x - oldWidth, oldWidth, baseline, size, ink, alpha * outgoing, Palette.HighContrast, clip);
+            }
+        }
+    }
+
+    // One text of the 智力 cell, right-aligned at x, in the live set by `live` and the resting set by the rest; returns its width.
+    private double Cell(BoardDrawList list, IBoardLayers layers, string text, bool sub, double x, double baseline, double tracking, double live,
+        double alpha, RectBounds clip)
+    {
+        var gauge = GaugePalette;
         var baked = Style == BoardStyle.Neon && gauge.Glows;
+        var width = 0.0;
         if (live > 0.002)
         {
-            BoardValueGlyphs.EmitOnBaseline(list, layers, readout.Intelligence, sub ? BoardValueSet.IntelSub : BoardValueSet.IntelGroup, x, 1, baseline,
+            width = BoardValueGlyphs.EmitOnBaseline(list, layers, text, sub ? BoardValueSet.IntelSub : BoardValueSet.IntelGroup, x, 1, baseline,
                 tracking, gauge.RowLive, baked ? 0 : 1, alpha * live * (baked ? gauge.RowLive.A : 1), clip);
         }
 
         if (live < 0.998)
         {
-            BoardValueGlyphs.EmitOnBaseline(list, layers, readout.Intelligence, sub ? BoardValueSet.IntelSubRest : BoardValueSet.IntelGroupRest, x, 1,
+            width = BoardValueGlyphs.EmitOnBaseline(list, layers, text, sub ? BoardValueSet.IntelSubRest : BoardValueSet.IntelGroupRest, x, 1,
                 baseline, tracking, gauge.RowQuiet, 1, alpha * (1 - live), clip);
         }
+
+        return width;
     }
 
     // The CSS punch: 1 → 1.06 at 35 % → 1 over 0.4 s.

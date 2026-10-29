@@ -126,7 +126,7 @@ internal sealed class TaskbarRenderer
             if (ShowsIntelligence(state))
             {
                 var colors = Palette(state);
-                width += _intelligence.Width(state.Intelligence!, _cacheScale, colors.Primary, colors.Secondary);
+                width += _intelligence.Width(state.Intelligence!, _cacheScale, colors.Primary, colors.Secondary, state.HighContrast);
             }
         }
 
@@ -222,14 +222,16 @@ internal sealed class TaskbarRenderer
             x += _secondary.Width(state.Secondary!, SecondaryCell, scale, colors.Primary, colors.Secondary);
         }
 
+        // DESIGN 10: the network block, then the intelligence block, each with its own 8 px gap and fixed width.
         if (ShowsTraffic(state))
         {
             _traffic.Draw(dc, state.Traffic!, x, centerY, scale, colors.Primary, colors.Secondary);
+            x += _traffic.Width(state.Traffic!, scale, colors.Primary, colors.Secondary);
         }
 
         if (ShowsIntelligence(state))
         {
-            _intelligence.Draw(dc, state.Intelligence!, x, centerY, scale, colors.Primary, colors.Secondary);
+            _intelligence.Draw(dc, state.Intelligence!, x, centerY, scale, colors.Primary, colors.Secondary, state.HighContrast);
         }
     }
 
@@ -280,9 +282,9 @@ internal sealed class TaskbarRenderer
 
         if (ShowsIntelligence(state))
         {
-            var blockWidth = _intelligence.Width(state.Intelligence!, 1, colors.Primary, colors.Secondary) - TaskbarIntelligenceText.Gap;
+            var blockWidth = _intelligence.Width(state.Intelligence!, 1, colors.Primary, colors.Secondary, state.HighContrast) - TaskbarIntelligenceText.Gap;
             _intelligence.Draw(dc, state.Intelligence!, (width - blockWidth) / 2 - TaskbarIntelligenceText.Gap,
-                y + TaskbarIntelligenceText.Height / 2, 1, colors.Primary, colors.Secondary);
+                y + TaskbarIntelligenceText.Height / 2, 1, colors.Primary, colors.Secondary, state.HighContrast);
         }
     }
 

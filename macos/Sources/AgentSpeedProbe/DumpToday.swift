@@ -1,11 +1,13 @@
 import AgentSpeedCore
 import Foundation
 
-/// `--dump-today`: one JSON object per response that ended today, then a summary line.
+/// `--dump-today`: one JSON object per response that ended today, the task rows of the seeded agents (METRICS 6.9
+/// *Dumps*), then a summary line.
 enum DumpToday {
-    /// Costs use `table` for every response, like `reference.py --dump-today` (no day bindings).
-    static func run(configuration: MonitorConfiguration, table: PriceTable) {
-        let report = TranscriptScan.today(configuration: configuration)
+    /// Costs use `table` for every response, like `reference.py --dump-today` (no day bindings). Task values are
+    /// evaluated at `now` (Unix ms), else at the capture time.
+    static func run(configuration: MonitorConfiguration, table: PriceTable, now: Int64? = nil) {
+        let report = TranscriptScan.today(configuration: configuration, tasks: true, taskNowMs: now)
         var output = ""
         output.reserveCapacity(report.responses.count * 300)
         var counts: [SourceKind: Int] = [:]
@@ -42,6 +44,8 @@ enum DumpToday {
             output += line.text + "\n"
         }
 
+        for row in report.taskRows { output += row + "\n" }
+
         var countsLine = JSONLine()
         for source in SourceKind.allCases { countsLine.add(source.rawValue, counts[source] ?? 0) }
         var today = JSONLine()
@@ -66,6 +70,8 @@ enum DumpToday {
         summary.add("malformedLines", report.malformedLines)
         summary.add("unreadableFiles", report.unreadableFiles)
         summary.add("partialHistory", report.seed.partialHistory)
+        summary.add("nowMs", Int64?.some(report.taskNowMs))
+        summary.add("taskAgents", report.taskAgents)
         var wrapper = JSONLine()
         wrapper.add("summary", raw: summary.text)
         output += wrapper.text + "\n"

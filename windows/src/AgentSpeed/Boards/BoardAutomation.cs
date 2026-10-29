@@ -7,7 +7,8 @@ namespace AgentSpeed.Boards;
 
 /// <summary>
 /// UI Automation for a board window (DESIGN 2c Accessibility): the window reads as a list named <c>a11y.board</c> whose
-/// items are the group rows (<c>a11y.board.row</c>, bounded by the row on screen), followed by the board's actions as
+/// items are the group rows (<c>a11y.board.row</c>, bounded by the row on screen, their help text the row's score card while
+/// the board's <c>intelligence</c> readout is on: DESIGN 12, <i>Accessibility</i>), followed by the board's actions as
 /// invokable buttons. A new leader is announced politely through a notification. Calls arrive on the UI thread.
 /// </summary>
 internal sealed class BoardAutomation : IRawElementProviderSimple, IRawElementProviderFragment, IRawElementProviderFragmentRoot
@@ -28,6 +29,9 @@ internal sealed class BoardAutomation : IRawElementProviderSimple, IRawElementPr
         _hwnd = hwnd;
         _rowBounds = rowBounds;
     }
+
+    /// <summary>A group row's help text by its key (its score card's full description), read when a client asks for it.</summary>
+    public Func<string, string>? RowHelp { get; set; }
 
     public string Name
     {
@@ -194,6 +198,11 @@ internal sealed class BoardAutomation : IRawElementProviderSimple, IRawElementPr
             if (propertyId == AutomationElementIdentifiers.ControlTypeProperty.Id)
             {
                 return type.Id;
+            }
+
+            if (propertyId == AutomationElementIdentifiers.HelpTextProperty.Id)
+            {
+                return key is not null && root.RowHelp?.Invoke(key) is { Length: > 0 } help ? help : null;
             }
 
             if (propertyId == AutomationElementIdentifiers.IsKeyboardFocusableProperty.Id)

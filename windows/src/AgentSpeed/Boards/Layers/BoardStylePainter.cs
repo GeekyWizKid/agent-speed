@@ -89,6 +89,7 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     private ((BoardStyle, BoardSize, bool, bool, string, int) Key, string Text)? _theme;
     private readonly Dictionary<(BoardTextStyle Style, float Height), float> _baselines = [];
     private (string Key, double Width)? _gaugeWidth;
+    private ((BoardSize, bool) Key, BoardRowFigures Figures)? _figures;
 
     protected BoardStylePainter(BoardStyle style, Localizer localizer, BoardText text)
     {
@@ -132,8 +133,16 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
     /// </summary>
     protected virtual (Rgba Color, (Rgba Color, float Radius)[] Glows)? Baked(BoardScene scene, BoardValueSet set) => null;
 
-    /// <summary>The text style of a glyph set.</summary>
-    private BoardTextStyle GlyphStyle(BoardScene scene, BoardValueSet set, bool dim) => set switch
+    /// <summary>The text style of a glyph set; a two-line group row's figures (M and L) are 2 pt larger.</summary>
+    private BoardTextStyle GlyphStyle(BoardScene scene, BoardValueSet set, bool dim)
+    {
+        var style = BaseGlyphStyle(scene, set, dim);
+        return set is BoardValueSet.Group or BoardValueSet.IntelGroup or BoardValueSet.IntelGroupRest && scene.Metrics.TwoLineRows
+            ? style.With(style.Size + (float)BoardRowFigures.Growth)
+            : style;
+    }
+
+    private BoardTextStyle BaseGlyphStyle(BoardScene scene, BoardValueSet set, bool dim) => set switch
     {
         BoardValueSet.IntelGroup => ReadoutStyle(scene, BoardReadoutFont.IntelGroup),
         BoardValueSet.IntelSub => ReadoutStyle(scene, BoardReadoutFont.IntelSub),
@@ -143,6 +152,27 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
         BoardValueSet.GaugeTable or BoardValueSet.GaugeTablePlain => ReadoutStyle(scene, BoardReadoutFont.GaugeTable),
         _ => ValueStyle(set, dim),
     };
+
+    public BoardRowFigures Figures(BoardScene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        var key = (scene.Size, scene.Metrics.TwoLineRows);
+        if (_figures is { } cached && cached.Key == key)
+        {
+            return cached.Figures;
+        }
+
+        var intelligence = GlyphStyle(scene, BoardValueSet.IntelGroup, false);
+        var value = GlyphStyle(scene, BoardValueSet.Group, false);
+        var interval = ValueStyle(BoardValueSet.Interval, false);
+        // As the scene composes them: glass's 智力 without tracking, every other figure at −0.02 em.
+        var figures = new BoardRowFigures(
+            BoardRowFigures.Width(BoardRowFigures.IntelligenceSample, c => Advance(c, intelligence), Style == BoardStyle.Glass ? 0 : -0.02 * intelligence.Size),
+            BoardRowFigures.WidestValue(c => Advance(c, value), -0.02 * value.Size),
+            Text.CapHeight(intelligence), Text.CapHeight(value), Text.CapHeight(interval));
+        _figures = (key, figures);
+        return figures;
+    }
 
     public BoardLayerSpec? Describe(in BoardLayerRequest request)
     {
@@ -523,17 +553,20 @@ internal abstract class BoardStylePainter : IBoardLayerPainter, IDisposable
         return _column.ToString("0.#", CultureInfo.InvariantCulture);
     }
 
-    // The width a row body lays its columns out in: the list less the value column for group and sub rows.
+    // The width a row body lays its columns out in: the list less the value column for group and sub rows (widened to the
+    // measured widest value at M and L).
     private double BodyColumns(BoardScene scene, BoardEntry entry) =>
-        scene.Metrics.ListWidth - (entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub ? ValueWidth(scene.Size) : 0);
+        scene.Metrics.ListWidth - (entry.Kind is BoardEntryKind.Group or BoardEntryKind.Sub
+            ? Math.Max(ValueWidth(scene.Size), scene.Columns.ValueRight + scene.Columns.Value)
+            : 0);
 
     /// <summary>The capsule column's right end in a row body <paramref name="width"/> wide, moved left by the 智力 column.</summary>
     protected float RowCapsuleRight(in BoardRowContent row, float width) =>
-        row.Scene.Metrics.IntelligenceColumn ? width - (float)(row.Scene.Columns.CapsuleRight - ValueWidth(row.Scene.Size)) : CapsuleRight(row, width);
+        row.Scene.Metrics.IntelligenceColumn ? (float)(row.Scene.Metrics.ListWidth - row.Scene.Columns.CapsuleRight) : CapsuleRight(row, width);
 
     /// <summary>
     /// A two-line group row's name on the first baseline (16), trimmed at its tail to the name column, and its detail alone on the
-    /// second, trimmed at its tail to the value column's right edge (DESIGN 2c, Ranking rows: The second line).
+    /// second, trimmed at its tail where the first figure column starts (DESIGN 2c, Ranking rows: The second line).
     /// </summary>
     protected void DrawTwoLines(ID2D1DeviceContext context, in BoardRowContent row, in BoardTextStyle nameStyle, Rgba nameColor, in BoardTextStyle detailStyle,
         Rgba detailColor, float x, float right)

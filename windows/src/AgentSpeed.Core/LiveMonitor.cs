@@ -32,6 +32,8 @@ public sealed class LiveMonitor : IDisposable
     private MonitorConfiguration _configuration;
     private SourceSet[] _subsets = [];
     private int _subsetsChanged;
+    private IReadOnlyDictionary<SourceKind, Tasks.TaskModels>? _taskModels;
+    private int _taskModelsChanged;
     private Thread? _thread;
     private CancellationTokenSource? _stop;
     private CancellationTokenSource? _session;
@@ -286,6 +288,18 @@ public sealed class LiveMonitor : IDisposable
         SignalWake();
     }
 
+    /// <summary>
+    /// The task predictions' coefficients per scored source, calibrated on the history (METRICS 6.11): callable from any
+    /// thread (the history service calls it after each analysis); kept across configuration changes.
+    /// </summary>
+    public void SetTaskCalibration(IReadOnlyDictionary<SourceKind, Tasks.TaskModels> models)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+        Volatile.Write(ref _taskModels, models);
+        Interlocked.Exchange(ref _taskModelsChanged, 1);
+        SignalWake();
+    }
+
     /// <summary>Applies new settings; the monitor re-reads its sources in the background when anything changed.</summary>
     public void Update(MonitorConfiguration configuration)
     {
@@ -370,6 +384,11 @@ public sealed class LiveMonitor : IDisposable
         core.ReadWholeFilesInBackground = true;
         core.BackgroundReadCompleted = SignalWake;
         core.BeforeBackgroundRead = BeforeBackgroundRead;
+        if (Volatile.Read(ref _taskModels) is { } models)
+        {
+            core.SetTaskModels(models);
+        }
+
         var watchers = new Dictionary<SourceRoot, RootWatcher>();
         try
         {
@@ -482,7 +501,7 @@ public sealed class LiveMonitor : IDisposable
             }
 
             elapsed = Stopwatch.GetElapsedTime(start);
-            dirty |= changed | (Interlocked.Exchange(ref _subsetsChanged, 0) != 0);
+            dirty |= changed | (Interlocked.Exchange(ref _subsetsChanged, 0) != 0) | ApplyTaskModels(core);
             if (elapsed >= nextPublish || (dirty && elapsed - lastPublish >= ChangePublishMinInterval))
             {
                 Publish(core, StateOf(core), zone, observeLive: true);
@@ -491,6 +510,17 @@ public sealed class LiveMonitor : IDisposable
                 dirty = false;
             }
         }
+    }
+
+    private bool ApplyTaskModels(MonitorCore core)
+    {
+        if (Interlocked.Exchange(ref _taskModelsChanged, 0) == 0 || Volatile.Read(ref _taskModels) is not { } models)
+        {
+            return false;
+        }
+
+        core.SetTaskModels(models);
+        return true;
     }
 
     private void Publish(MonitorCore core, MonitorState state, TimeZoneInfo zone, bool observeLive)
