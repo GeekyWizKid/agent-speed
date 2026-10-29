@@ -37,6 +37,12 @@ struct SnapshotContext: Sendable {
             } else if kind == .zcode {
                 let location = session.zcodeLocation
                 sources[kind] = SourceInfo(enabled: enabled, rootPath: location.path, available: location.available, sessionCount: counts[kind] ?? 0)
+            } else if kind == .openclaw {
+                let location = session.openclawLocation
+                sources[kind] = SourceInfo(enabled: enabled, rootPath: location.path, available: location.available, sessionCount: counts[kind] ?? 0)
+            } else if kind == .hermes {
+                let location = session.hermesLocation
+                sources[kind] = SourceInfo(enabled: enabled, rootPath: location.path, available: location.available, sessionCount: counts[kind] ?? 0)
             } else {
                 sources[kind] = SourceInfo(enabled: enabled, rootPath: "", available: false, sessionCount: 0)
             }
@@ -76,9 +82,11 @@ enum SnapshotBuilder {
                 recentSpeed: row.recentSpeed,
                 lastActivity: date(row.agent.lastLineMs ?? 0),
                 parentId: row.parentId,
-                liveCost: row.liveCost,
                 cwdPath: row.agent.cwdPath,
-                modes: row.agent.modes
+                modes: row.agent.modes,
+                intelligence: row.intelligence,
+                task: row.agent.task,
+                signals: row.signals
             )
         }
         let sources = SourceKind.allCases.map { kind in
@@ -96,7 +104,9 @@ enum SnapshotBuilder {
                 liveCost: output.sourceLiveCost[kind] ?? .zero,
                 todayCost: output.todayCostBySource[kind] ?? .zero,
                 unpricedModels: unpricedModels(output.todayCostByModel[kind]),
-                configuredModes: info?.configuredModes ?? .empty
+                configuredModes: info?.configuredModes ?? .empty,
+                intelligence: output.sourceIntelligence[kind] ?? .zero,
+                unpricedFacts: output.todayUnpricedFacts[kind] ?? []
             )
         }
         return SpeedSnapshot(
@@ -119,6 +129,7 @@ enum SnapshotBuilder {
             dayStart: date(output.todayStartMs),
             liveCost: output.liveCost,
             todayCost: output.todayCost,
+            intelligence: output.intelligence,
             report: output.report
         )
     }

@@ -693,9 +693,9 @@ public class OrbSettingsTests
     public void SourceKeysAreTheMetricsKeysInSourceOrder()
     {
         Assert.Equal(
-            ["codex", "claudeCode", "claudeDesktop", "deepseek", "opencode", "gemini", "omp", "antigravity", "workbuddy", "workbuddyAi", "zcode", "kimi", "grokBuild", "trae"],
+            ["codex", "claudeCode", "claudeDesktop", "deepseek", "opencode", "gemini", "omp", "antigravity", "workbuddy", "workbuddyAi", "zcode", "kimi", "grokBuild", "pi", "openclaw", "hermes", "droid", "trae"],
             Enum.GetValues<SourceKind>().Select(OrbSources.KeyOf));
-        Assert.Equal(["zcode", "kimi", "grokBuild", "trae"], OrbSources.Of(SourceSet.Everything).ToKeys()!.TakeLast(4));
+        Assert.Equal(["openclaw", "hermes", "droid", "trae"], OrbSources.Of(SourceSet.Everything).ToKeys()!.TakeLast(4));
         Assert.False(OrbSources.TryParseKey("workbuddy-ai", out _));
         Assert.False(OrbSources.TryParseKey("WorkBuddy", out _));
     }

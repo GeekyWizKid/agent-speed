@@ -54,6 +54,9 @@ public struct DailyUsage: Equatable, Sendable, Identifiable {
     /// The price table version bound to the day.
     public var priceVersion: Int?
     public var modeUsage: [ExecutionModeUsage]
+    /// The day's unpriced facts summed over its contributions, with the requests stored without cost data and the
+    /// derived ones (METRICS 9.10 *Reading*).
+    public var unpriced: UnpricedReading
 
     public init(
         day: String,
@@ -67,7 +70,8 @@ public struct DailyUsage: Equatable, Sendable, Identifiable {
         models: [ModelUsage],
         cost: CostTally? = nil,
         priceVersion: Int? = nil,
-        modeUsage: [ExecutionModeUsage] = []
+        modeUsage: [ExecutionModeUsage] = [],
+        unpriced: UnpricedReading? = nil
     ) {
         self.day = day
         self.source = source
@@ -81,6 +85,20 @@ public struct DailyUsage: Equatable, Sendable, Identifiable {
         self.cost = cost
         self.priceVersion = priceVersion
         self.modeUsage = modeUsage
+        self.unpriced = unpriced ?? Self.unpricedReading(requests: totals.requests, cost: cost, models: models)
+    }
+
+    /// The day as one diagnostics part (METRICS 9.10 *Rows*).
+    public var unpricedPart: UnpricedPart {
+        UnpricedPart(day: day, source: source, requests: unpriced.requests, noCostData: unpriced.noCostData,
+                     derived: unpriced.derived, facts: unpriced.facts)
+    }
+
+    /// Derived facts for rows built without them (previews): the per-model counts, as *Reading* derives them.
+    static func unpricedReading(requests: Int, cost: CostTally?, models: [ModelUsage]) -> UnpricedReading {
+        var counts: [String: Int] = [:]
+        for model in models { if let unpriced = model.cost?.unpricedRequests { counts[model.model, default: 0] += unpriced } }
+        return UnpricedReading.read(requests: requests, unpriced: cost?.unpricedRequests, models: counts, facts: nil)
     }
 
     /// Output tok/s over the day's measured responses.
@@ -103,6 +121,13 @@ public final class HistoryStore {
     public private(set) var state: HistoryState = .notLoaded
     /// Every stored day of every source, sorted by day then source.
     public private(set) var days: [DailyUsage] = []
+    /// The complete task records of the enabled scored sources (METRICS 6.11), without their feature rows: what
+    /// `taskComparison` compares.
+    public private(set) var taskRecords: [TaskRecord] = []
+    /// Each scored source's prediction coefficients from the last analysis (METRICS 6.11 *Calibration*).
+    public private(set) var taskModels: [SourceKind: TaskModels] = [:]
+    /// Called on the main actor whenever `taskModels` changes (the live monitor's predictions use them).
+    @ObservationIgnored public var taskModelsHandler: (@MainActor ([SourceKind: TaskModels]) -> Void)?
 
     /// Called with whether the run shows its progress (`.analyzing`) regardless of its size.
     @ObservationIgnored public var refreshHandler: (@MainActor (_ showsProgress: Bool) -> Void)?
@@ -115,6 +140,19 @@ public final class HistoryStore {
         if let days {
             self.days = days
         }
+    }
+
+    public func publish(taskRecords: [TaskRecord], taskModels: [SourceKind: TaskModels]) {
+        self.taskRecords = taskRecords
+        guard taskModels != self.taskModels else { return }
+        self.taskModels = taskModels
+        taskModelsHandler?(taskModels)
+    }
+
+    /// The Usage History window's task performance over [`first`, `last`] (`YYYY-MM-DD`), every scored source or only
+    /// `source` (METRICS 6.11 *Comparison*).
+    public func taskComparison(first: String, last: String, source: SourceKind? = nil) -> TaskComparison {
+        TaskComparison.compare(taskRecords, first: first, last: last, source: source)
     }
 
     /// Analyses new and changed logs now; a quiet refresh (`showsProgress: false`) only reports progress for a large

@@ -1,3 +1,7 @@
+using System.Collections.ObjectModel;
+using AgentSpeed.Core.Tasks;
+using AgentSpeed.Core.Unpriced;
+
 namespace AgentSpeed.Core;
 
 /// <summary>One model's share of a source's day (METRICS 8).</summary>
@@ -33,6 +37,9 @@ public sealed record DailyUsage(
 
     /// <summary>The price table version bound to the day; null without cost data.</summary>
     public int? PriceVersion { get; init; }
+
+    /// <summary>The day's unpriced facts after <i>Reading</i> (METRICS 9.10), in the fact order.</summary>
+    public UnpricedReading Unpriced { get; init; } = UnpricedReading.None;
 
     /// <summary>Output tok/s over the day's measured responses.</summary>
     public double? AverageSpeed => MeasuredMs > 0 ? MeasuredOutput / (MeasuredMs / 1000.0) : null;
@@ -70,6 +77,9 @@ public readonly record struct HistoryState(
 /// </summary>
 public sealed class HistoryHub
 {
+    private static readonly IReadOnlyDictionary<SourceKind, TaskModels> NoCalibration =
+        ReadOnlyDictionary<SourceKind, TaskModels>.Empty;
+
     private readonly SynchronizationContext? _context;
 
     public HistoryHub(SynchronizationContext? context = null)
@@ -81,6 +91,15 @@ public sealed class HistoryHub
 
     /// <summary>Every stored day of every source, sorted by day then source.</summary>
     public IReadOnlyList<DailyUsage> Days { get; private set; } = [];
+
+    /// <summary>The stored task records of the enabled sources (METRICS 6.11), by agent id then ordinal.</summary>
+    public IReadOnlyList<TaskRecord> TaskRecords { get; private set; } = [];
+
+    /// <summary>
+    /// Per scored source with records, its models calibrated on them by the last completed analysis (METRICS 6.11
+    /// <i>Calibration</i>); a source without an entry uses <see cref="TaskModels.Prior"/>.
+    /// </summary>
+    public IReadOnlyDictionary<SourceKind, TaskModels> TaskCalibration { get; private set; } = NoCalibration;
 
     public event EventHandler? Changed;
 
@@ -98,6 +117,31 @@ public sealed class HistoryHub
 
         Changed?.Invoke(this, EventArgs.Empty);
     });
+
+    /// <summary>The days together with the task records and their calibration (METRICS 6.11).</summary>
+    public void Publish(
+        HistoryState state,
+        IReadOnlyList<DailyUsage> days,
+        IReadOnlyList<TaskRecord> taskRecords,
+        IReadOnlyDictionary<SourceKind, TaskModels> taskCalibration)
+    {
+        ArgumentNullException.ThrowIfNull(days);
+        ArgumentNullException.ThrowIfNull(taskRecords);
+        ArgumentNullException.ThrowIfNull(taskCalibration);
+        Post(() =>
+        {
+            State = state;
+            Days = days;
+            TaskRecords = taskRecords;
+            TaskCalibration = taskCalibration;
+            Changed?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    /// <summary>The task performance of [<paramref name="first"/>, <paramref name="last"/>] (METRICS 6.11 <i>Comparison</i>).</summary>
+    /// <param name="source">Only this source's records; every source when null.</param>
+    public TaskComparisonResult CompareTasks(string first, string last, SourceKind? source = null) =>
+        TaskComparison.Compare(TaskRecords, first, last, source);
 
     public void Refresh() => RefreshHandler?.Invoke();
 
@@ -174,6 +218,7 @@ public static class PreviewHistory
                 var totals = new TokenTotals(requests, input, (long)(input * 0.9), input / 40, output, output / 3);
                 usage = [.. usage.Select(m => m with { Cost = PreviewCost(m, totals) })];
                 var dayCost = usage.Aggregate(CostTally.Zero, (sum, m) => sum + m.Cost!.Value);
+                var withoutCost = offset > count * 3 / 4 && (offset * 7 + (int)source) % 4 == 0;
                 result.Add(new DailyUsage(
                     date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
                     source,
@@ -186,8 +231,13 @@ public static class PreviewHistory
                     usage)
                 {
                     // A quarter of the oldest days predate costs, as after an upgrade whose logs are gone.
-                    Cost = offset > count * 3 / 4 && (offset * 7 + (int)source) % 4 == 0 ? null : dayCost,
+                    Cost = withoutCost ? null : dayCost,
                     PriceVersion = Pricing.PriceBook.Bundled.Version,
+                    Unpriced = withoutCost
+                        ? new UnpricedReading(requests, 0, [])
+                        : new UnpricedReading(0, 0, UnpricedFacts.Sorted(usage
+                            .Where(m => m.Cost is { UnpricedRequests: > 0 })
+                            .Select(m => KeyValuePair.Create(UnpricedFact.Of(m.Model, null, false), m.Cost!.Value.UnpricedRequests)))),
                 });
             }
         }

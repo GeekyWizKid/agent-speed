@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using AgentSpeed.Core.IO.Sqlite;
+using AgentSpeed.Core.Tasks;
 
 namespace AgentSpeed.Core.History;
 
@@ -23,14 +24,37 @@ internal sealed class StoredFile
 
     public required Dictionary<DayKey, DayAggregate> Days { get; init; }
 
+    /// <summary>
+    /// The task records of the file's agent (METRICS 6.11), written and read with its contributions; empty for files of
+    /// sources without tasks. The analyzer sets them before the entry is queued.
+    /// </summary>
+    public IReadOnlyList<TaskRecord> TaskRecords { get; set; } = [];
+
     /// <summary>Some response has no known price (METRICS 9.7 re-analysis).</summary>
     public bool HasUnpriced => Days.Values.Any(d => d.HasUnpriced);
+
+    /// <summary>Some task record is incomplete: the file is analysed again once quiet for 30 minutes (METRICS 6.11 <i>Store</i>).</summary>
+    public bool HasIncompleteTasks
+    {
+        get
+        {
+            foreach (var record in TaskRecords)
+            {
+                if (!record.Complete)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
 }
 
 /// <summary>
 /// The persistent daily-history store (METRICS 8): per file its identity, the 64-bit hashes of the response keys it
-/// owns and its per-day contributions, plus live day peaks. Only aggregates; never keys in plain text or content.
-/// One owner thread.
+/// owns, its per-day contributions and its task records (6.11), plus live day peaks. Only aggregates and records without
+/// content; never keys in plain text or content. One owner thread.
 /// </summary>
 internal sealed partial class HistoryStore : IDisposable
 {
@@ -242,6 +266,8 @@ internal sealed partial class HistoryStore : IDisposable
         }
 
         LoadModes(byId);
+        LoadUnpriced(byId);
+        LoadTaskRecords(byId);
         var result = new Dictionary<string, StoredFile>(byId.Count, pathComparer);
         foreach (var entry in byId.Values)
         {
@@ -274,7 +300,10 @@ internal sealed partial class HistoryStore : IDisposable
         }
     }
 
-    /// <summary>Writes files with their owned key hashes and contributions in one transaction; assigns new ids.</summary>
+    /// <summary>
+    /// Writes files with their owned key hashes, contributions, unpriced facts (METRICS 9.10) and task records (6.11) in
+    /// one transaction; assigns new ids.
+    /// </summary>
     public void Save(IReadOnlyList<(StoredFile Entry, ulong[] Keys)> batch)
     {
         if (batch.Count == 0)
@@ -318,6 +347,8 @@ internal sealed partial class HistoryStore : IDisposable
                 deleteDays.Bind(1, entry.Id).Run();
                 deleteModels.Bind(1, entry.Id).Run();
                 SaveModes(entry);
+                SaveUnpriced(entry);
+                SaveTaskRecords(entry);
                 foreach (var (key, day) in entry.Days)
                 {
                     var source = SourceNames.Of(key.Source);
@@ -608,6 +639,8 @@ internal sealed partial class HistoryStore : IDisposable
 
             connection.Execute(TrafficSchema);
             connection.Execute(ModesSchema);
+            connection.Execute(UnpricedSchema);
+            connection.Execute(TaskRecordsSchema);
             return new HistoryStore(connection);
         }
         catch
@@ -706,6 +739,10 @@ internal static class SourceNames
         SourceKind.ZCode => "zcode",
         SourceKind.Kimi => "kimi",
         SourceKind.GrokBuild => "grokBuild",
+        SourceKind.Pi => "pi",
+        SourceKind.OpenClaw => "openclaw",
+        SourceKind.Hermes => "hermes",
+        SourceKind.Droid => "droid",
         SourceKind.Trae => "trae",
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
@@ -725,6 +762,10 @@ internal static class SourceNames
         "zcode" => SourceKind.ZCode,
         "kimi" => SourceKind.Kimi,
         "grokBuild" => SourceKind.GrokBuild,
+        "pi" => SourceKind.Pi,
+        "openclaw" => SourceKind.OpenClaw,
+        "hermes" => SourceKind.Hermes,
+        "droid" => SourceKind.Droid,
         "trae" => SourceKind.Trae,
         _ => null,
     };

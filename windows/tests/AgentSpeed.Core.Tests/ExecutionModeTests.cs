@@ -15,10 +15,12 @@ public sealed class ExecutionModeTests
 {
     public static IEnumerable<object[]> NormalizationCases() => Cases("normalization");
     public static IEnumerable<object[]> AttributionCases() => Cases("attribution");
+    public static IEnumerable<object[]> SpeedCases() => Cases("speed");
     private static IEnumerable<object[]> Cases(string group)
     {
         using var document = JsonDocument.Parse(File.ReadAllBytes(FixtureLocator.PathOf("execution-mode-cases.json")));
-        return document.RootElement.GetProperty(group).EnumerateArray().Select(c => new object[] { c.GetProperty("id").GetString()!, c.Clone() }).ToArray();
+        return document.RootElement.GetProperty(group).EnumerateArray()
+            .Select(c => new object[] { (c.TryGetProperty("id", out var id) ? id : c.GetProperty("value")).GetString()!, c.Clone() }).ToArray();
     }
 
     [Theory]
@@ -32,6 +34,8 @@ public sealed class ExecutionModeTests
             "kimiModel" => ExecutionModeNative.KimiModel(raw),
             "routing" => ExecutionModeNative.Routing(raw),
             "workflow" => ExecutionModeNative.Workflow(raw),
+            "effort" => ExecutionModes.Of(ExecutionModeNative.Effort(raw, Enum.Parse<ExecutionModeEvidence>(String(data, "evidence")!, true),
+                Enum.Parse<ExecutionModeScope>(String(data, "scope")!, true))),
             _ => ExecutionModeNative.OpenAiTier(raw, Enum.Parse<ExecutionModeEvidence>(String(data, "evidence")!, true),
                 Enum.Parse<ExecutionModeScope>(String(data, "scope")!, true), String(data, "provider")),
         };
@@ -51,6 +55,42 @@ public sealed class ExecutionModeTests
         Assert.Equal((String(expected, "mode"), String(expected, "evidence"), String(expected, "provider")),
             (value.Mode, value.Evidence, value.Provider));
         Assert.False(string.IsNullOrEmpty(id));
+    }
+
+    [Theory]
+    [MemberData(nameof(SpeedCases))]
+    public void SharedSpeed(string id, JsonElement data)
+    {
+        var modes = new ExecutionModes(data.GetProperty("facts").EnumerateArray().Select(Fact));
+        var value = modes.Attribute(ExecutionModeKind.Speed);
+        var expected = data.GetProperty("expected");
+        Assert.Equal((String(expected, "mode"), String(expected, "evidence"), String(expected, "provider")),
+            (value.Mode, value.Evidence, value.Provider));
+        Assert.Equal(value.IsKnown ? value : null, EffortAndSpeed.Speed(modes));
+        Assert.False(string.IsNullOrEmpty(id));
+    }
+
+    [Fact]
+    public void SharedEffortDisplayBoltsAndDisplayOrder()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllBytes(FixtureLocator.PathOf("execution-mode-cases.json")));
+        var root = document.RootElement;
+        foreach (var item in root.GetProperty("effortDisplay").EnumerateArray())
+        {
+            var value = String(item, "value")!;
+            var expected = item.GetProperty("expected");
+            var level = expected.GetProperty("level");
+            Assert.Equal(level.ValueKind == JsonValueKind.Null ? null : level.GetInt32(), EffortAndSpeed.Level(value));
+            Assert.Equal(expected.GetProperty("top").GetBoolean(), EffortAndSpeed.IsTopRung(value));
+        }
+        foreach (var item in root.GetProperty("speedBolts").EnumerateArray())
+            Assert.Equal(item.GetProperty("bolts").GetInt32(), EffortAndSpeed.Bolts(String(item, "value")!));
+        foreach (var item in root.GetProperty("displayOrder").EnumerateArray())
+        {
+            var kind = Enum.Parse<ExecutionModeKind>(String(item, "kind")!, true);
+            var values = item.GetProperty("values").EnumerateArray().Select(v => v.GetString()!);
+            Assert.Equal(item.GetProperty("expected").EnumerateArray().Select(v => v.GetString()!), values.Order(EffortAndSpeed.Order(kind)));
+        }
     }
 
     [Fact]
@@ -113,7 +153,7 @@ public sealed class ExecutionModeTests
     }
 
     [Fact]
-    public void ClaudeLateEvidenceUpdatesOneResponseAndNextInputClearsItsMode()
+    public void ClaudeLateEvidenceUpdatesOneResponseAndTheAgentKeepsTheLatestResponseFacts()
     {
         var parser = new ClaudeParser("/fixture/a.jsonl", new Deduper());
         var sink = new RecordingSink();
@@ -127,7 +167,7 @@ public sealed class ExecutionModeTests
         Assert.Equal("standard", after.Modes.Attribute(ExecutionModeKind.ServiceTier).Mode);
         Assert.Equal("served", after.Modes.Attribute(ExecutionModeKind.ServiceTier).Evidence);
         Feed.Lines(parser, sink, ClaudeLines.UserText(ClaudeLines.T0 + 3000, "next"));
-        Assert.Empty(parser.Modes.Facts);
+        Assert.Equal("standard", parser.Modes.Attribute(ExecutionModeKind.Speed).Mode);
     }
 
     [Fact]
@@ -204,7 +244,7 @@ public sealed class ExecutionModeTests
         var aggregate = new DayAggregate { Requests = 3, Output = 90, MeasuredOutput = 60, MeasuredMs = 3000 };
         var day = aggregate.ToUsage(new("2026-10-24", SourceKind.Codex), null);
         Assert.Empty(day.Models);
-        Assert.Equal(5, day.Modes.Count);
+        Assert.Equal(ExecutionModes.BreakdownKinds.Count, day.Modes.Count);
         Assert.All(day.Modes, row => Assert.Equal((string.Empty, "unknown", "unknown", 3L, 90L, 60L, 3000L),
             (row.Model, row.Mode, row.Evidence, row.Requests, row.Output, row.MeasuredOutput, row.MeasuredMs)));
     }
@@ -248,7 +288,7 @@ public sealed class ExecutionModeTests
         using var reopened = HistoryStore.Open(db);
         var oldDay = Assert.Single(new HistoryAnalyzer(reopened).Days());
         Assert.Equal(30, oldDay.Totals.Output);
-        Assert.Equal(5, oldDay.Modes.Count);
+        Assert.Equal(ExecutionModes.BreakdownKinds.Count, oldDay.Modes.Count);
         Assert.All(oldDay.Modes, m => Assert.Equal(("unknown", "unknown", 1L, 30L, 2000L), (m.Mode, m.Evidence, m.Requests, m.Output, m.MeasuredMs)));
     }
 

@@ -3,7 +3,9 @@ using AgentSpeed.Core;
 using AgentSpeed.Presentation.Chart;
 using AgentSpeed.Presentation.Heat;
 using AgentSpeed.Presentation.Hero;
+using AgentSpeed.Presentation.Layout;
 using AgentSpeed.Presentation.Localization;
+using AgentSpeed.Presentation.Settings.Boards;
 using AgentSpeed.Presentation.Settings.Orbs;
 using AgentSpeed.Presentation.Titles;
 using AgentSpeed.Presentation.Updates;
@@ -101,10 +103,22 @@ public sealed record AppSettings
     public bool BarShowUnit { get; init; } = true;
 
     /// <summary>
+    /// Where the Windows taskbar widget sits (DESIGN 3, Position on the taskbar): DIPs from its default spot next to the
+    /// notification area toward the taskbar's start; 0 is the default spot. Set by dragging the widget.
+    /// </summary>
+    public double TaskbarOffset { get; init; }
+
+    /// <summary>
     /// The taskbar's second value (DESIGN 3): with <see cref="CostSettings.LiveUnit"/> tokens, the live money rate after
     /// the value (the live value choice <c>settings.liveUnit.both</c>). Off by default; hidden in glyph-only mode.
     /// </summary>
     public bool BarSecondary { get; init; }
+
+    /// <summary>
+    /// <c>settings.bar.intelligence</c> (DESIGN 10, Menu bar and taskbar): the 智力 block after the value, the money block
+    /// and the network block. Off by default; hidden in glyph-only mode; needs no network measuring.
+    /// </summary>
+    public bool BarIntelligence { get; init; }
 
     /// <summary>
     /// The single orb's visibility before multiple orbs (<c>orb.show</c>). Read and written back unchanged so a downgrade
@@ -117,6 +131,9 @@ public sealed record AppSettings
 
     /// <summary>Every floating orb and its positions per display arrangement (settings value <c>orbs</c>).</summary>
     public OrbsDocument Orbs { get; init; } = OrbsDocument.ProcessDefault;
+
+    /// <summary>The leaderboard boards and their positions (settings value <c>boards</c>, DESIGN 2c); none by default.</summary>
+    public BoardsDocument Boards { get; init; } = BoardsDocument.Empty;
 
     /// <summary>Name plates under the orbs (<c>orbNames</c>, DESIGN 2b Name plate); an orb's <c>showName</c> overrides it.</summary>
     public OrbNamesMode OrbNames { get; init; } = OrbNamesMode.Auto;
@@ -163,6 +180,13 @@ public sealed record AppSettings
 
     public bool GrokBuildEnabled { get; init; } = true;
 
+    public bool PiEnabled { get; init; } = true;
+
+    public bool OpenClawEnabled { get; init; } = true;
+
+    public bool HermesEnabled { get; init; } = true;
+
+    public bool DroidEnabled { get; init; } = true;
     public bool TraeEnabled { get; init; } = true;
 
     /// <summary>Null uses the default Codex sessions folder.</summary>
@@ -198,6 +222,17 @@ public sealed record AppSettings
 
     public string? GrokBuildRoot { get; init; }
 
+    /// <summary>One Pi sessions folder; null reads Pi's default root and the custom session folder of its settings.</summary>
+    public string? PiRoot { get; init; }
+
+    /// <summary>One OpenClaw state folder, agent folder or database; null reads every automatic state folder.</summary>
+    public string? OpenClawRoot { get; init; }
+
+    /// <summary>A Hermes home or one <c>logs</c> folder; null reads the automatic Hermes home and its profiles.</summary>
+    public string? HermesRoot { get; init; }
+
+    /// <summary>The Factory Droid <c>.factory</c> folder or its <c>sessions</c> folder; null uses <c>~/.factory/sessions</c>.</summary>
+    public string? DroidRoot { get; init; }
     public string? TraeRoot { get; init; }
 
     public int ChartSeconds { get; init; } = 120;
@@ -216,6 +251,12 @@ public sealed record AppSettings
 
     /// <summary>Last frame of the Usage History window; null opens it at its default size, centered.</summary>
     public WindowFrame? HistoryWindow { get; init; }
+
+    /// <summary>The history's effort and speed section shows this kind (DESIGN 4b, 3b): effort or speed.</summary>
+    public ExecutionModeKind HistoryModeKind { get; init; } = ExecutionModeKind.Effort;
+
+    /// <summary>The two sources the history's task performance compares (DESIGN 12); null takes the default pair.</summary>
+    public History.Tasks.TaskPair? HistoryTaskPair { get; init; }
 
     /// <summary>Key of the monitor the orb was last placed on.</summary>
     public string? OrbMonitor { get; init; }
@@ -262,6 +303,10 @@ public sealed record AppSettings
         SourceKind.ZCode => ZCodeEnabled,
         SourceKind.Kimi => KimiEnabled,
         SourceKind.GrokBuild => GrokBuildEnabled,
+        SourceKind.Pi => PiEnabled,
+        SourceKind.OpenClaw => OpenClawEnabled,
+        SourceKind.Hermes => HermesEnabled,
+        SourceKind.Droid => DroidEnabled,
         SourceKind.Trae => TraeEnabled,
         _ => false,
     };
@@ -296,6 +341,10 @@ public sealed record AppSettings
         SourceKind.ZCode => this with { ZCodeEnabled = enabled },
         SourceKind.Kimi => this with { KimiEnabled = enabled },
         SourceKind.GrokBuild => this with { GrokBuildEnabled = enabled },
+        SourceKind.Pi => this with { PiEnabled = enabled },
+        SourceKind.OpenClaw => this with { OpenClawEnabled = enabled },
+        SourceKind.Hermes => this with { HermesEnabled = enabled },
+        SourceKind.Droid => this with { DroidEnabled = enabled },
         SourceKind.Trae => this with { TraeEnabled = enabled },
         _ => this,
     };
@@ -305,7 +354,8 @@ public sealed record AppSettings
         var enabled = Enum.GetValues<SourceKind>().Where(IsSourceEnabled).ToHashSet();
         return new MonitorConfiguration(enabled, CodexRoot, ClaudeRoot, DshRoot, OpenCodeRoot, GeminiRoot, OmpRoot, AntigravityRoot,
             WorkBuddyRoot: WorkBuddyRoot, WorkBuddyAiRoot: WorkBuddyAiRoot,
-            ZCodeRoot: ZCodeRoot, KimiRoot: KimiRoot, GrokBuildRoot: GrokBuildRoot, TraeRoot: TraeRoot);
+            ZCodeRoot: ZCodeRoot, KimiRoot: KimiRoot, GrokBuildRoot: GrokBuildRoot, PiRoot: PiRoot,
+            OpenClawRoot: OpenClawRoot, HermesRoot: HermesRoot, DroidRoot: DroidRoot, TraeRoot: TraeRoot);
     }
 
     /// <summary>The master switch; turning it on while every orb is individually hidden makes them all visible.</summary>
@@ -339,6 +389,7 @@ public sealed record AppSettings
         RedlineOutput = HeatMath.ClampRedline(RedlineOutput),
         RedlineTotal = HeatMath.ClampRedlineTotal(RedlineTotal),
         BarMode = Enum.IsDefined(BarMode) ? BarMode : BarDisplayMode.GlyphAndValue,
+        TaskbarOffset = TaskbarPosition.Normalize(TaskbarOffset),
         OrbSize = double.IsFinite(OrbSize) ? Math.Clamp(Math.Round(OrbSize), MinOrbSize, MaxOrbSize) : DefaultOrbSize,
         OrbOpacity = double.IsFinite(OrbOpacity) ? Math.Clamp(OrbOpacity, MinOrbOpacity, MaxOrbOpacity) : MaxOrbOpacity,
         Effects = Enum.IsDefined(Effects) ? Effects : EffectsIntensity.Standard,
@@ -354,14 +405,21 @@ public sealed record AppSettings
         ZCodeRoot = CleanPath(ZCodeRoot),
         KimiRoot = CleanPath(KimiRoot),
         GrokBuildRoot = CleanPath(GrokBuildRoot),
+        PiRoot = CleanPath(PiRoot),
+        OpenClawRoot = CleanPath(OpenClawRoot),
+        HermesRoot = CleanPath(HermesRoot),
+        DroidRoot = CleanPath(DroidRoot),
         TraeRoot = CleanPath(TraeRoot),
         HistoryWindow = WindowFrame.ValidHistory(HistoryWindow),
+        HistoryModeKind = HistoryModeKind == ExecutionModeKind.Speed ? ExecutionModeKind.Speed : ExecutionModeKind.Effort,
+        HistoryTaskPair = HistoryTaskPair is { IsValid: true } pair ? pair : null,
         ChartSeconds = ChartMath.NormalizeRange(ChartSeconds),
         HeroLastTitle = VehicleArt.NormalizeKey(HeroLastTitle),
         TitleThemes = (TitleThemes ?? TitleThemesDocument.Default).Validated(),
         OrbMonitor = string.IsNullOrWhiteSpace(OrbMonitor) || OrbMonitor.Length > 256 ? null : OrbMonitor,
         OrbAnchors = CleanAnchors(OrbAnchors),
         Orbs = (Orbs ?? OrbsDocument.ProcessDefault).Validated(),
+        Boards = (Boards ?? BoardsDocument.Empty).Validated(),
         OrbNames = Enum.IsDefined(OrbNames) ? OrbNames : OrbNamesMode.Auto,
         LastUpdateCheck = CleanTimestamp(LastUpdateCheck),
         SkippedVersion = CleanTag(SkippedVersion),

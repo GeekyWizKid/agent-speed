@@ -86,6 +86,8 @@ struct AgentState: Equatable, Sendable {
     var inFlightStartMs: Int64?
     var lastLineMs: Int64?
     var malformedLines = 0
+    /// The file's tool calls of live lines (METRICS 6.10).
+    var actions = ActionLog()
     /// Completed calls of an unfinished turn, used only to seed live estimates.
     var referenceResponses: [ResponseRecord] = []
 

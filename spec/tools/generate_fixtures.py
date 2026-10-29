@@ -13,8 +13,13 @@ from datetime import datetime, timezone
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import antigravity_fixtures  # noqa: E402
+import droid_fixtures  # noqa: E402
 import gemini_fixtures  # noqa: E402
+import hermes_fixtures  # noqa: E402
 import omp_fixtures  # noqa: E402
+import openclaw_fixtures  # noqa: E402
+import pi_fixtures  # noqa: E402
+import task_e2e_fixtures  # noqa: E402
 import workbuddy_fixtures  # noqa: E402
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures"))
@@ -56,6 +61,14 @@ def resp(key, start, end, inp, cached, cw, out, reasoning, model, final=True, cw
             "provider": provider, "fast": fast, "final": final}
 
 
+def mode(value, evidence="recorded", provider=None):
+    """An expected effort or speed attribution (EXECUTION-MODES)."""
+    m = {"mode": value, "evidence": evidence}
+    if provider:
+        m["provider"] = provider
+    return m
+
+
 files = {}
 order = []
 
@@ -75,7 +88,12 @@ write_jsonl(rel, [
                                      "cwd": "/Users/dev/projects/rocket", "originator": "codex_cli_rs",
                                      "model_provider": "openai",
                                      "cli_version": "0.163.0", "source": "cli"}),
-    codex(at(0, 0, 100), "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol"}),
+    codex(at(0, 0, 50), "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-main",
+                                      "thread_settings": {"model": "gpt-6.1-sol", "model_provider_id": "openai",
+                                                          "service_tier": "priority", "reasoning_effort": "high",
+                                                          "reasoning_summary": "detailed"}}),
+    codex(at(0, 0, 100), "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol",
+                                          "effort": "xhigh"}),
     codex(at(0, 1), "event_msg", {"type": "task_started", "turn_id": "turn-1"}),
     codex(at(0, 1), "event_msg", {"type": "user_message", "message": "Ship it", "images": []}),
     codex(at(0, 1, 10), "response_item", {"type": "message", "role": "user",
@@ -89,6 +107,8 @@ write_jsonl(rel, [
     codex(at(0, 5, 12), "event_msg", {"type": "token_count",
                                       "info": {"total_token_usage": u1, "last_token_usage": u1}}),
     codex(at(0, 7, 500), "response_item", {"type": "function_call_output", "call_id": "call-1", "output": "ok"}),
+    codex(at(0, 8), "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-main",
+                                  "thread_settings": {"model": "gpt-6.1-sol", "service_tier": "ultrafast"}}),
     codex(at(0, 9), "response_item", {"type": "message", "role": "assistant",
                                       "content": [{"type": "output_text", "text": "Done"}]}),
     codex(at(0, 10, 500), "token_usage_record", {"thread_id": "thread-main", "session_id": "sess-1",
@@ -107,7 +127,10 @@ expect(rel, source="codex", project="rocket", model="gpt-6.1-sol", isSubagent=Fa
            resp("resp-1", at(0, 1, 10), at(0, 5, 10), 10000, 8000, 0, 200, 50, "gpt-6.1-sol", provider="openai"),
            resp("resp-2", at(0, 7, 500), at(0, 10, 500), 10400, 10000, 0, 330, 0, "gpt-6.1-sol",
                 provider="openai"),
-       ])
+       ],
+       effort=mode("xhigh"), speed=mode("ultrafast", "selected", "openai"),
+       responseModes={"resp-1": {"effort": mode("xhigh"), "speed": mode("fast", "selected", "openai")},
+                      "resp-2": {"effort": mode("xhigh"), "speed": mode("ultrafast", "selected", "openai")}})
 
 # --- Codex, sub-agent with copied parent history ------------------------------
 rel = "codex/sessions/2026/10/20/rollout-2026-10-20T10-00-20-subagent.jsonl"
@@ -123,13 +146,17 @@ write_jsonl(rel, [
     codex(at(0, 20), "session_meta", {"id": "thread-main", "session_id": "sess-1", "timestamp": ts(at(0, 0)),
                                       "cwd": "/Users/dev/projects/rocket", "source": "cli",
                                       "model_provider": "openai"}),
+    codex(at(0, 0, 50), "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-main",
+                                      "thread_settings": {"service_tier": "priority", "reasoning_effort": "high"}}),
     codex(at(0, 1, 10), "response_item", {"type": "message", "role": "user",
                                           "content": [{"type": "input_text", "text": "Ship it"}]}),
     codex(at(0, 5, 10), "token_usage_record", {"thread_id": "thread-main", "session_id": "sess-1",
                                                "response_id": "resp-1", "usage": u1}),
     codex(at(0, 7, 0), "token_usage_record", {"thread_id": "thread-main", "session_id": "sess-1",
                                               "response_id": "resp-old-copy", "usage": u1}),
-    codex(at(0, 20, 100), "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol"}),
+    codex(at(0, 20, 100), "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol",
+                                           "collaboration_mode": {"mode": "default", "settings": {
+                                               "model": "gpt-6.1-sol", "reasoning_effort": "max"}}}),
     codex(at(0, 20, 500), "response_item", {"type": "agent_message", "author": "/root/worker",
                                             "recipient": "/root", "content": []}),
     codex(at(0, 21), "response_item", {"type": "agent_message", "author": "/root", "recipient": "/root/worker",
@@ -144,14 +171,21 @@ write_jsonl(rel, [
     codex(at(0, 32), "event_msg", {"type": "token_count", "info": {"total_token_usage": u3, "last_token_usage": u3}}),
     codex(at(0, 40), "response_item", {"type": "agent_message", "author": "/root", "recipient": "/root/worker",
                                        "content": [{"type": "input_text", "text": "Next"}]}),
+    codex(at(0, 41), "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-worker",
+                                   "thread_settings": {"service_tier": "ultrafast"}}),
     codex(at(0, 45), "response_item", {"type": "reasoning", "summary": []}),
     codex(at(0, 47), "token_usage_record", {"thread_id": "thread-worker", "session_id": "sess-1",
                                             "response_id": "resp-4", "usage": cx(5200, 5000, 60, 10)}),
+    codex(at(0, 47), "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-worker",
+                                   "thread_settings": {"service_tier": None, "reasoning_effort": "low"}}),
 ])
 expect(rel, source="codex", project="rocket", model="gpt-6.1-sol", isSubagent=True,
        parentFile="codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl", phase="tools", inFlightStartMs=None, lastLineMs=at(0, 47), malformedLines=0,
        responses=[resp("resp-3", at(0, 21), at(0, 24), 5000, 0, 0, 120, 40, "gpt-6.1-sol"),
-                  resp("resp-4", at(0, 40), at(0, 47), 5200, 5000, 0, 60, 10, "gpt-6.1-sol")])
+                  resp("resp-4", at(0, 40), at(0, 47), 5200, 5000, 0, 60, 10, "gpt-6.1-sol")],
+       effort=mode("max"), speed=None,
+       responseModes={"resp-3": {"effort": mode("max"), "speed": None},
+                      "resp-4": {"effort": mode("max"), "speed": mode("ultrafast", "selected", "openai")}})
 
 # --- Codex, legacy token_count only -------------------------------------------
 rel = "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-00-legacy.jsonl"
@@ -227,6 +261,85 @@ expect(rel, source="codex", project="comet", model="gpt-6.1-sol-mini", isSubagen
                 provider="custom"),
        ])
 
+
+# --- Codex, paginated sub-agent (multi-agent v2) with a copied prefix -----------
+# Ordinals 1-14 copy thread-main's records with fresh timestamps (METRICS 3.5): a legacy token_count before any
+# turn_context, the parent's settings, tool calls left streaming, and a truncated line (ordinal 10). Only ordinals
+# from subagent_history_start_ordinal (15) on are the sub-agent's own.
+def paged(ms, ordinal, kind, payload):
+    return {"timestamp": ts(ms), "ordinal": ordinal, "type": kind, "payload": payload}
+
+
+rel = "codex/sessions/2026/10/20/rollout-2026-10-20T10-01-40-paginated.jsonl"
+C = at(1, 40)
+p1 = cx(7000, 6000, 90, 30, 0)
+p2 = cx(7300, 7000, 40, 0, 0)
+truncated = json.dumps(paged(C + 9, 10, "response_item", {"type": "function_call_output", "call_id": "call-1",
+                                                           "output": "ok"}), separators=(",", ":"))[:60]
+write_jsonl(rel, [
+    paged(C, 0, "session_meta", {"id": "thread-pag", "session_id": "sess-1", "timestamp": ts(C),
+                                 "forked_from_id": "thread-main", "parent_thread_id": "thread-main",
+                                 "cwd": "/Users/dev/projects/rocket", "originator": "codex_cli_rs",
+                                 "cli_version": "0.170.0",
+                                 "source": {"subagent": {"thread_spawn": {"parent_thread_id": "thread-main", "depth": 1,
+                                                                          "agent_path": "/root/scout",
+                                                                          "agent_nickname": "Scout"}}},
+                                 "thread_source": "subagent", "agent_path": "/root/scout", "model_provider": "openai",
+                                 "history_mode": "paginated", "subagent_history_start_ordinal": 15,
+                                 "multi_agent_version": "v2"}),
+    paged(C + 1, 1, "session_meta", {"id": "thread-main", "session_id": "sess-1", "timestamp": ts(at(0, 0)),
+                                     "cwd": "/Users/dev/projects/rocket", "source": "cli", "model_provider": "openai"}),
+    paged(C + 2, 2, "event_msg", {"type": "token_count", "info": {"total_token_usage": u1, "last_token_usage": u1}}),
+    paged(C + 3, 3, "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-main",
+                                  "thread_settings": {"service_tier": "priority", "reasoning_effort": "high"}}),
+    paged(C + 4, 4, "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol", "effort": "xhigh"}),
+    paged(C + 5, 5, "event_msg", {"type": "task_started", "turn_id": "turn-1"}),
+    paged(C + 6, 6, "response_item", {"type": "message", "role": "user",
+                                      "content": [{"type": "input_text", "text": "Ship it"}]}),
+    paged(C + 7, 7, "response_item", {"type": "function_call", "name": "shell", "arguments": "{}",
+                                      "call_id": "call-1"}),
+    paged(C + 8, 8, "event_msg", {"type": "token_count", "info": {"total_token_usage": u1, "last_token_usage": u1}}),
+    paged(C + 8, 9, "event_msg", {"type": "token_count",
+                                  "info": {"total_token_usage": cum2, "last_token_usage": u2}}),
+    truncated,
+    paged(C + 10, 11, "response_item", {"type": "custom_tool_call", "name": "exec", "input": "cargo test",
+                                        "call_id": "call-copied"}),
+    paged(C + 11, 12, "response_item", {"type": "reasoning", "summary": []}),
+    paged(C + 12, 13, "response_item", {"type": "message", "role": "developer",
+                                        "content": [{"type": "input_text", "text": "You are Scout."}]}),
+    paged(C + 13, 14, "response_item", {"type": "message", "role": "developer",
+                                        "content": [{"type": "input_text", "text": "Report back."}]}),
+    paged(C + 500, 15, "event_msg", {"type": "thread_settings_applied", "thread_id": "thread-pag",
+                                     "thread_settings": {"model": "gpt-6.1-sol-mini", "reasoning_effort": "low"}}),
+    paged(C + 600, 16, "event_msg", {"type": "task_started", "turn_id": "turn-s1"}),
+    paged(C + 610, 17, "response_item", {"type": "message", "role": "user",
+                                         "content": [{"type": "input_text", "text": "Find the flaky test"}]}),
+    paged(C + 700, 18, "turn_context", {"cwd": "/Users/dev/projects/rocket", "model": "gpt-6.1-sol-mini",
+                                        "effort": "medium"}),
+    paged(C + 3000, 19, "response_item", {"type": "reasoning", "summary": []}),
+    paged(C + 4000, 20, "response_item", {"type": "custom_tool_call", "name": "exec", "input": "rg flaky",
+                                          "call_id": "call-s1"}),
+    paged(C + 4010, 21, "token_usage_record", {"thread_id": "thread-pag", "session_id": "sess-1",
+                                               "response_id": "resp-p1", "usage": p1}),
+    paged(C + 4012, 22, "event_msg", {"type": "token_count", "info": {"total_token_usage": p1, "last_token_usage": p1}}),
+    paged(C + 6000, 23, "response_item", {"type": "custom_tool_call_output", "call_id": "call-s1", "output": "a.rs"}),
+    paged(C + 7000, 24, "response_item", {"type": "message", "role": "assistant",
+                                          "content": [{"type": "output_text", "text": "Found it"}]}),
+    paged(C + 8500, 25, "token_usage_record", {"thread_id": "thread-pag", "session_id": "sess-1",
+                                               "response_id": "resp-p2", "usage": p2}),
+    paged(C + 8700, 26, "event_msg", {"type": "task_complete", "turn_id": "turn-s1"}),
+])
+expect(rel, source="codex", project="rocket", model="gpt-6.1-sol-mini", isSubagent=True,
+       parentFile="codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-modern.jsonl", phase="idle",
+       inFlightStartMs=None, lastLineMs=C + 8700, malformedLines=1,
+       responses=[
+           resp("resp-p1", C + 610, C + 4010, 7000, 6000, 0, 90, 30, "gpt-6.1-sol-mini", provider="openai"),
+           resp("resp-p2", C + 6000, C + 8500, 7300, 7000, 0, 40, 0, "gpt-6.1-sol-mini", provider="openai"),
+       ],
+       effort=mode("medium"), speed=None,
+       responseModes={"resp-p1": {"effort": mode("medium"), "speed": None},
+                      "resp-p2": {"effort": mode("medium"), "speed": None}})
+
 # --- Claude Code CLI ----------------------------------------------------------
 def claude(kind, ms, entry="cli", cwd="/Users/dev/projects/nova", session="s-cli", sidechain=False, **extra):
     row = {"parentUuid": None, "isSidechain": sidechain, "userType": "external", "cwd": cwd,
@@ -264,12 +377,17 @@ write_jsonl(rel, [
     user(at(2, 0), "Build the launch pad"),
     claude("api-request", at(2, 0, 50), id="api-1", params={"model": "claude-opus-5-5"}),
     claude("attachment", at(2, 0, 60), attachment={"type": "todo"}),
-    assistant(at(2, 4), "msg_A", ["thinking"], cl_usage(2, 1000, 20000, 150, 60, h1=600), None),
-    assistant(at(2, 6, 50), "msg_A", ["tool_use"], cl_usage(2, 1000, 20000, 300, 60, h1=600), "tool_use"),
+    assistant(at(2, 4), "msg_A", ["thinking"], cl_usage(2, 1000, 20000, 150, 60, h1=600), None, effort="xhigh",
+              perTurnEffort=None),
+    assistant(at(2, 6, 50), "msg_A", ["tool_use"], cl_usage(2, 1000, 20000, 300, 60, h1=600), "tool_use",
+              effort="xhigh"),
     user(at(2, 9), [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]),
-    assistant(at(2, 12), "msg_B", ["text"], cl_usage(5, 200, 21000, 240, speed="standard"), "end_turn"),
-    assistant(at(2, 12, 500), "msg_SYN", ["text"], cl_usage(0, 0, 0, 0), "stop_sequence", model="<synthetic>"),
+    assistant(at(2, 12), "msg_B", ["text"], cl_usage(5, 200, 21000, 240, speed="standard"), "end_turn",
+              effort="xhigh", perTurnEffort="max"),
+    assistant(at(2, 12, 500), "msg_SYN", ["text"], cl_usage(0, 0, 0, 0), "stop_sequence", model="<synthetic>",
+              effort="low"),
     claude("system", at(2, 13), subtype="turn_duration"),
+    claude("attachment", at(2, 19), attachment={"type": "ultra_effort_enter", "reminderType": "full"}),
     user(at(2, 20), "Now polish it"),
     user(at(2, 25), [{"type": "text", "text": "[Request interrupted by user]"}]),
 ])
@@ -278,7 +396,10 @@ expect(rel, source="claudeCode", project="nova", model="claude-opus-5-5", isSuba
        responses=[
            resp("msg_A", at(2, 0, 50), at(2, 6, 50), 21002, 20000, 1000, 300, 60, "claude-opus-5-5", cw1h=600),
            resp("msg_B", at(2, 9), at(2, 12), 21205, 21000, 200, 240, 0, "claude-opus-5-5"),
-       ])
+       ],
+       effort=mode("ultracode"), speed=mode("standard", "served", "anthropic"),
+       responseModes={"msg_A": {"effort": mode("xhigh"), "speed": None},
+                      "msg_B": {"effort": mode("max"), "speed": mode("standard", "served", "anthropic")}})
 
 # --- Claude Code sub-agent ----------------------------------------------------
 rel = "claude/projects/-Users-dev-projects-nova/s-cli/subagents/agent-abc.jsonl"
@@ -297,7 +418,9 @@ expect(rel, source="claudeCode", project="nova", model="claude-opus-5-5", isSuba
        parentFile="claude/projects/-Users-dev-projects-nova/s-cli.jsonl",
        phase="generating", inFlightStartMs=at(2, 16), lastLineMs=at(2, 16), malformedLines=0,
        responses=[resp("msg_D", at(2, 7), at(2, 10), 504, 0, 500, 90, 0, "claude-opus-5-5", cw1h=500),
-                  resp("msg_E", at(2, 11), at(2, 15), 602, 600, 0, 8, 0, "claude-opus-5-5", final=False)])
+                  resp("msg_E", at(2, 11), at(2, 15), 602, 600, 0, 8, 0, "claude-opus-5-5", final=False)],
+       effort=None, speed=None,
+       responseModes={"msg_D": {"effort": None, "speed": None}, "msg_E": {"effort": None, "speed": None}})
 
 # --- Claude Desktop, resumed session that copies msg_B ------------------------
 rel = "claude/projects/-Users-dev-projects-orbit/s-desk.jsonl"
@@ -307,12 +430,40 @@ write_jsonl(rel, [
     user(at(2, 9), [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}],
          **dict(d, entry="claude-desktop-3p")),
     assistant(at(2, 12), "msg_B", ["text"], cl_usage(5, 200, 21000, 240), "end_turn", **d),
+    claude("attachment", at(2, 59), attachment={"type": "ultra_effort_enter", "reminderType": "full"}, **d),
+    claude("attachment", at(2, 59, 500), attachment={"type": "ultra_effort_exit"}, **d),
     user(at(3, 0), "Plan the orbit", **d),
-    assistant(at(3, 5), "msg_C", ["tool_use"], cl_usage(3, 0, 30000, 500, speed="fast"), "tool_use", **d),
+    claude("attachment", at(3, 0, 1), attachment={"type": "workflow_keyword_request"}, **d),
+    user(at(3, 0, 2), [{"type": "text", "text": "Workflow instructions"}], isMeta=True, **d),
+    assistant(at(3, 5), "msg_C", ["tool_use"], cl_usage(3, 0, 30000, 500, speed="fast"), "tool_use", effort="high",
+              **d),
 ])
 expect(rel, source="claudeDesktop", project="orbit", model="claude-opus-5-5", isSubagent=False, parentFile=None,
        phase="tools", inFlightStartMs=None, lastLineMs=at(3, 5), malformedLines=0,
-       responses=[resp("msg_C", at(3, 0), at(3, 5), 30003, 30000, 0, 500, 0, "claude-opus-5-5", fast=True)])
+       responses=[resp("msg_C", at(3, 0, 2), at(3, 5), 30003, 30000, 0, 500, 0, "claude-opus-5-5", fast=True)],
+       effort=mode("ultracode"), speed=mode("fast", "served", "anthropic"),
+       responseModes={"msg_C": {"effort": mode("ultracode"), "speed": mode("fast", "served", "anthropic")}})
+
+# --- Claude Desktop sub-agent whose last tool result ends its run --------------
+rel = "claude/projects/-Users-dev-projects-orbit/s-desk/subagents/agent-wf1.jsonl"
+w = dict(d, entry="claude-desktop-3p", sidechain=True, agentId="wf1")
+write_jsonl(rel, [
+    user(at(3, 1), "Count to 50 and report", **w),
+    assistant(at(3, 3), "msg_W", ["text"], cl_usage(3, 0, 900, 40, speed="fast"), None, effort="medium",
+              model="claude-sonnet-5-5", **w),
+    assistant(at(3, 4), "msg_W", ["tool_use"], cl_usage(3, 0, 900, 60, speed="fast"), "tool_use", effort="medium",
+              model="claude-sonnet-5-5", **w),
+    claude("attachment", at(3, 4, 4), attachment={"type": "structured_output", "data": {"count": 50}}, **w),
+    user(at(3, 4, 6), [{"type": "tool_result", "tool_use_id": "t9", "content": "Structured output provided successfully"}],
+         toolEndsTurn=True, **w),
+])
+# Fast mode on a model without fast prices: no price (METRICS 9.1), the `noFastPrice` diagnostic (9.10).
+expect(rel, source="claudeDesktop", project="orbit", model="claude-sonnet-5-5", isSubagent=True,
+       parentFile="claude/projects/-Users-dev-projects-orbit/s-desk.jsonl",
+       phase="idle", inFlightStartMs=None, lastLineMs=at(3, 4, 6), malformedLines=0,
+       responses=[resp("msg_W", at(3, 1), at(3, 4), 903, 900, 0, 60, 0, "claude-sonnet-5-5", fast=True)],
+       effort=mode("medium"), speed=mode("fast", "served", "anthropic"),
+       responseModes={"msg_W": {"effort": mode("medium"), "speed": mode("fast", "served", "anthropic")}})
 
 
 # --- DeepSeek Harness (dsh): zstd frame streams ------------------------------
@@ -357,7 +508,8 @@ write_zstd(rel, [
     [dsh("step/start", 3, at(4, 1), {"turn": 1, "step": 1}),
      dsh("user/message", 4, at(4, 1, 5), {"content": [{"type": "text", "text": "Fix the build"}], "role": "user"}),
      dsh("request/header", 5, at(4, 1, 10), {"header": {"config": {"provider": "deepseek-account",
-                                                                    "model": "deepseek-flash"}}})],
+                                                                    "model": "deepseek-flash",
+                                                                    "reasoningEffort": "max"}}})],
     [dsh("session-log-deepseek/delivery-accepted", 6, at(4, 1, 400), {"throughSeq": 5})],
     [dsh_message(7, at(4, 5), "dsm-1", ["reasoning", "tool-call"], "deepseek-flash", dsh_usage(9000, 400, 0, 0))],
     [dsh("tool/call", 8, at(4, 5, 2), {"callId": "c1", "name": "bash"}),
@@ -376,7 +528,10 @@ expect(rel, source="deepseek", project="quasar", model="deepseek-flash", isSubag
            resp("dsm-1", at(4, 1), at(4, 5), 9000, 0, 0, 400, 0, "deepseek-flash", provider="deepseek-account"),
            resp("dsm-2", at(4, 6, 10), at(4, 8, 10), 9400, 9216, 64, 300, 0, "deepseek-flash",
                 provider="deepseek-account"),
-       ])
+       ],
+       effort=mode("max"), speed=None,
+       responseModes={"dsm-1": {"effort": mode("max"), "speed": None},
+                      "dsm-2": {"effort": mode("max"), "speed": None}})
 
 rel = "dsh/sessions/--Users-dev-projects-quasar--/session-dsh-sub/session.v4.jsonl.zstd"
 write_zstd(rel, [
@@ -434,10 +589,12 @@ opus = {"id": "claude-opus-5-5", "providerID": "anthropic"}
 sonnet = {"id": "claude-sonnet-5-5", "providerID": "anthropic"}
 oc_row("u1", "ses_main", "user", 1, at(5, 1), at(5, 1), {"text": "Plan it", "time": {"created": at(5, 1)}})
 oc_row("msg_oc1", "ses_main", "assistant", 2, at(5, 1, 10), at(5, 5, 20),
-       {"time": {"created": at(5, 1, 10), "streamed": at(5, 5, 10), "completed": at(5, 5, 20)}, "model": opus,
+       {"time": {"created": at(5, 1, 10), "streamed": at(5, 5, 10), "completed": at(5, 5, 20)},
+        "model": dict(opus, variant="max"),
         "finish": "tool-calls", "tokens": oc_tokens(4, 300, 100, 1000, 200), "content": [{"type": "tool"}]})
 oc_row("msg_oc2", "ses_main", "assistant", 3, at(5, 40), at(5, 42, 10),
-       {"time": {"created": at(5, 40), "streamed": at(5, 42), "completed": at(5, 42, 10)}, "model": opus,
+       {"time": {"created": at(5, 40), "streamed": at(5, 42), "completed": at(5, 42, 10)},
+        "model": dict(opus, variant="default"),
         "finish": "stop", "tokens": oc_tokens(2, 150, 0, 1200, 0), "content": [{"type": "text"}]})
 oc_row("cmp_1", "ses_main", "compaction", 4, at(5, 43), at(5, 47),
        {"time": {"created": at(5, 43), "completed": at(5, 47)}, "model": {"id": "claude-haiku-5"},
@@ -447,10 +604,11 @@ oc_row("msg_copy", "ses_sub", "assistant", 1, at(5, 20), at(5, 20),
        {"time": {"created": at(5, 1, 10), "streamed": at(5, 5, 10), "completed": at(5, 5, 20)}, "model": opus,
         "finish": "tool-calls", "tokens": oc_tokens(4, 300, 100, 1000, 200)})
 oc_row("msg_oc3", "ses_sub", "assistant", 2, at(5, 21), at(5, 24, 5),
-       {"time": {"created": at(5, 21), "streamed": at(5, 24), "completed": at(5, 24, 5)}, "model": sonnet,
+       {"time": {"created": at(5, 21), "streamed": at(5, 24), "completed": at(5, 24, 5)},
+        "model": dict(sonnet, variant="xhigh"),
         "finish": "tool-calls", "tokens": oc_tokens(3, 90, 30, 0, 500)})
 oc_row("msg_oc4", "ses_sub", "assistant", 3, at(5, 30), at(5, 30),
-       {"time": {"created": at(5, 30)}, "model": sonnet, "content": []})
+       {"time": {"created": at(5, 30)}, "model": dict(sonnet, variant="high"), "content": []})
 oc.commit()
 oc.close()
 opencode_expected = {
@@ -462,12 +620,18 @@ opencode_expected = {
                                   resp("msg_oc2", at(5, 40), at(5, 42), 1202, 1200, 0, 150, 0, "claude-opus-5-5",
                                        provider="anthropic"),
                                   resp("cmp_1", at(5, 43), at(5, 47), 5000, 0, 0, 800, 0, "claude-haiku-5"),
-                              ]),
+                              ],
+                              effort=None, speed=None,
+                              responseModes={"msg_oc1": {"effort": mode("max"), "speed": None},
+                                             "msg_oc2": {"effort": None, "speed": None},
+                                             "cmp_1": {"effort": None, "speed": None}}),
     "opencode:ses_sub": dict(source="opencode", project="nebula", model="claude-sonnet-5-5", isSubagent=True,
                              parentId="opencode:ses_main", phase="generating", inFlightStartMs=at(5, 30),
                              lastLineMs=at(5, 30),
                              responses=[resp("msg_oc3", at(5, 21), at(5, 24), 503, 0, 500, 120, 30,
-                                             "claude-sonnet-5-5", provider="anthropic")]),
+                                             "claude-sonnet-5-5", provider="anthropic")],
+                             effort=mode("high"), speed=None,
+                             responseModes={"msg_oc3": {"effort": mode("xhigh"), "speed": None}}),
 }
 
 # --- Gemini CLI -----------------------------------------------------------------
@@ -502,6 +666,37 @@ order += workbuddy["order"]
 files.update(workbuddy["files"])
 mtimes.update(workbuddy["mtimes"])
 
+# --- Pi ---------------------------------------------------------------------------
+pi = pi_fixtures.write_fixtures(ROOT)
+assert min(pi["mtimes"].values()) > max(mtimes.values())
+order += pi["order"]
+files.update(pi["files"])
+mtimes.update(pi["mtimes"])
+
+# --- OpenClaw: agent databases, and a Codex rollout in an agent-scoped Codex home -----
+openclaw = openclaw_fixtures.write_fixtures(ROOT)
+assert min(openclaw["mtimes"].values()) > max(mtimes.values())
+order += openclaw["order"]
+files.update(openclaw["files"])
+mtimes.update(openclaw["mtimes"])
+
+# --- Hermes Agent: log folders, one parser state per folder ------------------------
+hermes = hermes_fixtures.write_fixtures(ROOT)
+assert min(hermes["mtimes"].values()) > max(mtimes.values())
+mtimes.update(hermes["mtimes"])
+
+# --- Factory Droid: transcripts with their sidecars ---------------------------------
+droid = droid_fixtures.write_fixtures(ROOT)
+assert min(droid["mtimes"].values()) > max(mtimes.values())
+order += droid["order"]
+files.update(droid["files"])
+mtimes.update(droid["mtimes"])
+traces_droid = droid["traces"]
+
+# --- Task score end to end (METRICS 6.9): its own tree, spec/fixtures/tasks ------------
+# Its expectations are task-e2e-expected.json, written by reference.py --write-task-fixture.
+task_e2e_fixtures.write(ROOT)
+
 with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the "
                            "Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this "
@@ -515,14 +710,34 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                            "path; `{\"unsupported\": true}` marks a database that contributes no agent; reading must "
                            "not create any file (no -wal or -shm). WorkBuddy: the folder `workbuddy` plays the home "
                            "folder (data folders .workbuddy and .workbuddy-ai); `workbuddy.discover` lists what "
-                           "discovery finds in both projects folders; its `traces` work like the omp ones.",
+                           "discovery finds in both projects folders; its `traces` work like the omp ones. Pi: the "
+                           "folder `pi` plays ~/.pi with this folder as home (pi/agent/settings.json names the custom "
+                           "session folder ~/pi/custom-sessions); `pi.discover` lists what discovery finds in both "
+                           "roots; its `traces` work like the omp ones. OpenClaw: the folder `openclaw` plays the home "
+                           "folder (state folders .openclaw and the profile .openclaw-work); after the OpenCode and "
+                           "Antigravity databases, the agent databases of `openclaw.dbOrder` are read with the same "
+                           "dedupe set, each one agent per transcript window (agent id `<database>#<session id>`, "
+                           "relative to this folder); `{\"unsupported\": true}` marks a database without session "
+                           "tables; `openclaw.discover` lists the databases discovery finds, `openclaw.codexDiscover` "
+                           "the rollouts of the Codex roots next to them (METRICS 2); a trace gives the phase of a "
+                           "window after its row `afterSeq`, after the databases before it; reading must not create "
+                           "any file. Hermes Agent: see `hermes._comment`; its log files are not in `order` (one "
+                           "parser state per log folder) but their modification times are in `mtimes`. Factory "
+                           "Droid: see `droid._comment`; its transcripts are in `order` (each read with its sidecar, "
+                           "whose modification time is in `mtimes` too) and its `traces` work like the omp ones.",
                "order": order, "files": files, "mtimes": mtimes,
                "opencode": {"database": opencode_rel, "agents": opencode_expected},
                "gemini": {"discover": gemini["discover"], "traces": gemini["traces"]},
                "omp": {"discover": omp["discover"], "traces": omp["traces"], "tailReads": omp["tailReads"]},
                "antigravity": {"order": antigravity["order"], "discover": antigravity["discover"],
                                "databases": antigravity["databases"]},
-               "workbuddy": {"discover": workbuddy["discover"], "traces": workbuddy["traces"]}},
+               "workbuddy": {"discover": workbuddy["discover"], "traces": workbuddy["traces"]},
+               "pi": {"discover": pi["discover"], "traces": pi["traces"]},
+               "openclaw": {"dbOrder": openclaw["dbOrder"], "discover": openclaw["discover"],
+                            "codexDiscover": openclaw["codexDiscover"], "databases": openclaw["databases"],
+                            "traces": openclaw["traces"]},
+               "hermes": hermes,
+               "droid": dict(droid["droid"], traces=traces_droid)},
               f, indent=2, ensure_ascii=False)
     f.write("\n")
 
@@ -615,7 +830,7 @@ def price_table(version, updated, opus, opus_tier, opus_fast, pro31_out, extra=(
                         "and history-expected.json. Never edit by hand: spec/tools/generate_fixtures.py.",
             "schema": 1, "version": version, "updated": updated, "currency": "USD", "unit": "perMillionTokens",
             "providers": {k: {"name": k, "url": FIXTURE_URL} for k in
-                          ("anthropic", "openai", "google", "deepseek", "fixture")},
+                          ("anthropic", "openai", "google", "deepseek", "xiaomi", "fixture")},
             "normalize": NORMALIZE,
             "models": models,
             "unknown": [{"match": "prefix", "value": "neko-model-", "reason": "opaque local router alias"},
@@ -628,7 +843,8 @@ def price_table(version, updated, opus, opus_tier, opus_fast, pro31_out, extra=(
 price_v1 = price_table(1, "2026-10-01", pr(5, 0.5, 6.25, 10, 25), pr(10, 1, 12.5, 20, 37.5, above=200_000),
                        pr(10, 1, 12.5, 20, 50), 12)
 price_v2 = price_table(2, "2026-10-15", pr(4, 0.4, 5, 8, 20), pr(8, 0.8, 10, 16, 30, above=200_000),
-                       pr(8, 0.8, 10, 16, 40), 10, [price_model("gpt-6.1-sol-mini", "openai", pr(0.4, 0.04, out=3.2))])
+                       pr(8, 0.8, 10, 16, 40), 10, [price_model("gpt-6.1-sol-mini", "openai", pr(0.4, 0.04, out=3.2)),
+                                                    price_model("mimo-v2.6-pro", "xiaomi", pr(0.435, 0.0036, 0, out=0.87))])
 os.makedirs(os.path.join(ROOT, "prices"), exist_ok=True)
 for table in (price_v1, price_v2):
     with open(os.path.join(ROOT, "prices", "v%d.json" % table["version"]), "w", encoding="utf-8") as f:
@@ -708,6 +924,41 @@ cost_cases = [
               pico((300, 8), (600, 0.8), (100, 10), (50, 40))),
     dict(cost_case("fast mode without a fast price is unknown", "v2", "claude-sonnet-5-5", tk(1000, 0, 0, 0, 50),
                    None), fast=True),
+    cost_case("an explicit zero cache-write price is free, not the input price", "v2", "mimo-v2.6-pro",
+              tk(10_000, 6000, 3000, 0, 400), pico((1000, 0.435), (6000, 0.0036), (400, 0.87)), provider="custom"),
+    cost_case("a model added by a newer table has no price in the older one", "v1", "mimo-v2.6-pro",
+              tk(10_000, 6000, 3000, 0, 400), None, provider="custom"),
+]
+# Real prices of spec/assets/prices.json, pinned to an instant: a later price change adds a period and keeps them valid.
+BUNDLED_AT = "2026-10-28T12:00Z"
+
+
+def bundled_case(name, model, tokens, pico_usd, tier=None, fast=False):
+    case = cost_case(name, None, model, tokens, pico_usd, tier)
+    del case["table"]
+    case["at"] = BUNDLED_AT
+    if fast:
+        case["fast"] = True
+    return case
+
+
+bundled_cost_cases = [
+    bundled_case("GPT-6.1 Terra at exactly 272 000 input tokens keeps its base prices", "gpt-6.1-terra",
+                 tk(272_000, 200_010, 20_000, 0, 4000),
+                 pico((51_990, 1), (200_010, 0.05), (20_000, 1.25), (4000, 5))),
+    bundled_case("one more input token prices the whole GPT-6.1 Terra response at the long-context rates",
+                 "gpt-6.1-terra", tk(272_001, 200_010, 20_000, 0, 4000),
+                 pico((51_991, 2), (200_010, 0.1), (20_000, 2.5), (4000, 7.5)), tier=0),
+    bundled_case("a routed GPT-6.1 Terra id bills cache reads and cache writes apart", "openai/gpt-6.1-terra",
+                 tk(10_000, 6000, 1000, 0, 500), pico((3000, 1), (6000, 0.05), (1000, 1.25), (500, 5))),
+    bundled_case("GPT-6.1 Terra fast mode at exactly 272 000 input tokens", "gpt-6.1-terra",
+                 tk(272_000, 200_010, 20_000, 0, 4000),
+                 pico((51_990, 2), (200_010, 0.1), (20_000, 2.5), (4000, 10)), fast=True),
+    bundled_case("a -fast GPT-6.1 Terra id above 272 000 input tokens uses the long-context fast prices",
+                 "gpt-6.1-terra-fast", tk(272_001, 200_010, 20_000, 0, 4000),
+                 pico((51_991, 4), (200_010, 0.2), (20_000, 5), (4000, 15)), tier=0),
+    bundled_case("GPT-5.6 Terra keeps its own prices", "gpt-5.6-terra", tk(10_000, 6000, 1000, 0, 500),
+                 pico((3000, 2), (6000, 0.2), (1000, 2.5), (500, 12))),
 ]
 day_cases = [
     {"name": "a bound day keeps its table", "bindings": {"2026-10-20": 1}, "date": "2026-10-20",
@@ -722,6 +973,9 @@ day_cases = [
     {"name": "a binding to a missing table is replaced by the current table", "bindings": {"2026-10-19": 7},
      "date": "2026-10-19", "model": "claude-opus-5-5", "tokens": tk(1000, 0, 0, 0, 100), "version": 2,
      "costMicroUsd": (pico((1000, 4), (100, 20)) + 500_000) // 1_000_000},
+    {"name": "late pricing reaches a custom provider's model added later (issue #20)", "bindings": {"2026-10-20": 1},
+     "date": "2026-10-20", "model": "mimo-v2.6-pro", "provider": "custom", "tokens": tk(10_000, 6000, 3000, 0, 400),
+     "version": 1, "costMicroUsd": (pico((1000, 0.435), (6000, 0.0036), (400, 0.87)) + 500_000) // 1_000_000},
     {"name": "unknown in every table stays unknown", "bindings": {}, "date": "2026-10-20",
      "model": "neko-model-f1097c63", "tokens": tk(5000, 0, 0, 0, 500), "version": 2, "costMicroUsd": None},
 ]
@@ -771,6 +1025,21 @@ resolve_cases = [{"table": t, "model": m, "provider": p, "expect": e} for t, m, 
     ("v2", None, None, "unknown"),
     ("v1", "gpt-6.1-sol-mini", None, "unknown"),
     ("v2", "gpt-6.1-sol-mini", None, "gpt-6.1-sol-mini"),
+    ("v1", "mimo-v2.6-pro", "custom", "unknown"),
+    ("v2", "mimo-v2.6-pro", "custom", "mimo-v2.6-pro"),
+    ("v2", "MiMo-V2.6-Pro", None, "mimo-v2.6-pro"),
+    ("v2", "xiaomi/mimo-v2.6-pro", "custom", "mimo-v2.6-pro"),
+    ("v2", "mimo-v2.6-pro-fast", "custom", "unknown"),
+    ("v2", "custom:GPT-5.5-[OpenAI-BYOK]-0", "custom", "gpt-5.5"),
+    ("v2", "Custom:Claude-Opus-5.5-Thinking-0", "custom", "claude-opus-5-5"),
+    ("v2", "custom:Claude-Opus-5.5-[Bedrock]-12", "custom", "claude-opus-5-5"),
+    ("v2", "custom:Claude Opus 5.5-0", "custom", "unknown"),
+    ("v2", "custom:claude-opus-5-5-fast-0", "custom", "claude-opus-5-5 fast"),
+    ("v2", "custom:gpt-5.5", "custom", "gpt-5.5"),
+    ("v2", "custom:superbased-0", "custom", "unknown"),
+    ("v2", "custom:Kimi-K3-(free)-0", "custom", "unknown"),
+    ("v2", "custom:-0", "custom", "unknown"),
+    ("v2", "gpt-5.5-0", None, "unknown"),
 ]]
 with open(os.path.join(ROOT, "price-cases.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "METRICS 9.2-9.3 against the fixture tables in `tables` (paths relative to this folder). "
@@ -781,9 +1050,12 @@ with open(os.path.join(ROOT, "price-cases.json"), "w", encoding="utf-8") as f:
                            "`resolve.expect` adds ` fast` when the id itself selects fast mode. Tokens are "
                            "normalized usage (METRICS 3.2). `days` (9.7): all tables "
                            "loaded, the highest version current, `bindings` stored; `version` is the date's binding "
-                           "afterwards.",
+                           "afterwards. `bundled.cost`: cost cases against spec/assets/prices.json, the real table "
+                           "every build bundles; each has an `at`, so a later price change (a new period) keeps it "
+                           "valid.",
                "tables": {"v1": "prices/v1.json", "v2": "prices/v2.json"},
-               "resolve": resolve_cases, "cost": cost_cases, "days": day_cases}, f, indent=2, ensure_ascii=False)
+               "resolve": resolve_cases, "cost": cost_cases, "days": day_cases,
+               "bundled": {"cost": bundled_cost_cases}}, f, indent=2, ensure_ascii=False)
     f.write("\n")
 
 # --- Money formatting and exchange rates (DESIGN 9, NETWORK 4) ------------------
@@ -1080,6 +1352,20 @@ cases += [
                               {"sources": ["claudeCode"], "liveOutput": 100.0, "liveCost": 300.0},
                               {"sources": ["codex", "claudeCode"], "liveOutput": 700 / 3, "liveCost": 2900 / 3},
                               {"sources": ["gemini"], "liveOutput": 0.0, "liveCost": 0.0}]}]},
+    # g3's in-flight estimate uses its own reference response (100 tok/s, 200 micro-USD/s); g2's response has no price.
+    {"name": "the live cost adds an in-flight estimate at its reference's rate and leaves unpriced tokens unknown",
+     "agents": [agent("g1", "codex", "m1", last=B + 3000),
+                agent("g2", "codex", "m2", last=B + 3000, parent="g1"),
+                agent("g3", "codex", "m1", "generating", B + 1500, B + 1500, "g2"),
+                agent("h1", "claudeCode", "m3", last=B + 3000)],
+     "responses": [ec("rg1", "g1", "codex", "m1", B, B + 3000, 300, 900),
+                   ec("rg2", "g2", "codex", "m2", B + 1000, B + 3000, 100, None),
+                   ec("rg3", "g3", "codex", "m1", B - 3000, B - 1000, 200, 400),
+                   ec("rh1", "h1", "claudeCode", "m3", B + 1500, B + 3000, 150, 600)],
+     "queries": [{"nowMs": B + 3000, "liveOutput": 700 / 3, "liveTotal": 700 / 3, "estimatedShare": 150 / 700,
+                  "liveCost": 1800 / 3, "liveCostKnownShare": 600 / 700},
+                 {"nowMs": B + 10_000, "liveOutput": 100.0, "liveTotal": 100.0, "estimatedShare": 1.0,
+                  "liveCost": 200.0, "liveCostKnownShare": 1.0}]},
 ]
 with open(os.path.join(ROOT, "engine-cases.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "Times are Unix ms. Unless a case sets todayStartMs, use 0. Compare floats with 1e-6 "

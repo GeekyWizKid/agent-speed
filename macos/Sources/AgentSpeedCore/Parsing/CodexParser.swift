@@ -16,6 +16,8 @@ struct CodexParser: Sendable {
     private var previousLegacyTotals: CodexRawUsage?
     /// `model_provider` of the first `session_meta` (METRICS 3.2).
     private var provider: String?
+    /// Lines of a paginated sub-agent below this ordinal copy its parent's records (METRICS 3.5).
+    private var subagentStartOrdinal: Int64?
 
     init(agentId: String, fileID: FileID) {
         self.agentId = agentId
@@ -28,6 +30,7 @@ struct CodexParser: Sendable {
 
     mutating func consume(
         _ extraction: LineExtraction<CodexLine>,
+        tools: [ToolEvent] = [],
         deduper: inout Deduper,
         emit: (ResponseUpsert) -> Void
     ) {
@@ -38,11 +41,11 @@ struct CodexParser: Sendable {
             state.malformedLines += 1
             return
         case .line(let line):
-            consume(line, deduper: &deduper, emit: emit)
+            consume(line, tools: tools, deduper: &deduper, emit: emit)
         }
     }
 
-    private mutating func consume(_ line: CodexLine, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
+    private mutating func consume(_ line: CodexLine, tools: [ToolEvent], deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
         guard let timestamp = line.timestampMs else { return }
         if case .sessionMeta(let meta) = line.kind {
             // Only the first session_meta applies; sub-agent files copy their parent's right after their own.
@@ -53,14 +56,34 @@ struct CodexParser: Sendable {
             myAgentPath = meta.agentPath ?? Self.defaultAgentPath
             state.isSubagent = meta.isSubagent
             provider = meta.modelProvider
+            subagentStartOrdinal = meta.subagentStartOrdinal
             return
         }
         if let created = state.thread?.createdMs, timestamp < created - Self.copiedHistoryToleranceMs {
             return
         }
+        if let start = subagentStartOrdinal, let ordinal = line.ordinal, ordinal < start {
+            return
+        }
         state.noteLine(at: timestamp)
-        if line.hasModeSelection { state.modes = line.modes }
-        else if !line.modes.facts.isEmpty { state.modes = state.modes.merging(line.modes) }
+        state.actions.record(tools, at: timestamp)
+        var requestModes = ExecutionModes.empty
+        switch line.modeUpdate {
+        case .none: break
+        case .turn(let facts):
+            state.modes = ExecutionModes(state.modes.facts.filter { $0.scope != .turn } + facts.facts)
+        case .session(let settings):
+            var facts = state.modes.facts
+            for setting in settings {
+                facts.removeAll {
+                    $0.kind == setting.kind && $0.evidence == .selected && $0.scope == .session && $0.provider == setting.provider
+                }
+                if let fact = setting.fact { facts.append(fact) }
+            }
+            state.modes = ExecutionModes(facts)
+        case .request(let facts):
+            requestModes = facts
+        }
 
         switch line.kind {
         case .sessionMeta:
@@ -85,7 +108,7 @@ struct CodexParser: Sendable {
             sawModernUsage = true
             let key = responseId ?? "codex:\(threadId ?? state.thread?.id ?? agentId):\(timestamp)"
             guard deduper.claim(key, for: fileID) == .new else { return }
-            complete(key: key, usage: usage.normalized, at: timestamp, emit: emit)
+            complete(key: key, usage: usage.normalized, modes: state.modes.merging(requestModes), at: timestamp, emit: emit)
 
         case .legacyUsage(let threadId, let info):
             if sawModernUsage {
@@ -105,7 +128,7 @@ struct CodexParser: Sendable {
             previousLegacyTotals = total
             let key = "codex-legacy:\(threadId ?? state.thread?.id ?? agentId):\(total.total)"
             guard deduper.claim(key, for: fileID) == .new else { return }
-            complete(key: key, usage: tokens.normalized, at: timestamp, emit: emit)
+            complete(key: key, usage: tokens.normalized, modes: state.modes, at: timestamp, emit: emit)
 
         case .turnEnded:
             state.setPhase(.idle, at: timestamp)
@@ -129,7 +152,9 @@ struct CodexParser: Sendable {
         state.setPhase(.tools, at: timestamp)
     }
 
-    private mutating func complete(key: String, usage: TokenUsage, at timestamp: Int64, emit: (ResponseUpsert) -> Void) {
+    /// `modes`: a snapshot of the context, plus the response's own request facts.
+    private mutating func complete(key: String, usage: TokenUsage, modes: ExecutionModes, at timestamp: Int64,
+                                   emit: (ResponseUpsert) -> Void) {
         let record = ResponseRecord(
             key: key,
             source: .codex,
@@ -139,10 +164,9 @@ struct CodexParser: Sendable {
             endMs: timestamp,
             usage: usage,
             provider: provider,
-            modes: state.modes
+            modes: modes
         )
         finishWithoutUsage(at: timestamp)
-        state.modes = ExecutionModes(state.modes.facts.filter { $0.evidence == .selected })
         emit(ResponseUpsert(record: record, isCompletion: true))
     }
 }

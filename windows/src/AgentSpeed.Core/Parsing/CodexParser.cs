@@ -10,6 +10,9 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
 
     private readonly bool _pathIsSubagent;
     private long? _fileCreatedMs;
+
+    /// <summary>Lines of a paginated sub-agent below this ordinal copy its parent's records (METRICS 3.5).</summary>
+    private long? _subagentStartOrdinal;
     private string _myAgentPath = RootAgentPath;
     private string? _metaThreadId;
     private string? _parentThreadId;
@@ -21,11 +24,15 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
     private bool _sawModernUsage;
     private CodexUsage? _previousLegacyTotals;
 
+    /// <summary>Facts that apply from their time on (EXECUTION-MODES, Codex); also the agent's current facts.</summary>
+    private ExecutionModes _context = ExecutionModes.Empty;
+
     public CodexParser(string agentId, IDeduper deduper)
         : base(agentId, deduper, SourceKind.Codex)
     {
         _pathIsSubagent = PathText.HasDirectoryComponent(agentId, "subagents");
         SetSubagent(_pathIsSubagent);
+        EnableTasks(new global::AgentSpeed.Core.Tasks.CodexTaskReader(), SourceKind.Codex);
     }
 
     /// <summary>Time of the first <c>session_meta</c>, i.e. when the rollout was created.</summary>
@@ -41,6 +48,7 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
     {
         base.Reset();
         _fileCreatedMs = null;
+        _subagentStartOrdinal = null;
         _myAgentPath = RootAgentPath;
         _metaThreadId = null;
         _parentThreadId = null;
@@ -49,10 +57,20 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
         _streaming = false;
         _sawModernUsage = false;
         _previousLegacyTotals = null;
+        _context = ExecutionModes.Empty;
         SetSubagent(_pathIsSubagent);
     }
 
     public override void Apply(in CodexLine line, IResponseSink sink)
+    {
+        ApplyLine(in line, sink);
+        if (line.TaskTracked)
+        {
+            ComposeTask(line.Task, line.TimestampMs);
+        }
+    }
+
+    private void ApplyLine(in CodexLine line, IResponseSink sink)
     {
         if (line.Status == LineStatus.Malformed)
         {
@@ -77,12 +95,19 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
             return;
         }
 
+        if (_subagentStartOrdinal is { } start && line.Ordinal is { } ordinal && ordinal < start)
+        {
+            return;
+        }
+
         Touch(ts);
+        RecordTools(in line.Tools, ts);
         switch (line.Kind)
         {
             case CodexLineKind.TurnContext:
                 SetModel(line.Model);
                 SetProjectFromCwd(line.Cwd);
+                ApplyTurnFacts(in line);
                 break;
             case CodexLineKind.ResponseItem:
                 ApplyResponseItem(in line, ts);
@@ -96,7 +121,12 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
         }
     }
 
-    protected override CodexLine Extract(ReadOnlySpan<byte> line) => CodexLineReader.Read(line);
+    protected override CodexLine Extract(ReadOnlySpan<byte> line)
+    {
+        var parsed = CodexLineReader.Read(line);
+        (TaskReader as global::AgentSpeed.Core.Tasks.CodexTaskReader)?.Read(line, ref parsed);
+        return parsed;
+    }
 
     // Only the first session_meta applies; sub-agents copy their parent's afterwards.
     private void ApplySessionMeta(in CodexLine line, long ts)
@@ -107,6 +137,7 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
         }
 
         _fileCreatedMs = ts;
+        _subagentStartOrdinal = line.SubagentStartOrdinal;
         Touch(ts);
         SetProjectFromCwd(line.Cwd);
         _myAgentPath = line.AgentPath ?? RootAgentPath;
@@ -170,7 +201,52 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
                 _streaming = false;
                 SetPhase(AgentPhase.Idle, ts, null);
                 break;
+            case CodexPayloadKind.ThreadSettingsApplied:
+                ApplyThreadSettings(in line);
+                break;
         }
+    }
+
+    /// <summary>A turn context starts a turn: turn facts are replaced by its effort and selected tier.</summary>
+    private void ApplyTurnFacts(in CodexLine line)
+    {
+        var context = _context.Without(f => f.Scope == ExecutionModeScope.Turn)
+            .With(ExecutionModeNative.Effort(line.Effort ?? line.CollaborationEffort, ExecutionModeEvidence.Recorded, ExecutionModeScope.Turn));
+        if (line.ServiceTier is { } tier)
+        {
+            context = context.Merge(ExecutionModeNative.OpenAiTier(tier, ExecutionModeEvidence.Selected, ExecutionModeScope.Turn));
+        }
+
+        SetContext(context);
+    }
+
+    /// <summary><c>thread_settings_applied</c>: the thread's selected tier and effort from now on; a non-string clears one.</summary>
+    private void ApplyThreadSettings(in CodexLine line)
+    {
+        var context = _context;
+        if (line.TierSetting.Present)
+        {
+            context = context.Without(f => IsSessionSelection(f, ExecutionModeKind.ServiceTier, "openai"))
+                .Merge(ExecutionModeNative.OpenAiTier(line.TierSetting.Value, ExecutionModeEvidence.Selected, ExecutionModeScope.Session));
+        }
+
+        if (line.EffortSetting.Present)
+        {
+            context = context.Without(f => IsSessionSelection(f, ExecutionModeKind.Effort, null))
+                .With(ExecutionModeNative.Effort(line.EffortSetting.Value, ExecutionModeEvidence.Selected, ExecutionModeScope.Session));
+        }
+
+        SetContext(context);
+    }
+
+    private static bool IsSessionSelection(ExecutionModeFact fact, ExecutionModeKind kind, string? provider) =>
+        fact.Kind == kind && fact.Evidence == ExecutionModeEvidence.Selected && fact.Scope == ExecutionModeScope.Session
+        && string.Equals(fact.Provider, provider, StringComparison.Ordinal);
+
+    private void SetContext(ExecutionModes context)
+    {
+        _context = context;
+        Modes = context;
     }
 
     private string ThreadId => _metaThreadId ?? AgentId;
@@ -185,7 +261,11 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
             return;
         }
 
-        Emit(key, line.Usage, ts, sink);
+        // A recorded request tier belongs to this response's snapshot only, never to the context.
+        var modes = line.ServiceTier is { } tier
+            ? _context.Merge(ExecutionModeNative.OpenAiTier(tier, ExecutionModeEvidence.Recorded, ExecutionModeScope.Request))
+            : _context;
+        Emit(key, line.Usage, ts, sink, modes);
     }
 
     private void ApplyLegacyUsage(in CodexLine line, long ts, IResponseSink sink)
@@ -220,12 +300,15 @@ internal sealed class CodexParser : TranscriptParser<CodexLine>
             return;
         }
 
-        Emit(key, tokens, ts, sink);
+        Emit(key, tokens, ts, sink, _context);
     }
 
-    private void Emit(string key, TokenCounts tokens, long ts, IResponseSink sink)
+    private void Emit(string key, TokenCounts tokens, long ts, IResponseSink sink, ExecutionModes modes)
     {
-        sink.OnResponse(new ParsedResponse(key, SourceKind.Codex, AgentId, Model, _pendingStartMs, ts, tokens, Provider: _provider), true);
+        sink.OnResponse(new ParsedResponse(key, SourceKind.Codex, AgentId, Model, _pendingStartMs, ts, tokens, Provider: _provider)
+        {
+            Modes = modes,
+        }, true);
         AfterUsage(ts);
     }
 

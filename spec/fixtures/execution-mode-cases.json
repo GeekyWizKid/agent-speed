@@ -483,6 +483,152 @@
       "evidence": "selected",
       "scope": "turn",
       "expected": null
+    },
+    {
+      "id": "effort-xhigh",
+      "adapter": "effort",
+      "rawValue": "xhigh",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": {
+        "kind": "effort",
+        "value": "xhigh",
+        "rawValue": "xhigh",
+        "evidence": "recorded",
+        "scope": "request"
+      }
+    },
+    {
+      "id": "effort-upper",
+      "adapter": "effort",
+      "rawValue": "MAX",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": {
+        "kind": "effort",
+        "value": "max",
+        "rawValue": "MAX",
+        "evidence": "recorded",
+        "scope": "request"
+      }
+    },
+    {
+      "id": "effort-none-is-off",
+      "adapter": "effort",
+      "rawValue": "none",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": {
+        "kind": "effort",
+        "value": "off",
+        "rawValue": "none",
+        "evidence": "recorded",
+        "scope": "request"
+      }
+    },
+    {
+      "id": "effort-default",
+      "adapter": "effort",
+      "rawValue": "default",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": null
+    },
+    {
+      "id": "effort-auto",
+      "adapter": "effort",
+      "rawValue": "auto",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": null
+    },
+    {
+      "id": "effort-inherit",
+      "adapter": "effort",
+      "rawValue": "inherit",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": null
+    },
+    {
+      "id": "effort-ultra",
+      "adapter": "effort",
+      "rawValue": "ultra",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": {
+        "kind": "effort",
+        "value": "ultra",
+        "rawValue": "ultra",
+        "evidence": "recorded",
+        "scope": "request"
+      }
+    },
+    {
+      "id": "effort-ultracode",
+      "adapter": "effort",
+      "rawValue": "ultracode",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": {
+        "kind": "effort",
+        "value": "ultracode",
+        "rawValue": "ultracode",
+        "evidence": "recorded",
+        "scope": "request"
+      }
+    },
+    {
+      "id": "effort-future-token",
+      "adapter": "effort",
+      "rawValue": "persistent",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": {
+        "kind": "effort",
+        "value": "persistent",
+        "rawValue": "persistent",
+        "evidence": "recorded",
+        "scope": "request"
+      }
+    },
+    {
+      "id": "effort-unsafe",
+      "adapter": "effort",
+      "rawValue": "x high",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": null
+    },
+    {
+      "id": "effort-empty",
+      "adapter": "effort",
+      "rawValue": "",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": null
+    },
+    {
+      "id": "effort-too-long",
+      "adapter": "effort",
+      "rawValue": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "evidence": "recorded",
+      "scope": "request",
+      "expected": null
+    },
+    {
+      "id": "effort-selected-session",
+      "adapter": "effort",
+      "rawValue": "high",
+      "evidence": "selected",
+      "scope": "session",
+      "expected": {
+        "kind": "effort",
+        "value": "high",
+        "rawValue": "high",
+        "evidence": "selected",
+        "scope": "session"
+      }
     }
   ],
   "attribution": [
@@ -710,6 +856,47 @@
         "mode": "unknown",
         "evidence": "unknown"
       }
+    },
+    {
+      "id": "effort-recorded-turn-beats-selected-session",
+      "kind": "effort",
+      "facts": [
+        {
+          "kind": "effort",
+          "value": "high",
+          "rawValue": "high",
+          "evidence": "selected",
+          "scope": "session"
+        },
+        {
+          "kind": "effort",
+          "value": "ultra",
+          "rawValue": "ultra",
+          "evidence": "recorded",
+          "scope": "turn"
+        }
+      ],
+      "expected": {
+        "mode": "ultra",
+        "evidence": "recorded"
+      }
+    },
+    {
+      "id": "effort-off-is-resolved",
+      "kind": "effort",
+      "facts": [
+        {
+          "kind": "effort",
+          "value": "off",
+          "rawValue": "none",
+          "evidence": "recorded",
+          "scope": "request"
+        }
+      ],
+      "expected": {
+        "mode": "off",
+        "evidence": "recorded"
+      }
     }
   ],
   "capabilities": [
@@ -750,6 +937,356 @@
       },
       "modelsEnabled": false,
       "expected": false
+    }
+  ],
+  "speed": [
+    {
+      "id": "none",
+      "facts": [],
+      "expected": {
+        "mode": "unknown",
+        "evidence": "unknown"
+      }
+    },
+    {
+      "id": "tier-fast",
+      "facts": [
+        {
+          "kind": "serviceTier",
+          "value": "fast",
+          "rawValue": "priority",
+          "evidence": "selected",
+          "scope": "session",
+          "provider": "openai"
+        }
+      ],
+      "expected": {
+        "mode": "fast",
+        "evidence": "selected",
+        "provider": "openai"
+      }
+    },
+    {
+      "id": "tier-ultrafast",
+      "facts": [
+        {
+          "kind": "serviceTier",
+          "value": "ultrafast",
+          "rawValue": "ultrafast",
+          "evidence": "selected",
+          "scope": "session",
+          "provider": "openai"
+        }
+      ],
+      "expected": {
+        "mode": "ultrafast",
+        "evidence": "selected",
+        "provider": "openai"
+      }
+    },
+    {
+      "id": "tier-standard-beats-accelerator",
+      "facts": [
+        {
+          "kind": "serviceTier",
+          "value": "standard",
+          "rawValue": "standard",
+          "evidence": "served",
+          "scope": "response",
+          "provider": "anthropic"
+        },
+        {
+          "kind": "accelerator",
+          "value": "highspeed",
+          "rawValue": "highspeed",
+          "evidence": "selected",
+          "scope": "turn"
+        }
+      ],
+      "expected": {
+        "mode": "standard",
+        "evidence": "served",
+        "provider": "anthropic"
+      }
+    },
+    {
+      "id": "accelerator",
+      "facts": [
+        {
+          "kind": "accelerator",
+          "value": "highspeed",
+          "rawValue": "highspeed",
+          "evidence": "selected",
+          "scope": "turn"
+        }
+      ],
+      "expected": {
+        "mode": "highspeed",
+        "evidence": "selected"
+      }
+    },
+    {
+      "id": "model-variant-highspeed",
+      "facts": [
+        {
+          "kind": "modelVariant",
+          "value": "highspeed",
+          "rawValue": "k3.1-pro-highspeed",
+          "evidence": "selected",
+          "scope": "request",
+          "provider": "kimi"
+        }
+      ],
+      "expected": {
+        "mode": "highspeed",
+        "evidence": "selected",
+        "provider": "kimi"
+      }
+    },
+    {
+      "id": "model-variant-other-ignored",
+      "facts": [
+        {
+          "kind": "modelVariant",
+          "value": "mini",
+          "rawValue": "mini",
+          "evidence": "selected",
+          "scope": "request"
+        }
+      ],
+      "expected": {
+        "mode": "unknown",
+        "evidence": "unknown"
+      }
+    },
+    {
+      "id": "unresolved-tier-falls-through",
+      "facts": [
+        {
+          "kind": "serviceTier",
+          "value": "auto",
+          "rawValue": "auto",
+          "evidence": "selected",
+          "scope": "session",
+          "provider": "openai"
+        },
+        {
+          "kind": "accelerator",
+          "value": "highspeed",
+          "rawValue": "highspeed",
+          "evidence": "selected",
+          "scope": "turn"
+        }
+      ],
+      "expected": {
+        "mode": "highspeed",
+        "evidence": "selected"
+      }
+    },
+    {
+      "id": "configured-only",
+      "facts": [
+        {
+          "kind": "serviceTier",
+          "value": "fast",
+          "rawValue": "priority",
+          "evidence": "configured",
+          "scope": "configuration",
+          "provider": "openai"
+        }
+      ],
+      "expected": {
+        "mode": "unknown",
+        "evidence": "unknown"
+      }
+    },
+    {
+      "id": "served-beats-selected",
+      "facts": [
+        {
+          "kind": "serviceTier",
+          "value": "fast",
+          "rawValue": "priority",
+          "evidence": "selected",
+          "scope": "session",
+          "provider": "openai"
+        },
+        {
+          "kind": "serviceTier",
+          "value": "standard",
+          "rawValue": "default",
+          "evidence": "served",
+          "scope": "response",
+          "provider": "openai"
+        }
+      ],
+      "expected": {
+        "mode": "standard",
+        "evidence": "served",
+        "provider": "openai"
+      }
+    },
+    {
+      "id": "routing-is-not-speed",
+      "facts": [
+        {
+          "kind": "routing",
+          "value": "fast",
+          "rawValue": "fast-model",
+          "evidence": "selected",
+          "scope": "request"
+        }
+      ],
+      "expected": {
+        "mode": "unknown",
+        "evidence": "unknown"
+      }
+    }
+  ],
+  "effortDisplay": [
+    {
+      "value": "off",
+      "expected": {
+        "level": 0,
+        "top": false
+      }
+    },
+    {
+      "value": "minimal",
+      "expected": {
+        "level": 1,
+        "top": false
+      }
+    },
+    {
+      "value": "low",
+      "expected": {
+        "level": 1,
+        "top": false
+      }
+    },
+    {
+      "value": "medium",
+      "expected": {
+        "level": 2,
+        "top": false
+      }
+    },
+    {
+      "value": "high",
+      "expected": {
+        "level": 3,
+        "top": false
+      }
+    },
+    {
+      "value": "xhigh",
+      "expected": {
+        "level": 4,
+        "top": false
+      }
+    },
+    {
+      "value": "max",
+      "expected": {
+        "level": 5,
+        "top": false
+      }
+    },
+    {
+      "value": "ultra",
+      "expected": {
+        "level": 5,
+        "top": true
+      }
+    },
+    {
+      "value": "ultracode",
+      "expected": {
+        "level": 5,
+        "top": true
+      }
+    },
+    {
+      "value": "persistent",
+      "expected": {
+        "level": null,
+        "top": false
+      }
+    }
+  ],
+  "speedBolts": [
+    {
+      "value": "standard",
+      "bolts": 0
+    },
+    {
+      "value": "fast",
+      "bolts": 1
+    },
+    {
+      "value": "highspeed",
+      "bolts": 1
+    },
+    {
+      "value": "ultrafast",
+      "bolts": 2
+    },
+    {
+      "value": "flex",
+      "bolts": 0
+    },
+    {
+      "value": "scale",
+      "bolts": 0
+    }
+  ],
+  "displayOrder": [
+    {
+      "id": "effort",
+      "kind": "effort",
+      "values": [
+        "xhigh",
+        "unknown",
+        "persistent",
+        "max",
+        "low",
+        "ultracode",
+        "ultra",
+        "aardvark",
+        "off"
+      ],
+      "expected": [
+        "ultracode",
+        "ultra",
+        "max",
+        "xhigh",
+        "low",
+        "off",
+        "aardvark",
+        "persistent",
+        "unknown"
+      ]
+    },
+    {
+      "id": "speed",
+      "kind": "speed",
+      "values": [
+        "standard",
+        "unknown",
+        "fast",
+        "flex",
+        "ultrafast",
+        "highspeed"
+      ],
+      "expected": [
+        "ultrafast",
+        "fast",
+        "highspeed",
+        "standard",
+        "flex",
+        "unknown"
+      ]
     }
   ]
 }

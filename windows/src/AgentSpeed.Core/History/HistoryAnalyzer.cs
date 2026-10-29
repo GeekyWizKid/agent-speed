@@ -21,6 +21,15 @@ internal sealed record HistoryOptions
 
     /// <summary>Upper bound for files read ahead of the consumer (by estimated decoded size).</summary>
     public long MaxBufferedBytes { get; init; } = 256L * 1024 * 1024;
+
+    /// <summary>
+    /// The zone whose rules convert Hermes Agent's wall-clock times (METRICS 4.15): this computer's; null uses the zone the
+    /// days are labeled in. Fixtures and <c>--utc</c> dumps label days in UTC but read wall times in a local zone.
+    /// </summary>
+    public TimeZoneInfo? HermesZone { get; init; }
+
+    /// <summary>The wall clock in Unix milliseconds, read once per run (METRICS 6.11 <i>Store</i>); tests inject their own.</summary>
+    public Func<long> NowMs { get; init; } = static () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 }
 
 internal readonly record struct HistoryProgress(int FilesDone, int FilesTotal, long BytesDone, long BytesTotal)
@@ -48,8 +57,13 @@ internal sealed record HistoryReport(
 /// </summary>
 internal sealed partial class HistoryAnalyzer
 {
-    /// <summary>2: measured output and time per model (METRICS 8). 3: cost (METRICS 9.7).</summary>
-    public const int AnalysisVersion = 4;
+    /// <summary>
+    /// 2: measured output and time per model (METRICS 8). 3: cost (METRICS 9.7). 4: execution modes. 5: reasoning effort
+    /// and speed breakdowns (EXECUTION-MODES). 6: the copied prefix of paginated Codex sub-agents (METRICS 3.5). 7: the
+    /// unpriced facts of the side table <c>contribution_unpriced</c> (METRICS 9.10).
+    /// 8: the task records of the side table <c>task_records</c> (METRICS 6.11).
+    /// </summary>
+    public const int AnalysisVersion = 8;
 
     private const string OpenCodeFamily = "opencode";
     private const string ZoneMeta = "timeZone";
@@ -77,6 +91,7 @@ internal sealed partial class HistoryAnalyzer
         Pricing = pricing ?? new PriceBook();
         _entries = store.LoadFiles(PathComparer);
         _peaks = store.Peaks();
+        Calibration = Calibrate();
         var repaired = Pricing.Restore(store.PriceBindings(), store.PriceTables());
         if (repaired.Count > 0)
         {
@@ -89,6 +104,9 @@ internal sealed partial class HistoryAnalyzer
     public IReadOnlyDictionary<string, StoredFile> Entries => _entries;
 
     public PriceBook Pricing { get; }
+
+    /// <summary>Tests: called with a transcript's responses when it is stored, with null when it is skipped (METRICS 4.16).</summary>
+    internal Action<string, IReadOnlyCollection<ParsedResponse>?>? FileAnalyzed { get; set; }
 
     /// <summary>Stores the dates bound since the last save, with a copy of each referenced table.</summary>
     public void SaveBindings()
@@ -104,8 +122,11 @@ internal sealed partial class HistoryAnalyzer
     public List<DailyUsage> Days(IReadOnlySet<SourceKind>? sources = null, IReadOnlyDictionary<string, double>? livePeaks = null)
     {
         var totals = new Dictionary<DayKey, DayAggregate>();
+        var hermesAgents = new Dictionary<DayKey, HashSet<string>>();
         foreach (var entry in _entries.Values)
         {
+            // A Hermes session spans rotated files: its days count it once (distinct agent ids, METRICS 8).
+            var hermesAgent = entry.Family == HermesFamily ? HermesAgentOf(entry.Path) : null;
             foreach (var (key, day) in entry.Days)
             {
                 if (sources is not null && !sources.Contains(key.Source))
@@ -119,7 +140,21 @@ internal sealed partial class HistoryAnalyzer
                 }
 
                 total.Merge(day);
+                if (hermesAgent is not null)
+                {
+                    total.Agents -= day.Agents;
+                    if (day.Requests > 0)
+                    {
+                        (hermesAgents.TryGetValue(key, out var agents) ? agents : hermesAgents[key] = new HashSet<string>(StringComparer.Ordinal))
+                            .Add(hermesAgent);
+                    }
+                }
             }
+        }
+
+        foreach (var (key, agents) in hermesAgents)
+        {
+            totals[key].Agents += agents.Count;
         }
 
         return [.. totals
@@ -164,22 +199,28 @@ internal sealed partial class HistoryAnalyzer
         Action<HistoryProgress>? progress = null)
     {
         var stopwatch = Stopwatch.StartNew();
+        _analysisMs = _options.NowMs();
         var zoneId = zone.Id;
         var zoneChanged = _entries.Count > 0 && !string.Equals(_store.Meta(ZoneMeta), zoneId, StringComparison.Ordinal);
         var priceVersion = Pricing.CurrentVersion.ToString(CultureInfo.InvariantCulture);
         var repricing = _entries.Count > 0 && !string.Equals(_store.Meta(PriceVersionMeta), priceVersion, StringComparison.Ordinal);
         var plan = BuildPlan(locations, enabled, zoneChanged, repricing, zoneId, cancellationToken);
-        var state = new HistoryProgress(0, plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count, 0, plan.Files.Sum(f => f.Size));
+        PlanHermes(plan, locations, enabled, zoneChanged, repricing, zone);
+        var state = new HistoryProgress(0, plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count + plan.OpenClawDatabases.Count
+            + plan.HermesLogs.Count, 0, plan.Files.Sum(f => f.Size) + plan.HermesLogs.Sum(l => l.Size));
         progress?.Invoke(state);
         int analyzed = 0, sessions = 0, unreadable = (plan.OpenCodeFailed ? 1 : 0) + (plan.ZCodeFailed ? 1 : 0);
         long bytes = 0;
         var cancelled = false;
         try
         {
-            if (plan.Files.Count > 0 || plan.Sessions.Count > 0 || plan.ZCodeSessions.Count > 0)
+            if (plan.Files.Count > 0 || plan.Sessions.Count > 0 || plan.ZCodeSessions.Count > 0 || plan.OpenClawDatabases.Count > 0
+                || plan.HermesLogs.Count > 0)
             {
                 var ledger = new KeyLedger();
                 var replaced = plan.Files.Select(f => f.Previous?.Id ?? 0).Concat(plan.Sessions.Select(s => s.Previous?.Id ?? 0)).Concat(plan.ZCodeSessions.Select(s => s.Previous?.Id ?? 0))
+                    .Concat(OpenClawReplacedIds(plan))
+                    .Concat(HermesReplacedIds(plan))
                     .Where(id => id != 0).ToHashSet();
                 _store.LoadKeys(ledger, replaced);
                 var labeler = new DayLabeler(zone);
@@ -202,6 +243,18 @@ internal sealed partial class HistoryAnalyzer
                         progress, cancellationToken);
                     if (!cancelled)
                     {
+                        cancelled = !AnalyzeOpenClaw(plan.OpenClawDatabases, ledger, labeler, pending, Flush, ref state, ref analyzed, ref bytes,
+                            ref unreadable, progress, cancellationToken);
+                    }
+
+                    if (!cancelled)
+                    {
+                        cancelled = !AnalyzeHermes(plan, ledger, labeler, pending, Flush, ref state, ref analyzed, ref bytes, ref unreadable,
+                            progress, cancellationToken);
+                    }
+
+                    if (!cancelled)
+                    {
                         cancelled = !AnalyzeZCodeSessions(plan.ZCodeSessions, ledger, labeler, pending, Flush, ref state, ref sessions,
                             progress, cancellationToken);
                     }
@@ -221,8 +274,14 @@ internal sealed partial class HistoryAnalyzer
 
             if (!cancelled)
             {
+                Calibration = Calibrate();
                 _store.SetMeta(ZoneMeta, zoneId);
                 _store.SetMeta(PriceVersionMeta, priceVersion);
+                if (plan.HermesZone is { } hermesZone)
+                {
+                    _store.SetMeta(HermesZoneMeta, hermesZone.Id);
+                }
+
                 if (plan.OpenCodeIdentity is { } identity)
                 {
                     _store.SetMeta(OpenCodeMeta, identity);
@@ -234,7 +293,9 @@ internal sealed partial class HistoryAnalyzer
             plan.Database?.Dispose();
         }
 
-        return new HistoryReport(plan.Discovered, plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count, analyzed, bytes, sessions, unreadable,
+        return new HistoryReport(plan.Discovered,
+            plan.Files.Count + plan.Sessions.Count + plan.ZCodeSessions.Count + plan.OpenClawDatabases.Count + plan.HermesLogs.Count,
+            analyzed, bytes, sessions, unreadable,
             stopwatch.ElapsedMilliseconds, cancelled);
     }
 
@@ -276,17 +337,23 @@ internal sealed partial class HistoryAnalyzer
                 }
 
                 plan.Discovered++;
-                // An Antigravity database's size and time already combine its -wal (METRICS 8).
+                // An Antigravity database's size and time already combine its -wal (METRICS 8); a Factory Droid
+                // session's identity adds its sidecar and its parent's (4.16).
+                var modified = family == RootFamily.Droid ? DroidIdentity(file) : file.LastWriteUtc.Ticks;
                 var previous = _entries.GetValueOrDefault(file.Path);
                 if (previous is not null && !zoneChanged && previous.Version == _options.Version
                     && string.Equals(previous.Family, familyName, StringComparison.Ordinal)
-                    && previous.Size == file.Length && previous.Modified == file.LastWriteUtc.Ticks
-                    && !(repricing && previous.HasUnpriced))
+                    && previous.Size == file.Length && previous.Modified == modified
+                    && !(repricing && previous.HasUnpriced)
+                    && !(previous.HasIncompleteTasks && IsQuiet(file.LastWriteUtc)))
                 {
                     continue;
                 }
 
-                plan.Files.Add(new PlannedFile(file.Path, family, root, file.Length, file.LastWriteUtc, previous));
+                plan.Files.Add(new PlannedFile(file.Path, family, root, file.Length, file.LastWriteUtc, previous)
+                {
+                    Identity = family == RootFamily.Droid ? modified : null,
+                });
             }
         }
 
@@ -302,6 +369,7 @@ internal sealed partial class HistoryAnalyzer
         }
 
         PlanZCode(plan, locations, enabled, zoneChanged, repricing, cancellationToken);
+        PlanOpenClaw(plan, locations, enabled, zoneChanged, repricing);
         PlanTrae(plan, locations, enabled, zoneChanged, repricing, cancellationToken);
         return plan;
     }
@@ -369,7 +437,7 @@ internal sealed partial class HistoryAnalyzer
     }
 
     /// <summary>Transcript roots of the enabled sources; Codex also contributes its <c>archived_sessions</c> sibling.</summary>
-    private static IEnumerable<(RootFamily Family, string Path)> Roots(SourceLocations locations, IReadOnlySet<SourceKind> enabled)
+    internal static IEnumerable<(RootFamily Family, string Path)> Roots(SourceLocations locations, IReadOnlySet<SourceKind> enabled)
     {
         foreach (var (family, path) in locations.FileRoots())
         {
@@ -379,7 +447,7 @@ internal sealed partial class HistoryAnalyzer
             }
 
             yield return (family, path);
-            if (family == RootFamily.Codex && locations.CodexArchiveRoot is { Length: > 0 } archive)
+            if (family == RootFamily.Codex && SourceLocations.ArchiveRootOf(path) is { Length: > 0 } archive)
             {
                 yield return (family, archive);
             }
@@ -421,7 +489,15 @@ internal sealed partial class HistoryAnalyzer
             {
                 try
                 {
-                    batch.ApplyTo(sink);
+                    if (prepared.Parser is Droid.DroidParser droid)
+                    {
+                        ApplyDroid(file.Path, droid, batch, sink);
+                    }
+                    else
+                    {
+                        batch.ApplyTo(sink);
+                    }
+
                     applied = true;
                 }
                 catch (Exception e) when (e is not OutOfMemoryException)
@@ -444,6 +520,14 @@ internal sealed partial class HistoryAnalyzer
                 continue;
             }
 
+            if (prepared.Parser is Droid.DroidParser { CountersUnknown: true })
+            {
+                SkipDroid(ledger, file.Previous);
+                FileAnalyzed?.Invoke(file.Path, null);
+                progress?.Invoke(state);
+                continue;
+            }
+
             var owned = ledger.FinishFile();
             var result = prepared.Result;
             var entry = new StoredFile
@@ -451,13 +535,15 @@ internal sealed partial class HistoryAnalyzer
                 Id = file.Previous?.Id ?? 0,
                 Path = file.Path,
                 Family = file.Family.ToString(),
-                Size = result.Length,
-                Modified = result.LastWriteUtc.Ticks,
+                Size = file.Identity is not null ? file.Size : result.Length,
+                Modified = file.Identity ?? result.LastWriteUtc.Ticks,
                 Version = _options.Version,
                 Days = DayAggregate.Contributions(sink.Items.Values, prepared.Parser.Source, labeler, Pricing),
+                TaskRecords = RecordsOf(prepared.Parser, labeler),
             };
             _entries[file.Path] = entry;
             pending.Add((entry, owned));
+            FileAnalyzed?.Invoke(file.Path, sink.Items.Values);
             analyzed++;
             bytes += result.Length;
             flush(false);
@@ -550,7 +636,11 @@ internal sealed partial class HistoryAnalyzer
         }
     }
 
-    private sealed record PlannedFile(string Path, RootFamily Family, string Root, long Size, DateTime LastWriteUtc, StoredFile? Previous);
+    private sealed record PlannedFile(string Path, RootFamily Family, string Root, long Size, DateTime LastWriteUtc, StoredFile? Previous)
+    {
+        /// <summary>What is stored as the entry's modification time instead of the file's; set for Factory Droid sessions.</summary>
+        public long? Identity { get; init; }
+    }
 
     private sealed record PlannedSession(OpenCodeSessionInfo Info, long Rows, long ModifiedMs, StoredFile? Previous);
 
@@ -561,6 +651,13 @@ internal sealed partial class HistoryAnalyzer
         public List<PlannedSession> Sessions { get; } = [];
 
         public List<PlannedZCodeSession> ZCodeSessions { get; } = [];
+
+        public List<PlannedOpenClawDatabase> OpenClawDatabases { get; } = [];
+
+        public List<PlannedHermesLog> HermesLogs { get; } = [];
+
+        /// <summary>The zone Hermes's wall times were read in; null when Hermes is not read.</summary>
+        public TimeZoneInfo? HermesZone { get; set; }
 
         public bool ZCodeFailed { get; set; }
 
@@ -589,6 +686,7 @@ internal sealed partial class HistoryAnalyzer
                     Model = response.Model ?? previous.Model,
                     Final = previous.Final || response.Final,
                     Fast = previous.Fast || response.Fast,
+                    Modes = previous.Modes.Merge(response.Modes),
                 };
             }
 

@@ -33,7 +33,11 @@ public sealed class HistoryTests : IDisposable
             Omp.OmpPaths.Roots(name => name == "PI_CONFIG_DIR" ? "omp" : null, macOS: false, copy),
             Antigravity.AntigravityPaths.Stores(Path.Combine(copy, "antigravity"), null),
             WorkBuddyRoot: SourceLocations.WorkBuddyRootOf(Path.Combine(copy, "workbuddy", ".workbuddy")),
-            WorkBuddyAiRoot: SourceLocations.WorkBuddyRootOf(Path.Combine(copy, "workbuddy", ".workbuddy-ai")));
+            WorkBuddyAiRoot: SourceLocations.WorkBuddyRootOf(Path.Combine(copy, "workbuddy", ".workbuddy-ai")),
+            PiRoots: PiFixture.RootsIn(copy),
+            OpenClawRoots: OpenClawFixture.StateFoldersIn(copy),
+            HermesRoot: HermesFixture.HomeIn(copy),
+            DroidRoot: DroidFixture.RootIn(copy));
         var document = JsonNode.Parse(File.ReadAllText(Path.Combine(FixtureLocator.FixturesDirectory, "history-expected.json")))!;
         var pricing = document["prices"]!;
         var tables = pricing["tables"]!.AsArray()
@@ -41,7 +45,8 @@ public sealed class HistoryTests : IDisposable
             .ToList();
         var bindings = pricing["bindings"]!.AsObject().ToDictionary(b => b.Key, b => b.Value!.GetValue<int>());
         using var store = HistoryStore.Open(StorePath);
-        var analyzer = new HistoryAnalyzer(store, pricing: new Pricing.PriceBook(tables, bindings));
+        var analyzer = new HistoryAnalyzer(store, new HistoryOptions { HermesZone = HermesFixture.Zone },
+            new Pricing.PriceBook(tables, bindings));
 
         var report = analyzer.Run(locations, All, TimeZoneInfo.Utc, CancellationToken.None);
 
@@ -276,6 +281,13 @@ internal static class HistoryJson
             ["priceVersion"] = day.PriceVersion,
             ["agents"] = day.Agents,
             ["models"] = models,
+            ["unpriced"] = new JsonArray([.. day.Unpriced.Facts.Select(f => (JsonNode)new JsonObject
+            {
+                ["model"] = f.Fact.Model,
+                ["provider"] = f.Fact.Provider,
+                ["fast"] = f.Fact.Fast,
+                ["requests"] = f.Requests,
+            })]),
         };
     }
 }

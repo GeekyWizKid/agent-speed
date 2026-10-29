@@ -3,34 +3,50 @@
 
   python3 spec/tools/reference.py --check-fixtures
   python3 spec/tools/reference.py --dump-today [--codex PATH] [--claude PATH] [--dsh PATH] [--gemini PATH]
-                                              [--omp PATH] [--antigravity PATH] [--workbuddy PATH]
-                                              [--workbuddy-ai PATH]
+                                              [--omp PATH] [--pi PATH] [--antigravity PATH] [--workbuddy PATH]
+                                              [--workbuddy-ai PATH] [--openclaw PATH] [--hermes PATH]
+                                              [--droid PATH]
   python3 spec/tools/reference.py --dump-history [--utc] [--prices PATH] [...]
   python3 spec/tools/reference.py --write-history-fixture
+  python3 spec/tools/reference.py --dump-unpriced [--days N | --first YYYY-MM-DD --last YYYY-MM-DD | --live]
+                                                 [--source ID] [--prices PATH] [...]
+  python3 spec/tools/reference.py --dump-tasks [--utc] [--first YYYY-MM-DD --last YYYY-MM-DD] [--source ID] [...]
+  python3 spec/tools/reference.py --write-task-fixture
 
 The dump format matches the `--dump-today` output of both platform probes. Conversation content is never printed.
+`--dump-today` ends with one `task` row per seeded agent of a scored source and a `taskSets` row (METRICS 6.9 Values,
+evaluated at `--now` or the capture time, predictions with the prior coefficients); `--dump-tasks` prints the task
+records of every log read whole, the calibration per source and the comparison (METRICS 6.11).
+`--dump-unpriced` prints the copied diagnostics text of METRICS 9.10 (model ids, providers and counts only) over the
+daily history, or with `--live` over today's engine responses.
 Costs (METRICS 9) use spec/assets/prices.json unless --prices names another table; prices.py does the pricing.
 """
 import argparse
 import math
+import ntpath
+import posixpath
 import sqlite3
 import subprocess
 import json
 import os
 import re
 import shutil
+import stat
 import sys
 import tempfile
 import time
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote
+from zoneinfo import ZoneInfo
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import prices as pricing  # noqa: E402
 import harness_reference as harnesses  # noqa: E402
 import trae_reference as trae  # noqa: E402
+import unpriced as diagnostics  # noqa: E402
+import execution_modes_reference as modes  # noqa: E402
 
 if hasattr(sys, "set_int_max_str_digits"):
     sys.set_int_max_str_digits(0)  # integer literals of any length are numbers (METRICS 3.6), not malformed lines
@@ -110,6 +126,11 @@ def trunc64(value):
     return min(max(int(value), INT64_MIN), INT64_MAX)
 
 
+def ordinal(value):
+    """A Codex rollout ordinal (METRICS 3.5): an integer literal from 0 through 2^63 - 1; anything else is None."""
+    return value if type(value) is int and 0 <= value <= INT64_MAX else None
+
+
 def num(value):
     """A token value (METRICS 3.2): a number truncated toward zero and clamped to 0…10^12; anything else is 0."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -173,8 +194,16 @@ class FileState:
         self.pending = None
         self.malformed = 0
         self.responses = OrderedDict()
+        # reasoning effort and speed (EXECUTION-MODES): context facts, each response's facts, Claude's ultracode
+        self.facts = []
+        self.response_facts = {}
+        self.latest_key = None
+        self.line_effort = None
+        self.ultra_session = False
+        self.ultra_turn = False
         # codex
         self.file_created = None
+        self.start_ordinal = None
         self.provider = None
         self.my_agent_path = "/root"
         self.thread_id = None
@@ -203,9 +232,37 @@ class FileState:
             self.source_decided = True
             rel = os.path.relpath(path, root) if root else path
             self.is_subagent = len([p for p in re.split(r"[\\/]", rel) if p]) >= 3
+        if source == "pi":
+            self.source_decided = True
+            self.is_subagent = pi_parent_file(path) is not None
+        # openclaw (METRICS 4.14): the window's runtime decides delegated turns
+        self.oc_delegated = False
+        self.oc_mirror_window = False
+        if source == "openclaw":
+            self.source_decided = True
+        # factory droid (METRICS 4.16): parent links, open calls, the counters' high-water mark and unallocated growth
+        self.droid_parent = None
+        self.droid_calling = None
+        self.droid_open = []
+        self.droid_seen = set()
+        self.droid_mark = {f: 0 for f in ("inputTokens", "cacheCreationTokens", "cacheReadTokens", "outputTokens",
+                                          "thinkingTokens")}
+        self.droid_growth = dict(self.droid_mark)
+        self.droid_signature = None
+        self.droid_parent_bad = None  # signature of the parent sidecar the last attempt found unreadable
+        self.droid_unknown = False
+        self.droid_baseline = False
+        self.droid_model = None
+        self.droid_call_model = None
+        self.droid_compaction = None
+        self.droid_read_from = 0
+        if source == "droid":
+            self.source_decided = True
         # workbuddy
         self.cwd = None
         self.open_calls = OrderedDict()
+        # task score (METRICS 6.9): the event composer of task_events.py, when attached
+        self.tasks = None
         if source in WB_FOLDERS:
             self.source_decided = True
             rel = [p for p in re.split(r"[\\/]", os.path.relpath(path, root) if root else path) if p]
@@ -235,6 +292,7 @@ def codex_line(state, obj, dedupe):
         if state.file_created is not None:
             return
         state.file_created = ts
+        state.start_ordinal = ordinal(payload.get("subagent_history_start_ordinal"))
         state.last_line = ts if state.last_line is None else max(state.last_line, ts)
         state.project = basename(payload.get("cwd")) or state.project
         state.my_agent_path = payload.get("agent_path") or "/root"
@@ -250,11 +308,15 @@ def codex_line(state, obj, dedupe):
         return
     if state.file_created is not None and ts < state.file_created - 2000:
         return
+    line_ordinal = ordinal(obj.get("ordinal"))
+    if state.start_ordinal is not None and line_ordinal is not None and line_ordinal < state.start_ordinal:
+        return
     state.last_line = ts if state.last_line is None else max(state.last_line, ts)
     ptype = payload.get("type")
     if kind == "turn_context":
         state.model = payload.get("model") or state.model
         state.project = basename(payload.get("cwd")) or state.project
+        codex_turn_facts(state, payload)
         return
     if kind == "token_usage_record":
         state.saw_modern = True
@@ -265,6 +327,9 @@ def codex_line(state, obj, dedupe):
         dedupe.claim(key, state.path)
         emit(state, key, state.pending, ts, codex_tokens(payload.get("usage")), state.model,
              provider=state.provider)
+        tier = payload.get("service_tier")
+        state.response_facts[key] = modes.put(list(state.facts), modes.normalize(
+            "serviceTier", tier, "openai", "recorded", "request") if isinstance(tier, str) else None)
         after_usage(state, ts)
         return
     if kind == "event_msg":
@@ -277,6 +342,8 @@ def codex_line(state, obj, dedupe):
             state.phase, state.pending, state.streaming, state.in_flight = "idle", None, False, None
         elif ptype in ("task_started", "user_message"):
             input_line(state, ts)
+        elif ptype == "thread_settings_applied" and isinstance(payload.get("thread_settings"), dict):
+            codex_thread_settings(state, payload["thread_settings"])
         return
     if kind == "response_item":
         role = payload.get("role")
@@ -291,6 +358,34 @@ def codex_line(state, obj, dedupe):
         elif ptype == "agent_message" and payload.get("recipient") == state.my_agent_path:
             if not state.streaming:
                 state.pending = ts
+
+
+def codex_turn_facts(state, payload):
+    """A turn context starts a new turn: turn facts are replaced (EXECUTION-MODES, Codex)."""
+    state.facts = [f for f in state.facts if f["scope"] != "turn"]
+    raw = payload.get("effort")
+    if not isinstance(raw, str):
+        collab = payload.get("collaboration_mode")
+        settings = collab.get("settings") if isinstance(collab, dict) else None
+        raw = settings.get("reasoning_effort") if isinstance(settings, dict) else None
+    if isinstance(raw, str):
+        state.facts = modes.put(state.facts, modes.normalize("effort", raw, None, "recorded", "turn"))
+    tier = payload.get("service_tier")
+    if isinstance(tier, str):
+        state.facts = modes.put(state.facts, modes.normalize("serviceTier", tier, "openai", "selected", "turn"))
+
+
+def codex_thread_settings(state, settings):
+    """`thread_settings_applied`: the thread's selected tier and effort from now on; null clears them."""
+    for field, adapter, provider in (("service_tier", "serviceTier", "openai"), ("reasoning_effort", "effort", None)):
+        if field not in settings:
+            continue
+        kind = "serviceTier" if adapter == "serviceTier" else "effort"
+        state.facts = [f for f in state.facts if not (f["kind"] == kind and f["evidence"] == "selected"
+                                                      and f["scope"] == "session" and f.get("provider") == provider)]
+        raw = settings[field]
+        if isinstance(raw, str):
+            state.facts = modes.put(state.facts, modes.normalize(adapter, raw, provider, "selected", "session"))
 
 
 def input_line(state, ts):
@@ -328,6 +423,7 @@ def legacy(state, ts, payload, dedupe):
         return
     dedupe.claim(key, state.path)
     emit(state, key, state.pending, ts, codex_tokens(usage), state.model, provider=state.provider)
+    state.response_facts[key] = list(state.facts)
     after_usage(state, ts)
 
 
@@ -340,6 +436,33 @@ def is_interrupt(message):
         return any(isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)
                    and b["text"].startswith(marker) for b in content)
     return False
+
+
+def is_prompt(obj):
+    """A user line a person typed (or an interrupt): not meta, string content or a text block."""
+    if obj.get("isMeta") is True:
+        return False
+    message = obj.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    return isinstance(content, str) or (isinstance(content, list) and any(
+        isinstance(b, dict) and b.get("type") == "text" for b in content))
+
+
+def claude_recorded_effort(obj):
+    raw = obj.get("perTurnEffort")
+    raw = raw if isinstance(raw, str) else obj.get("effort")
+    return modes.normalize("effort", raw, None, "recorded", "request") if isinstance(raw, str) else None
+
+
+def claude_ultracode(state):
+    if state.ultra_session or state.ultra_turn:
+        return modes.normalize("effort", "ultracode", None, "recorded", "request")
+    return None
+
+
+def claude_agent_facts(state):
+    facts = [f for f in state.response_facts.get(state.latest_key, []) if f["kind"] != "effort"]
+    return modes.put(facts, claude_ultracode(state) or state.line_effort)
 
 
 def claude_tokens(usage):
@@ -365,10 +488,18 @@ def claude_line(state, obj, dedupe):
     if obj.get("isSidechain") is True:
         state.is_subagent = True
     kind = obj.get("type")
+    if kind == "attachment" and isinstance(obj.get("attachment"), dict):
+        marker = obj["attachment"].get("type")
+        if marker in ("ultra_effort_enter", "ultra_effort_exit"):
+            state.ultra_session = marker == "ultra_effort_enter"
+        elif marker == "workflow_keyword_request":
+            state.ultra_turn = True
+    if kind == "user" and is_prompt(obj):
+        state.ultra_turn = False
     if kind == "api-request":
         state.pending, state.precise, state.phase, state.in_flight = ts, True, "generating", ts
     elif kind == "user":
-        if is_interrupt(obj.get("message")):
+        if is_interrupt(obj.get("message")) or obj.get("toolEndsTurn") is True:
             state.phase, state.pending, state.precise, state.in_flight = "idle", None, False, None
         else:
             if not state.precise:
@@ -402,6 +533,15 @@ def claude_line(state, obj, dedupe):
             resp["fast"] = resp["fast"] or fast
             resp["final"] = resp["final"] or stop is not None
         state.model = resp["model"] or state.model
+        recorded = claude_recorded_effort(obj)
+        line_facts = [claude_ultracode(state) or recorded]
+        if isinstance(usage.get("speed"), str):
+            line_facts.append(modes.normalize("claudeSpeed", usage["speed"], "anthropic", "served", "response"))
+        merged = state.response_facts.get(key, [])
+        for fact in line_facts:
+            merged = modes.put(merged, fact)
+        state.response_facts[key], state.latest_key = merged, key
+        state.line_effort = recorded or state.line_effort
         content = message.get("content") if isinstance(message.get("content"), list) else []
         has_tool_use = any(isinstance(b, dict) and b.get("type") == "tool_use" for b in content)
         if stop == "tool_use" or (stop is None and has_tool_use):
@@ -521,10 +661,13 @@ def zst_stream_lines(path):
 def process_file(state, dedupe, start_offset=0, max_lines=None):
     if state.source == "gemini" and state.path.endswith(".json"):
         return gemini_legacy(state, dedupe)
-    handler = {"codex": codex_line, "deepseek": dsh_event, "gemini": gemini_record, "omp": omp_line,
+    if state.source == "droid":
+        return droid_read(state, dedupe, start_offset, max_lines)
+    handler = {"codex": codex_line, "deepseek": dsh_event, "gemini": gemini_record, "omp": omp_line, "pi": pi_line,
                "workbuddy": workbuddy_line, "workbuddyAi": workbuddy_line}.get(state.source, claude_line)
-    if state.source == "omp" and start_offset > 0:
+    if state.source in ("omp", "pi") and start_offset > 0:
         omp_read_header(state, dedupe)
+    composer = state.tasks
     if state.path.endswith(".zstd"):
         lines = zstd_lines(state.path, start_offset)
     elif state.path.endswith(".jsonl.zst"):
@@ -544,6 +687,8 @@ def process_file(state, dedupe, start_offset=0, max_lines=None):
             state.malformed += 1
             continue
         handler(state, obj, dedupe)
+        if composer is not None:
+            composer.feed(state, obj, dedupe, raw)
 
 
 def resolve_parents(states):
@@ -571,9 +716,13 @@ def resolve_parents(states):
         elif s.source == "gemini":
             chats = os.sep.join(re.split(r"[\\/]", s.path)[:-2])
             parent = gemini_mains.get((chats, s.parent_session)) if s.parent_session else None
-        elif s.source == "omp":
+        elif s.source == "droid":
+            candidate = os.path.join(os.path.dirname(s.path), s.droid_calling + ".jsonl") if s.droid_calling else None
+            tracked = candidate in by_path and by_path[candidate].source == "droid"
+            parent = candidate if tracked else None
+        elif s.source in ("omp", "pi"):
             candidate = os.path.dirname(s.path) + ".jsonl"
-            tracked = candidate in by_path and by_path[candidate].source == "omp"
+            tracked = candidate in by_path and by_path[candidate].source == s.source
             parent = candidate if s.is_subagent and tracked else None
         else:
             parts = re.split(r"[\\/]", s.path)
@@ -619,6 +768,10 @@ def dsh_event(state, obj, dedupe):
             state.model = config["model"]
         if isinstance(config, dict) and isinstance(config.get("provider"), str) and config["provider"]:
             state.provider = config["provider"]
+        effort = config.get("reasoningEffort") if isinstance(config, dict) else None
+        state.facts = [f for f in state.facts if f["kind"] != "effort"]
+        if isinstance(effort, str):
+            state.facts = modes.put(state.facts, modes.normalize("effort", effort, None, "recorded", "request"))
     elif kind == "step/start":
         state.pending, state.phase, state.in_flight = ts, "generating", ts
     elif kind == "turn/end":
@@ -639,6 +792,7 @@ def dsh_event(state, obj, dedupe):
             provider = source.get("provider") if isinstance(source.get("provider"), str) and source["provider"] \
                 else state.provider
             emit(state, key, state.pending, ts, tokens, model, provider=provider)
+            state.response_facts[key] = list(state.facts)
             state.model = model or state.model
         content = message.get("content") if isinstance(message.get("content"), list) else []
         tool = any(isinstance(b, dict) and b.get("type") == "tool-call" for b in content)
@@ -700,6 +854,7 @@ def opencode_states(db_path, dedupe):
                 provider = d["model"].get("providerID") if isinstance(d.get("model"), dict) else None
                 provider = provider if isinstance(provider, str) and provider else None
                 st.model = model or st.model
+                st.facts = opencode_facts(d, provider)
                 if "streamed" not in times:
                     st.phase, st.in_flight = "generating", created
                     continue
@@ -707,6 +862,7 @@ def opencode_states(db_path, dedupe):
                 if isinstance(tokens, dict) and dedupe.owner(rid) in (None, st.path):
                     dedupe.claim(rid, st.path)
                     emit(st, rid, created, times["streamed"], opencode_tokens(tokens), model, provider=provider)
+                    st.response_facts[rid] = st.facts
                 st.phase = "tools" if d.get("finish") == "tool-calls" else "idle"
                 st.in_flight = None
             else:
@@ -716,14 +872,46 @@ def opencode_states(db_path, dedupe):
                         dedupe.claim(rid, st.path)
                         model = (d.get("model") or {}).get("id") if isinstance(d.get("model"), dict) else None
                         provider = d["model"].get("providerID") if isinstance(d.get("model"), dict) else None
+                        provider = provider if isinstance(provider, str) and provider else None
                         emit(st, rid, times.get("created"), times.get("completed", updated),
-                             opencode_tokens(d["tokens"]), model,
-                             provider=provider if isinstance(provider, str) and provider else None)
+                             opencode_tokens(d["tokens"]), model, provider=provider)
+                        st.response_facts[rid] = opencode_facts(d, provider)
                 elif kind == "idle":
                     st.phase, st.in_flight = "idle", None
         return list(states.values())
     finally:
         db.close()
+
+
+def opencode_facts(d, provider):
+    """An assistant row's effort variant (recorded) and, for OpenAI providers, its served tier."""
+    facts = []
+    model = d.get("model") if isinstance(d.get("model"), dict) else {}
+    if isinstance(model.get("variant"), str):
+        facts = modes.put(facts, modes.normalize("effort", model["variant"], None, "recorded", "request"))
+    native = d.get("native") if isinstance(d.get("native"), dict) else {}
+    if provider in ("openai", "azure") and isinstance(native.get("serviceTier"), str):
+        facts = modes.put(facts, modes.normalize("serviceTier", native["serviceTier"], "openai", "served", "response"))
+    return facts
+
+
+def agent_facts(state):
+    return claude_agent_facts(state) if state.source in ("claudeCode", "claudeDesktop") else state.facts
+
+
+def mode_view(facts):
+    """(effort, speed) attributions, each None when unknown."""
+    effort, speed = modes.attribution(facts, "effort"), modes.speed_attribution(facts)
+    return (None if effort["mode"] == "unknown" else effort, None if speed["mode"] == "unknown" else speed)
+
+
+def mode_fields(state):
+    effort, speed = mode_view(agent_facts(state))
+    by_key = {}
+    for key in state.responses:
+        e, s = mode_view(state.response_facts.get(key, []))
+        by_key[key] = {"effort": e, "speed": s}
+    return dict(effort=effort, speed=speed, responseModes=by_key)
 
 
 def opencode_tokens(t):
@@ -1095,8 +1283,165 @@ def omp_read_header(state, dedupe):
             except (ValueError, UnicodeDecodeError, RecursionError):
                 continue
             if isinstance(obj, dict) and obj.get("type") == "session":
-                omp_line(state, obj, dedupe)
+                (pi_line if state.source == "pi" else omp_line)(state, obj, dedupe)
+                if state.tasks is not None:
+                    state.tasks.feed(state, obj, dedupe, raw)
                 return
+
+
+# ----------------------------------------------------------------------------- Pi (METRICS 4.13)
+
+PI_FAILED = ("error", "aborted", "pending", "deferred")
+
+
+def pi_tokens(usage):
+    cr, cw = num(usage.get("cacheRead")), num(usage.get("cacheWrite"))
+    return dict(input=cap(num(usage.get("input")) + cr + cw), cachedInput=cr, cacheWriteInput=cw,
+                cacheWrite1hInput=min(num(usage.get("cacheWrite1h")), cw), output=num(usage.get("output")),
+                reasoning=num(usage.get("reasoning")))
+
+
+def pi_side(state, entry_id, ts, usage, model, provider, dedupe):
+    """Side usage (usage entries, tool results, compaction and branch summaries): no timing, no facts."""
+    if not isinstance(usage, dict) or not omp_has_usage(usage):
+        return
+    key = "pi:%s:%d" % (entry_id, ts)
+    if dedupe.owner(key) not in (None, state.path):
+        return
+    dedupe.claim(key, state.path)
+    emit(state, key, None, ts, pi_tokens(usage), model, provider=provider or None)
+
+
+def pi_effort(state, raw, evidence, scope):
+    fact = modes.normalize("effort", raw, None, evidence, scope) if isinstance(raw, str) else None
+    if fact is not None:
+        state.facts = [f for f in state.facts if f["kind"] != "effort"] + [fact]
+
+
+def pi_line(state, obj, dedupe):
+    """One line of a Pi session file (METRICS 4.13: the omp rules of 4.7 with Pi's differences)."""
+    kind = obj.get("type")
+    if kind == "session":
+        if state.header_seen:
+            return
+        state.header_seen = True
+        state.file_created = parse_ts(obj.get("timestamp"))
+        state.project = basename(obj.get("cwd"))
+        state.thread_id = obj.get("id") if isinstance(obj.get("id"), str) else None
+        if state.file_created is not None:
+            omp_touch(state, state.file_created)
+        return
+    if not state.header_seen or not isinstance(obj.get("id"), str):
+        return
+    ts = parse_ts(obj.get("timestamp"))
+    if ts is None or (state.file_created is not None and ts < state.file_created - OMP_COPY_MS):
+        return
+    omp_touch(state, ts)
+    if kind == "message" and isinstance(obj.get("message"), dict):
+        msg = obj["message"]
+        role = msg.get("role")
+        if role in ("user", "developer"):
+            state.phase, state.in_flight = "generating", ts
+            state.pending_calls.clear()
+        elif role == "assistant":
+            pi_assistant(state, obj, msg, ts, dedupe)
+        elif role == "toolResult":
+            pi_side(state, obj["id"], ts, msg.get("usage"), None, None, dedupe)
+            state.pending_calls.discard(msg.get("toolCallId"))
+            if state.phase == "tools" and not state.pending_calls:
+                state.phase, state.in_flight = "generating", ts
+    elif kind == "usage":
+        if isinstance(obj.get("provider"), str) and isinstance(obj.get("model"), str):
+            pi_side(state, obj["id"], ts, obj.get("usage"), obj["model"], obj["provider"], dedupe)
+    elif kind in ("compaction", "branch_summary"):
+        pi_side(state, obj["id"], ts, obj.get("usage"), None, None, dedupe)
+    elif kind == "thinking_level_change":
+        pi_effort(state, obj.get("thinkingLevel"), "selected", "session")
+
+
+def pi_assistant(state, entry, msg, ts, dedupe):
+    if not omp_guard(msg):
+        return
+    started = trunc64(msg["timestamp"]) if finite(msg.get("timestamp")) and msg["timestamp"] > 0 else None
+    key = "pi:%s:%d" % (entry["id"], started if started is not None else ts)
+    if dedupe.owner(key) not in (None, state.path):
+        return
+    stop = msg.get("stopReason") if isinstance(msg.get("stopReason"), str) else "aborted"
+    duration = msg.get("durationMs")
+    end = min(started + trunc64(duration), INT64_MAX) if started is not None and finite(duration) and duration >= 0 \
+        else ts
+    pi_effort(state, msg.get("thinkingLevel"), "recorded", "request")
+    if omp_has_usage(msg["usage"]):
+        dedupe.claim(key, state.path)
+        emit(state, key, None if stop in PI_FAILED else started, end, pi_tokens(msg["usage"]), msg["model"],
+             provider=msg["provider"] or None)
+        state.response_facts[key] = list(state.facts)
+        state.model = msg["model"]
+    content = msg.get("content") if isinstance(msg.get("content"), list) else []
+    calls = {b["id"] for b in content if isinstance(b, dict) and b.get("type") == "toolCall"
+             and isinstance(b.get("id"), str)}
+    if stop in PI_FAILED:
+        state.phase, state.in_flight = "idle", None
+        state.pending_calls.clear()
+    elif calls and stop in ("toolUse", "stop", "length"):
+        state.phase, state.in_flight, state.pending_calls = "tools", None, calls
+    else:
+        state.phase, state.in_flight = "idle", None
+
+
+def pi_parent_file(path):
+    """A Pi sub-agent lives in a folder named after its session file: that file, or None (METRICS 4.13)."""
+    candidate = os.path.dirname(path) + ".jsonl"
+    return candidate if os.path.isfile(candidate) and not os.path.islink(candidate) else None
+
+
+def _expand_home(path, home):
+    return os.path.join(home, path[2:]) if path in ("~",) or path.startswith(("~/", "~\\")) else path
+
+
+def pi_roots(env=None, home=None):
+    """The automatic Pi roots (METRICS 2, 4.13): <agent dir>/sessions, then the custom session folders."""
+    env = os.environ if env is None else env
+    home = home or os.path.expanduser("~")
+    agent_dir = _expand_home(env["PI_CODING_AGENT_DIR"], home) if env.get("PI_CODING_AGENT_DIR") \
+        else os.path.join(home, ".pi", "agent")
+    roots = [os.path.join(agent_dir, "sessions")]
+    try:
+        with open(os.path.join(agent_dir, "settings.json"), "rb") as fh:
+            settings = json.loads(fh.read(1_048_576))
+    except (OSError, ValueError, UnicodeDecodeError, RecursionError):
+        settings = None
+    custom = settings.get("sessionDir") if isinstance(settings, dict) else None
+    if isinstance(custom, str) and custom.strip():
+        roots.append(_expand_home(custom.strip(), home))
+    if env.get("PI_CODING_AGENT_SESSION_DIR"):
+        roots.append(_expand_home(env["PI_CODING_AGENT_SESSION_DIR"], home))
+    return list(OrderedDict.fromkeys(os.path.normpath(r) for r in roots))
+
+
+def without_pi(omp_dirs, pi_dirs):
+    """omp roots that are not a Pi root and do not lie inside one (METRICS 4.7)."""
+    pis = [os.path.normpath(p) for p in pi_dirs]
+    return [d for d in omp_dirs
+            if not any(os.path.normpath(d) == p or os.path.normpath(d).startswith(p + os.sep) for p in pis)]
+
+
+def discover_pi(root, limit=20_000):
+    found = []
+    if not os.path.isdir(root):
+        return found
+    base_depth = root.rstrip(os.sep).count(os.sep)
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        if dirpath.count(os.sep) - base_depth >= 6:
+            dirnames[:] = []
+        dirnames[:] = [d for d in dirnames if not d.startswith(".") and not os.path.islink(os.path.join(dirpath, d))]
+        for name in filenames:
+            path = os.path.join(dirpath, name)
+            if name.endswith(".jsonl") and not name.startswith(".") and not os.path.islink(path) \
+                    and os.path.isfile(path):
+                found.append(path)
+    found.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    return found[:limit]
 
 
 def _subdirs(path):
@@ -1150,6 +1495,910 @@ def discover_omp(root, limit=20_000):
                 found.append(path)
     found.sort(key=lambda p: os.path.getmtime(p), reverse=True)
     return found[:limit]
+
+
+# ----------------------------------------------------------------------------- OpenClaw (METRICS 4.14)
+
+OC_DB = "openclaw-agent.sqlite"
+OC_PROFILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+OC_EMBEDDED = ("", "openclaw", "pi", "auto", "default")
+OC_STOPS = ("stop", "length", "toolUse", "error", "aborted")
+OC_FAILED = ("error", "aborted")
+OC_EVENT_MAX = 4 * 1024 * 1024
+
+
+def openclaw_state_dirs(env=None, home=None):
+    """The automatic OpenClaw state folders (METRICS 2, 4.14): the override alone, else .openclaw and its profiles."""
+    env = os.environ if env is None else env
+    home = home or os.path.expanduser("~")
+    override = (env.get("OPENCLAW_STATE_DIR") or "").strip()
+    if override:
+        return [os.path.normpath(_expand_home(override, home))]
+    base_raw = (env.get("OPENCLAW_HOME") or "").strip()
+    base = _expand_home(base_raw, home) if base_raw else home
+    try:
+        names = sorted(n for n in os.listdir(base) if os.path.isdir(os.path.join(base, n)))
+    except OSError:
+        names = []
+    roots = [os.path.join(base, ".openclaw")]
+    for name in names:
+        profile = name[len(".openclaw-"):] if name.startswith(".openclaw-") else None
+        if profile and OC_PROFILE.match(profile) and profile.lower() != "default":
+            roots.append(os.path.join(base, name))
+    return list(OrderedDict.fromkeys(os.path.normpath(r) for r in roots))
+
+
+def discover_openclaw(root):
+    """Agent databases under one root: a state folder, an agent folder (it holds the database) or the database."""
+    def regular(path):
+        return os.path.isfile(path) and not os.path.islink(path)
+    if regular(root):
+        return [root] if os.path.basename(root) == OC_DB else []
+    if regular(os.path.join(root, OC_DB)):
+        return [os.path.join(root, OC_DB)]
+    agents = os.path.join(root, "agents")
+    try:
+        names = sorted(os.listdir(agents))
+    except OSError:
+        return []
+    found = []
+    for name in names:
+        folder = os.path.join(agents, name)
+        if name.startswith(".") or os.path.islink(folder) or not os.path.isdir(folder):
+            continue
+        path = os.path.join(folder, "agent", OC_DB)
+        if regular(path):
+            found.append(path)
+    return found
+
+
+def openclaw_codex_roots(databases):
+    """Codex roots OpenClaw adds (METRICS 2): the agent-scoped Codex home next to every agent database."""
+    return [os.path.join(os.path.dirname(db), "codex-home", "sessions") for db in databases]
+
+
+def openclaw_tokens(usage):
+    cr, cw = num(usage.get("cacheRead")), num(usage.get("cacheWrite"))
+    return dict(input=cap(num(usage.get("input")) + cr + cw), cachedInput=cr, cacheWriteInput=cw,
+                cacheWrite1hInput=min(num(usage.get("cacheWrite1h")), cw), output=num(usage.get("output")),
+                reasoning=num(usage.get("reasoningTokens")))
+
+
+def openclaw_entry(state, obj, dedupe):
+    """One transcript entry of an OpenClaw window (METRICS 4.14: the Pi rules of 4.7 and 4.13 with its differences)."""
+    kind = obj.get("type")
+    if kind == "session":
+        if state.header_seen:
+            return
+        state.header_seen = True
+        state.file_created = parse_ts(obj.get("timestamp"))
+        state.project = basename(obj.get("cwd"))
+        if state.file_created is not None:
+            omp_touch(state, state.file_created)
+        return
+    if not state.header_seen or not isinstance(obj.get("id"), str):
+        return
+    ts = parse_ts(obj.get("timestamp"))
+    if ts is None or (state.file_created is not None and ts < state.file_created - OMP_COPY_MS):
+        return
+    omp_touch(state, ts)
+    if kind != "message" or not isinstance(obj.get("message"), dict):
+        return
+    msg = obj["message"]
+    role = msg.get("role")
+    if role == "assistant":
+        openclaw_assistant(state, obj, msg, ts, dedupe)
+    elif state.oc_delegated:
+        return
+    elif role in ("user", "developer"):
+        state.phase, state.in_flight = "generating", ts
+        state.pending_calls.clear()
+    elif role == "toolResult":
+        state.pending_calls.discard(msg.get("toolCallId"))
+        if state.phase == "tools" and not state.pending_calls:
+            state.phase, state.in_flight = "generating", ts
+
+
+def openclaw_assistant(state, entry, msg, ts, dedupe):
+    if not omp_guard(msg):
+        return
+    started = trunc64(msg["timestamp"]) if finite(msg.get("timestamp")) and msg["timestamp"] > 0 else None
+    key = "openclaw:%s:%d" % (entry["id"], started if started is not None else ts)
+    if dedupe.owner(key) not in (None, state.path):
+        return
+    stop = msg.get("stopReason") if msg.get("stopReason") in OC_STOPS else "aborted"
+    meta = msg.get("__openclaw") if isinstance(msg.get("__openclaw"), dict) else {}
+    origin = meta.get("mirrorOrigin")
+    mirror = ((isinstance(origin, str) and origin != "") or (msg["api"] == "cli" and msg["provider"] == "claude-cli")
+              or msg["provider"].startswith("acp-") or state.oc_mirror_window)
+    usage = msg["usage"]
+    report = usage.get("usageReport") if isinstance(usage.get("usageReport"), dict) else {}
+    if not mirror and report.get("state") != "unavailable" and omp_has_usage(usage):
+        timed = not state.oc_delegated and msg["api"] != "cli" and stop not in OC_FAILED
+        dedupe.claim(key, state.path)
+        emit(state, key, started if timed else None, ts, openclaw_tokens(usage), msg["model"],
+             provider=msg["provider"] or None)
+        state.response_facts[key] = []
+        state.model = msg["model"]
+    if state.oc_delegated:
+        return
+    content = msg.get("content") if isinstance(msg.get("content"), list) else []
+    calls = {b["id"] for b in content if isinstance(b, dict) and b.get("type") == "toolCall"
+             and isinstance(b.get("id"), str)}
+    if stop in OC_FAILED:
+        state.phase, state.in_flight = "idle", None
+        state.pending_calls.clear()
+    elif calls and stop in ("toolUse", "stop", "length"):
+        state.phase, state.in_flight, state.pending_calls = "tools", None, calls
+    else:
+        state.phase, state.in_flight = "idle", None
+
+
+def openclaw_event(state, text, blob, size, with_raw=False):
+    """The entry of one transcript row: event_json, else the zstd frame decoded within event_utf8_bytes (with its raw
+    text when `with_raw`)."""
+    entry = openclaw_entry_raw(state, text, blob, size)
+    if entry is None:
+        return None
+    return entry if with_raw else entry[0]
+
+
+def openclaw_entry_raw(state, text, blob, size):
+    if isinstance(text, str):
+        raw = text.encode("utf-8", "surrogatepass")
+    elif isinstance(blob, bytes) and isinstance(size, int) and 0 < size <= OC_EVENT_MAX:
+        out = subprocess.run(["zstd", "-dc", "-q"], input=blob, capture_output=True)
+        if out.returncode != 0 or len(out.stdout) > size:
+            state.malformed += 1
+            return None
+        raw = out.stdout
+    else:
+        state.malformed += 1
+        return None
+    if len(raw) > MAX_LINE:
+        return None
+    try:
+        obj = loads(raw)
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        state.malformed += 1
+        return None
+    if not isinstance(obj, dict):
+        state.malformed += 1
+        return None
+    return obj, raw
+
+
+def openclaw_states(db_path, dedupe, stop_at=None, tasks=False):
+    """Parses one agent database (METRICS 4.14): one state per transcript window, in created_at order, or None when the
+    database has no session tables. `stop_at` = (session_id, seq) stops after that row (phase traces)."""
+    db = sqlite_readonly(db_path)
+    try:
+        tables = {r[0] for r in db.execute("select name from sqlite_master where type='table'")}
+        if not {"session_windows", "transcript_events"} <= tables:
+            return None
+        wcols = {r[1] for r in db.execute("pragma table_info(session_windows)")}
+        ecols = {r[1] for r in db.execute("pragma table_info(transcript_events)")}
+
+        def col(name, default):
+            return name if name in wcols else default
+
+        windows = db.execute("select session_id, created_at, %s, %s, %s from session_windows "
+                             "order by created_at, session_id" % (col("spawned_by", "null"),
+                                                                  col("agent_harness_id", "null"),
+                                                                  col("acp_owned", "0"))).fetchall()
+        current = dict(db.execute("select session_key, current_session_id from session_nodes")) \
+            if "session_nodes" in tables else {}
+        zstd_cols = "event_zstd, event_utf8_bytes" if {"event_zstd", "event_utf8_bytes"} <= ecols else "null, null"
+        states, parent_of = [], {}
+        for sid, _created, spawned, harness, acp in windows:
+            st = FileState("%s#%s" % (db_path, sid), "openclaw")
+            runtime = harness.strip().lower() if isinstance(harness, str) else ""
+            st.oc_delegated = acp == 1 or runtime not in OC_EMBEDDED
+            st.oc_mirror_window = acp == 1 or runtime in ("codex", "claude-cli") or runtime.startswith("acp")
+            st.is_subagent = isinstance(spawned, str) and spawned != ""
+            parent_of[st.path] = current.get(spawned) if st.is_subagent else None
+            if tasks:
+                import task_events
+                task_events.attach(st)
+            states.append(st)
+            for seq, text, blob, size in db.execute("select seq, event_json, %s from transcript_events "
+                                                    "where session_id = ? order by seq" % zstd_cols, (sid,)):
+                entry = openclaw_event(st, text, blob, size, with_raw=True)
+                if entry is not None:
+                    openclaw_entry(st, entry[0], dedupe)
+                    if st.tasks is not None:
+                        st.tasks.feed(st, entry[0], dedupe, entry[1])
+                if stop_at == (sid, seq):
+                    break
+            if stop_at is not None and stop_at[0] == sid:
+                break
+        tracked = {st.path for st in states}
+        for st in states:
+            parent = parent_of[st.path]
+            st.parent_session = "%s#%s" % (db_path, parent) if parent and "%s#%s" % (db_path, parent) in tracked \
+                else None
+        return states
+    finally:
+        db.close()
+
+
+# ----------------------------------------------------------------------------- Hermes Agent (METRICS 4.15)
+
+HERMES_FILE = re.compile(r"agent\.log(?:\.[0-9]+)?")
+HERMES_RECORD = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2}),([0-9]{3}) "
+                           r"(DEBUG|INFO|WARNING|ERROR|CRITICAL)( .*)", re.S)
+HERMES_TURN = re.compile(r"conversation turn: session=[^ ]* model=(.*?) provider=[^ ]* platform=([^ ]*) "
+                         r"history=-?[0-9]+ msg=", re.S)
+HERMES_CALL = re.compile(r"API call #([0-9]+): model=(.*?) provider=([^ ]*) in=(-?[0-9]+|\?) out=(-?[0-9]+|\?) "
+                         r"total=(-?[0-9]+|\?) latency=(-?[0-9]+(?:\.[0-9]+)?)s"
+                         r"(?: cache=(-?[0-9]+)/-?[0-9]+ \(-?[0-9]+%\))?(?: write=(-?[0-9]+))?(?: .*)?", re.S)
+HERMES_LOG_PREFIX = re.compile(r"\[[^\]]*\] *")
+HERMES_FAILED = ("API call failed after ", "Non-retryable client error: ")
+HERMES_LOGGERS = ("agent.turn_context", "agent.conversation_loop")
+HERMES_CONFIG_MAX = 1 << 20
+HERMES_MODEL_HEADER = re.compile(r"(?:model|\"model\"|'model')[ \t]*:(?:[ \t]+(?:#.*)?)?")
+HERMES_RUNTIME_KEY = re.compile(r"(?:openai_runtime|\"openai_runtime\"|'openai_runtime')[ \t]*:(|[ \t].*)")
+HERMES_CODEX_VALUE = re.compile(r"[ \t]+(?:\"[ \t]*codex_app_server[ \t]*\"|'[ \t]*codex_app_server[ \t]*'|codex_app_server)"
+                                r"(?:[ \t]+#.*)?[ \t]*", re.I | re.A)
+
+
+def hermes_home(env=None, platform=None, home=None):
+    """The Hermes home of METRICS 4.15: $HERMES_HOME (the root of a profile home), else the platform default."""
+    env = os.environ if env is None else env
+    platform = platform or sys.platform
+    home = home or os.path.expanduser("~")
+    paths = ntpath if platform == "win32" else posixpath
+    if platform == "win32":
+        local = (env.get("LOCALAPPDATA") or "").strip()
+        default = paths.join(local or paths.join(home, "AppData", "Local"), "hermes")
+    else:
+        default = paths.join(home, ".hermes")
+    raw = (env.get("HERMES_HOME") or "").strip()
+    if raw == "~" or raw.startswith(("~/", "~\\")):
+        raw = home + raw[1:]
+    if not raw or not paths.isabs(raw):
+        return default
+    value = paths.normpath(raw)
+    fold = (lambda p: paths.normcase(p)) if platform == "win32" else (lambda p: p)
+    base = fold(paths.normpath(default))
+    if fold(value) == base or fold(value).startswith(base.rstrip(paths.sep) + paths.sep):
+        return default
+    parent = paths.dirname(value)
+    if paths.basename(parent) == "profiles":
+        return paths.dirname(parent)
+    return value
+
+
+def hermes_log_folders(home):
+    """`<home>/logs`, then `<home>/profiles/<name>/logs` in ordinal order; missing folders skipped."""
+    folders = [os.path.join(home, "logs")]
+    profiles = os.path.join(home, "profiles")
+    if os.path.isdir(profiles):
+        for name in sorted(os.listdir(profiles)):
+            path = os.path.join(profiles, name)
+            if not name.startswith(".") and os.path.isdir(path) and not os.path.islink(path):
+                folders.append(os.path.join(path, "logs"))
+    return [f for f in OrderedDict.fromkeys(folders) if os.path.isdir(f)]
+
+
+def hermes_setting_folders(setting):
+    """The user setting: a Hermes home (it has a `logs` folder) or one log folder."""
+    if os.path.isdir(os.path.join(setting, "logs")):
+        return hermes_log_folders(setting)
+    return [setting] if os.path.isdir(setting) else []
+
+
+def discover_hermes(folder):
+    """`agent.log` and `agent.log.<n>` directly in a log folder, regular files only."""
+    if not os.path.isdir(folder):
+        return []
+    return [os.path.join(folder, name) for name in sorted(os.listdir(folder))
+            if HERMES_FILE.fullmatch(name) and os.path.isfile(os.path.join(folder, name))
+            and not os.path.islink(os.path.join(folder, name))]
+
+
+def hermes_config_path(folder, platform=None):
+    """The `config.yaml` of a log folder's profile (METRICS 4.15 Codex runtime): none unless the folder is `logs`."""
+    folder = os.path.normpath(folder)
+    name = os.path.basename(folder)
+    if (name.lower() if (platform or sys.platform) == "win32" else name) != "logs":
+        return None
+    return os.path.join(os.path.dirname(folder), "config.yaml")
+
+
+def hermes_codex_runtime(text):
+    """Whether config.yaml text selects the Codex runtime: the last `openai_runtime` key line of a top-level `model`
+    block decides (METRICS 4.15 Codex runtime). A tolerant line reader, not a YAML parser."""
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    codex, in_model, indent = False, False, None
+    for line in text.split("\n"):
+        if line.endswith("\r"):
+            line = line[:-1]
+        rest = line.lstrip(" \t")
+        if not rest or rest.startswith("#"):
+            continue
+        body = line.lstrip(" ")
+        depth = len(line) - len(body)
+        if depth == 0:
+            in_model, indent = HERMES_MODEL_HEADER.fullmatch(line) is not None, None
+            continue
+        if not in_model:
+            continue
+        if indent is None:
+            indent = depth
+        if depth == indent:
+            key = HERMES_RUNTIME_KEY.fullmatch(body)
+            if key:
+                codex = HERMES_CODEX_VALUE.fullmatch(key.group(1)) is not None
+    return codex
+
+
+def hermes_lines(path, start_offset=0, max_lines=None):
+    """Complete physical lines from `start_offset`, `\\r\\n` or `\\n`, decoded as UTF-8 with replacement."""
+    with open(path, "rb") as f:
+        f.seek(start_offset)
+        data = f.read()
+    end = data.rfind(b"\n")
+    if end < 0:
+        return
+    for count, raw in enumerate(data[:end].split(b"\n"), start=1):
+        if max_lines is not None and count > max_lines:
+            return
+        if len(raw) > MAX_LINE:
+            continue
+        if raw.endswith(b"\r"):
+            raw = raw[:-1]
+        yield raw.decode("utf-8", errors="replace")
+
+
+def hermes_wall_ms(m, tz):
+    """The record timestamp (local wall time, no zone) as Unix ms: fold 0, `tz` or this computer's zone."""
+    y, mo, d, h, mi, s, frac = (int(m.group(i)) for i in range(1, 8))
+    if not (1970 <= y <= 9999 and 1 <= mo <= 12 and 1 <= d <= days_in_month(y, mo) and h <= 23 and mi <= 59
+            and s <= 59):
+        return None
+    try:
+        dt = datetime(y, mo, d, h, mi, s, tzinfo=tz) if tz is not None else datetime(y, mo, d, h, mi, s)
+        return int(dt.timestamp()) * 1000 + frac
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def hermes_split(rest, logger):
+    """(session id, message) when `rest` (the text after the level) belongs to `logger`; the id is empty untagged."""
+    head = " " + logger + ": "
+    if rest.startswith(head):
+        return "", rest[len(head):]
+    if rest.startswith(" ["):
+        end = rest.find("] " + logger + ": ", 2)
+        if end > 2:
+            return rest[2:end], rest[end + len(logger) + 4:]
+    return None
+
+
+def hermes_count(text):
+    """A token count of the line: an integer literal, negatives 0, capped (METRICS 3.2); absent 0."""
+    return 0 if text is None else min(max(int(text), 0), TOKEN_CAP)
+
+
+def hermes_latency_ms(text):
+    """The latency's decimal digits × 1000, truncated to whole milliseconds and saturated (METRICS 3.6)."""
+    whole, _, frac = text.partition(".")
+    return min(int(whole) * 1000 + int((frac + "000")[:3]), INT64_MAX)
+
+
+class HermesSet:
+    """One log folder: one parser state for all its files, one agent (FileState) per session id."""
+
+    def __init__(self, folder, tz=None):
+        self.folder, self.tz = folder, tz
+        self.agents = OrderedDict()
+        self.malformed = 0
+        self.codex_runtime = False
+        self.config_sig = None
+
+    def check_config(self):
+        """Re-reads the profile's config.yaml when its modification time or size changed (METRICS 4.15)."""
+        path = hermes_config_path(self.folder)
+        try:
+            st = os.stat(path) if path else None
+        except (FileNotFoundError, NotADirectoryError):
+            st = None
+        except OSError:
+            return
+        if st is None or not stat.S_ISREG(st.st_mode):
+            self.config_sig = None
+            self.set_codex_runtime(False)
+            return
+        sig = (st.st_mtime_ns, st.st_size)
+        if sig == self.config_sig:
+            return
+        data = b""
+        if st.st_size <= HERMES_CONFIG_MAX:
+            try:
+                with open(path, "rb") as f:
+                    data = f.read(HERMES_CONFIG_MAX + 1)
+            except OSError:
+                return
+        self.config_sig = sig
+        self.set_codex_runtime(len(data) <= HERMES_CONFIG_MAX
+                               and hermes_codex_runtime(data.decode("utf-8", errors="replace")))
+
+    def set_codex_runtime(self, on):
+        if on and not self.codex_runtime:
+            for state in self.agents.values():
+                if state.phase == "generating":
+                    state.phase, state.in_flight = "idle", None
+        self.codex_runtime = on
+
+    def agent(self, sid, ts):
+        state = self.agents.get(sid)
+        if state is None:
+            state = FileState(self.folder + "#" + sid, "hermes")
+            state.source_decided = True
+            self.agents[sid] = state
+        state.last_line = ts if state.last_line is None else max(state.last_line, ts)
+        return state
+
+    def line(self, text, dedupe):
+        m = HERMES_RECORD.fullmatch(text)
+        if m is None:
+            return
+        level, rest = m.group(8), m.group(9)
+        for logger in HERMES_LOGGERS:
+            split = hermes_split(rest, logger)
+            if split is not None:
+                break
+        else:
+            return
+        sid, msg = split
+        kind = None
+        if logger == "agent.turn_context":
+            turn = HERMES_TURN.match(msg) if level == "INFO" else None
+            kind = "turn" if turn else None
+        elif level == "INFO" and msg.startswith("API call #"):
+            kind = "call"
+        elif level in ("INFO", "WARNING") and msg.startswith(("Turn ended: ", "Turn ended with pending tool result")):
+            kind = "end"
+        elif level == "ERROR":
+            prefix = HERMES_LOG_PREFIX.match(msg)
+            kind = "end" if msg[prefix.end() if prefix else 0:].startswith(HERMES_FAILED) else None
+        if kind is None:
+            return
+        ts = hermes_wall_ms(m, self.tz)
+        if ts is None:
+            return
+        if kind == "turn":
+            state = self.agent(sid, ts)
+            state.phase, state.in_flight = ("idle", None) if self.codex_runtime else ("generating", ts)
+            if turn.group(1):
+                state.model = turn.group(1)
+            state.is_subagent = turn.group(2) == "subagent"
+        elif kind == "end":
+            state = self.agent(sid, ts)
+            state.phase, state.in_flight = "idle", None
+        else:
+            self.call(sid, msg, text[:23], ts, dedupe)
+
+    def call(self, sid, msg, stamp, ts, dedupe):
+        c = HERMES_CALL.fullmatch(msg)
+        if c is None:
+            self.malformed += 1
+            return
+        state = self.agent(sid, ts)
+        key = "hermes:%s:%s:%s" % (sid, c.group(1), stamp)
+        if dedupe.owner(key) is not None:
+            return
+        dedupe.claim(key, state.path)
+        model = c.group(2) or None
+        if model:
+            state.model = model
+        if state.phase == "generating":
+            state.in_flight = ts
+        if c.group(4) == "?" or c.group(5) == "?":
+            return
+        tokens = dict(input=hermes_count(c.group(4)), cachedInput=hermes_count(c.group(8)),
+                      cacheWriteInput=hermes_count(c.group(9)), output=hermes_count(c.group(5)), reasoning=0)
+        if tokens["input"] == 0 and tokens["output"] == 0:
+            return
+        latency = c.group(7)
+        start = None if latency.startswith("-") else max(ts - hermes_latency_ms(latency), -INT64_MAX - 1)
+        provider = c.group(3) if c.group(3) not in ("", "unknown") else None
+        emit(state, key, start, ts, tokens, model, provider=provider)
+
+    def feed(self, path, dedupe, start_offset=0, max_lines=None):
+        for text in hermes_lines(path, start_offset, max_lines):
+            self.line(text, dedupe)
+
+
+def hermes_files(folder, since_ms=None):
+    """A log set's files in startup order (modification time, then path); files older than `since_ms` start at their
+    end and are not read (METRICS 5)."""
+    timed = sorted((os.path.getmtime(p), p) for p in discover_hermes(folder))
+    return [p for t, p in timed if since_ms is None or t * 1000 >= since_ms]
+
+
+def hermes_sets(folders, dedupe, tz=None, since_ms=None):
+    sets = []
+    for folder in OrderedDict.fromkeys(folders):
+        hs = HermesSet(folder, tz)
+        hs.check_config()
+        for path in hermes_files(folder, since_ms):
+            hs.feed(path, dedupe)
+        sets.append(hs)
+    return sets
+
+
+class HermesTail:
+    """Live reading of one log set (METRICS 4.15 Reading and rotation): files followed by identity across renames."""
+
+    def __init__(self, folder, tz=None):
+        self.set = HermesSet(folder, tz)
+        self.offsets = {}
+
+    def read(self, dedupe):
+        self.set.check_config()
+        timed = []
+        for path in discover_hermes(self.set.folder):
+            st = os.stat(path)
+            timed.append((st.st_mtime_ns, path, (st.st_dev, st.st_ino), st.st_size))
+        offsets = {}
+        for _, path, ident, size in sorted(timed):
+            offset = self.offsets.get(ident, 0)
+            if size < offset:
+                offset = 0
+            with open(path, "rb") as f:
+                f.seek(offset)
+                data = f.read()
+            end = data.rfind(b"\n")
+            if end >= 0:
+                self.set.feed(path, dedupe, offset, data[:end].count(b"\n") + 1)
+                offset += end + 1
+            offsets[ident] = offset
+        self.offsets = offsets
+
+
+# ----------------------------------------------------------------------------- Factory Droid (METRICS 4.16)
+DROID_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
+DROID_CUSTOM = re.compile(r"custom:", re.IGNORECASE | re.ASCII)
+DROID_SIDECAR_MAX = 1 << 20
+DROID_WEIGHT_MAX = 8_388_608
+DROID_CONTEXT_BASE = 65_536
+DROID_FIELDS = ("inputTokens", "cacheCreationTokens", "cacheReadTokens", "outputTokens", "thinkingTokens")
+DROID_INPUT_FIELDS = ("inputTokens", "cacheCreationTokens", "cacheReadTokens")
+
+
+def droid_root(home=None, setting=None):
+    """The sessions root (METRICS 4.16): ~/.factory/sessions, or the user setting (a .factory folder or the root)."""
+    if setting:
+        nested = os.path.join(setting, "sessions")
+        return nested if os.path.isdir(nested) and not os.path.islink(nested) else setting
+    return os.path.join(home or os.path.expanduser("~"), ".factory", "sessions")
+
+
+def droid_sidecar_path(path):
+    return path[:-len(".jsonl")] + ".settings.json"
+
+
+def droid_mtime(path):
+    """A session's time for the startup order: the newer of its transcript and its sidecar (METRICS 4.16)."""
+    side = droid_sidecar_path(path)
+    times = [os.path.getmtime(path)]
+    if os.path.isfile(side) and not os.path.islink(side):
+        times.append(os.path.getmtime(side))
+    return max(times)
+
+
+def discover_droid(root, limit=20_000):
+    """`*.jsonl` directly in the root or in a folder directly in it; no symlinks, nothing starting with `.`."""
+    found = []
+    if not os.path.isdir(root):
+        return found
+
+    def sessions_in(folder):
+        for name in sorted(os.listdir(folder)):
+            path = os.path.join(folder, name)
+            if name.endswith(".jsonl") and not name.startswith(".") and os.path.isfile(path) \
+                    and not os.path.islink(path):
+                yield path
+
+    found += list(sessions_in(root))
+    for name in sorted(os.listdir(root)):
+        folder = os.path.join(root, name)
+        if not name.startswith(".") and os.path.isdir(folder) and not os.path.islink(folder):
+            found += list(sessions_in(folder))
+    found.sort(key=droid_mtime, reverse=True)
+    return found[:limit]
+
+
+def droid_id(value):
+    return value if isinstance(value, str) and DROID_ID.fullmatch(value) else None
+
+
+def droid_read_sidecar(path):
+    """(readable, counters, session model) of a sidecar; counters is None without a `tokenUsage` object."""
+    try:
+        st = os.lstat(path)
+        if not stat.S_ISREG(st.st_mode) or st.st_size > DROID_SIDECAR_MAX:
+            return False, None, None
+        with open(path, "rb") as f:
+            data = f.read(DROID_SIDECAR_MAX + 1)
+        if len(data) > DROID_SIDECAR_MAX:
+            return False, None, None
+        text = data.decode("utf-8")
+        obj = loads(text[1:] if text.startswith("﻿") else text)
+    except (OSError, ValueError, RecursionError):
+        return False, None, None
+    if not isinstance(obj, dict):
+        return False, None, None
+    router = obj.get("effectiveFactoryRouterModel")
+    routed = router.get("modelId") if isinstance(router, dict) else None
+    chosen = obj.get("model")
+    if isinstance(routed, str) and routed.strip():
+        model = routed.strip()
+    elif isinstance(chosen, str) and chosen.strip() and chosen.strip().lower() != "auto":
+        model = chosen.strip()
+    else:
+        model = None
+    usage = obj.get("tokenUsage")
+    counters = {f: num(usage.get(f)) for f in DROID_FIELDS} if isinstance(usage, dict) else None
+    return True, counters, model
+
+
+def droid_signature(path):
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return None
+    return st.st_size, st.st_mtime_ns, st.st_dev, st.st_ino
+
+
+def droid_parent_counters(state):
+    """The parent's counters for the own counters (METRICS 4.16), or None while they are unknown: a parent sidecar that
+    exists but is unreadable, unless an earlier attempt found it unreadable with the same signature (then 0)."""
+    zero = dict.fromkeys(DROID_FIELDS, 0)
+    if not state.droid_parent:
+        return zero
+    path = os.path.join(os.path.dirname(state.path), state.droid_parent + ".settings.json")
+    signature = droid_signature(path)
+    if signature is None:
+        state.droid_parent_bad = None
+        return zero
+    readable, counters, _ = droid_read_sidecar(path)
+    if readable:
+        state.droid_parent_bad = None
+        return counters or zero
+    if signature == state.droid_parent_bad:
+        return zero
+    state.droid_parent_bad = signature
+    return None
+
+
+def droid_own(state, counters):
+    """Own counters: a session with a `parent` starts from that session's counters (METRICS 4.16); None if unknown."""
+    parent = droid_parent_counters(state)
+    if parent is None:
+        return None
+    own = {f: max(0, counters[f] - parent[f]) for f in DROID_FIELDS}
+    own["thinkingTokens"] = min(own["thinkingTokens"], own["outputTokens"])
+    return own
+
+
+def droid_line(state, obj, dedupe, offset, length):
+    kind = obj.get("type")
+    if kind == "session_start":
+        if not state.header_seen:
+            state.header_seen = True
+            state.cwd = obj.get("cwd") if isinstance(obj.get("cwd"), str) else None
+            state.project = basename(state.cwd)
+            state.droid_parent = droid_id(obj.get("parent"))
+            state.droid_calling = droid_id(obj.get("callingSessionId"))
+            state.is_subagent = state.droid_calling is not None
+        return
+    if kind == "agent_turn_outcome":
+        state.phase, state.in_flight, state.pending = "idle", None, None
+        return
+    ts = parse_ts(obj.get("timestamp"))
+    if ts is None:
+        return
+    state.last_line = ts if state.last_line is None else max(state.last_line, ts)
+    msg = obj.get("message") if isinstance(obj.get("message"), dict) else None
+    if kind == "message" and msg is not None and msg.get("role") == "user":
+        if msg.get("visibility") != "user_only":
+            state.pending, state.phase, state.in_flight = ts, "generating", ts
+    elif kind == "message" and msg is not None and msg.get("role") == "assistant":
+        droid_call(state, obj, msg, ts, dedupe, offset, length)
+    elif kind == "compaction_state":
+        state.droid_compaction = offset
+        if state.phase == "generating":
+            state.pending, state.in_flight = ts, ts
+
+
+def droid_call(state, obj, msg, ts, dedupe, offset, length):
+    mid = obj.get("id")
+    if not isinstance(mid, str) or not mid:
+        return
+    key = "droid:" + mid
+    if key in state.droid_seen or dedupe.owner(key) not in (None, state.path):
+        return
+    dedupe.claim(key, state.path)
+    state.droid_seen.add(key)
+    model_id = msg.get("modelId").strip() if isinstance(msg.get("modelId"), str) and msg["modelId"].strip() else None
+    effort = msg.get("reasoningEffort")
+    state.facts = [f for f in state.facts if f["kind"] != "effort"]
+    if isinstance(effort, str):
+        state.facts = modes.put(state.facts, modes.normalize("effort", effort, None, "recorded", "request"))
+    start = state.droid_compaction if state.droid_compaction is not None else state.droid_read_from
+    state.droid_open.append(dict(key=key, start=state.pending, end=ts, model_id=model_id, facts=list(state.facts),
+                                 w_in=min(DROID_CONTEXT_BASE + offset - start, DROID_WEIGHT_MAX),
+                                 w_out=min(length, DROID_WEIGHT_MAX)))
+    state.droid_call_model = model_id
+    state.model = model_id or state.droid_model
+    content = msg.get("content") if isinstance(msg.get("content"), list) else []
+    tools = any(isinstance(b, dict) and b.get("type") == "tool_use" for b in content)
+    state.pending, state.phase, state.in_flight = None, ("tools" if tools else "idle"), None
+
+
+def droid_shares(total, weights):
+    """Largest-remainder rounding in exact integers, ties to the earlier call (METRICS 4.16 Allocation)."""
+    whole = sum(weights)
+    shares = [total * w // whole for w in weights]
+    left = total - sum(shares)
+    for i in sorted(range(len(weights)), key=lambda i: (-(total * weights[i] % whole), i))[:left]:
+        shares[i] += 1
+    return shares
+
+
+def droid_tokens(share):
+    return dict(input=cap(share["inputTokens"] + share["cacheCreationTokens"] + share["cacheReadTokens"]),
+                cachedInput=share["cacheReadTokens"], cacheWriteInput=share["cacheCreationTokens"],
+                output=share["outputTokens"], reasoning=share["thinkingTokens"])
+
+
+def droid_emit(state, key, start, end, share, model_id, facts):
+    model = model_id or state.droid_model
+    provider = "custom" if model and DROID_CUSTOM.match(model) else None
+    emit(state, key, start, end, droid_tokens(share), model, provider=provider)
+    state.response_facts[key] = facts
+
+
+def droid_allocate(state):
+    """Step 3 of a read cycle: the growth waiting in P goes to the open calls."""
+    if not state.droid_open or not any(state.droid_growth.values()):
+        return
+    calls, shares = state.droid_open, [{} for _ in state.droid_open]
+    for f in DROID_FIELDS:
+        weights = [c["w_in"] if f in DROID_INPUT_FIELDS else c["w_out"] for c in calls]
+        for share, value in zip(shares, droid_shares(state.droid_growth[f], weights)):
+            share[f] = value
+    for call, share in zip(calls, shares):
+        droid_emit(state, call["key"], call["start"], call["end"], share, call["model_id"], call["facts"])
+    state.droid_open = []
+    state.droid_growth = dict.fromkeys(DROID_FIELDS, 0)
+
+
+def droid_sidecar(state):
+    """Step 2 of a read cycle. While `droid_baseline` is set (a transcript that started at its end) the first read
+    whose own counters are known only sets H. An unreadable sidecar, or unknown parent counters, changes nothing and
+    is tried again at the next read cycle (`droid_unknown` marks the latter for the history analysis)."""
+    path = droid_sidecar_path(state.path)
+    signature = droid_signature(path)
+    state.droid_unknown = False
+    if signature is None:
+        state.droid_baseline = False
+        return
+    if signature == state.droid_signature:
+        return
+    readable, counters, model = droid_read_sidecar(path)
+    if not readable:
+        state.droid_signature = None
+        return
+    own = droid_own(state, counters) if counters is not None else None
+    if counters is not None and own is None:
+        state.droid_signature, state.droid_unknown = None, True
+        return
+    state.droid_signature = signature
+    state.droid_model = model
+    state.model = state.droid_call_model or state.droid_model
+    baseline, state.droid_baseline = state.droid_baseline, False
+    if own is None:
+        return
+    for f in DROID_FIELDS:
+        if not baseline:
+            state.droid_growth[f] += max(0, own[f] - state.droid_mark[f])
+        state.droid_mark[f] = max(state.droid_mark[f], own[f])
+
+
+def droid_lines(path, start_offset=0, max_lines=None):
+    """(offset, raw line without `\n`) of every complete line from `start_offset`, and the offset after them."""
+    with open(path, "rb") as f:
+        f.seek(start_offset)
+        data = f.read()
+    pos = 0
+    if start_offset > 0:
+        with open(path, "rb") as f:
+            f.seek(start_offset - 1)
+            after_newline = f.read(1) == b"\n"
+        if not after_newline:
+            nl = data.find(b"\n")
+            pos = nl + 1 if nl >= 0 else len(data)
+    out, count = [], 0
+    while True:
+        nl = data.find(b"\n", pos)
+        if nl < 0:
+            break
+        count += 1
+        if max_lines is not None and count > max_lines:
+            break
+        out.append((start_offset + pos, data[pos:nl]))
+        pos = nl + 1
+    return out, start_offset + pos
+
+
+def droid_feed(state, dedupe, start_offset=0, max_lines=None):
+    """Step 1 of a read cycle: the transcript's new lines; returns the offset after the last complete line."""
+    lines, end = droid_lines(state.path, start_offset, max_lines)
+    for offset, raw in lines:
+        if len(raw) > MAX_LINE or not raw.strip():
+            continue
+        try:
+            obj = loads(raw)
+        except (ValueError, UnicodeDecodeError, RecursionError):
+            state.malformed += 1
+            continue
+        if not isinstance(obj, dict):
+            state.malformed += 1
+            continue
+        droid_line(state, obj, dedupe, offset, len(raw))
+        if state.tasks is not None:
+            state.tasks.feed(state, obj, dedupe, raw)
+    return end
+
+
+def droid_read(state, dedupe, start_offset=0, max_lines=None):
+    """A session read from `start_offset` as one read cycle (METRICS 4.16): the history rule from offset 0."""
+    state.droid_read_from = start_offset
+    end = droid_feed(state, dedupe, start_offset, max_lines)
+    if max_lines is None:
+        droid_sidecar(state)
+        droid_allocate(state)
+    return end
+
+
+def droid_finish(state):
+    """History only: own counters left without a call become one response of the session (METRICS 4.16)."""
+    if not any(state.droid_growth.values()) or state.last_line is None:
+        return
+    sid = os.path.basename(state.path)[:-len(".jsonl")]
+    droid_emit(state, "droid:%s:session" % sid, None, state.last_line, state.droid_growth, None, [])
+    state.droid_growth = dict.fromkeys(DROID_FIELDS, 0)
+
+
+class DroidTail:
+    """Live reading of one session (METRICS 4.16 Read cycle): appended lines, then the sidecar, then allocation."""
+
+    def __init__(self, path, dedupe, at_end=False):
+        self.path, self.dedupe = path, dedupe
+        self.state = FileState(path, "droid")
+        self.offset = os.path.getsize(path) if at_end else 0
+        self.identity = None
+        self.state.droid_read_from = self.offset
+        if at_end:
+            self.identity = droid_signature(path)[2:]
+            self.state.droid_baseline = True
+            droid_sidecar(self.state)
+
+    def read(self):
+        st = os.stat(self.path)
+        identity = (st.st_dev, st.st_ino)
+        if self.identity is not None and (identity != self.identity or st.st_size < self.offset):
+            self.state = FileState(self.path, "droid")
+            self.offset = 0
+        self.identity = identity
+        self.offset = droid_feed(self.state, self.dedupe, self.offset)
+        droid_sidecar(self.state)
+        droid_allocate(self.state)
 
 
 # ----------------------------------------------------------------------------- WorkBuddy (METRICS 4.9)
@@ -1877,6 +3126,247 @@ def today_stats(responses, today_start, now):
                 unpriced=sum(r.get("requestCount", 1) for r in today if r.get("costMicroUsd") is None))
 
 
+# ----------------------------------------------------------------------------- task score (METRICS 6.9, 6.11)
+
+TASK_SOURCES = ("codex", "claudeCode", "claudeDesktop", "omp", "pi", "openclaw", "droid")
+
+
+def task_states(files, dedupe, include=lambda path: True):
+    """Parses `files` ((time, path, source, root) in startup order) with the task composer attached to every agent of a
+    scored source; returns the parser states of those agents."""
+    import task_events
+    states = []
+    for _, path, source, root in files:
+        if not include(path):
+            continue
+        if source == "openclaw":
+            states += [st for st in openclaw_states(path, dedupe, tasks=True) or [] if st.tasks is not None]
+        elif source in TASK_SOURCES:
+            state = task_events.attach(FileState(path, source, root))
+            process_file(state, dedupe)
+            states.append(state)
+    return states
+
+
+def task_parents(states):
+    """6.7 parent links of the scored agents (OpenClaw windows link inside their database, 4.14)."""
+    parents = resolve_parents([s for s in states if s.source != "openclaw"])
+    for s in states:
+        if s.source == "openclaw":
+            parents[s.path] = s.parent_session
+    return parents
+
+
+def task_value_rows(states, now, models_by_source=None, sets=None, label=lambda path: path):
+    """The `task` rows (one per agent) and the `taskSets` row of a dump at `now` (6.9 Values, 6.11 Predictions)."""
+    import task_events
+    rows = task_events.agent_rows(states, task_parents(states), now, models_by_source)
+    out = []
+    for r in rows:
+        a, v, d, p = r["agent"], r["value"], r["task"], r["predictions"]
+        row = OrderedDict([("agentId", label(a["id"])), ("source", a["source"]), ("phase", a["phase"]),
+                           ("lastLineMs", a["lastLineMs"]),
+                           ("parentId", label(a["parentId"]) if a["parentId"] else None),
+                           ("taskStartMs", r["taskStartMs"]), ("form", v["form"]), ("score", v["score"]),
+                           ("shown", v["shown"]), ("state", v["state"])])
+        if d is not None:
+            for k in ("dims", "ig", "loop", "osc", "counts", "firstPassMs", "vHeld", "openFailure", "lastPass"):
+                row[k] = d[k]
+        row["predictions"] = None if p is None else OrderedDict(
+            [(k, p[k]) for k in ("success", "stall", "fix", "successShown", "stallShown", "fixShown")])
+        row["models"] = r["flags"]
+        out.append(row)
+    values = task_events.set_values(rows, now, sets)
+    sets_row = OrderedDict([("listed", [label(x) for x in values["listed"]]),
+                            ("sets", [dict(v, agent=label(v["agent"]) if v["agent"] else None) for v in values["sets"]]),
+                            ("groups", OrderedDict((label(root), dict(g, members=[label(m) for m in g["members"]],
+                                                                       agent=label(g["agent"]) if g["agent"] else None))
+                                                   for root, g in sorted(values["groups"].items(),
+                                                                         key=lambda kv: kv[0].encode("utf-16-be"))))])
+    return out, sets_row
+
+
+def task_records_all(states, analysis_ms, tz=None, label=lambda path: path):
+    """Every task record of the agents read whole (6.11 Task records), by agent id, then ordinal."""
+    import task_events
+
+    def day_of(ms):
+        if not has_day(ms):
+            return ""
+        zone = tz or datetime.now().astimezone().tzinfo
+        return datetime.fromtimestamp(ms / 1000, tz=zone).strftime("%Y-%m-%d")
+    records = []
+    for st in states:
+        records += task_events.records_of(st, analysis_ms, day_of)
+    records.sort(key=lambda r: (r["agentId"].encode("utf-16-be"), r["ordinal"]))
+    for r in records:
+        r["agentId"] = label(r["agentId"])
+    return records
+
+
+RECORD_FIELDS = ("agentId", "ordinal", "source", "model", "effort", "startMs", "endMs", "day", "complete", "state",
+                 "score", "dims", "counts", "firstPassMs", "success", "stalled", "snapshots", "fixRows")
+
+
+def task_calibration(records):
+    """Per scored source with records: its three models (6.11 Calibration)."""
+    import task_score
+    out = OrderedDict()
+    for source in task_score.SOURCE_ORDER:
+        part = [r for r in records if r["source"] == source]
+        if part:
+            out[source] = task_score.calibrate(part)
+    return out
+
+
+def dump_tasks(files, first=None, last=None, source=None, tz=None):
+    """`--dump-tasks`: the task records of every log read whole (6.11), the calibration and the comparison."""
+    import task_score
+    started = time.time()
+    analysis_ms = int(started * 1000)
+    states = task_states(files, Deduper(limit=10 ** 9))
+    records = task_records_all(states, analysis_ms, tz)
+    for r in records:
+        print(json.dumps({"record": OrderedDict((k, r[k]) for k in RECORD_FIELDS)}, ensure_ascii=False,
+                         separators=(",", ":")))
+    for src, models in task_calibration(records).items():
+        print(json.dumps({"calibration": {"source": src, "models": models}}, separators=(",", ":")))
+    days = sorted(r["day"] for r in records if r["day"])
+    first = first or (days[0] if days else "0001-01-01")
+    last = last or (days[-1] if days else "9999-12-31")
+    print(json.dumps({"comparison": dict(first=first, last=last, source=source,
+                                         **task_score.compare(records, first, last, source))},
+                     ensure_ascii=False, separators=(",", ":")))
+    stitched = sum(st.tasks.stats["stitched"] for st in states)
+    print(json.dumps({"summary": {"agents": len(states), "records": len(records),
+                                  "complete": sum(1 for r in records if r["complete"]),
+                                  "scored": sum(1 for r in records if r["score"] is not None),
+                                  "stitched": stitched, "analysisMs": analysis_ms,
+                                  "seconds": round(time.time() - started, 1)}}))
+
+
+TASK_FIXTURE = "task-e2e-expected.json"
+TASK_FIXTURE_COMMENT = (
+    "End-to-end task score (METRICS 6.9 Composing the stream, Values; 6.11): read the files of `order` (paths relative "
+    "to spec/fixtures; omp and Pi files with the roots of `roots`; an OpenClaw database gives one agent per window, "
+    "id `<path>#<session_id>`) in that order with one dedupe set (3.4) and the task composer, then: `agents` gives each "
+    "agent's composed event stream and the number of sessions stitched back (TASK-PARSERS 4.3); `records` the task "
+    "records of every agent read whole at `analysisMs`, days in UTC, by agent id (UTF-16 ordinal), then ordinal; "
+    "`calibration` the models of each source from those records; `values` each agent's form, value, state, dimensions, "
+    "facts and predictions at `nowMs`, with the phase after the 300-second staleness rule and the coefficients of its "
+    "source's calibration; `taskSets` the agents list (6.7) at `nowMs`, the highest-score value of every set in "
+    "`sets` (null: all sources) and of every board group; `comparison` the 6.11 comparison over `comparisonRange`. "
+    "Generated by spec/tools/reference.py --write-task-fixture after checking the hand expectations of "
+    "spec/tools/task_e2e_fixtures.py; ports must match every value (numbers within 1e-9, calibration coefficients "
+    "and probabilities within 1e-6).")
+
+
+def task_fixture_result(root, meta):
+    """Everything spec/fixtures/task-e2e-expected.json states, computed from the files of `meta`."""
+    import task_score
+    files = []
+    for item in meta["order"]:
+        files.append((0, os.path.join(root, *item["path"].split("/")), item["source"],
+                      os.path.join(root, *meta["roots"][item["source"]].split("/")) if item["source"] in meta["roots"]
+                      else None))
+    states = task_states(files, Deduper())
+
+    def label(path):
+        base, sep, window = path.partition("#")
+        return os.path.relpath(base, root).replace(os.sep, "/") + sep + window
+    records = task_records_all(states, meta["analysisMs"], timezone.utc, label)
+    calibration = task_calibration(records)
+    values, sets_row = task_value_rows(states, meta["nowMs"], calibration, meta["sets"], label)
+    agents = OrderedDict()
+    for st in sorted(states, key=lambda st: label(st.path).encode("utf-16-be")):
+        agents[label(st.path)] = OrderedDict([("source", st.source), ("stitched", st.tasks.stats["stitched"]),
+                                              ("events", st.tasks.events)])
+    rng = meta["comparison"]
+    return OrderedDict([
+        ("_comment", TASK_FIXTURE_COMMENT), ("nowMs", meta["nowMs"]), ("analysisMs", meta["analysisMs"]),
+        ("timeZone", meta["timeZone"]), ("roots", meta["roots"]), ("order", meta["order"]), ("sets", meta["sets"]),
+        ("comparisonRange", rng), ("agents", agents),
+        ("records", [OrderedDict((k, r[k]) for k in RECORD_FIELDS) for r in records]),
+        ("calibration", calibration), ("values", values), ("taskSets", sets_row),
+        ("comparison", task_score.compare(records, rng["first"], rng["last"]))])
+
+
+def task_fixture_hand_check(got, want):
+    """The expectations written by hand in task_e2e_fixtures.py hold in the computed fixture."""
+    import task_score
+    failures = []
+
+    def subset(w, g, label):
+        if isinstance(w, dict):
+            if not isinstance(g, dict):
+                failures.append("%s: expected %r got %r" % (label, w, g))
+                return
+            for k, v in w.items():
+                if k not in g:
+                    failures.append("%s: missing %s" % (label, k))
+                else:
+                    subset(v, g[k], label + "." + k)
+        elif isinstance(w, list) and isinstance(g, list) and any(isinstance(x, dict) for x in w):
+            if len(w) != len(g):
+                failures.append("%s: expected %d items got %d" % (label, len(w), len(g)))
+            for i, (x, y) in enumerate(zip(w, g)):
+                subset(x, y, "%s[%d]" % (label, i))
+        elif not task_score.close(w, g, 1e-9):
+            failures.append("%s: expected %r got %r" % (label, w, g))
+
+    values = {v["agentId"]: v for v in got["values"]}
+    for aid, w in want["agents"].items():
+        subset(w, values.get(aid), "value " + aid)
+    for aid, w in want["records"].items():
+        subset(w, [r for r in got["records"] if r["agentId"] == aid], "records " + aid)
+    subset(want["sets"], got["taskSets"]["sets"], "sets")
+    subset(want["groups"], got["taskSets"]["groups"], "groups")
+    subset(want["calibration"], got["calibration"], "calibration")
+    for aid, n in want["stitched"].items():
+        subset(n, got["agents"].get(aid, {}).get("stitched"), "stitched " + aid)
+    return failures
+
+
+def write_task_fixture():
+    import task_e2e_fixtures as fx
+    root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures"))
+    files = fx.write(root)
+    got = task_fixture_result(root, fx.meta(files))
+    failures = task_fixture_hand_check(json.loads(json.dumps(got)), fx.want(files))
+    if failures:
+        print("\n".join(failures))
+        print("%d hand expectations failed; %s not written" % (len(failures), TASK_FIXTURE))
+        return 1
+    with open(os.path.join(root, TASK_FIXTURE), "w", encoding="utf-8") as f:
+        json.dump(got, f, indent=1, ensure_ascii=False)
+        f.write("\n")
+    print("wrote %s: %d agents, %d records, %d values" % (TASK_FIXTURE, len(got["agents"]), len(got["records"]),
+                                                         len(got["values"])))
+    return 0
+
+
+def check_task_fixture(root):
+    """spec/fixtures/task-e2e-expected.json against the reference (numbers exact: the reference wrote them)."""
+    path = os.path.join(root, TASK_FIXTURE)
+    if not os.path.exists(path):
+        return [], 0
+    want = json.load(open(path, encoding="utf-8"))
+    meta = {k: want[k] for k in ("nowMs", "analysisMs", "timeZone", "roots", "order", "sets")}
+    meta["comparison"] = want["comparisonRange"]
+    got = json.loads(json.dumps(task_fixture_result(root, meta)))
+    failures = []
+    for key in want:
+        if got.get(key) != want[key]:
+            failures.append("task fixture: %s differs" % key)
+            if isinstance(want[key], dict):
+                for k in sorted(set(want[key]) | set(got.get(key) or {})):
+                    if (got.get(key) or {}).get(k) != want[key].get(k):
+                        failures.append("  %s.%s" % (key, k))
+                        if len(failures) > 20:
+                            break
+    return failures, len(want["agents"])
+
+
 # ----------------------------------------------------------------------------- commands
 
 def check_fixtures():
@@ -1892,7 +3382,7 @@ def check_fixtures():
         states.append(state)
         got = dict(source=state.source, project=state.project, model=state.model, isSubagent=state.is_subagent,
                    phase=state.phase, inFlightStartMs=state.in_flight, lastLineMs=state.last_line,
-                   malformedLines=state.malformed, responses=list(state.responses.values()))
+                   malformedLines=state.malformed, responses=list(state.responses.values()), **mode_fields(state))
         for k, v in exp.items():
             if k != "parentFile" and got[k] != v:
                 failures.append("%s: %s expected %r got %r" % (rel, k, v, got[k]))
@@ -1905,7 +3395,7 @@ def check_fixtures():
                 continue
             got = dict(source=st.source, project=st.project, model=st.model, isSubagent=st.is_subagent,
                        parentId=st.parent_session, phase=st.phase, inFlightStartMs=st.in_flight,
-                       lastLineMs=st.last_line, responses=list(st.responses.values()))
+                       lastLineMs=st.last_line, responses=list(st.responses.values()), **mode_fields(st))
             for k, v in exp.items():
                 if got[k] != v:
                     failures.append("%s: %s expected %r got %r" % (st.path, k, v, got[k]))
@@ -1935,9 +3425,20 @@ def check_fixtures():
         failures += check_traces(root, expected, om["traces"])
         failures += check_tail_reads(root, expected, om.get("tailReads", []))
         failures += check_omp_roots()
+    pm = expected.get("pi")
+    if pm:
+        found = sorted(os.path.relpath(p, root).replace(os.sep, "/")
+                       for r in fixture_pi_roots(root) for p in discover_pi(r))
+        if found != pm["discover"]:
+            failures.append("pi discover: expected %r got %r" % (pm["discover"], found))
+        failures += check_traces(root, expected, pm["traces"])
+        failures += check_pi_roots()
     ag = expected.get("antigravity")
     if ag:
         failures += check_antigravity(root, ag, dedupe)
+    ocl = expected.get("openclaw")
+    if ocl:
+        failures += check_openclaw(root, ocl, dedupe)
     wb = expected.get("workbuddy")
     if wb:
         found = sorted(os.path.relpath(p, root).replace(os.sep, "/")
@@ -1946,6 +3447,13 @@ def check_fixtures():
             failures.append("workbuddy discover: expected %r got %r" % (wb["discover"], found))
         failures += check_traces(root, expected, wb["traces"])
         failures += check_workbuddy_roots()
+    hm = expected.get("hermes")
+    if hm:
+        failures += check_hermes(root, hm, dedupe)
+    dr = expected.get("droid")
+    if dr:
+        failures += check_droid(root, dr)
+        failures += check_traces(root, expected, dr["traces"])
     hist_path = os.path.join(root, "history-expected.json")
     if os.path.exists(hist_path):
         hist = json.load(open(hist_path, encoding="utf-8"))
@@ -2000,14 +3508,70 @@ def check_fixtures():
                     if abs(st["buckets"].get(int(k), 0.0) - v) > 1e-6:
                         failures.append("%s: bucket %s expected %r got %r" % (case["name"], k, v,
                                                                               st["buckets"].get(int(k))))
+    task_failures, task_agents = check_task_fixture(root)
+    failures += task_failures
     failures += ["prices: " + e for e in pricing.check_cases()]
+    failures += ["unpriced: " + e for e in diagnostics.check_cases()]
     failures += ["harnesses: " + e for e in harnesses.check_fixtures(root)]
     failures += ["trae: " + e for e in trae.check_fixtures(root)]
+    attribution = json.load(open(os.path.join(root, "model-attribution-cases.json"), encoding="utf-8"))
+    failures += ["model attribution: " + e for e in check_model_attribution(attribution)]
     if failures:
         print("\n".join(failures))
         sys.exit(1)
-    print("reference implementation matches all fixtures (%d files, %d Antigravity databases, %d engine cases, "
-          "price cases)" % (len(expected["order"]), len((ag or {}).get("order", [])), len(cases)))
+    print("reference implementation matches all fixtures (%d files, %d Antigravity databases, %d OpenClaw databases, "
+          "%d Hermes log files, %d Droid read cycles, %d engine cases, price cases, %d model attribution cases, "
+          "unpriced %s, %d task score agents end to end)" % (
+              len(expected["order"]), len((ag or {}).get("order", [])), len((ocl or {}).get("dbOrder", [])),
+              len((hm or {}).get("order", [])), sum("read" in st for st in (dr or {}).get("live", {}).get("steps", [])),
+              len(cases), len(attribution["cases"]), diagnostics.summary(), task_agents))
+
+
+def report_model_id(index, model, provider=None):
+    """`models[].id` of METRICS 11.3: a table entry's id, `local` for a free provider, else `unknown`."""
+    res = index.resolve(model, provider)
+    if res.entry is not None:
+        return res.entry["id"]
+    return "local" if res.kind == "free" and res.reason == "free provider" else "unknown"
+
+
+def check_model_attribution(doc, table=pricing.TABLE):
+    """model-attribution-cases.json: every response and every ledger increment (METRICS 11.4) keeps its own model."""
+    index = pricing.Index(pricing.load(table))
+    failures = []
+    for case in doc["cases"]:
+        dedupe, ledger, reported = Deduper(), {}, {}
+        for spec in case["files"]:
+            state = FileState("/fixture/" + spec["path"], "claudeCode")
+            for text in spec["lines"]:
+                before = {k: dict(r) for k, r in state.responses.items()}
+                claude_line(state, loads(text), dedupe)
+                for key, r in state.responses.items():
+                    if before.get(key) == r:
+                        continue
+                    mid = report_model_id(index, r["model"], r["provider"])
+                    slot = ledger.setdefault((mid, state.source), [0, 0])
+                    old = reported.get(key)
+                    slot[0] += 0 if old is not None else 1
+                    slot[1] += max(0, r["output"] - (old or 0))
+                    reported[key] = max(old or 0, r["output"])
+            exp = case["expect"][spec["path"]]
+            got = dict(source=state.source, isSubagent=state.is_subagent, model=state.model,
+                       reportModelId=report_model_id(index, state.model),
+                       responses=[dict(key=r["key"], model=r["model"], output=r["output"],
+                                       reportModelId=report_model_id(index, r["model"], r["provider"]))
+                                  for r in state.responses.values()])
+            if got != exp:
+                failures.append("%s / %s: expected %r got %r" % (case["name"], spec["path"], exp, got))
+        got_ledger = sorted([m, s, v[0], v[1]] for (m, s), v in ledger.items())
+        want_ledger = sorted([e["modelId"], e["source"], e["requests"], e["output"]] for e in case["ledger"])
+        if got_ledger != want_ledger:
+            failures.append("%s: ledger expected %r got %r" % (case["name"], want_ledger, got_ledger))
+    for model, want in doc["reportIds"]:
+        got = report_model_id(index, model)
+        if got != want:
+            failures.append("report id %r: expected %s got %s" % (model, want, got))
+    return failures
 
 
 def check_traces(root, expected, traces):
@@ -2046,6 +3610,38 @@ def check_tail_reads(root, expected, reads):
     return failures
 
 
+def check_pi_roots():
+    """Root resolution of METRICS 2 / 4.13 and the omp overlap rule of 4.7, on a scratch home."""
+    failures = []
+    with tempfile.TemporaryDirectory() as home:
+        agent = os.path.join(home, ".pi", "agent")
+        cases = [({}, None, [os.path.join(agent, "sessions")]),
+                 ({}, {"sessionDir": "~/elsewhere"}, [os.path.join(agent, "sessions"), os.path.join(home, "elsewhere")]),
+                 ({}, {"sessionDir": "   "}, [os.path.join(agent, "sessions")]),
+                 ({}, {"sessionDir": 7}, [os.path.join(agent, "sessions")]),
+                 ({"PI_CODING_AGENT_DIR": "~/pi-agent"}, None, [os.path.join(home, "pi-agent", "sessions")]),
+                 ({"PI_CODING_AGENT_SESSION_DIR": "/srv/pi"}, {"sessionDir": "/srv/pi"},
+                  [os.path.join(agent, "sessions"), "/srv/pi"])]
+        for env, settings, want in cases:
+            target = os.path.join(_expand_home(env.get("PI_CODING_AGENT_DIR", ""), home) or agent, "settings.json")
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            if settings is None:
+                if os.path.exists(target):
+                    os.remove(target)
+            else:
+                with open(target, "w", encoding="utf-8") as fh:
+                    json.dump(settings, fh)
+            got = pi_roots(env, home)
+            if got != want:
+                failures.append("pi roots %r %r: expected %r got %r" % (env, settings, want, got))
+        omp = [os.path.join(home, ".pi", "agent", "sessions"), os.path.join(home, ".pi", "agent", "sessions", "x"),
+               os.path.join(home, ".omp", "agent", "sessions"), os.path.join(home, ".pi", "agent", "sessions2")]
+        got = without_pi(omp, [os.path.join(agent, "sessions")])
+        if got != omp[2:]:
+            failures.append("omp roots without pi: got %r" % got)
+    return failures
+
+
 def check_omp_roots():
     failures = []
     with tempfile.TemporaryDirectory() as tmp:
@@ -2071,6 +3667,164 @@ def check_omp_roots():
             got = omp_roots(env, platform, home)
             if [os.path.normpath(p) for p in got] != [os.path.normpath(p) for p in want]:
                 failures.append("omp roots %r %s: expected %r got %r" % (env, platform, want, got))
+    return failures
+
+
+def hermes_agent_view(state):
+    return dict(source=state.source, project=state.project, model=state.model, isSubagent=state.is_subagent,
+                parentId=None, phase=state.phase, inFlightStartMs=state.in_flight, lastLineMs=state.last_line,
+                responses=list(state.responses.values()))
+
+
+def check_hermes(root, hm, dedupe):
+    """METRICS 4.15 on spec/fixtures/hermes: discovery, the log sets in `hermes.order`, traces, wall times, homes,
+    a scripted rotation, config.yaml texts and a scripted Codex runtime switch."""
+    failures = []
+    tz = ZoneInfo(hm["timeZone"])
+    home = os.path.join(root, hm["home"])
+    found = sorted(os.path.relpath(p, root).replace(os.sep, "/") for f in hermes_log_folders(home)
+                   for p in discover_hermes(f))
+    if found != hm["discover"]:
+        failures.append("hermes discover: expected %r got %r" % (hm["discover"], found))
+    sets = OrderedDict()
+    for rel in hm["order"]:
+        folder = os.path.dirname(os.path.join(root, rel))
+        if folder not in sets:
+            sets[folder] = HermesSet(folder, tz)
+            sets[folder].check_config()
+        sets[folder].feed(os.path.join(root, rel), dedupe)
+    for rel_folder, exp in hm["sets"].items():
+        hs = sets.get(os.path.join(root, rel_folder))
+        if hs is None:
+            failures.append("hermes %s: log set not read" % rel_folder)
+            continue
+        if hs.malformed != exp["malformedLines"]:
+            failures.append("hermes %s: malformedLines expected %r got %r" % (rel_folder, exp["malformedLines"],
+                                                                            hs.malformed))
+        if list(hs.agents) != list(exp["agents"]):
+            failures.append("hermes %s: agents expected %r got %r" % (rel_folder, list(exp["agents"]), list(hs.agents)))
+        for sid, want in exp["agents"].items():
+            if sid not in hs.agents:
+                continue
+            got = hermes_agent_view(hs.agents[sid])
+            for k, v in want.items():
+                if got[k] != v:
+                    failures.append("hermes %s#%s: %s expected %r got %r" % (rel_folder, sid, k, v, got[k]))
+    for t in hm["traces"]:
+        trace_dedupe, trace_sets = Deduper(), {}
+        for rel in hm["order"]:
+            folder = os.path.dirname(os.path.join(root, rel))
+            if folder not in trace_sets:
+                trace_sets[folder] = HermesSet(folder, tz)
+                trace_sets[folder].check_config()
+            hs = trace_sets[folder]
+            if rel == t["file"]:
+                hs.feed(os.path.join(root, rel), trace_dedupe, max_lines=t["afterLine"])
+                break
+            hs.feed(os.path.join(root, rel), trace_dedupe)
+        state = hs.agents.get(t["session"])
+        got = (state.phase, state.in_flight) if state else (None, None)
+        if got != (t["phase"], t["inFlightStartMs"]):
+            failures.append("hermes %s line %d %s: expected %s/%r got %s/%r" % (
+                t["file"], t["afterLine"], t["session"], t["phase"], t["inFlightStartMs"], got[0], got[1]))
+    for case in hm["wallTimes"]:
+        m = HERMES_RECORD.fullmatch(case["line"])
+        got = hermes_wall_ms(m, ZoneInfo(case["timeZone"])) if m else None
+        if got != case["ms"]:
+            failures.append("hermes wall time %r in %s: expected %r got %r" % (case["line"][:23], case["timeZone"],
+                                                                             case["ms"], got))
+    for case in hm["homes"]:
+        got = hermes_home(case["env"], case["platform"], case["home"])
+        if got != case["expected"]:
+            failures.append("hermes home %r %s: expected %r got %r" % (case["env"], case["platform"],
+                                                                       case["expected"], got))
+    failures += check_hermes_rotation(hm["rotation"])
+    for case in hm["runtimeConfigs"]:
+        got = hermes_codex_runtime(case["text"])
+        if got != case["codexRuntime"]:
+            failures.append("hermes config.yaml %r: codexRuntime expected %r got %r" % (case["name"],
+                                                                                      case["codexRuntime"], got))
+    failures += check_hermes_codex_runtime(hm["codexRuntime"])
+    return failures
+
+
+def check_hermes_codex_runtime(scenario):
+    """Replays `hermes.codexRuntime` in a scratch Hermes home (METRICS 4.15 Codex runtime)."""
+    failures = []
+    tz = ZoneInfo(scenario["timeZone"])
+    with tempfile.TemporaryDirectory() as tmp:
+        home = os.path.join(tmp, "home")
+        tails = OrderedDict()
+        for rel in scenario["logFolders"]:
+            os.makedirs(os.path.join(home, *rel.split("/")))
+            tails[rel] = HermesTail(os.path.join(home, *rel.split("/")), tz)
+        dedupe = Deduper()
+        for number, step in enumerate(scenario["steps"], start=1):
+            path = os.path.join(home, *(step.get("append") or step.get("write") or step.get("remove") or "").split("/"))
+            if "append" in step:
+                with open(path, "ab") as fh:
+                    fh.write("".join(line + "\n" for line in step["lines"]).encode("utf-8"))
+                os.utime(path, (step["mtime"] / 1000, step["mtime"] / 1000))
+            elif "write" in step:
+                data = step["text"].encode("utf-8")
+                data += b"#" * (step.get("size", len(data)) - len(data))
+                with open(path, "wb") as fh:
+                    fh.write(data)
+                os.utime(path, (step["mtime"] / 1000, step["mtime"] / 1000))
+            elif "remove" in step:
+                os.remove(path)
+            else:
+                for tail in tails.values():
+                    tail.read(dedupe)
+                keys = [k for tail in tails.values() for st in tail.set.agents.values() for k in st.responses]
+                if sorted(keys) != sorted(step["responseKeys"]):
+                    failures.append("hermes codex runtime step %d: keys expected %r got %r" % (
+                        number, step["responseKeys"], keys))
+                for rel, want in step["sets"].items():
+                    hs = tails[rel].set
+                    if hs.codex_runtime != want["codexRuntime"]:
+                        failures.append("hermes codex runtime step %d %s: codexRuntime expected %r got %r" % (
+                            number, rel, want["codexRuntime"], hs.codex_runtime))
+                    for sid, agent_want in want["agents"].items():
+                        st = hs.agents.get(sid)
+                        got = dict(phase=st.phase, inFlightStartMs=st.in_flight, lastLineMs=st.last_line,
+                                   model=st.model) if st else None
+                        if got is None or any(got[k] != v for k, v in agent_want.items()):
+                            failures.append("hermes codex runtime step %d %s#%s: expected %r got %r" % (
+                                number, rel, sid, agent_want, got))
+    return failures
+
+
+def check_hermes_rotation(rotation):
+    """Replays `hermes.rotation` in a scratch log folder with real renames (identity following, METRICS 4.15)."""
+    failures = []
+    tz = ZoneInfo(rotation["timeZone"])
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = os.path.join(tmp, "logs")
+        os.makedirs(folder)
+        tail, dedupe = HermesTail(folder, tz), Deduper()
+        for number, step in enumerate(rotation["steps"], start=1):
+            if "append" in step:
+                path = os.path.join(folder, step["append"])
+                text = step["text"] if "text" in step else "".join(line + "\n" for line in step["lines"])
+                with open(path, "ab") as fh:
+                    fh.write(text.encode("utf-8"))
+                os.utime(path, (step["mtime"] / 1000, step["mtime"] / 1000))
+            elif "rename" in step:
+                os.rename(os.path.join(folder, step["rename"][0]), os.path.join(folder, step["rename"][1]))
+            elif "delete" in step:
+                os.remove(os.path.join(folder, step["delete"]))
+            else:
+                tail.read(dedupe)
+                keys = [k for st in tail.set.agents.values() for k in st.responses]
+                if sorted(keys) != sorted(step["responseKeys"]):
+                    failures.append("hermes rotation step %d: keys expected %r got %r" % (number, step["responseKeys"],
+                                                                                         keys))
+                for sid, want in step["agents"].items():
+                    st = tail.set.agents.get(sid)
+                    got = dict(phase=st.phase, inFlightStartMs=st.in_flight, lastLineMs=st.last_line) if st else None
+                    if got != want:
+                        failures.append("hermes rotation step %d %s: expected %r got %r" % (number, sid, want, got))
     return failures
 
 
@@ -2120,6 +3874,197 @@ def check_antigravity(root, ag, dedupe):
     return failures
 
 
+def check_openclaw(root, oc, dedupe):
+    """OpenClaw agent databases (METRICS 4.14): discovery, the Codex roots next to them, every window, traces."""
+    failures = []
+    home = os.path.join(root, "openclaw")
+    before = sorted(os.path.relpath(os.path.join(d, n), home) for d, _, ns in os.walk(home) for n in ns)
+    dbs = [db for r in fixture_openclaw_dirs(root) for db in discover_openclaw(r)]
+    rel = lambda path: os.path.relpath(path, root).replace(os.sep, "/")  # noqa: E731
+    if sorted(rel(db) for db in dbs) != oc["discover"]:
+        failures.append("openclaw discover: expected %r got %r" % (oc["discover"], sorted(rel(db) for db in dbs)))
+    rollouts = sorted(rel(f) for r in openclaw_codex_roots(dbs) for f in discover(r, codex=True))
+    if rollouts != oc["codexDiscover"]:
+        failures.append("openclaw codex roots: expected %r got %r" % (oc["codexDiscover"], rollouts))
+    main = os.path.join(root, *oc["dbOrder"][0].split("/"))
+    for setting in (os.path.dirname(main), main):
+        if discover_openclaw(setting) != [main]:
+            failures.append("openclaw: the setting %s must name that database" % rel(setting))
+    for db_rel in oc["dbOrder"]:
+        exp_db = oc["databases"][db_rel]
+        states = openclaw_states(os.path.join(root, *db_rel.split("/")), dedupe)
+        if states is None:
+            if exp_db != {"unsupported": True}:
+                failures.append("%s: unexpectedly unsupported" % db_rel)
+            continue
+        if exp_db.get("unsupported"):
+            failures.append("%s: expected unsupported" % db_rel)
+            continue
+        got_ids = [rel(st.path) for st in states]
+        if sorted(got_ids) != sorted(exp_db):
+            failures.append("%s: windows expected %r got %r" % (db_rel, sorted(exp_db), sorted(got_ids)))
+        for st in states:
+            exp = exp_db.get(rel(st.path))
+            if exp is None:
+                continue
+            got = dict(source=st.source, project=st.project, model=st.model, isSubagent=st.is_subagent,
+                       parentId=rel(st.parent_session) if st.parent_session else None, phase=st.phase,
+                       inFlightStartMs=st.in_flight, lastLineMs=st.last_line, malformedLines=st.malformed,
+                       responses=list(st.responses.values()), **mode_fields(st))
+            for k, v in exp.items():
+                if got[k] != v:
+                    failures.append("%s: %s expected %r got %r" % (rel(st.path), k, v, got[k]))
+    for t in oc["traces"]:
+        trace_dedupe = Deduper()
+        for db_rel in oc["dbOrder"]:
+            path = os.path.join(root, *db_rel.split("/"))
+            if db_rel != t["database"]:
+                openclaw_states(path, trace_dedupe)
+                continue
+            st = (openclaw_states(path, trace_dedupe, stop_at=(t["window"], t["afterSeq"])) or [None])[-1]
+            got = (st.phase, st.in_flight) if st and st.path.endswith("#" + t["window"]) else None
+            if got != (t["phase"], t["inFlightStartMs"]):
+                failures.append("%s#%s row %d: expected %s/%r got %r" % (db_rel, t["window"], t["afterSeq"], t["phase"],
+                                                                        t["inFlightStartMs"], got))
+            break
+    failures += check_openclaw_roots()
+    after = sorted(os.path.relpath(os.path.join(d, n), home) for d, _, ns in os.walk(home) for n in ns)
+    if after != before:
+        failures.append("openclaw: reading created files %r" % sorted(set(after) - set(before)))
+    return failures
+
+
+def check_droid(root, dr):
+    """METRICS 4.16 on spec/fixtures/droid: discovery, roots, sidecars, allocations and scripted read cycles."""
+    failures = []
+    rel = lambda path: os.path.relpath(path, root).replace(os.sep, "/")  # noqa: E731
+    found = sorted(rel(p) for p in discover_droid(fixture_droid_root(root)))
+    if found != dr["discover"]:
+        failures.append("droid discover: expected %r got %r" % (dr["discover"], found))
+    for case in dr["roots"]:
+        with tempfile.TemporaryDirectory() as tmp:
+            for folder in case["make"]:
+                os.makedirs(os.path.join(tmp, *folder.split("/")))
+            setting = os.path.join(tmp, *case["setting"].split("/")) if case["setting"] else None
+            got = os.path.relpath(droid_root(tmp, setting), tmp).replace(os.sep, "/")
+            if got != case["expected"]:
+                failures.append("droid root %r: expected %r got %r" % (case, case["expected"], got))
+    for case in dr["sidecars"]:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "x.settings.json")
+            data = case["text"].encode(case.get("encoding", "utf-8"))
+            with open(path, "wb") as fh:
+                fh.write(data + b" " * (case.get("size", len(data)) - len(data)))
+            readable, counters, model = droid_read_sidecar(path)
+            got = dict(readable=readable, counters=counters, model=model)
+            want = dict(readable=case["readable"], counters=case["counters"], model=case["model"])
+            if got != want:
+                failures.append("droid sidecar %r: expected %r got %r" % (case["name"], want, got))
+    for case in dr["allocations"]:
+        got = droid_shares(case["total"], case["weights"])
+        if got != case["shares"]:
+            failures.append("droid allocation %r: expected %r got %r" % (case["weights"], case["shares"], got))
+    failures += check_droid_live(dr["live"])
+    failures += check_droid_history(dr["history"])
+    return failures
+
+
+def check_droid_history(history):
+    """Replays `droid.history`: history analyses of a scratch home, the parent memory kept between them."""
+    failures = []
+    with tempfile.TemporaryDirectory() as tmp:
+        memory, none = {}, os.path.join(tmp, "none")
+        for n, step in enumerate(history["steps"], start=1):
+            if "write" in step:
+                path = os.path.join(tmp, *step["write"].split("/"))
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(step["text"])
+                os.utime(path, ns=(step["mtime"] * 1_000_000, step["mtime"] * 1_000_000))
+                continue
+            skipped, got = [], OrderedDict()
+            rows = collect_all(none, none, none, None, include_archived=False,
+                               droid_roots=[droid_root(tmp)], droid_memory=memory, droid_skipped=skipped)
+            for _, agent, r in rows:
+                got.setdefault(os.path.relpath(agent, tmp).replace(os.sep, "/"), []).append(r)
+            skipped = sorted(os.path.relpath(p, tmp).replace(os.sep, "/") for p in skipped)
+            if dict(got) != step["responses"] or skipped != step["skipped"]:
+                failures.append("droid history step %d: expected %r skipped %r, got %r skipped %r" % (
+                    n, step["responses"], step["skipped"], dict(got), skipped))
+    return failures
+
+
+def check_droid_live(live):
+    """Replays `droid.live` in a scratch home (METRICS 4.16 Read cycle)."""
+    failures = []
+    with tempfile.TemporaryDirectory() as tmp:
+        dedupe, tails, seen = Deduper(), {}, {}
+        for n, step in enumerate(live["steps"], start=1):
+            if "append" in step or "rewrite" in step:
+                path = os.path.join(tmp, *(step.get("append") or step["rewrite"]).split("/"))
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                data = "".join(json.dumps(line, ensure_ascii=False, separators=(",", ":")) + "\n"
+                               for line in step["lines"]).encode("utf-8")
+                if "append" in step:
+                    with open(path, "ab") as fh:
+                        fh.write(data)
+                else:
+                    with open(path + ".new", "wb") as fh:
+                        fh.write(data)
+                    os.replace(path + ".new", path)
+            elif "sidecar" in step:
+                path = droid_sidecar_path(os.path.join(tmp, *step["sidecar"].split("/")))
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(step["text"] if "text" in step else json.dumps(step["doc"], indent=2))
+                os.utime(path, ns=(step["mtime"] * 1_000_000, step["mtime"] * 1_000_000))
+            elif "open" in step:
+                path = os.path.join(tmp, *step["open"].split("/"))
+                tails[step["open"]] = DroidTail(path, dedupe, at_end=step["atEnd"])
+                seen[step["open"]] = OrderedDict()
+            elif "read" in step:
+                tail = tails[step["read"]]
+                tail.read()
+                for key, r in tail.state.responses.items():
+                    seen[step["read"]][key] = r
+                got = list(seen[step["read"]].values())
+                if got != step["responses"]:
+                    failures.append("droid live step %d: responses expected %r got %r" % (n, step["responses"], got))
+                if tail.state.droid_growth != step["pending"]:
+                    failures.append("droid live step %d: pending expected %r got %r" % (n, step["pending"],
+                                                                                       tail.state.droid_growth))
+                if "phase" in step and tail.state.phase != step["phase"]:
+                    failures.append("droid live step %d: phase expected %s got %s" % (n, step["phase"],
+                                                                                     tail.state.phase))
+    return failures
+
+
+def check_openclaw_roots():
+    """State folders of METRICS 2 / 4.14 on a scratch home."""
+    failures = []
+    with tempfile.TemporaryDirectory() as home:
+        for name in (".openclaw", ".openclaw-work", ".openclaw-Default", ".openclaw-x.y", ".openclaw-_z",
+                     ".openclaw-2nd", "openclaw-play"):
+            os.makedirs(os.path.join(home, name))
+        open(os.path.join(home, ".openclaw-file"), "w").close()
+        oc = os.path.join(home, ".openclaw")
+        cases = [({}, [oc, os.path.join(home, ".openclaw-2nd"), os.path.join(home, ".openclaw-work")]),
+                 ({"OPENCLAW_STATE_DIR": "~/state"}, [os.path.join(home, "state")]),
+                 ({"OPENCLAW_STATE_DIR": "  ", "OPENCLAW_PROFILE": "work"},
+                  [oc, os.path.join(home, ".openclaw-2nd"), os.path.join(home, ".openclaw-work")]),
+                 ({"OPENCLAW_HOME": "/srv/oc"}, [os.path.join("/srv/oc", ".openclaw")]),
+                 ({"OPENCLAW_HOME": "~/.openclaw-work"}, [os.path.join(home, ".openclaw-work", ".openclaw")])]
+        for env, want in cases:
+            got = openclaw_state_dirs(env, home)
+            if got != [os.path.normpath(w) for w in want]:
+                failures.append("openclaw roots %r: expected %r got %r" % (env, want, got))
+    return failures
+
+
+def fixture_openclaw_dirs(root):
+    """The fixture folder `openclaw` plays the home folder: its state folders are .openclaw and .openclaw-work."""
+    return openclaw_state_dirs({}, os.path.join(root, "openclaw"))
+
+
 def check_workbuddy_roots():
     """Both data folders under the home folder; a setting names a data folder or its `projects` folder."""
     failures = []
@@ -2142,17 +4087,36 @@ def fixture_wb_roots(root):
     return workbuddy_roots(os.path.join(root, "workbuddy"))
 
 
+def fixture_droid_root(root):
+    """The fixture folder `droid` plays the home folder: its sessions root is droid/.factory/sessions."""
+    return droid_root(os.path.join(root, "droid"))
+
+
 def fixture_source(rel):
-    for prefix, source in (("codex/", "codex"), ("dsh/", "deepseek"), ("gemini/", "gemini"), ("omp/", "omp"),
+    if rel.startswith("openclaw/") and "/codex-home/sessions/" in rel:
+        return "codex"
+    if rel.startswith("droid/"):
+        return "droid"
+    for prefix, source in (("codex/", "codex"), ("dsh/", "deepseek"), ("gemini/", "gemini"), ("omp/", "omp"), ("pi/", "pi"),
                            ("workbuddy/.workbuddy/", "workbuddy"), ("workbuddy/.workbuddy-ai/", "workbuddyAi")):
         if rel.startswith(prefix):
             return source
     return "claudeCode"
 
 
+def fixture_pi_roots(root):
+    """The fixture folder `pi` plays `~/.pi` with the fixture folder as home (its settings name a custom folder)."""
+    return pi_roots({"PI_CODING_AGENT_DIR": os.path.join(root, "pi", "agent")}, root)
+
+
 def fixture_omp_roots(root):
     """The fixture folder `omp` plays `~/.omp`: its automatic roots are the default root and every profile."""
     return omp_roots({"PI_CONFIG_DIR": "omp"}, "linux", root)
+
+
+def fixture_hermes_dirs(root):
+    """The fixture folder `hermes/home` plays the Hermes home (`~/.hermes`): its log folder and every profile's."""
+    return hermes_log_folders(os.path.join(root, "hermes", "home"))
 
 
 def fixture_state(root, rel):
@@ -2183,8 +4147,17 @@ def fixture_history(root, expected, config=HISTORY_PRICES):
                                          os.path.join(copy, "dsh", "sessions"), os.path.join(copy, "opencode", "opencode.db"),
                                          [os.path.join(copy, "gemini", "tmp")], fixture_omp_roots(copy),
                                          antigravity_stores(gemini_dir=os.path.join(copy, "antigravity")),
-                                         fixture_wb_roots(copy)),
+                                         fixture_wb_roots(copy), pi_dirs=fixture_pi_roots(copy),
+                                         openclaw_dbs=[db for r in fixture_openclaw_dirs(copy) for db in
+                                                       discover_openclaw(r)],
+                                         hermes_dirs=fixture_hermes_dirs(copy), hermes_tz=hermes_zone(expected),
+                                         droid_roots=[fixture_droid_root(copy)]),
                              tz=timezone.utc, day_pricing=fixture_pricing(root, config))
+
+
+def hermes_zone(expected):
+    zone = expected.get("hermes", {}).get("timeZone")
+    return ZoneInfo(zone) if zone else None
 
 
 def write_history_fixture():
@@ -2195,8 +4168,12 @@ def write_history_fixture():
                                "file's modification time from parser-expected.json `mtimes`. Costs use the fixture "
                                "price tables in `prices.tables` (paths relative to spec/fixtures; the highest version "
                                "is the current table) with the stored day bindings `prices.bindings`; unbound days "
-                               "bind to the current table. Generated by spec/tools/reference.py "
-                               "--write-history-fixture; platforms must match exactly.",
+                               "bind to the current table. `unpriced` lists the day's unpriced facts (METRICS 9.10): "
+                               "trimmed raw model, provider (null when none), fast, requests, as stored in the side "
+                               "table `contribution_unpriced` summed over files, ordered by the UTF-8 bytes of model, "
+                               "then provider (null first), then fast; its requests add up to `unpricedRequests`. "
+                               "Generated by spec/tools/reference.py --write-history-fixture; platforms must match "
+                               "exactly.",
                    "prices": HISTORY_PRICES,
                    "days": fixture_history(root, expected)}, f, indent=2, ensure_ascii=False)
         f.write("\n")
@@ -2224,30 +4201,46 @@ def discover(root, limit=20_000, deepseek=False, codex=False):
 
 
 def startup_files(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
-                  limit=20_000, include_archived=False):
-    """(time, path, source, root) of every discovered file and Antigravity database, in startup order (5); the root
-    (omp root or WorkBuddy `projects`) decides sub-agents by folder structure."""
-    files = [(p, "codex", None) for p in discover(codex_root, limit=limit, codex=True)]
-    if include_archived:
-        archived = os.path.join(os.path.dirname(codex_root.rstrip(os.sep)), "archived_sessions")
-        files += [(p, "codex", None) for p in discover(archived, limit=limit, codex=True)]
+                  limit=20_000, include_archived=False, pi_dirs=(), openclaw_dbs=(), codex_roots=None, droid_roots=()):
+    """(time, path, source, root) of every discovered file and Antigravity or OpenClaw database, in startup order (5);
+    the root (omp root or WorkBuddy `projects`) decides sub-agents by folder structure. `codex_roots` replaces the
+    automatic Codex roots (the Codex setting); by default they are `codex_root` and the Codex homes OpenClaw keeps next
+    to its agent databases (METRICS 2)."""
+    files = []
+    if codex_roots is None:
+        codex_roots = [codex_root] + openclaw_codex_roots(openclaw_dbs)
+    for root in OrderedDict.fromkeys(codex_roots):
+        files += [(p, "codex", None) for p in discover(root, limit=limit, codex=True)]
+        if include_archived:
+            archived = os.path.join(os.path.dirname(root.rstrip(os.sep)), "archived_sessions")
+            files += [(p, "codex", None) for p in discover(archived, limit=limit, codex=True)]
     files += [(p, "claudeCode", None) for p in discover(claude_root, limit=limit)]
     files += [(p, "deepseek", None) for p in discover(dsh_root, limit=limit, deepseek=True)]
     files += [(p, "gemini", None) for d in gemini_dirs for p in discover_gemini(d, limit=limit)]
-    files += [(p, "omp", r) for r in OrderedDict.fromkeys(omp_dirs) for p in discover_omp(r, limit=limit)]
+    files += [(p, "omp", r) for r in OrderedDict.fromkeys(without_pi(omp_dirs, pi_dirs))
+              for p in discover_omp(r, limit=limit)]
+    files += [(p, "pi", r) for r in OrderedDict.fromkeys(pi_dirs) for p in discover_pi(r, limit=limit)]
     files += [(p, "antigravity", None) for s in ag_stores for p in discover_antigravity(s, limit=limit)]
     files += [(p, s, r) for s, r in wb_roots for p in discover_workbuddy(r, limit=limit)]
-    timed = {(ag_mtime(p) if s == "antigravity" else os.path.getmtime(p), p, s, r) for p, s, r in files}
+    files += [(p, "openclaw", None) for p in OrderedDict.fromkeys(openclaw_dbs)]
+    files += [(p, "droid", None) for r in OrderedDict.fromkeys(droid_roots) for p in discover_droid(r, limit=limit)]
+    timed = {(ag_mtime(p) if s in ("antigravity", "openclaw") else droid_mtime(p) if s == "droid"
+              else os.path.getmtime(p), p, s, r) for p, s, r in files}
     return sorted(timed, key=lambda t: (t[0], t[1]))
 
 
-def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
-               table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, trae_paths=()):
-    started = time.time()
+def today_rows(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
+               table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(), openclaw_dbs=(),
+               codex_roots=None, hermes_dirs=(), droid_roots=(), tasks=False, trae_paths=()):
+    """Today's responses as the engine seeds them (the `--dump-today` rows), with files and bytes read; with `tasks`,
+    also the seeded agents of scored sources with their task composers (METRICS 6.9)."""
+    import task_events
+    scored = []
     index = pricing.Index(pricing.load(table))
     now = datetime.now().astimezone()
     today_start = int(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
-    files = startup_files(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots)
+    files = startup_files(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots, pi_dirs=pi_dirs,
+                          openclaw_dbs=openclaw_dbs, codex_roots=codex_roots, droid_roots=droid_roots)
     dedupe = Deduper()
     rows, read_files, read_bytes = [], 0, 0
     for mtime, path, source, root in files:
@@ -2259,33 +4252,75 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
         if source == "gemini" and path.endswith(".json") and size > GEMINI_LEGACY_MAX:
             continue
         if source == "antigravity":
-            state = antigravity_state(path, dedupe)
-            if state is None:
+            states = [antigravity_state(path, dedupe)]
+            if states[0] is None:
+                continue
+            offset = 0
+        elif source == "openclaw":
+            states = openclaw_states(path, dedupe, tasks=tasks)
+            if states is None:
                 continue
             offset = 0
         else:
             offset = size - 64 * 1024 * 1024 if size > 256 * 1024 * 1024 and not path.endswith(".jsonl.zst") else 0
-            state = FileState(path, source, root)
-            process_file(state, dedupe, offset)
+            states = [FileState(path, source, root)]
+            if tasks:
+                task_events.attach(states[0])
+            process_file(states[0], dedupe, offset)
+        scored += [st for st in states if st.tasks is not None]
         read_files += 1
         read_bytes += size - offset
-        for r in state.responses.values():
+        for state, r in [(st, r) for st in states for r in st.responses.values()]:
             if r["endMs"] >= today_start:
-                rows.append(OrderedDict([("key", r["key"]), ("source", state.source), ("agentId", path),
+                effort, speed = mode_view(state.response_facts.get(r["key"], []))
+                rows.append(OrderedDict([("key", r["key"]), ("source", state.source), ("agentId", state.path),
                                          ("model", r["model"]), ("startMs", r["startMs"]), ("endMs", r["endMs"]),
                                          ("input", r["input"]), ("cachedInput", r["cachedInput"]),
                                          ("cacheWriteInput", r["cacheWriteInput"]),
                                          ("cacheWrite1hInput", r["cacheWrite1hInput"]), ("output", r["output"]),
                                          ("reasoning", r["reasoning"]), ("final", r["final"]),
                                          ("provider", r["provider"]), ("fast", r["fast"]),
-                                         ("costMicroUsd", index.price(r) if has_day(r["endMs"]) else None)]))
+                                         ("requestCount", 1),
+                                         ("costMicroUsd", index.price(r) if has_day(r["endMs"]) else None),
+                                         ("effort", effort), ("speed", speed)]))
+    for folder in OrderedDict.fromkeys(hermes_dirs):
+        for path in hermes_files(folder, today_start - 15 * 60_000):
+            read_files += 1
+            read_bytes += os.path.getsize(path)
+    for hs in hermes_sets(hermes_dirs, dedupe, since_ms=today_start - 15 * 60_000):
+        for st in hs.agents.values():
+            for r in st.responses.values():
+                if r["endMs"] >= today_start:
+                    rows.append(OrderedDict([("key", r["key"]), ("source", "hermes"), ("agentId", st.path)]
+                                            + [(k, r[k]) for k in ("model", "startMs", "endMs", "input", "cachedInput",
+                                                                   "cacheWriteInput", "cacheWrite1hInput", "output",
+                                                                   "reasoning", "final", "provider", "fast")]
+                                            + [("requestCount", 1),
+                                               ("costMicroUsd", index.price(r) if has_day(r["endMs"]) else None),
+                                               ("effort", None), ("speed", None)]))
     for source, agent, record in harnesses.collect(zcode_root, kimi_root, grok_root) + trae.collect(trae_paths):
         if record["endMs"] >= today_start:
             rows.append(dict(record, source=source, agentId=agent,
                              costMicroUsd=index.price(record) if has_day(record["endMs"]) else None))
     rows.sort(key=lambda r: (r["endMs"], r["key"]))
+    return (rows, read_files, read_bytes, scored) if tasks else (rows, read_files, read_bytes)
+
+
+def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), ag_stores=(), wb_roots=(),
+               table=pricing.TABLE, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(), openclaw_dbs=(),
+               codex_roots=None, hermes_dirs=(), droid_roots=(), now_ms=None, trae_paths=()):
+    started = time.time()
+    rows, read_files, read_bytes, scored = today_rows(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs,
+                                                      ag_stores, wb_roots, table, zcode_root, kimi_root, grok_root,
+                                                      pi_dirs, openclaw_dbs, codex_roots, hermes_dirs, droid_roots,
+                                                      tasks=True, trae_paths=trae_paths)
     for r in rows:
         print(json.dumps(r, ensure_ascii=False, separators=(",", ":")))
+    now = now_ms if now_ms is not None else int(time.time() * 1000)
+    task_rows, sets_row = task_value_rows(scored, now)
+    for row in task_rows:
+        print(json.dumps({"task": row}, ensure_ascii=False, separators=(",", ":")))
+    print(json.dumps({"taskSets": sets_row}, ensure_ascii=False, separators=(",", ":")))
     counts = {}
     for r in rows:
         counts[r["source"]] = counts.get(r["source"], 0) + 1
@@ -2293,34 +4328,74 @@ def dump_today(codex_root, claude_root, dsh_root, gemini_dirs=(), omp_dirs=(), a
                                   "costMicroUsd": sum(r["costMicroUsd"] or 0 for r in rows),
                                   "unpricedRequests": sum(r.get("requestCount", 1) for r in rows if r["costMicroUsd"] is None),
                                   "input": sum(r["input"] for r in rows), "filesRead": read_files,
-                                  "bytesRead": read_bytes, "seedMs": int((time.time() - started) * 1000)}}))
+                                  "bytesRead": read_bytes, "seedMs": int((time.time() - started) * 1000),
+                                  "nowMs": now, "taskAgents": len(task_rows)}}))
 
 
 def collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs=(), omp_dirs=(), ag_stores=(),
-                wb_roots=(), include_archived=True, zcode_root=None, kimi_root=None, grok_root=None, trae_paths=()):
-    """Parses every log completely (METRICS 8) and returns all responses with their source and agent."""
+                wb_roots=(), include_archived=True, zcode_root=None, kimi_root=None, grok_root=None, pi_dirs=(),
+                openclaw_dbs=(), codex_roots=None, hermes_dirs=(), hermes_tz=None, droid_roots=(), droid_memory=None,
+                droid_skipped=None, trae_paths=()):
+    """Parses every log completely (METRICS 8) and returns all responses with their source and agent. A Droid session
+    whose parent counters are unknown is skipped (listed in `droid_skipped`); `droid_memory` keeps the signatures of
+    unreadable parent sidecars from one analysis to the next (METRICS 4.16 Own counters)."""
     files = startup_files(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots,
-                          limit=10 ** 9, include_archived=include_archived)
+                          limit=10 ** 9, include_archived=include_archived, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
+                          codex_roots=codex_roots, droid_roots=droid_roots)
     dedupe = Deduper(limit=10 ** 9)
     out = []
     for _, path, source, root in files:
+        if source == "openclaw":
+            out += [(st.source, st.path, r) for st in openclaw_states(path, dedupe) or [] for r in st.responses.values()]
+            continue
         if source == "antigravity":
             state = antigravity_state(path, dedupe)
             if state is None:
                 continue
         else:
             state = FileState(path, source, root)
+            if source == "droid" and droid_memory is not None:
+                state.droid_parent_bad = droid_memory.get(path)
             process_file(state, dedupe)
+            if source == "droid":
+                if droid_memory is not None:
+                    droid_memory[path] = state.droid_parent_bad
+                if state.droid_unknown:
+                    if droid_skipped is not None:
+                        droid_skipped.append(path)
+                    continue
+                droid_finish(state)
         out += [(state.source, path, r) for r in state.responses.values()]
     if opencode_db and os.path.exists(opencode_db):
         for st in opencode_states(opencode_db, dedupe):
             out += [(st.source, st.path, r) for r in st.responses.values()]
+    for hs in hermes_sets(hermes_dirs, dedupe, hermes_tz):
+        out += [(st.source, st.path, r) for st in hs.agents.values() for r in st.responses.values()]
     out += harnesses.collect(zcode_root, kimi_root, grok_root)
     out += trae.collect(trae_paths)
     return out
 
 
 HISTORY_TOKENS = ("input", "cachedInput", "cacheWriteInput", "output", "reasoning")
+
+
+def unpriced_range(days=None, first=None, last=None, live=False):
+    """(view, first, last) of `--dump-unpriced`: the History window's presets for --days, else a custom range."""
+    today = datetime.now().astimezone().date()
+    if live:
+        return "live", today.isoformat(), today.isoformat()
+    if first is not None:
+        return "custom", first, last
+    count = days or 30
+    view = {1: "today", 7: "7d", 30: "30d", 90: "90d"}.get(count, "custom")
+    return view, (today - timedelta(days=count - 1)).isoformat(), today.isoformat()
+
+
+def dump_unpriced(parts, table_path, view, first, last, source=None):
+    """Prints the copied diagnostics text (METRICS 9.10) of `parts` with the given table as the current one."""
+    index = pricing.Index(pricing.load(table_path))
+    _, text = diagnostics.report(parts, index, diagnostics.reference_app(), view, first, last, source)
+    sys.stdout.write(text)
 
 
 def daily_history(responses, tz=None, day_pricing=None):
@@ -2335,7 +4410,7 @@ def daily_history(responses, tz=None, day_pricing=None):
                source)
         d = days.setdefault(key, dict(requests=0, input=0, cachedInput=0, cacheWriteInput=0, output=0, reasoning=0,
                                       measuredOutput=0, measuredMs=0, unfinalized=0, costMicroUsd=0,
-                                      unpricedRequests=0, agents=set(), models={}))
+                                      unpricedRequests=0, agents=set(), models={}, unpriced={}))
         requests = r.get("requestCount", 1)
         d["requests"] += requests
         for f in HISTORY_TOKENS:
@@ -2355,6 +4430,8 @@ def daily_history(responses, tz=None, day_pricing=None):
         if cost is None:
             d["unpricedRequests"] += requests
             m[5] += requests
+            fact = diagnostics.fact_key(r.get("model"), r.get("provider"), r.get("fast"))
+            d["unpriced"][fact] = d["unpriced"].get(fact, 0) + requests
         else:
             d["costMicroUsd"] += cost
             m[4] += cost
@@ -2367,7 +4444,8 @@ def daily_history(responses, tz=None, day_pricing=None):
             ("priceVersion", day_pricing.version_for(date)), ("agents", len(d["agents"])),
             ("models", {k: {"requests": v[0], "output": v[1], "measuredOutput": v[2], "measuredMs": v[3],
                             "costMicroUsd": v[4], "unpricedRequests": v[5]}
-                        for k, v in sorted(d["models"].items())})]))
+                        for k, v in sorted(d["models"].items())}),
+            ("unpriced", diagnostics.fact_list(d["unpriced"]))]))
     return rows
 
 
@@ -2384,16 +4462,38 @@ def main():
     parser.add_argument("--zcode", default=None, help="ZCode data folder, database folder, or db.sqlite")
     parser.add_argument("--kimi", default=None, help="Kimi Code CLI sessions folder")
     parser.add_argument("--grok", default=None, help="Grok Build sessions folder")
-    parser.add_argument("--trae", action="append", default=[], help="Trae database.db (repeatable; partial final-request usage only)")
+    parser.add_argument("--trae", action="append", default=[],
+                        help="Trae database file (repeatable; partial request usage)")
     parser.add_argument("--gemini", action="append", default=None, help="Gemini CLI tmp folder (repeatable)")
     parser.add_argument("--omp", action="append", default=None, help="omp sessions folder (repeatable)")
+    parser.add_argument("--pi", default=None, help="Pi sessions folder (replaces every automatic Pi root)")
+    parser.add_argument("--hermes", default=None,
+                        help="Hermes Agent home or one logs folder (replaces the automatic Hermes home)")
     parser.add_argument("--antigravity", action="append", default=None,
                         help="Antigravity store folder or its conversations folder (repeatable)")
     parser.add_argument("--workbuddy", default=None, help="WorkBuddy data folder (~/.workbuddy) or its projects folder")
     parser.add_argument("--workbuddy-ai", default=None,
                         help="WorkBuddy AI data folder (~/.workbuddy-ai) or its projects folder")
+    parser.add_argument("--openclaw", default=None,
+                        help="OpenClaw state folder, agent folder or openclaw-agent.sqlite (replaces the automatic roots)")
+    parser.add_argument("--droid", default=None,
+                        help="Factory Droid .factory folder or its sessions folder (replaces the automatic root)")
     parser.add_argument("--write-history-fixture", action="store_true")
     parser.add_argument("--prices", default=pricing.TABLE, help="price table for --dump-history (METRICS 9)")
+    parser.add_argument("--dump-unpriced", action="store_true", help="unpriced diagnostics text (METRICS 9.10)")
+    parser.add_argument("--days", type=int, default=None,
+                        help="--dump-unpriced: the last N local days, today included (default 30)")
+    parser.add_argument("--first", default=None, help="--dump-unpriced: first local date YYYY-MM-DD (with --last)")
+    parser.add_argument("--last", default=None, help="--dump-unpriced: last local date YYYY-MM-DD")
+    parser.add_argument("--source", default=None, help="--dump-unpriced: one source id (METRICS 1)")
+    parser.add_argument("--live", action="store_true",
+                        help="--dump-unpriced: today's engine responses (Settings -> Cost) instead of the history")
+    parser.add_argument("--dump-tasks", action="store_true",
+                        help="task records of every log read whole, calibration and comparison (METRICS 6.11)")
+    parser.add_argument("--now", type=int, default=None,
+                        help="--dump-today: evaluate the task values at this Unix ms instead of the capture time")
+    parser.add_argument("--write-task-fixture", action="store_true",
+                        help="regenerate spec/fixtures/task-e2e-expected.json (METRICS 6.9 Composing the stream)")
     args = parser.parse_args()
     home = os.path.expanduser("~")
     codex_root = args.codex or (os.path.join(os.environ["CODEX_HOME"], "sessions") if os.environ.get("CODEX_HOME")
@@ -2406,19 +4506,64 @@ def main():
                                                 "opencode", "opencode.db")
     gemini_dirs = args.gemini or gemini_roots()
     omp_dirs = args.omp or omp_roots()
+    pi_dirs = [args.pi] if args.pi else pi_roots()
+    hermes_dirs = hermes_setting_folders(args.hermes) if args.hermes else hermes_log_folders(hermes_home())
     ag_stores = ([s for a in args.antigravity for s in antigravity_stores(setting=a)] if args.antigravity
                  else antigravity_stores())
     wb_roots = workbuddy_roots(settings={"workbuddy": args.workbuddy, "workbuddyAi": args.workbuddy_ai})
     zcode_root = args.zcode or os.path.join(os.environ.get("ZCODE_DATA_BASE_DIR") or home, ".zcode", "cli", "db")
     kimi_root = args.kimi or os.path.join(os.environ.get("KIMI_CODE_HOME") or os.path.join(home, ".kimi-code"), "sessions")
     grok_root = args.grok or os.path.join(os.environ.get("GROK_HOME") or os.path.join(home, ".grok"), "sessions")
+    openclaw_dbs = [db for r in ([args.openclaw] if args.openclaw else openclaw_state_dirs()) for db in discover_openclaw(r)]
+    codex_roots = [args.codex] if args.codex else None
+    droid_roots = [droid_root(setting=args.droid)] if args.droid else [droid_root(home)]
     if args.write_history_fixture:
         write_history_fixture()
+        return
+    if args.write_task_fixture:
+        sys.exit(write_task_fixture())
+    if args.dump_tasks:
+        if args.source is not None and args.source not in TASK_SOURCES:
+            parser.error("--source takes a scored source id: " + ", ".join(TASK_SOURCES))
+        files = startup_files(codex_root, claude_root, os.path.join(home, ".agent-speed-none"), omp_dirs=omp_dirs,
+                              limit=10 ** 9, include_archived=True, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
+                              codex_roots=codex_roots, droid_roots=droid_roots)
+        dump_tasks(files, args.first, args.last, args.source, timezone.utc if args.utc else None)
+        return
+    if args.dump_unpriced:
+        if args.days is not None and (args.days < 1 or args.first or args.last):
+            parser.error("--days takes a positive number and excludes --first/--last")
+        if any(t is not None and not pricing.DATE.match(t) for t in (args.first, args.last)):
+            parser.error("dates are YYYY-MM-DD")
+        if (args.first is None) != (args.last is None) or (args.first and args.first > args.last):
+            parser.error("--first and --last go together, first <= last")
+        if args.live and (args.days is not None or args.first):
+            parser.error("--live takes no range: it is today's engine data")
+        if args.source is not None and args.source not in diagnostics.SOURCES:
+            parser.error("--source takes a source id: " + ", ".join(diagnostics.SOURCES))
+        view, first, last = unpriced_range(args.days, args.first, args.last, args.live)
+        if args.live:
+            rows, _, _ = today_rows(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots,
+                                    args.prices, zcode_root, kimi_root, grok_root, pi_dirs=pi_dirs,
+                                    openclaw_dbs=openclaw_dbs, codex_roots=codex_roots, hermes_dirs=hermes_dirs,
+                                    droid_roots=droid_roots, trae_paths=args.trae)
+            parts = diagnostics.live_parts([(r["source"], r) for r in rows], first)
+        else:
+            parts = diagnostics.history_parts(daily_history(
+                collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs, omp_dirs, ag_stores, wb_roots,
+                            zcode_root=zcode_root, kimi_root=kimi_root, grok_root=grok_root, pi_dirs=pi_dirs,
+                            openclaw_dbs=openclaw_dbs, codex_roots=codex_roots, hermes_dirs=hermes_dirs,
+                            droid_roots=droid_roots, trae_paths=args.trae),
+                day_pricing=pricing.DayPricing([pricing.load(args.prices)])))
+        dump_unpriced(parts, args.prices, view, first, last, args.source)
         return
     if args.dump_history:
         rows = daily_history(collect_all(codex_root, claude_root, dsh_root, opencode_db, gemini_dirs, omp_dirs,
                                          ag_stores, wb_roots, zcode_root=zcode_root, kimi_root=kimi_root,
-                                         grok_root=grok_root, trae_paths=args.trae), tz=timezone.utc if args.utc else None,
+                                         grok_root=grok_root, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs,
+                                         codex_roots=codex_roots, hermes_dirs=hermes_dirs, droid_roots=droid_roots,
+                                         trae_paths=args.trae),
+                             tz=timezone.utc if args.utc else None,
                              day_pricing=pricing.DayPricing([pricing.load(args.prices)]))
         for row in rows:
             print(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
@@ -2427,7 +4572,8 @@ def main():
         check_fixtures()
     elif args.dump_today:
         dump_today(codex_root, claude_root, dsh_root, gemini_dirs, omp_dirs, ag_stores, wb_roots, args.prices,
-                   zcode_root, kimi_root, grok_root, args.trae)
+                   zcode_root, kimi_root, grok_root, pi_dirs=pi_dirs, openclaw_dbs=openclaw_dbs, codex_roots=codex_roots,
+                   hermes_dirs=hermes_dirs, droid_roots=droid_roots, now_ms=args.now, trae_paths=args.trae)
     else:
         parser.print_help()
 

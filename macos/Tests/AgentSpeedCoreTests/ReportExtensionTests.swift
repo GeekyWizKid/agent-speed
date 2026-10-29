@@ -40,12 +40,32 @@ struct ReportExtensionTests {
         #expect(response.modes.attribution(for: .serviceTier).mode == "fast")
     }
 
+    @Test func effortAndSpeedAreNeverReported() throws {
+        var ledger = ReportLedger()
+        var response = ReportLedgerTests.record("effort", start: ReportLedgerTests.base - 1000, end: ReportLedgerTests.base,
+                                               output: 50, final: true)
+        response.modes = ExecutionModeAdapters.claude("fast")
+        response.modes.insert(try #require(ExecutionModeAdapters.effort("ultracode", evidence: .recorded, scope: .request)))
+        ledger.count(response, modelId: "m")
+        #expect(ledger.counters.byMode.keys.map(\.attribution.kind) == [.serviceTier])
+        var groups = ledger.counters.byMode.reduce(into: [ReportModeGroup: ReportUsage]()) {
+            $0[ReportModeGroup(source: $1.key.model.source, attribution: $1.key.attribution)] = $1.value
+        }
+        for kind in [ExecutionModeKind.effort, .speed] {
+            groups[ReportModeGroup(source: .claudeCode, attribution: .init(kind: kind, mode: "max", evidence: "recorded"))] =
+                ledger.counters.total
+        }
+        let rows = try #require(ReportModelBreakdown.modes([.claudeCode: ledger.counters.total], groups: groups))
+        let decoded = try #require(try JSONSerialization.jsonObject(with: rows.compactData) as? [[String: Any]])
+        #expect(Set(decoded.compactMap { $0.string("kind") }) == ["serviceTier"])
+    }
+
     @Test func completeNativeAndUnknownBreakdownsPreserveOriginalModelIDs() throws {
         var counters = ReportCounters()
         let claude = ReportModelKey(modelId: "m", source: .claudeCode)
         let codex = ReportModelKey(modelId: "m", source: .codex)
         counters.add(ReportUsage(requests: 2, output: 200, measuredOutput: 200, measuredMs: 1000), to: claude,
-                     modes: ExecutionModeAdapters.claude("fast").attributed)
+                     modes: ExecutionModeAdapters.claude("fast").reportedAttributions)
         counters.add(ReportUsage(requests: 1, output: 80, measuredOutput: 0, measuredMs: 0), to: codex)
         let content = ReportWindowContent(usage: counters, agentBytes: [:], peak: .zero, peakCost: 0, peakRate: nil)
         let sample = ReportSample()

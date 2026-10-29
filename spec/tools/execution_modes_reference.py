@@ -9,10 +9,20 @@ from collections import defaultdict
 from pathlib import Path
 
 KINDS = ("serviceTier", "accelerator", "modelVariant", "routing", "workflow")
+# `effort` is a fact kind and `speed` a derived breakdown; both stay local and are never reported (report kinds: KINDS).
+LOCAL_KINDS = ("effort", "speed")
+EFFORT_UNRESOLVED = ("auto", "default", "inherit", "inherited", "unknown")
+EFFORT_LEVELS = {"off": 0, "minimal": 1, "low": 1, "medium": 2, "high": 3, "xhigh": 4, "max": 5, "ultra": 5,
+                 "ultracode": 5}
+EFFORT_TOP = ("ultra", "ultracode")
+EFFORT_ORDER = ("ultracode", "ultra", "max", "xhigh", "high", "medium", "low", "minimal", "off")
+SPEED_BOLTS = {"fast": 1, "highspeed": 1, "ultrafast": 2}
+SPEED_ORDER = ("ultrafast", "fast", "highspeed", "standard")
+UNKNOWN = {"mode": "unknown", "evidence": "unknown"}
 EVIDENCE = ("configured", "selected", "recorded", "served")
 SCOPES = ("configuration", "session", "turn", "request", "response")
 FIELDS = ("requests", "output", "measuredOutput", "measuredMs")
-EXTENSIONS = ("modelHarnessRequests", "executionModes", "profileAvatar", "sharedIdentity")
+EXTENSIONS = ("modelHarnessRequests", "executionModes", "profileAvatar", "sharedIdentity", "taskScore")
 MAX_INTEGER = 9007199254740991
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$", re.ASCII)
 
@@ -53,6 +63,10 @@ def normalize(adapter, raw, provider=None, evidence="served", scope="response"):
         if token not in ("fast", "planning"):
             return None
         kind, value = "workflow", token
+    elif adapter == "effort":
+        if token in EFFORT_UNRESOLVED:
+            return None
+        kind, value = "effort", "off" if token == "none" else token
     else:
         return None
     result = {"kind": kind, "value": value, "rawValue": raw, "evidence": evidence, "scope": scope}
@@ -74,6 +88,37 @@ def attribution(facts, kind):
     if chosen.get("provider"):
         result["provider"] = chosen["provider"]
     return result
+
+
+def speed_attribution(facts):
+    """The derived `speed` breakdown: service tier, else accelerator, else a highspeed model variant."""
+    for kind in ("serviceTier", "accelerator", "modelVariant"):
+        result = attribution(facts, kind)
+        if result["mode"] != "unknown" and (kind != "modelVariant" or result["mode"] == "highspeed"):
+            return result
+    return dict(UNKNOWN)
+
+
+def local_attribution(facts, kind):
+    return speed_attribution(facts) if kind == "speed" else attribution(facts, kind)
+
+
+def effort_display(value):
+    """Meter level 0-5 (None: a token without a level, shown as its word only) and whether it is a top rung."""
+    return {"level": EFFORT_LEVELS.get(value), "top": value in EFFORT_TOP}
+
+
+def display_order(kind, values):
+    order = EFFORT_ORDER if kind == "effort" else SPEED_ORDER
+    return sorted(values, key=lambda v: (v == "unknown", order.index(v) if v in order else len(order), v))
+
+
+def put(facts, fact):
+    """Insert like the platform cores: a fact replaces the one with the same kind, evidence, provider and scope."""
+    if fact is None:
+        return facts
+    same = (fact["kind"], fact["evidence"], fact.get("provider"), fact["scope"])
+    return [f for f in facts if (f["kind"], f["evidence"], f.get("provider"), f["scope"]) != same] + [fact]
 
 
 def model_extension_errors(model, *, extensions=None, pointer="/models/0"):
@@ -171,6 +216,18 @@ def check_fixtures():
         count += 1
     for case in data["capabilities"]:
         assert supported(case["extensions"], "executionModes", models_enabled=case["modelsEnabled"]) == case["expected"]
+        count += 1
+    for case in data["speed"]:
+        assert speed_attribution(case["facts"]) == case["expected"], case["id"]
+        count += 1
+    for case in data["effortDisplay"]:
+        assert effort_display(case["value"]) == case["expected"], case["value"]
+        count += 1
+    for case in data["speedBolts"]:
+        assert SPEED_BOLTS.get(case["value"], 0) == case["bolts"], case["value"]
+        count += 1
+    for case in data["displayOrder"]:
+        assert display_order(case["kind"], case["values"]) == case["expected"], case["id"]
         count += 1
     return count
 

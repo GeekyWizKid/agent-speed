@@ -52,6 +52,10 @@ public static class HistoryCsv
         SourceKind.ZCode => "zcode",
         SourceKind.Kimi => "kimi",
         SourceKind.GrokBuild => "grokBuild",
+        SourceKind.Pi => "pi",
+        SourceKind.OpenClaw => "openclaw",
+        SourceKind.Hermes => "hermes",
+        SourceKind.Droid => "droid",
         SourceKind.Trae => "trae",
         _ => "unknown",
     };

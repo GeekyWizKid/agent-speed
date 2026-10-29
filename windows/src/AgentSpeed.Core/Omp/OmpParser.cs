@@ -28,6 +28,7 @@ internal sealed class OmpParser : TranscriptParser<OmpLine>
     {
         PathIsSubagent = OmpDiscovery.DepthBelow(root, agentId) >= 3;
         RestorePathState();
+        EnableTasks(new global::AgentSpeed.Core.Tasks.PiFamilyTaskReader(SourceKind.Omp), SourceKind.Omp);
     }
 
     /// <summary>The file lives inside a session's artifacts folder (task sub-agents, advisors, seance consults).</summary>
@@ -66,12 +67,23 @@ internal sealed class OmpParser : TranscriptParser<OmpLine>
         }
 
         _headerProbed = true;
-        omp.Header = ReadHeader(AgentId);
+        var header = ReadHeader(AgentId);
+        ReadTask([], ref header);
+        omp.Header = header;
     }
 
     public override ILineBatch NewBatch() => new OmpBatch(this);
 
     public override void Apply(in OmpLine line, IResponseSink sink)
+    {
+        ApplyLine(in line, sink);
+        if (line.TaskTracked)
+        {
+            ComposeTask(line.Task, line.TimestampMs!.Value);
+        }
+    }
+
+    private void ApplyLine(in OmpLine line, IResponseSink sink)
     {
         if (line.Status == LineStatus.Malformed)
         {
@@ -117,7 +129,33 @@ internal sealed class OmpParser : TranscriptParser<OmpLine>
         }
     }
 
-    protected override OmpLine Extract(ReadOnlySpan<byte> line) => OmpLineReader.Read(line);
+    protected override OmpLine Extract(ReadOnlySpan<byte> line)
+    {
+        var parsed = OmpLineReader.Read(line);
+        ReadTask(line, ref parsed);
+        return parsed;
+    }
+
+    private void ReadTask(ReadOnlySpan<byte> raw, ref OmpLine line)
+    {
+        if (TaskReader is not global::AgentSpeed.Core.Tasks.PiFamilyTaskReader reader)
+        {
+            return;
+        }
+
+        var role = line.Role switch
+        {
+            OmpRole.User => global::AgentSpeed.Core.Tasks.PiEntryRole.User,
+            OmpRole.Assistant => global::AgentSpeed.Core.Tasks.PiEntryRole.Assistant,
+            OmpRole.ToolResult => global::AgentSpeed.Core.Tasks.PiEntryRole.ToolResult,
+            _ => global::AgentSpeed.Core.Tasks.PiEntryRole.Other,
+        };
+        var facts = new global::AgentSpeed.Core.Tasks.PiEntryFacts(line.Status == LineStatus.Valid, line.Kind == OmpEntryKind.Session,
+            line.Kind == OmpEntryKind.Message, line.Id, line.TimestampMs, line.Cwd, role, line.Call.Guarded, line.StartedMs,
+            line.ToolCallIds is { Length: > 0 });
+        line.Task = reader.Read(raw, in facts, out var tracked);
+        line.TaskTracked = tracked;
+    }
 
     /// <summary>The first <c>session</c> line among the first two lines of the file, else a blank line.</summary>
     internal static OmpLine ReadHeader(string path)
@@ -183,6 +221,7 @@ internal sealed class OmpParser : TranscriptParser<OmpLine>
                 ApplyAssistant(in line, ts, sink);
                 break;
             case OmpRole.ToolResult:
+                RecordTools(in line.Tools, ts);
                 if (line.ToolCallId is { } callId)
                 {
                     _pendingToolCalls.Remove(callId);
@@ -203,14 +242,15 @@ internal sealed class OmpParser : TranscriptParser<OmpLine>
 
     private void ApplyAssistant(in OmpLine line, long ts, IResponseSink sink)
     {
-        var call = line.Call;
-        if (!call.Guarded)
+        var key = Key(line.Id!, line.StartedMs ?? ts);
+        if (Deduper.TryGetOwner(key, out var owner) && !string.Equals(owner, AgentId, StringComparison.Ordinal))
         {
             return;
         }
 
-        var key = Key(line.Id!, line.StartedMs ?? ts);
-        if (Deduper.TryGetOwner(key, out var owner) && !string.Equals(owner, AgentId, StringComparison.Ordinal))
+        RecordTools(in line.Tools, ts);
+        var call = line.Call;
+        if (!call.Guarded)
         {
             return;
         }
@@ -295,7 +335,7 @@ internal sealed class OmpParser : TranscriptParser<OmpLine>
     }
 
     /// <summary>Lines of one read, with the header probed from the file start applied first.</summary>
-    private sealed class OmpBatch(OmpParser owner) : ILineBatch
+    private sealed class OmpBatch(OmpParser owner) : ILineBatch, IPositionedLineSink
     {
         private readonly ILineBatch _lines = new Lines(owner);
 
@@ -304,6 +344,16 @@ internal sealed class OmpParser : TranscriptParser<OmpLine>
         public int Count => _lines.Count;
 
         public void OnLine(ReadOnlySpan<byte> line) => _lines.OnLine(line);
+
+        public void OnLine(ReadOnlySpan<byte> line, long offset, int length)
+        {
+            if (offset == 0)
+            {
+                owner.OnFileStart();
+            }
+
+            _lines.OnLine(line);
+        }
 
         public void OnMalformed() => _lines.OnMalformed();
 
@@ -330,7 +380,7 @@ internal sealed class OmpParser : TranscriptParser<OmpLine>
 
             public int Count => _items.Count;
 
-            public void OnLine(ReadOnlySpan<byte> line) => _items.Add(OmpLineReader.Read(line));
+            public void OnLine(ReadOnlySpan<byte> line) => _items.Add(parser.Extract(line));
 
             public void OnMalformed() => _malformed++;
 

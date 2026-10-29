@@ -8,19 +8,22 @@ shared fixtures in `spec/fixtures/`.
 
 | Term | Meaning |
 | --- | --- |
-| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build), `trae` (Trae, partial request usage). This is the append-only *source order*. |
-| Agent | One transcript file. Agent id = absolute file path. Sub-agents have their own files and are separate agents. (OpenCode: one per session row, 4.5; Antigravity: one per conversation database, 4.8.) |
+| Source | `codex`, `claudeCode`, `claudeDesktop`, `deepseek` (display name **DSH**, DeepSeek Harness), `opencode`, `gemini` (Gemini CLI), `omp` (oh-my-pi), `antigravity` (Google Antigravity), `workbuddy` (Tencent WorkBuddy, China edition), `workbuddyAi` (WorkBuddy AI, international edition), `zcode` (ZCode), `kimi` (Kimi Code CLI), `grokBuild` (Grok Build), `pi` (Pi Coding Agent), `openclaw` (OpenClaw), `hermes` (Hermes Agent, Nous Research), `droid` (Factory Droid), `trae` (Trae, partial request usage). This is the append-only *source order*. |
+| Agent | One transcript file. Agent id = absolute file path. Sub-agents have their own files and are separate agents. (OpenCode: one per session row, 4.5; Antigravity: one per conversation database, 4.8; OpenClaw: one per transcript window, 4.14; Hermes Agent: one per session id of a log folder, 4.15; Factory Droid: one per session transcript with its settings file, 4.16; Trae: one per native database session, 4.17.) |
 | Response | One model API call that produced a usage record. |
+| Task | One user request to one agent, from its prompt to the next one that is not a continuation (6.9). |
 | Phase | `generating` (a request is in flight), `tools` (model finished, waiting for tool results), `idle` |
 
 Parsers normally emit one record per response. A native Grok model batch is one record with `requestCount` underlying
 responses (4.12); the speed engine still processes its normalized tokens and duration with the same equations.
+Factory Droid records no usage per response: its responses are the calls its transcript times, with tokens allocated
+from cumulative session counters (4.16).
 
 ## 2. Locations
 
 | Source | Root | Override |
 | --- | --- | --- |
-| Codex | `$CODEX_HOME/sessions`, else `~/.codex/sessions` | user setting |
+| Codex | `$CODEX_HOME/sessions`, else `~/.codex/sessions`; plus `<agent folder>/codex-home/sessions` for the folder of every OpenClaw agent database (4.14: the Codex runs OpenClaw starts in its agent-scoped Codex homes) | user setting (replaces every automatic root) |
 | Claude Code + Claude Desktop | `$CLAUDE_CONFIG_DIR/projects`, else `~/.claude/projects` | user setting |
 | DeepSeek Harness (`dsh`, desktop app and CLI) | `$DSH_HOME/sessions`, else `~/.dsh/sessions` | user setting |
 | OpenCode (CLI and desktop app) | `$XDG_DATA_HOME/opencode/opencode.db`, else `~/.local/share/opencode/opencode.db` (same form on Windows under `%USERPROFILE%`) | user setting (folder that contains `opencode.db`) |
@@ -32,6 +35,10 @@ responses (4.12); the speed engine still processes its normalized tokens and dur
 | ZCode | `~/.zcode/cli/db/db.sqlite`; `$ZCODE_DATA_BASE_DIR` replaces the home base, with `.zcode/cli/db` underneath | user setting (data directory, database folder, or `db.sqlite`) |
 | Kimi Code CLI (TypeScript v2) | `$KIMI_CODE_HOME/sessions`, else `~/.kimi-code/sessions` | user setting (data directory or its `sessions` folder) |
 | Grok Build | `$GROK_HOME/sessions`, else `~/.grok/sessions` | user setting (data directory or its `sessions` folder) |
+| Pi (Pi Coding Agent: TUI, `-p`, RPC) | `<agent dir>/sessions` with `<agent dir>` = `$PI_CODING_AGENT_DIR`, else `~/.pi/agent`; plus Pi's own custom session folder when one is set: `sessionDir` of `<agent dir>/settings.json` and `$PI_CODING_AGENT_SESSION_DIR` (4.13) | user setting (one folder; replaces every automatic root) |
+| OpenClaw (a Gateway on this computer, 2026.8.1+) | the agent databases `<state>/agents/<agentId>/agent/openclaw-agent.sqlite` of every state folder: `$OPENCLAW_STATE_DIR`, else `<base>/.openclaw` and every named-profile folder `<base>/.openclaw-<profile>`, with `<base>` = `$OPENCLAW_HOME`, else `~` (4.14) | user setting (a state folder, an agent folder or a database; replaces every automatic root) |
+| Hermes Agent (CLI, TUI, desktop app, messaging gateway, cron, ACP) | the log folders of the Hermes home: `<home>/logs` and `<home>/profiles/<name>/logs`, with `<home>` from `$HERMES_HOME` (4.15), else macOS `~/.hermes`, Windows `%LOCALAPPDATA%\hermes` | user setting (a Hermes home or one `logs` folder; replaces the automatic home) |
+| Factory Droid (CLI `droid`, interactive and `droid exec`; Factory Desktop) | `~/.factory/sessions`; no environment variable (4.16) | user setting (the `.factory` folder or its `sessions` folder) |
 | Trae (IDE, China and SOLO editions) | macOS `~/Library/Application Support/{Trae,Trae CN,TRAE SOLO,TRAE SOLO CN}`; Windows `%APPDATA%/{Trae,Trae CN,TRAE SOLO,TRAE SOLO CN}`. Each reads `ModularData/ai-agent/database.db`, falling back to `ModularData/ai-chat/database.db` | user setting (one application data folder, database folder or exact database file, replacing automatic roots) |
 
 `~` is `HOME` on macOS and `%USERPROFILE%` on Windows. Claude Code and Claude Desktop share one root; each file is
@@ -39,13 +46,18 @@ assigned to a source by its `entrypoint` field (section 4.1). Ordinary Claude De
 locally and are out of scope.
 
 Discovery: recursive enumeration of `*.jsonl` (Codex also `*.jsonl.zst`, 5.3; DeepSeek: `session.v<N>.jsonl.zstd` or `session.v<N>.jsonl`; Gemini CLI:
-fixed depths, see 4.6; omp: see 4.7; Antigravity: conversation databases, see 4.8; WorkBuddy: fixed depths, see 4.9),
+fixed depths, see 4.6; omp and Pi: see 4.7 and 4.13; Antigravity: conversation databases, see 4.8; WorkBuddy: fixed
+depths, see 4.9; OpenClaw: agent databases, see 4.14; Hermes Agent: `agent.log` and its rotated files, see
+4.15; Factory Droid: one or two levels below the root, each transcript with its settings file, see 4.16),
 maximum depth 6, never follow symlinks, at most 20 000 files per root.
 A source is *detected* when its root (Antigravity: any store; WorkBuddy: the data folder) exists or it has data today;
 what an undetected source shows is DESIGN 2b (unavailable sources), 4 and 5.
 The app never writes inside these folders.
-For ZCode, Kimi Code CLI and Grok Build, the source's session count includes today's main sessions only;
-subagents remain visible in the agent tree and ordinary forks remain separate sessions, as with WorkBuddy.
+For ZCode, Kimi Code CLI, Grok Build, Hermes Agent and Factory Droid, the source's session count includes today's main
+sessions only; subagents remain visible in the agent tree and ordinary forks remain separate sessions, as with
+WorkBuddy.
+For OpenClaw, a source is detected when a state folder (or the folder of the setting) exists; its session count is the
+number of transcript windows that are not sub-agents (4.14).
 
 ## 3. Common rules
 
@@ -94,6 +106,10 @@ Every response also carries `provider` (string or null): the API provider the ag
 (9.2). Codex: `payload.model_provider` of the file's first `session_meta` (`openai`, or the user's own key such as
 `custom`). DeepSeek Harness: `data.message.source.provider`, else the latest `request/header` `config.provider`.
 OpenCode: `data.model.providerID`. omp: `message.provider` (assistant) or the entry's `provider` (`model_usage`).
+Pi: `message.provider` (assistant) or the entry's `provider` (`usage` entries).
+OpenClaw: `message.provider` (assistant).
+Hermes Agent: the `provider=` field of the API-call line (4.15; `unknown` counts as null).
+Factory Droid: `custom` for a model id that starts with `custom:` (the user's own model, 4.16).
 WorkBuddy: `custom` for a model of the user's own provider (`custom:` / `custom-local:` ids, 4.9). Every other
 source: null. Empty strings count as null.
 
@@ -122,7 +138,20 @@ lines of the same key in the same file are merged (4.1, 4.4). Codex: every repea
 ### 3.5 Copied history
 For Codex, once `session_meta` has been read, any later line whose timestamp is earlier than `fileCreatedMs - 2000`
 is copied history (forks and sub-agents copy their parent's records): ignore it completely (no totals, no speed, no
-state change). For Claude, copied history is removed by deduplication (3.4).
+state change). For Claude and Factory Droid (4.16), copied history is removed by deduplication (3.4).
+
+A paginated Codex sub-agent (multi-agent v2: `history_mode == "paginated"`) starts with a copy of its parent's records
+written with fresh timestamps, so the timestamp rule misses them. Every line of such a rollout carries a top-level
+`ordinal` (0 for the `session_meta` line), and the first `session_meta`'s `payload.subagent_history_start_ordinal` is
+the first ordinal that belongs to the sub-agent (Codex: earlier records are "inherited model context"). When that
+field is an *ordinal*, any later line whose own `ordinal` is an ordinal below it is copied history too: ignore it
+completely, like the timestamp rule (no totals, no speed, no state change: no model, project, execution-mode facts,
+work-signal actions or phase). An ordinal is an integer literal from 0 through 2^63 − 1; any other value (missing,
+null, negative, fractional, exponent, string, beyond 64 bits) is no boundary for the field and catches nothing on a
+line. Each line's own `ordinal` decides, never its position in the file: a malformed or truncated line does not shift
+the boundary. Rollouts without the field (main threads, reverted threads with `history_base`, which start at a
+non-zero ordinal and copy nothing) are unaffected. Adding this rule bumped the history analysis version (6), so days
+whose logs still exist are recomputed.
 
 ### 3.6 Numbers
 JSON numbers mean what Python's `json` reads: an integer literal is exact (any length), every other literal is the
@@ -163,6 +192,7 @@ State: `pendingStartMs` (nullable), `preciseStart` (bool), `phase`.
 | --- | --- |
 | `type == "api-request"` | `pendingStartMs = ts`, `preciseStart = true`, phase `generating` (`inFlightStartMs = ts`) |
 | `type == "user"`, content contains a text block (or string content) starting with `[Request interrupted by user` | phase `idle`, `pendingStartMs = null`, `preciseStart = false` |
+| `type == "user"` with `toolEndsTurn == true` (the result of a tool that ends the agent's run, such as a sub-agent's `StructuredOutput` or `SubagentHandback`; no request follows) | phase `idle`, `pendingStartMs = null`, `preciseStart = false` |
 | other `type == "user"` | if not `preciseStart`: `pendingStartMs = ts`; phase `generating` (`inFlightStartMs = pendingStartMs`) |
 | `type == "assistant"` | see below |
 | anything else | only updates `lastLineMs` |
@@ -182,12 +212,15 @@ Assistant line:
 
 Every line is an envelope `{ "timestamp", "type", "payload" }`.
 
-State: `fileCreatedMs`, `myAgentPath`, `pendingStartMs`, `streaming` (bool), `sawModernUsage` (bool),
-`previousLegacyTotals` (nullable), `phase`.
+State: `fileCreatedMs`, `subagentStartOrdinal` (nullable), `myAgentPath`, `pendingStartMs`, `streaming` (bool),
+`sawModernUsage` (bool), `previousLegacyTotals` (nullable), `phase`.
+
+Every later line first passes both copied-history rules of 3.5 (timestamp, then `ordinal` below
+`subagentStartOrdinal`); a copied line does nothing below.
 
 | Line | Action |
 | --- | --- |
-| first `session_meta` of the file | `fileCreatedMs = ts`; `project` from `payload.cwd`; `myAgentPath = payload.agent_path ?? "/root"`; `isSubagent = payload.thread_source == "subagent"` or `payload.source.subagent` exists; `threadId = payload.id`. Later `session_meta` lines (sub-agents copy their parent's) are ignored entirely. |
+| first `session_meta` of the file | `fileCreatedMs = ts`; `subagentStartOrdinal = payload.subagent_history_start_ordinal` when it is an ordinal (3.5), else null; `project` from `payload.cwd`; `myAgentPath = payload.agent_path ?? "/root"`; `isSubagent = payload.thread_source == "subagent"` or `payload.source.subagent` exists; `threadId = payload.id`. Later `session_meta` lines (sub-agents copy their parent's) are ignored entirely. |
 | `turn_context` | `model = payload.model`; `project` from `payload.cwd` when present |
 | input (see below) | if not `streaming`: `pendingStartMs = ts`; phase `generating` (`inFlightStartMs = pendingStartMs`) |
 | mailbox input (see below) | if not `streaming`: `pendingStartMs = ts`; the phase does not change |
@@ -493,6 +526,9 @@ entirely from 18.x.
   Windows. Roots that do not exist are skipped; a path listed twice is scanned once.
 - Sessions written to custom folders (`--session-dir`, `--session`, `PI_CODING_AGENT_SESSION_DIR`; omp lists them in
   `<agent dir>/custom-session-files/`) are read only when the user setting points at their folder.
+- A root that is also the Pi root (4.13), or lies inside it, is not read as omp: omp inherited Pi's
+  `PI_CODING_AGENT_DIR`, and before Pi was a source users pointed the omp setting at `~/.pi/agent/sessions`. Those
+  files are Pi's.
 - Layout: `<root>/<bucket>/<YYYY-MM-DDTHH-MM-SS-mmmZ>_<sessionId>.jsonl` are main sessions (`<bucket>` encodes the
   working directory, `sessionId` is a UUIDv7); `<root>/<bucket>/<stem>/<name>.jsonl` belong to the session
   `<stem>.jsonl` (task sub-agents `<AgentId>.jsonl`, advisors `__advisor.jsonl` / `__advisor.<slug>.jsonl`, seance
@@ -906,7 +942,7 @@ fields, `providerData`, the session's working directory `cwd` (on every line exc
 `session-meta`) and `sessionId`. `timestamp` is valid when it is a finite number > 0, truncated (3.6: `0.5` gives 0,
 `1e19` gives 2^63 − 1), or a timestamp string (3.1); lines without a valid timestamp are ignored entirely. Only `id`,
 `type`, `role`, `status`, `timestamp`, `cwd`, `callId` and the `providerData` fields named below are read; content,
-arguments and tool output never are.
+arguments and tool output never are (WorkBuddy has no task score, 6.9).
 
 Values of the wrong type count as absent: `id` and `providerData.messageId` only as non-empty strings, `callId` only
 as a string (a `callId` that is an object or an array opens and closes no call), `providerData` only as an object, flags
@@ -1132,7 +1168,626 @@ existing price book on the native model batch, so tier selection and rounding ca
 Evidence and executable checks: `spec/research/harnesses.md`, `spec/tools/harness_reference.py`, and
 `spec/fixtures/harness-expected.json`.
 
-### 4.13 Trae: reconciled partial request usage
+### 4.13 Pi (Pi Coding Agent)
+
+Pi (`earendil-works/pi`, MIT; npm `@earendil-works/pi-coding-agent`, before 2026 `@mariozechner/pi-coding-agent`) is
+the upstream of omp and writes the same JSONL family (session version 3). Every rule of 4.7 applies — record
+classification, timing model, state and phase table, assistant steps 1–5, tokens, metadata, deduplication and copied
+history, known approximations — with the differences below. Evidence: `spec/research/pi.md`; fixtures:
+`spec/tools/pi_fixtures.py` (`spec/fixtures/pi`).
+
+- **Roots** (section 2): the default root `<agent dir>/sessions` holds one folder per working directory
+  (`--<cwd>--`, the path without its leading separator and with `/`, `\` and `:` replaced by `-`) and in it one file
+  per session, `<YYYY-MM-DDTHH-MM-SS-mmmZ>_<uuid>.jsonl`. A custom session folder (`sessionDir` in
+  `<agent dir>/settings.json` when it is a non-empty string, a leading `~` meaning the home folder;
+  `$PI_CODING_AGENT_SESSION_DIR`; `--session-dir`) holds the session files directly, without working-directory
+  folders. The settings file is read (never written) at startup and on rediscovery; a root that does not exist is
+  skipped and a path listed twice is scanned once.
+- **Discovery**: regular files (never symlinks) whose name ends in `.jsonl`, at least one component below the root,
+  within the depth limit of section 2; every file or folder whose name starts with `.` is skipped.
+- **Sub-agents**: Pi has none of its own; packages that add them write a session's children into a folder named after
+  the session file (`<stem>/<name>.jsonl` next to `<stem>.jsonl`). A file is a sub-agent when its folder's path plus
+  `.jsonl` is a regular file; that file is its parent when it is tracked.
+- **Records**: there is no `title` slot, no `model_usage` and no `session_exit`; tool results never end a run (no
+  `yield`), and `stopDetails` is never written. Any other `type` only updates `lastLineMs`, except the side usage
+  below.
+- **Keys**: `"pi:" + id + ":" + stamp` (the stamp of 4.7 step 2) for assistant messages, `"pi:" + id + ":" + <entry
+  timestamp ms>` for side usage, deduplicated like omp's.
+- **Timing**: `endMs = startMs + durationMs` (truncated) when `startMs` is known and `message.durationMs` is a finite
+  number ≥ 0 (pi-ai 0.99+), else the entry `timestamp`; there is no `completedAt`.
+- **Stop reasons**: `pending` and `deferred` are treated like `error` and `aborted` (no `startMs`, phase `idle`): the
+  result of a deferred request is fetched later, without its timing.
+- **Tokens**: as omp, with `reasoning = usage.reasoning` and `cacheWrite1hInput = usage.cacheWrite1h` (a subset of
+  `cacheWrite`, 9.3; absent → 0).
+- **Side usage** (Pi's own totals add all of them): a `usage` entry (`kind` such as `cache_warm`, with its own
+  `provider`, `model` and `usage`, the guard of 4.7 step 1 on those three without `api`); the `usage` of a `toolResult`
+  message (a tool's own model calls; model null); the `usage` of a `compaction` or `branch_summary` entry (the summary
+  call; model null). Each emits a response with `startMs = null`, `endMs = ts`, `final = true` when one of the four
+  token fields is > 0, and never sets the agent's `model`.
+- **Effort** (EXECUTION-MODES): see the Pi native rule there.
+
+Approximations beyond omp's: side usage has no timing and, apart from `usage` entries, no model (it is unpriced);
+`responseModel` (the concrete model the provider reports) is not used, like omp's.
+
+### 4.14 OpenClaw
+
+OpenClaw (`openclaw/openclaw`, MIT; npm `openclaw`) is an agent gateway for chat channels, its web app and its
+desktop companions; its agent runtime grew out of Pi. From 2026.8.1 (agent database schema 8 and later, also the
+extended-stable lines 2026.8.3x and 2026.9.3x) the Gateway keeps every session transcript in one SQLite database per
+OpenClaw agent (a configured persona, not a sub-agent), one transcript entry per row, in the JSONL entry format of Pi
+(session version 3 or 4). Evidence: `spec/research/openclaw.md`; fixtures: `spec/tools/openclaw_fixtures.py`
+(`spec/fixtures/openclaw`). Out of scope: 2026.7.x and older (JSONL files under `<state>/agents/<agentId>/sessions`),
+PostgreSQL agent stores, incognito threads (memory only), remote Gateways and Gateways inside WSL (the Windows Hub's
+default setup).
+
+OpenClaw counts here only the requests its own runtime sends. A turn that OpenClaw hands to another agent runtime —
+Claude Code (`claude-cli`), the Codex app server, an ACP agent — is mirrored into the transcript as one message with
+the whole turn's usage and no request timing, while that agent writes every request to its own log: those mirrors
+count nothing here (*delegated* below). Claude Code's requests count under `claudeCode` (it shares the user's
+`~/.claude`), Codex's under `codex` (its rollouts are in OpenClaw's agent-scoped Codex homes, a Codex root of
+section 2, or in the user's own Codex home), and an ACP agent's under its own source when Agent Speed reads it.
+
+#### Roots and discovery
+
+- **State folders** (section 2): `$OPENCLAW_STATE_DIR` when it is set (a leading `~` is the home folder), and then
+  nothing else. Otherwise `<base>/.openclaw` and every folder `<base>/.openclaw-<name>` whose `<name>` matches
+  `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$` and is not `default` in any letter case (named profiles; `--dev` is the profile
+  `dev`), where `<base>` is `$OPENCLAW_HOME` when it is set (a leading `~` is the home folder), else the home folder.
+  Profile folders are listed in ordinal order after `.openclaw`. Folders that do not exist are skipped; a path listed
+  twice is read once.
+- **Databases**: for every folder `<agentId>` of `<state>/agents` (not a symlink, name not starting with `.`), the
+  regular file (not a symlink) `<state>/agents/<agentId>/agent/openclaw-agent.sqlite`. Nothing else matches (the
+  sentinel `incognito-openclaw-agent.sqlite`, archives, `-wal`, `-shm`, `.seal`).
+- **User setting**: one folder or file; it replaces every automatic root. A folder that contains
+  `openclaw-agent.sqlite` is an agent folder (OpenClaw's `agents.entries.*.agentDir`) and contributes that database;
+  any other folder is a state folder; a file named `openclaw-agent.sqlite` is used directly.
+- **Opening**: read-only, exactly like OpenCode (4.5): `mode=ro`, busy timeout 2 s, `immutable=1` when the header says
+  WAL and no `-wal` file exists, short read transactions; reading never creates a file. Only the tables
+  `session_windows`, `session_nodes`, `transcript_events` and `transcript_rewrite_watermarks` are read: the same
+  database holds OpenClaw's credentials (`auth_profile_*`) and memory, which are never selected. A database without
+  `session_windows` or `transcript_events` (agent schema 1 of 2026.5–2026.7, which held no sessions) contributes
+  nothing and is reported as unsupported (warning `unsupportedFormat`).
+
+#### Windows and agents
+
+- One agent per **transcript window**, a row of `session_windows` (a reset, rollover, fork or recovery starts a new
+  window of the same logical session). Agent id `<database path>#<session_id>`.
+- `isSubagent` = the window's `spawned_by` is a non-empty string (children of `sessions_spawn`, whose session key is
+  `agent:<agentId>:subagent:<uuid>`). Parent: the window `session_nodes.current_session_id` of the session key
+  `spawned_by` in the same database, when it is tracked; a parent in another agent's database is not linked.
+- **Delegated window**: `acp_owned = 1`, or `agent_harness_id` (trimmed, lower-cased; the runtime of the window's
+  latest run) is non-empty and not `openclaw`, `pi`, `auto` or `default`. Every other window is *embedded*. A missing
+  column counts as empty or 0.
+- **Rows**: the window's `transcript_events` in `seq` order. The entry is `event_json` when it is not null, else the
+  zstd frame in `event_zstd` (agent schema 23+; that column is selected only when it exists), decoded with at most
+  `event_utf8_bytes` (≤ 4 MiB) of output. A row that fails to decode, is not valid UTF-8 or is not a JSON object counts
+  as one malformed line (section 4); an entry longer than 32 MiB is skipped like a long line. The entries are fed in
+  order to the state machine below, like the lines of a Pi file.
+
+#### Records
+
+Every rule of 4.7 and 4.13 applies to the entries — the header, record classification, state and phase table,
+assistant steps 1–5, tokens, metadata (`project` = basename of the header `cwd`; `model` = the latest response's
+`message.model`), deduplication and copied history (`headerMs − 2000`) — with these differences:
+
+- **Keys**: `"openclaw:" + id + ":" + stamp` (the stamp of 4.7 step 2).
+- **Timing**: there is no duration field. `startMs = message.timestamp` (taken when OpenClaw's provider transport
+  creates the response, before the request is built and sent) and `endMs` = the entry `timestamp`, the time the
+  finished message was appended (a few milliseconds after the stream ended).
+- **Stop reasons**: `stop`, `length`, `toolUse`, `error`, `aborted`; a missing or other value counts as `aborted`
+  (4.7 step 3).
+- **Tokens**: as Pi, with `reasoning = usage.reasoningTokens` (absent → 0; OpenClaw's own transports do not report
+  reasoning) and `cacheWrite1hInput = usage.cacheWrite1h` (at most `cacheWrite`). A message whose
+  `usage.usageReport.state` is `unavailable` (provisional stream counters, which OpenClaw's own accounting drops) emits
+  no response.
+- **No side usage**: only assistant messages emit responses (OpenClaw writes no `usage` entries and no usage on tool
+  results, compactions or branch summaries).
+- **Mirrors** (delegated turns): an assistant message is a mirror when `message.__openclaw.mirrorOrigin` is a
+  non-empty string (the Codex app server; imported history), when `message.api == "cli"` and
+  `message.provider == "claude-cli"`, when `message.provider` starts with `acp-`, or when its window has
+  `acp_owned = 1` or the runtime (`agent_harness_id`, as above) `codex`, `claude-cli` or one starting with `acp`. A
+  mirror emits no response and sets no model; it still counts for `lastLineMs` and, in an embedded window, for the
+  phase.
+- **Untimed responses**: an assistant message that is not a mirror, when its window is delegated or
+  `message.api == "cli"` (the Gemini CLI backend, whose own logs live in a temporary folder that OpenClaw removes; the
+  GitHub Copilot and Muse harnesses; other CLI backends), emits its response with `startMs = null`: the usage of a
+  whole turn, written when the turn ended.
+- **Phase**: an embedded window follows the 4.7 phase table. A delegated window stays `idle` (its turns run in another
+  program, whose own log shows their live state when Agent Speed reads it).
+- **Effort and speed**: none (EXECUTION-MODES). `thinking_level_change` entries are written when a session starts and
+  when a level is selected explicitly, not for a level a single message asks for, so they are not used.
+- **Work signals and the task score** (6.10, 6.9): prompts, tool calls and results as Pi.
+
+Startup and reading (section 5): an agent database takes part in the startup order with the modification time of
+the newer of `openclaw-agent.sqlite` and its `-wal`; within a database the windows are read in `created_at` order, ties
+by `session_id`. Windows whose `transcript_updated_at` (else `created_at`) is within `todayStartMs − 15 min` or later
+are read completely at startup; older windows start after their last row, reading only their header (the first row
+whose entry has type `session`) first, as omp does for a file read from an offset (4.7). While running, change
+detection watches the database and its `-wal` (file watcher plus the 1-second fallback, like 5.2). On a change, one
+short transaction reads
+`session_windows` (a few thousand rows at most) and `transcript_rewrite_watermarks`, then the rows with a `seq` above
+the last one read of every window whose `transcript_updated_at` advanced, and all rows of a new window. A window whose
+watermark `generation` changed, or whose highest `seq` dropped, was rewritten: it is reset (parser state, never the
+dedupe set) and read again from its first row; the same keys merge as same-file updates (4.4). The source counts as
+one "file" per database for discovery statistics.
+
+#### Known approximations
+
+- `endMs` is the append time: it includes OpenClaw's work between the end of the stream and the write
+  (`message_end` hooks, the database transaction), normally milliseconds. `startMs` includes building the request and
+  preparing credentials; retries inside a transport keep the original `timestamp`, so their back-off lowers the
+  measured speed. Older OpenClaw versions behave the same (checked at 2026.8.1).
+- Streams with asynchronous tool calls first write the finished part as an assistant message with empty usage
+  (`toolUse`): it emits nothing and moves the phase to `tools`, and its tool results to `generating`; the final part
+  carries the usage and the full interval.
+- Delegated turns count under the agent that ran them only when Agent Speed reads that agent's log: ACP agents it
+  does not read (GitHub Copilot CLI, Kilo Code, Qwen Code), Codex homes OpenClaw was told to put elsewhere
+  (`appServer.codexHome`, a remote app server) and Claude Code on a paired remote node are not counted anywhere.
+- Untimed responses are whole turns: a turn of several model calls counts as one request, without speed, and its
+  price tier is chosen from the summed tokens.
+- `agent_harness_id` names the runtime of a window's latest run only. A window whose runtime changed between runs
+  (for example a model switch from an API model to a Codex-run one) treats all its messages by the latest runtime:
+  earlier embedded requests lose their speed (or, after a switch to `codex`, `claude-cli` or ACP, their tokens).
+- A CLI backend turn in an embedded window shows `generating` from its user message until the mirror arrives, while
+  the CLI's own log shows the same turn; the live estimate (6.3) can count that time twice.
+- Side calls (compaction summaries, session titles, memory, recaps, `/btw` side questions) are not stored as
+  transcript entries and are not counted; totals follow OpenClaw's own session report (`/usage cost`), not the
+  provider bill.
+- Windows that OpenClaw's maintenance prunes (`session.maintenance.pruneAfter`, default 30 days) or moves to cold
+  archive files are not read again; a history rebuild (section 8) cannot recover them.
+- Derived from the OpenClaw source (2026.10.7, evidence in `spec/research/openclaw.md`); not yet verified against real
+  databases.
+
+### 4.15 Hermes Agent
+
+Hermes Agent (`NousResearch/hermes-agent`, MIT; Python, the AI agent, not the JavaScript engine of the same name) runs
+as a CLI and TUI, a desktop app, a messaging gateway, cron jobs and an ACP agent. It keeps no transcript with usage:
+its sessions database (`state.db`) has only cumulative per-session counters, and Agent Speed never opens it, not even
+read-only (a foreign reader defers Hermes's database maintenance). The source is Hermes's log, `logs/agent.log`, which
+has one line per model API call of the agent loop with that call's tokens and duration, tagged with the session id;
+besides the logs only one key of each profile's `config.yaml` is read (Codex runtime, below). Evidence:
+`spec/research/hermes.md`; fixtures: `spec/tools/hermes_fixtures.py` (`spec/fixtures/hermes`). Out of scope: Hermes on
+another computer (remote gateways, SSH backends), inside WSL, and homes inside containers that this computer does not
+see as folders.
+
+#### Roots and discovery
+
+- **Home** (section 2): `$HERMES_HOME` (trimmed) when it is not empty and, after a leading `~` is replaced by the
+  home folder, an absolute path; else macOS `~/.hermes`, Windows `%LOCALAPPDATA%\hermes`
+  (`%USERPROFILE%\AppData\Local\hermes` without `LOCALAPPDATA`). Hermes points `$HERMES_HOME` at a profile when it
+  runs one, so a value that is the default home or lies inside it (compared case-insensitively on Windows) means the
+  default home, a value whose parent folder is named `profiles` means that parent's parent, and any other value is a
+  home of its own. The data-folder suffix of desktop channel builds (`$HERMES_DATA_DIR_SUFFIX`, baked into their
+  bundle) is not used.
+- **Log folders**: `<home>/logs` (the default profile), then `<home>/profiles/<name>/logs` for every folder `<name>`
+  of `<home>/profiles` (not a symlink) that does not start with `.`, in ordinal order. Folders that do not exist are
+  skipped; a path listed twice is read once. The user setting names a Hermes home (a folder that has a `logs` folder:
+  that home's log folders as above) or one log folder (any other folder), and replaces the automatic home.
+- **Files**: regular files (never symlinks) directly in a log folder named exactly `agent.log` or `agent.log.<n>`
+  (`<n>` one or more ASCII digits): the live log and its rotated copies. No other log is read: `errors.log` repeats
+  the warnings, `gateway.log` and `gui.log` exclude the agent loop, `install.log`, lock files and compressed copies do
+  not match. Outside the log folders only `config.yaml` is read (Codex runtime, below); `state.db`, `sessions/`,
+  `.env` and `auth.json` are never opened.
+- **Log sets**: each log folder is one *log set* with one parser state, shared by its files, in which every session
+  id is one agent: agent id = the log folder's absolute path + `#` + the session id (empty for lines without one).
+
+#### Lines
+
+Files are UTF-8 (an invalid byte sequence reads as U+FFFD), split at `\n` with one trailing `\r` removed; the line
+limit of section 4 applies. A *record line* is
+
+```
+YYYY-MM-DD HH:MM:SS,mmm LEVEL[ [<session id>]] <logger>: <message>
+```
+
+a 23-character timestamp (ASCII digits, the calendar and clock ranges of 3.1 with years 1970–9999; anything else
+is not a record line), a space, a level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`), an optional session tag, a
+space, the logger name, `: ` and the message. Hermes writes the tag ` [<id>]` when the writing thread has a session
+context. For the loggers below, the text after the level is
+either ` <logger>: <message>` (no session; the id is empty) or ` [<id>] <logger>: <message>`, where `<id>` is the
+non-empty text up to the first occurrence of `] <logger>: `. Every other line (other loggers and messages, the
+continuation lines of multi-line messages, foreign text) is ignored and is not malformed.
+
+Only four kinds of record line are read (in the patterns of this section `.` matches any character, line separators
+such as U+2028 included):
+
+| Kind | Logger, level | Message |
+| --- | --- | --- |
+| turn start | `agent.turn_context`, `INFO` | matches `^conversation turn: session=[^ ]* model=(.*?) provider=[^ ]* platform=([^ ]*) history=-?[0-9]+ msg=` |
+| API call | `agent.conversation_loop`, `INFO` | starts with `API call #` (grammar below) |
+| turn end | `agent.conversation_loop`, `INFO` or `WARNING` | starts with `Turn ended: ` or `Turn ended with pending tool result` |
+| turn failed | `agent.conversation_loop`, `ERROR` | after an optional leading `[…]` group (the agent's log prefix, such as `[subagent-0]`) and spaces, starts with `API call failed after ` or `Non-retryable client error: ` |
+
+The turn-start message continues with a preview of the user's message (`msg=` and a Python `repr`); only the two
+groups of the pattern are read and nothing after `msg=` is ever looked at or kept. No other part of any line is kept
+either: tool lines, which quote tool output, are not read (Hermes Agent has no task score, 6.9).
+
+**Time.** The timestamp is the wall clock of the writing process (Python's `time.localtime`, milliseconds truncated),
+without a zone. It is converted with the time-zone rules of this computer at the time of reading: a wall time that
+occurs once is that instant; one that occurs twice (the hour repeated when clocks go back) is the earlier instant; one
+that does not occur (the hour skipped when clocks go forward) is converted with the offset in force before the change,
+so `02:30` in a skip from `02:00` to `03:00` is `03:30` after it. This is Python's `datetime.timestamp()` of a naive
+local time with `fold = 0`. Fixtures name the zone they use (`timeZone`); implementations take the zone as a parameter
+so the fixtures can be checked anywhere.
+
+#### API-call lines
+
+The message must match, as a whole:
+
+```
+^API call #([0-9]+): model=(.*?) provider=([^ ]*) in=(-?[0-9]+|\?) out=(-?[0-9]+|\?) total=(-?[0-9]+|\?) latency=(-?[0-9]+(?:\.[0-9]+)?)s(?: cache=(-?[0-9]+)/-?[0-9]+ \(-?[0-9]+%\))?(?: write=(-?[0-9]+))?(?: .*)?$
+```
+
+(N, model, provider, in, out, total, latency, cache read, cache write). A message that starts with `API call #` and
+does not match is counted as a malformed line of the log set and otherwise ignored. Hermes appends ` id=…` and
+` upstream=…` (which may contain spaces) and, for a response without usage, ` usage=unavailable`; these are not
+read.
+
+1. `key = "hermes:" + <session id> + ":" + N + ":" + <the 23-character timestamp text>` (N as written). The local
+   timestamp text keeps the key independent of the time zone; the session id, N and the time together identify one
+   call (N alone restarts when a gateway builds a new agent for a message). A key that was already seen, in any file,
+   is a copy (a failed tool can quote `agent.log`): the line is ignored — no response, no phase change — except for
+   `lastLineMs`. Repeats in the same file are ignored the same way.
+2. When `in` or `out` is `?` (the provider returned no usage), or input and output below are both 0 (ACP-backed
+   providers report zeros), there is no response.
+3. Otherwise emit a response: `endMs` = the line's time; `startMs = endMs − d`, where `d` = latency × 1000 computed
+   exactly from its decimal digits and truncated to whole milliseconds (both saturated as in 3.6), when latency does
+   not start with `-`, else `startMs = null` (a wall-clock step); `final = true`; `model` = the model group (empty →
+   null); `provider` = the provider group (empty or `unknown` → null); tokens:
+
+   | Field | Value |
+   | --- | --- |
+   | `input` | `in` (Hermes's `prompt_tokens`: uncached input + cache read + cache write) |
+   | `cachedInput` | the cache read of ` cache=<read>/<prompt> (<p>%)`, else 0 |
+   | `cacheWriteInput` | ` write=<n>`, else 0 |
+   | `output` | `out` |
+   | `reasoning`, `cacheWrite1hInput` | 0 (not on the line) |
+
+   Values follow 3.2 (integers exact, negatives 0, capped at 10^12). `total` and the prompt and percentage of `cache=`
+   are not used.
+
+**Timing.** Hermes takes the request start once per loop iteration, before it builds the request and before its own
+retries, and computes `latency` when the response has been received and checked; the line is written a few
+milliseconds later. So the interval includes request building, time to first token, streaming and Hermes's in-call
+retries with their back-off, and `startMs` is exact to about ±50 ms (latency has one decimal). The valid-interval and
+minimum-duration rules of 3.3 apply as usual.
+
+#### Agents and phase
+
+State per agent: `phase` (starts `idle`), `inFlightStartMs`, `model`, `isSubagent`, `lastLineMs`. An agent exists
+from its first record line of the four kinds.
+
+| Line | Action |
+| --- | --- |
+| any of the four kinds | `lastLineMs` = the latest line time of the agent |
+| turn start | phase `generating`, `inFlightStartMs = ts` (while the Codex runtime switch is on: `idle`, null; below); `model` = the model group when not empty; `isSubagent` = the platform group is `subagent` |
+| API call (accepted, also without usage) | `model` = its model when not empty; when phase is `generating`, `inFlightStartMs = ts` (the next request, or the turn's end, follows) |
+| turn end, turn failed | phase `idle` |
+
+- An API call outside a turn (a plugin side question or `/btw`, which runs one request without a turn) changes no
+  phase. Background review and side-question turns reuse their session's id and count as its turns.
+- There is no `tools` phase: Hermes logs a tool only when it ends, and concurrent tools log from threads without a
+  session tag. Tool time therefore shows as `generating`.
+- `project` and `cwdPath` are null (the log names no working directory). `isSubagent` comes from the turn line
+  (`delegate_task` children run with platform `subagent`); `parentId` is null, since the log does not link a child to
+  its parent.
+- Effort and speed facts (EXECUTION-MODES): none; the log records neither.
+
+#### Codex runtime
+
+Hermes can hand whole turns to Codex (`codex app-server`, Codex's own agent loop, started by Hermes with Hermes's
+environment, so its rollouts land in the Codex home `$CODEX_HOME`, else `~/.codex`, and count under `codex`, 4.2). Such
+a turn writes its turn-start line but no API-call line and no end line, so without this rule its agent would stay
+`generating`, with an in-flight estimate (6.3) overlapping the Codex agent's, until the 300-second staleness rule.
+Hermes selects this runtime with the key `model.openai_runtime` of the profile's `config.yaml`: `codex_app_server`
+selects it; `auto` (the default), an empty or missing value and any other value keep Hermes's own runtime (Hermes
+trims and lowercases the value; the `/codex-runtime` command writes `codex_app_server` or `auto`). Each log set has a
+*Codex runtime switch*, read from that one key and nothing else of the file:
+
+- **File**: `config.yaml` in the parent folder of the log folder, when the log folder is named `logs` (compared
+  case-insensitively on Windows): `<home>/config.yaml` for `<home>/logs`, `<home>/profiles/<name>/config.yaml` for that
+  profile's logs (macOS `~/.hermes/config.yaml`, Windows `%LOCALAPPDATA%\hermes\config.yaml`). Every profile has its
+  own file and does not inherit the default profile's. A log folder with another name (a user setting) has no file
+  and its switch is off. The administrator overlay `/etc/hermes/config.yaml` (`$HERMES_MANAGED_DIR`) is not read.
+- **When**: before a log set's startup backlog is read, and at every rediscovery (section 5, every 10 seconds) before
+  that set's new lines are read, the file's status is checked (a symbolic link is followed, as Hermes follows it). The
+  file is read only when it is a regular file whose modification time or size differs from those of the last
+  successful read (startup always reads it).
+  - Missing, or not a regular file: the switch is off.
+  - Larger than 1 MiB (1 048 576 bytes, at the check or while reading): the switch is off.
+  - Any other failure (no permission, a sharing violation, an I/O error): the switch keeps its value and the next
+    check reads the file again.
+  - Windows: the file is opened with read, write and delete sharing and closed right after reading, so Hermes can
+    replace it (it writes `config.yaml` by atomic replacement).
+- **Reading**: the bytes are decoded as UTF-8 (an invalid sequence reads as U+FFFD; one leading U+FEFF is removed, as
+  Hermes reads `utf-8-sig`) and split at `\n` with one trailing `\r` removed. This is a tolerant line reader for the
+  block layout Hermes writes and hand edits of it, not a YAML parser:
+  1. A line that is empty or starts with `#` after its leading spaces and tabs is blank or a comment and is skipped
+     everywhere.
+  2. The *indentation* of every other line is its number of leading U+0020 spaces (a line that starts with a tab
+     has indentation 0). A line with indentation 0 ends the current `model` block, and opens a new one when it
+     matches `^(model|"model"|'model')[ \t]*:([ \t]+(#.*)?)?$` (the key alone, optionally followed by a comment).
+  3. In a `model` block, its first line sets the block's indentation `n` (> 0); only its lines with indentation
+     exactly `n` are keys of `model` (deeper lines are not). A key line whose text after the `n` spaces matches
+     `^(openai_runtime|"openai_runtime"|'openai_runtime')[ \t]*:(|[ \t].*)$` sets the switch: on when the group after
+     the colon matches
+     `^[ \t]+("[ \t]*codex_app_server[ \t]*"|'[ \t]*codex_app_server[ \t]*'|codex_app_server)([ \t]+#.*)?[ \t]*$`,
+     with `codex_app_server` compared ASCII case-insensitively; off for every other value (empty, `auto`, `on`,
+     `${VAR}`, a block scalar, a comment).
+  4. The last such key line of the file decides; with none the switch is off. No other line changes it: keys of other
+     sections, the root-level `openai_runtime`, flow mappings (`model: {openai_runtime: …}`) and list items are not
+     recognized.
+- **Effect** (per log set, while its switch is on): a turn-start line updates `lastLineMs`, `model` and `isSubagent`
+  as usual but sets phase `idle` and `inFlightStartMs = null` instead of `generating`. When a check turns the switch
+  on, every agent of the log set in phase `generating` becomes `idle` with `inFlightStartMs = null`; turning it off
+  changes no phase (the next turn start does). API-call, turn-end and turn-failed lines are handled as before, so a
+  turn Hermes still runs itself (a fallback provider after a Codex failure, or a provider the Codex runtime does not
+  apply to) counts its responses but shows no `generating` phase and no in-flight estimate. Responses, totals and daily
+  history do not depend on the switch.
+
+#### Reading and rotation
+
+- Startup reading order and the startup rule of section 5 apply per file; all files of a log set feed its one parser
+  state, so a turn that started in `agent.log.1` continues in `agent.log`.
+- Rotation renames files (`agent.log.2` → `agent.log.3`, `agent.log.1` → `agent.log.2`, `agent.log` →
+  `agent.log.1`, deleting the oldest) and starts a new `agent.log`. Files are therefore followed by identity (macOS:
+  device and inode; Windows: volume serial number and file index): a file whose identity was being read under
+  another path of the log set continues under its new path from the same offset — no reset, nothing read again — and
+  lines appended to it after the rename (another process that had not reopened yet) are read normally. The new
+  `agent.log` is a new identity and is read from offset 0. A file that shrinks keeps the rule of section 5 (read again
+  from offset 0); the dedupe set discards the responses already counted and the replayed lines end in the same phase.
+- Windows: Hermes renames the live log while other processes write to it, so a reader opens it with read, write and
+  delete sharing and does not keep it open between reads.
+- Settings (DESIGN 5) count today's main sessions: distinct session ids with a turn-start line today whose platform
+  is not `subagent`.
+
+#### Known approximations
+
+- No reasoning split: `reasoning` is 0, and `output` includes reasoning only where the provider counts it there (the
+  line carries Hermes's normalized output, as Hermes bills it).
+- Tool runs show as `generating`, and the in-flight estimate (6.3) runs during them; the first request of a turn is in
+  flight from the turn start.
+- Turns that end without an end line stay `generating` until the staleness rule (300 s): preflight-compression
+  timeouts, killed processes, and Codex-runtime turns that the switch does not see (below).
+- The Codex runtime switch follows the file, not each turn. Hermes applies a changed value from the next session ("the
+  current cached agent keeps the prior runtime"), Agent Speed at its next check for every session of the profile.
+  Hermes applies the runtime only to the providers `openai` and `openai-codex` and to named custom providers that
+  Codex knows; with the switch on, turns of other providers count their responses but show no `generating` phase.
+  The switch does not see the `/etc/hermes` overlay, `$HERMES_IGNORE_USER_CONFIG`, a hand-written
+  `model.api_mode: codex_app_server`, flow-style or `${VAR}` values, or the last good configuration Hermes keeps
+  using while its file does not parse (duplicate keys, tab indentation). Codex-runtime turns count under `codex` only
+  when Hermes's `CODEX_HOME` is a Codex root Agent Speed reads (section 2).
+- A side question counts for the session of the thread that ran it (another session, or the empty id).
+- Context compression gives a session a new id inside a turn; Hermes keeps logging the rest of the turn under the old
+  id, and the next turn appears as a new agent.
+- Calls Hermes does not log are not counted: auxiliary calls (titles, compression summaries, vision, web extraction,
+  memory), responses refused by a content filter, and truncated or invalid responses that Hermes retries. Hermes's own
+  totals miss the auxiliary calls too.
+- Mixture-of-agents presets fold their advisors' tokens into the aggregator's line; the model is the preset's name and
+  the provider `moa`, so these responses are unpriced (9.2).
+- Rotation deletes old lines (default 5 MB × 3 backups): daily history keeps what was read before (section 8), and
+  lines rotated away before the first read are lost. With `logging.level` above `INFO` nothing is logged.
+- A log written in another time zone (a container with `TZ=UTC` writing into this computer's Hermes home) is
+  misplaced by the difference.
+- Derived from the Hermes source (main `9b904dcc22c2`, after v0.22.5; evidence in `spec/research/hermes.md`); not yet
+  verified against real logs. Verification target (checked by hand, outside the app): per session, the sums of
+  `input` and `output` equal `state.db`'s `sessions` counters (`input_tokens + cache_read_tokens +
+  cache_write_tokens`, `output_tokens`) for sessions without Codex-runtime turns, and each response's
+  `endMs − startMs` equals Hermes's own `latency`.
+
+### 4.16 Factory Droid
+
+Factory Droid is the coding agent of Factory AI (closed source): the CLI `droid`, interactive and `droid exec`, and the
+Factory Desktop app, which runs the same agent and writes the same files. Each session has a transcript, which times
+every model call but records no usage, and next to it a settings file (*sidecar*) whose cumulative counters droid
+rewrites as the session runs. So the calls, their timing, model and effort come from the transcript, and their tokens
+from the growth of the counters, *allocated* to the calls written since (below). Evidence: `spec/research/droid.md`
+(issue #33, checked on droid 0.250.0; public recordings of droid on Linux and Windows and of Factory Desktop in
+third-party test data); fixtures: `spec/tools/droid_fixtures.py` (`spec/fixtures/droid`). Out of scope: sessions of
+droid before 0.123, which kept no counters (they count nothing), cloud sessions without local files, droid inside WSL.
+
+#### Roots and discovery
+
+- **Root** (section 2): `~/.factory/sessions`. Factory documents no environment variable for this folder.
+  `FACTORY_HOME_OVERRIDE`, which third parties found in the binary and read in two different ways, is not used; a moved
+  folder is chosen in the user setting.
+- **User setting**: one folder. When it contains a folder named `sessions` (compared case-insensitively on Windows)
+  it is the Factory folder and that `sessions` folder is the root; otherwise the folder itself is the root. It replaces
+  the automatic root.
+- **Sessions**: regular files (never symlinks) whose name ends in `.jsonl` and does not start with `.`, directly in the
+  root (older droid versions) or in a folder directly in it (the working directory with its separators replaced by `-`,
+  such as `-Users-dev-projects-forge` or `-C-Users-dev-halo`; not a symlink, name not starting with `.`); nothing
+  deeper. The *session id* is the file name without `.jsonl` (droid names the file after `session_start.id`). The
+  sidecar is the regular file `<session id>.settings.json` in the same folder. Nothing else is opened: not
+  `<session id>.settings.json.bak` (the previous copy droid keeps), index and cache files, or anything outside the
+  root — `~/.factory/settings.json` holds the user's API keys in plain text.
+
+#### Transcript lines
+
+Lines follow section 4 (malformed and long lines). A line's time `ts` is its `timestamp` (3.1); the phase starts
+`idle`.
+
+| Line | Action |
+| --- | --- |
+| first `type == "session_start"` | `project` = basename of `cwd` (split on `/` and `\`), `cwdPath` = `cwd`. `parent` and `callingSessionId` are kept when they are *session ids* (strings matching `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`, so no other file name can be formed from them); any other value counts as absent. `isSubagent` = `callingSessionId` is present. Later `session_start` lines are ignored. |
+| `type == "message"` with a `ts`, `message.role == "user"` | `message.visibility == "user_only"` (notices and hook records, shown to the user and never sent to the model): only `lastLineMs`. Otherwise (no `visibility`: the user's text or tool results; `llm_only`: the context droid adds to each turn): `pendingStartMs = ts`, phase `generating` (`inFlightStartMs = ts`). |
+| `type == "message"` with a `ts`, `message.role == "assistant"` | a call (below) |
+| `type == "compaction_state"` with a `ts` (a summary of the conversation so far) | the input weight starts over here (Allocation); when the phase is `generating`: `pendingStartMs = ts` and `inFlightStartMs = ts` (the summary call ended, the next request follows) |
+| `type == "agent_turn_outcome"` (written without a timestamp) | phase `idle`, `pendingStartMs = null` |
+| anything else (`todo_state`, other types and roles) | only `lastLineMs` |
+
+`lastLineMs` = the latest `ts` of any line, including assistant messages ignored by deduplication.
+
+**Calls.** An assistant message with a `ts` whose `id` is a non-empty string is a call with the key
+`"droid:" + id`, unless that key is owned by another file (3.4: forks copy their parent's messages with their ids and
+timestamps) or was already seen in this file (a repeated line changes nothing). The file claims the key and the call
+becomes an *open* response:
+
+- `startMs = pendingStartMs` (may be null), `endMs = ts`, `final = true`, one request. In the recordings each
+  assistant message is one model call, written when it ends, and the user line before it (a prompt, the turn's context
+  or tool results) is written just before the request is sent, so the interval is the call's end-to-end time (3.3).
+- `model` = `message.modelId` when it is a string that is not blank (trimmed), else the session model (Sidecar) as it is
+  when the call's tokens are allocated. Custom ids (`custom:<name>-<n>`, the user's own models) stay as written; 9.2
+  prices them by `<name>`.
+- `provider` = `custom` when the model starts with `custom:` (ASCII case-insensitive), else null. The sidecar's
+  `providerLock` names an API dialect (`anthropic`, `openai`, `generic-chat-completion-api`), not a provider, and is
+  not used.
+- Its two weights (Allocation) and its effort fact (EXECUTION-MODES).
+
+Then `pendingStartMs = null`; phase `tools` when `message.content` is an array with a block whose `type` is
+`tool_use`, else `idle`. The agent's `model` is the latest call's `modelId`, else (no call yet, or the latest call has
+none) the session model. An open response is emitted (4.4) when tokens are allocated to it.
+
+#### Sidecar
+
+- **Reading**: the whole file, which must be a regular file (a symlink is not followed) of at most 1 MiB, valid UTF-8
+  (one leading U+FEFF is removed) and a JSON object (3.6); otherwise it is *unreadable* and changes nothing (droid may
+  be replacing it; the next read cycle tries again). A readable sidecar sets the session model, and it has *counters*
+  when its `tokenUsage` is an object. On Windows it is opened with read, write and delete sharing and closed right
+  after reading (droid replaces it and keeps a `.bak`).
+- **Counters**: `inputTokens`, `cacheCreationTokens`, `cacheReadTokens`, `outputTokens` and `thinkingTokens` of
+  `tokenUsage`, each a token value of 3.2 (missing → 0). Not used: `factoryCredits` (Factory's billing unit, not
+  tokens), `inclusiveTokenUsage` and `childInclusiveTokenUsageBySessionId` (they add the session's sub-agents, which
+  count in their own files), `lastCallTokenUsage`, and `assistantActiveTimeMs` (the summed wall time of whole turns,
+  tool runs included — 75.4 s for a recorded 75.2 s turn — so it cannot time calls).
+- **Session model**: `effectiveFactoryRouterModel.modelId` when it is a string that is not blank (the model Factory's
+  router chose when `model` is `auto`), else `model` when it is a string that is not blank and not `auto` (ASCII
+  case-insensitive); trimmed; else null.
+- **Own counters**: a session with a `parent` (a fork, or a successor started by droid 0.226's `/compress` or by
+  `/handoff`) starts from its parent's counters: a recorded `/compress` successor began at its parent's 60/37
+  input/output tokens, while its `assistantActiveTimeMs` started over; forks are assumed alike. Its own counters are,
+  field by field, `max(0, counter − parent counter)`. The parent's counters come from the sidecar
+  `<parent>.settings.json` in the same folder, read by the rules above whether or not the parent's transcript exists:
+  no such file, or a readable one without counters, gives 0. One that exists but is unreadable (droid may be replacing
+  it) leaves the own counters *unknown*: the session's sidecar read changes nothing in that read cycle, exactly as when
+  the session's own sidecar is unreadable, and the next read cycle tries again. The session remembers the signature of
+  that parent sidecar (size, modification time and identity: macOS device and inode, Windows volume serial number and
+  file index); when a later attempt finds it unreadable with the same signature, the file is not being rewritten and
+  will not mend, so it gives 0 from then on (a readable parent sidecar clears the memory). Every other session's own
+  counters are its counters. Then own `thinkingTokens` = `min(thinkingTokens, outputTokens)` of the own counters.
+- **Tokens** of a call, from its shares of the own counters:
+
+  | Field | Value |
+  | --- | --- |
+  | `input` | `inputTokens + cacheCreationTokens + cacheReadTokens` (droid's `inputTokens` excludes the cache: in the issue's sample cache reads exceed it fivefold) |
+  | `cachedInput` | `cacheReadTokens` |
+  | `cacheWriteInput` | `cacheCreationTokens` |
+  | `output` | `outputTokens` (includes reasoning) |
+  | `reasoning` | `thinkingTokens` (a breakdown of `outputTokens`, often estimated by droid) |
+  | `cacheWrite1hInput` | 0 |
+
+  So `total = input + output` counts cache reads and writes as input and reasoning inside output, like every source.
+
+#### Allocation
+
+Each call has two weights, taken from the bytes of the transcript:
+
+- `wOut` = the length in bytes of its line (without the `\n`; a `\r` before it counts), at most 8 388 608: it follows
+  what the call wrote (text, thinking, tool input).
+- `wIn` = 65 536 + the number of bytes from the start of the latest `compaction_state` line before it (none: from the
+  offset where reading started, 0 for a file read from the start) to the start of its own line, at most 8 388 608: it
+  follows the context the call was sent — the conversation since the last summary, plus 64 KiB standing in for
+  droid's system prompt and tool schemas, which the transcript does not hold.
+
+*Allocating* a vector `D` of the five counters to calls `c_1 … c_n` (in file order): for each field — `inputTokens`,
+`cacheCreationTokens` and `cacheReadTokens` by `wIn`, `outputTokens` and `thinkingTokens` by `wOut` — with
+`W = Σ w_i`, call `i` gets `⌊D_f · w_i / W⌋`, and the units left over go one each to the calls with the largest
+remainders `D_f · w_i mod W`, ties to the earlier call (largest-remainder rounding in exact integers: `D_f ≤ 10^12`
+and `w_i ≤ 2^23`, so every product fits in 64 bits).
+
+**State** per session: `H`, the own counters already accounted (a high-water mark, all 0 at first), `P`, growth not
+yet allocated (0), and the open calls.
+
+**Read cycle.** Whenever a session is read — its startup read, appended transcript lines, a changed sidecar — the parser
+(1) feeds the new transcript lines; (2) reads the sidecar when it is new, its size, modification time or identity
+changed, or its last read found it unreadable or the own counters unknown, and when it has counters and the own counters
+are known adds `max(0, own_f − H_f)` to `P_f` and sets `H_f = max(H_f, own_f)`, for each field; (3) when `P` is not zero
+and calls are open, allocates `P` to the open calls, emits them, and sets `P = 0` (no call is open any more).
+
+- One call per rewrite: the call gets exactly its own tokens, whichever of the two files droid writes first (a rewrite
+  read before its call's line waits in `P`). Calls that share a rewrite (a late read, a sidecar written once per turn)
+  split it by their weights.
+- Growth while no call is open (a session title, a compaction summary, a retry) waits in `P` for the next call.
+- Lower counters (a restored `.bak`, a recount) add nothing: `H` keeps the highest value, so growth counts again only
+  above it. A sidecar without counters (missing, unreadable, droid before 0.123) or with unknown own counters adds
+  nothing. A new session is a new file with its own state.
+- A transcript that shrinks or changes identity resets the session (section 5): `H`, `P` and the open calls start
+  over, and its lines are read again (the same keys update their responses, 4.4).
+
+**Startup and history.** A session read from the start (at startup within the window of section 5, when discovered while
+running, and in the history analysis) feeds its whole transcript before its first sidecar read, so its own counters are
+allocated over all its calls at once — the *history rule*. A session whose transcript starts at its end (older than the
+startup window) has no open calls and takes `H` from its sidecar at that moment, without adding to `P` (no sidecar or no
+counters: `H` stays 0): only later growth counts. When the sidecar is unreadable or its own counters are unknown at that
+moment, `H` is taken the same way at the first later read cycle that reads it with known own counters (or finds no
+sidecar, or one without counters). In the history analysis a session whose own counters are unknown contributes nothing
+to that analysis and its result is not stored (its stored contributions and identity stay, section 8), so the next
+analysis tries again; the remembered parent signature carries over to that analysis (in memory: a relaunch starts
+without it). After the history rule the history analysis (8) emits what is left in `P` (own counters but no call, for
+example every call failed before writing a message) as one response with the key `"droid:" + session id + ":session"`,
+`startMs = null`, `endMs = lastLineMs` (nothing when `lastLineMs` is null), the session model and `P`'s tokens; the live
+parser keeps such growth in `P`.
+
+**Live and history.** Both count the same calls (keys, times, models, effort) and, once `P` is empty and the counters
+never went down, the same total per session. They can differ in how a session's tokens are split between its calls:
+live gives each rewrite's growth to the calls it covers, history spreads the final counters by weight. So per-model
+rows (a session that switched models), price tiers (chosen by each response's input), a day's measured speed, and the
+day split of a session that Agent Speed watched across midnight can differ between the dashboard and the history row of
+the same day (9.6) until the next launch seeds the session by the history rule.
+
+#### Agents and phase
+
+- One agent per transcript; agent id = its absolute path.
+- Sub-agents: droid runs Task-tool workers as sessions of their own in the same folder, with `callingSessionId` (and
+  `callingToolUseId`) in their `session_start`; their usage is in their own sidecar and in the parent's
+  `inclusiveTokenUsage`, which is not read. Parent: 6.7. Forks and successors (`parent`) are independent root agents
+  whose inherited counters are removed above.
+- The phase follows the table: a call is in flight from the user line or summary that preceded it, `tools` lasts from
+  a call that asked for tools until their results are written, and `idle` follows a call without tools and a turn
+  outcome. The sidecar never changes the phase.
+- Effort (EXECUTION-MODES): each call's `reasoningEffort`; no speed facts.
+- Work signals (6.10) and the task score (6.9) read its tool calls, which the transcript records in Anthropic's shape
+  (`tool_use` blocks in assistant messages, `tool_result` blocks in the next user message); a Task worker's
+  `callingToolUseId` is the parent's `Task` call.
+- Settings (DESIGN 5) count today's main sessions: session files whose `lastLineMs` is today and whose session is not a
+  sub-agent.
+
+#### Reading
+
+- Startup order and window (section 5) use the newer of the transcript's and the sidecar's modification times, as 5.4
+  does for a database and its WAL.
+- Change detection: the file watcher, the 1-second fallback and rediscovery also check each tracked session's sidecar;
+  a sidecar change starts a read cycle. The sidecar is never tailed: each read takes the whole file.
+
+#### Known approximations
+
+- Per-call tokens are exact only when a sidecar rewrite covers one call; otherwise, and always in history, they are
+  estimated by weights (bytes, not tokens). Session totals, request counts, call times, models and efforts are not
+  affected.
+- When droid rewrites the sidecar is not documented. If it does so only when a turn ends, the turn's calls get their
+  tokens together at its end: their measured speeds are weighted estimates, and those that ended more than 120 s
+  earlier are not reported (11.4) and raise no `responseCompleted` (6.4); in-flight estimates (6.3) cover the turn
+  meanwhile.
+- Usage without a call message (session titles, compaction summaries, retries, which droid counts since 0.247) is added
+  to the next call; after a session's last call it counts in history only.
+- Inherited counters were recorded once (a droid 0.226 `/compress` successor); that forks and `/handoff` successors
+  inherit the same way is assumed. Since droid 0.196 the user stays in the original session after a fork, so a parent
+  that keeps working lowers its fork's own counters by its later usage (at least to 0); a parent whose files were
+  deleted is not subtracted, so its inherited part counts twice.
+- `inputTokens` without cache reads is verified on recordings with the user's own OpenAI-compatible key and on the
+  issue's sample, not on Factory-routed models; that `outputTokens` includes reasoning follows one reader's analysis of
+  droid's provider adapters. Factory changed what the counters count (0.168: successful turns only; 0.247: every
+  billed attempt); they are used as written.
+- Factory credits are not used; cost is API-equivalent (9) by the model each call names.
+- A fork's copies of its parent's messages are removed by deduplication only when the parent is read first (startup
+  order); otherwise the fork owns them at the parent's times and the parent loses them: totals stay right, the day
+  split moves.
+- Derived from the issue, Factory's documentation and changelog, and public recordings and code of third-party readers
+  (evidence in `spec/research/droid.md`); not yet verified against a running droid. Verification target (by hand): for
+  a session watched live, the sums of its responses' fields equal its sidecar's own counters, and each response's
+  `endMs − startMs` equals the gap between its assistant message and the user line before it.
+
+### 4.17 Trae: reconciled partial request usage
 
 Trae counts completed-turn final requests and adds earlier exact per-call usage only after reconciling the final
 request. A readable Trae database always carries the partial-history warning: these optional records are not a
@@ -1184,7 +1839,8 @@ Copies, reopens and repeated polls deduplicate the same keys. History uses a par
 
 Read app-root `logs/<launch>/Modular/ai_agent*.alaudalog` only. Supported layout: `AalG`/`Atab`, one `AALG` segment at
 152, raw DEFLATE with definite CBOR maps. Bound files, expanded bytes, depth and nodes; reject symlinks/unknown
-containers. Merge start/end/tag records using unsigned 64-bit span IDs scoped to each log. Retain only projected
+containers. Read newest logs first; skip individually oversized files, and stop at the aggregate compressed or
+expanded-byte budget while retaining newer valid graphs. Merge start/end/tag records using unsigned 64-bit span IDs scoped to each log. Retain only projected
 identities and timestamps. An open `do_chat` is normal; request generation must close for measured timing.
 
 Exact history ID identifies a unique `add_origin_history` span; its nearest `call_server_generate_plan_item`
@@ -1270,10 +1926,18 @@ of `reference.py --check-fixtures`. No test fixture contains native conversation
 - While running: read appended bytes. Changes are detected with the OS file watcher (FSEvents on macOS,
   `FileSystemWatcher` on Windows) plus a 1-second fallback that stats files modified in the last 2 minutes, plus a full
   rediscovery every 10 seconds. Newly discovered files are read from offset 0.
+- The fallbacks must not depend on the watcher: FSEvents reports nothing for appends to a file its writer keeps open
+  until the file is closed, and Codex keeps a session's rollout open for as long as the session lives, often for days.
+  So the rediscovery re-checks size, modification time and identity of every tracked file whose last observed change
+  is within the last 24 hours, and of the other tracked files in turns, each at least once a minute (macOS: one sixth
+  of them per round, by file id; Windows re-checks every tracked file in every round). Nothing in this depends on the
+  calendar day: a session that goes quiet in the evening and continues after midnight is read like any other.
 - Incomplete trailing lines are buffered until their newline arrives. A file that starts being read at its end
   skips the bytes before the first newline it reads only when the byte just before its start offset is not a newline
   (so a complete line appended later is never dropped). The 256 MiB tail rule always skips to the next newline.
 - If a file shrinks or its identity changes, reset its offset and its parser state (keep the global dedupe set).
+  Hermes Agent logs follow a renamed file instead and share one parser state per log folder (4.15). A Factory Droid
+  sidecar is read whole after the transcript's new lines; its changes never reset the session (4.16).
 - Reading never blocks the UI thread. Steady-state CPU target: < 1% on an idle machine.
 
 Responses produced while reading the startup backlog are *seeded*: they count toward totals, peaks and agent speed
@@ -1417,6 +2081,11 @@ Parent links (`parentId`, an agent id or null):
 - WorkBuddy (both sources): as Claude — a file at `<slug>/<session>/subagents/<name>.jsonl` has the parent
   `<slug>/<session>.jsonl` when that file is a tracked agent of the same source. Nested sub-agents are stored flat
   under the main session, so they attach to it.
+- Hermes Agent: none. Its log does not link a sub-agent session (platform `subagent`, 4.15) to its parent, so
+  sub-agents are roots of their own.
+- Factory Droid: a session whose `session_start` has a `callingSessionId` (a Task-tool worker, 4.16) has the parent
+  `<folder>/<callingSessionId>.jsonl` (its own folder) when that file is a tracked agent. `parent` (forks and
+  successors) is not a parent link.
 - Self references and cycles resolve to null.
 
 List:
@@ -1463,6 +2132,721 @@ contributes nothing (the orb shows it as unavailable).
   known share over the same sources (9.5); its hover line uses `Σ todayCost_s` (9.6). Heat, titles and `newPeak_A`
   still use `live_A`.
 - The history store (8) is unaffected: its `peak` stays the all-sources `peakToday`.
+- **Boards** (DESIGN 2c) are evaluated exactly like orbs, each with its own `A`, `peakToday_A` and `newPeak_A`. A
+  board's hero adds the 6.9 values of `A` (the highest task score, *Sets and groups*, and the thinking sums, *Live
+  thinking*) and the cost above; its group rows use the group form of 6.9 (*Sets and groups*). Boards show no cost per
+  agent or group (9.5).
+
+### 6.9 Task score
+
+智力 (DESIGN 10, *Intelligence readout*; the agent rows of DESIGN 4; the boards of DESIGN 2c) is the **task score**: a
+number from 0 to 100 per agent that starts with every user request and climbs with evidence that the agent is solving
+it — changes that pass reliable checks, failures that shrink and get fixed, actions that keep finding something new. It
+answers one question: is the agent solving the problem, or burning tokens in circles? It is computed from the logs by
+the fixed algorithm below (user's choice, 2026-10-28). The five weights are the user's and are not validated against
+outcomes; the predictions of 6.11 are calibrated on the user's own history. `spec/tools/task_score.py` implements 6.9
+and 6.11 and checks `spec/fixtures/task-score-cases.json` (regenerated with `--write` from
+`spec/tools/task_score_cases.py`, which holds every expectation written by hand and refuses to write when a result
+differs).
+
+The score replaces the grade of earlier versions (model class from the price table, 6 × effort level, 20 × thinking
+share), which is retired everywhere. The thinking line (*Live thinking*, below) is unchanged.
+
+Sources: Claude Code, Claude Desktop, Codex, omp, Pi, OpenClaw and Factory Droid, which record tool calls (6.10).
+Every other source
+has no tasks, and its agents' value is none.
+
+#### Tasks
+
+A **task** is one user request to one agent (1). A sub-agent is an agent of its own, so the request its parent gave it
+is its own first task. The agent's lines are read in order (4), and:
+
+- a *prompt* starts a new task;
+- a *continuation* (a prompt in the list below) joins the current task; with no current task it starts one;
+- the events before the first prompt (a sub-agent whose task arrived in a line that is not a prompt, a file read from an
+  offset, 5) form a task of their own, which starts at its first event.
+
+The latest task is the agent's **current task**. It stays current after the agent goes idle, until the next prompt.
+
+**Prompt lines**, after each source's copied-history rules (3.5, 4.7):
+
+| Source | Prompt | Never a prompt |
+| --- | --- | --- |
+| Claude (both) | a `type == "user"` line classified *prompt* or *command* below; a *queued message* (below) | assistant lines, every other attachment, every other type |
+| Codex | a `response_item` with `payload.type == "message"` and `payload.role == "user"` whose content (a string, or its `input_text` and `text` blocks) has a non-blank text or an `input_image` block, unless the first text, with leading whitespace removed, starts with `<` and an ASCII letter or with `# AGENTS.md instructions`; its text is the string, or the text blocks that do not start (after leading whitespace) with `<`, joined with LF | injected user-role context (`<environment_context>`, `<heartbeat>`, `<subagent_notification>`, `<turn_aborted>`, the user's reply to the agent's question `<send_user_message_question_reply>`, AGENTS.md), `developer` and `system` messages, the `event_msg` `user_message` (older versions write it beside the item; the versions on this Mac since 2026-04 write none), mailbox input (4.2), tool outputs |
+| omp, Pi, OpenClaw | a `message` entry with `message.role == "user"` whose content is a non-blank string, or has a non-blank `text` block or an `image` block; its text is the string, or the `text` blocks joined with LF | `developer`, `toolResult`, `bashExecution` and the other roles; `compaction`, `branch_summary`, `custom_message` and every other entry |
+| Factory Droid | a `type == "message"` line with `message.role == "user"` and no `message.visibility` (absent or null: the user's own message) whose content has no `tool_result` block and has a non-blank text or an `image` block (rule 1 below, with `image` only); its text as rule 5 | tool results (the same role, with `tool_result` blocks), the per-turn context (`visibility: "llm_only"`, id `context-<turn id>`), notices and hook records (`user_only`), assistant messages and every other type (4.16). From public recordings; no Droid session was read on this machine |
+
+*Blank* and *trimmed* are as in 4.9. A Claude `type == "user"` line is classified by the first rule that matches:
+
+1. **Not a prompt**: `isMeta`, `isCompactSummary` or `isVisibleInTranscriptOnly` is `true` (injected skill and hook
+   text, compaction summaries); `message.content` is an array with a `tool_result` block (tool results, also with text
+   beside them); the content has no non-blank text (the string content, or the `text` blocks' texts) and no `image` or
+   `document` block.
+2. The *lead* is the string content, else the first `text` block's text, with leading whitespace removed. **Not a
+   prompt** when the lead starts with `[Request interrupted by user`, or with `<` and one of the tags
+   `local-command-caveat`, `bash-input`, `bash-stdout`, `bash-stderr`, `user-memory-input`, `system-reminder`,
+   `task-notification`, followed by `>`, `/`, whitespace or the end (local-command caveats, the `!` shell mode, `#`
+   memory input, injected reminders, background-task notifications).
+3. **Command output**: the lead starts with `<local-command-stdout` or `<local-command-stderr` (same tag rule).
+4. **Command**: the lead starts with `<command-name>` or `<command-message>` (a slash command or skill the user typed).
+5. Otherwise a **prompt**. Its text is the string content, or the `text` blocks whose text, with leading whitespace
+   removed, does not start with `<` (IDE selections and other tag blocks attached to the prompt), joined with LF.
+
+A message the user types while the agent works is not a `user` line: Claude Code stores it as a `type ==
+"attachment"` line whose `attachment.type` is `queued_command`. It is a **queued message**, a prompt, when
+`attachment.commandMode == "prompt"`, `attachment.humanTurn == true`, and neither the line's nor the attachment's
+`isMeta` is `true`; its content is `attachment.prompt` (a string or blocks), read like a `user` line's content (rule 1's
+test for text or an image or document, rule 5's text), so it can be a continuation. Its time is
+`attachment.timestamp` (when the user sent it) when that is a timestamp (3.1), else the line's own. Every other
+`queued_command` is not a prompt: background-task notices (`commandMode == "task-notification"`) and the hand-back
+messages of sub-agents (`isMeta`, text starting `<agent-message`). Checked against real Claude Code logs, counts and
+field names only (2026-10-28).
+
+**Withdrawal** (Claude, omp, Pi, OpenClaw, Factory Droid). A prompt or command takes effect as soon as its line is
+read, so the new
+task shows at once. It is *withdrawn* — as if the line were not there, and the previous task stays current — when:
+
+- the first assistant line (Claude) or assistant `message` entry (omp, Pi, OpenClaw, Factory Droid) after it is ignored
+  because its key was first seen in another file (4.1 step 2, 4.7 step 2, 4.16 *Calls*): the prompt was copied with
+  its conversation (a forked Claude or Droid session, omp's byte copies of sub-agent transcripts);
+- for a command only: a command output line comes before any assistant line that is not ignored. The command never
+  asked the model anything (`/model`, `/cost`, `/compact`, …).
+
+Only the first assistant line after the prompt decides; lines skipped as `<synthetic>` (4.1 step 1) do not count. A
+command is never a continuation. Codex needs neither rule: 3.5 removes its copies, and its commands are not user
+messages. Cases: `promptLines` (one line each) and `segmentation` (withdrawal over classified lines).
+
+**Continuation.** The prompt's text is normalised: Unicode NFKC; trimmed; trailing characters among `.` `!` `~` `,` `。`
+`、` and whitespace removed until none is left; ASCII `A`–`Z` lower-cased; every run of whitespace replaced by one
+space. It is a continuation when the result is one of:
+
+- `continue`, `continue please`, `please continue`, `go on`, `keep going`, `proceed`, `please proceed`, `carry on`,
+  `go ahead`, `resume`, `ok`, `okay`, `ok continue`, `ok go ahead`, `yes`, `y`, `yep`, `yes please`, `sure`, `do it`,
+  `lgtm`;
+- `繼續`, `繼續吧`, `請繼續`, `繼續做`, `接著做`, `好`, `好的`, `好啊`, `可以`, `嗯`, `是`, `對`, `行`, `沒問題`;
+- `继续`, `继续吧`, `请继续`, `继续做`, `接着做`, `对`, `没问题`;
+- `続けて`, `続けてください`, `続行`, `進めて`, `進めてください`, `はい`, `お願いします`, `うん`, `いいよ`, `どうぞ`.
+
+So `Continue.`, `ＯＫ!`, `繼續。` and `go ahead…` continue (NFKC turns `…` into `...`), while `continue?`, `next` and
+`continue with the tests` start a new task. The plan says "case-folded": only ASCII letters are folded, because every
+entry is ASCII or CJK (after NFKC, which also maps full-width letters to ASCII), so full Unicode case folding could
+change no result and would differ between platforms. The text is compared in memory and never kept. Cases:
+`continuations`.
+
+A message the user sends while the agent works (steering: a Claude queued message, a Codex user message item) starts
+a new task unless it is in the list. A correction typed mid-task therefore splits the task: an approximation. The Codex
+rule was first written from format knowledge (the `event_msg` `user_message`) and changed after the end-to-end check
+on real logs (2026-10-28): no rollout on this Mac since 2026-04 has that event, so every Codex file read as one task;
+the item rule was checked against the same logs by counts and leading markers only.
+
+#### Event stream
+
+The model's input per agent is a stream of prompts and *actions* (6.10) in file order, a message's tool calls in
+content order. It is the contract with the parsers: `spec/TASK-PARSERS.md` defines the functions named below, whose
+outputs arrive here already parsed; their inputs are never kept.
+
+```
+{t, type: "prompt", continuation}
+{t, type: "action", kind, tool, digest, command?, outcome?, failures?, hunks?}
+```
+
+| Field | Value |
+| --- | --- |
+| `t` | the time of the line that holds the prompt or the call (Unix ms); a queued Claude message's own time (*Tasks*) |
+| `continuation` | *Continuation*, above |
+| `kind` | `action_kind(source, tool, input, cwd)`: `read`, `search`, `edit`, `command`, `delegate`, `web` or `other` |
+| `tool`, `digest` | as 6.10 |
+| `command` | `kind == "command"` with command text (TASK-PARSERS 3.1) only: the fields `class` (`test`, `build`, `check` or `other`), `suite`, `targeted` and `key` of `command_info(text, cwd)` |
+| `outcome` | once the result is read: `outcome(source, result, t, tool, input, cwd)` = `{exitCode, failed, t}` (`failed` true, false or null; `t` the time of the result line) |
+| `failures` | with the outcome of an action that has `command`: `failures(info, result_text(source, result), cwd, outcome.failed)` = `{fingerprints, failedCount, passedCount, framework}` |
+| `hunks` | `kind == "edit"` only: `edit_hunks(source, tool, input, cwd)` = `[{file, old, new}]`, 16-hex digests; `old` is null for a whole-file write, whose `new` is the digest of the whole content |
+
+`cwd` is the agent's working directory when the call's line was read (*Composing the stream*, below): every function of
+one action, also those applied when its result arrives, receives that same value.
+
+- Results match their call by id (*Composing the stream*); a result for an unknown call is ignored.
+- Seeded lines (5) add events, unlike the signals' action list (6.10), so the current task is rebuilt from the file
+  after a relaunch. Copied lines (3.5, 4.7) and assistant lines ignored as duplicates (4.1 step 2, 4.7 step 2) add
+  none.
+- An evaluation at `nowMs` (the fixture queries) uses the events with `t ≤ nowMs`, and treats an outcome (with its
+  failures) whose `t` is after `nowMs` as not read yet. The live engine evaluates everything it has read; it may keep
+  incremental state for each agent's current task instead of evaluating the task again, as long as every value equals
+  these definitions.
+
+#### Composing the stream
+
+The *composer* turns one agent's lines into the event stream. It reads every line right after the source's parser (4)
+has read it and takes the parser's decisions as they are: a line the parser skips as copied history (3.5, 4.7) or for
+want of a usable time adds nothing, and an assistant line or entry the parser ignores because its key was first seen in
+another file (4.1 step 2, 4.7 step 2) is a **duplicate**. `spec/tools/task_events.py` implements it;
+`spec/fixtures/task-e2e-expected.json` checks it end to end (below).
+
+| Source | Line time `t` | `cwd` | Prompts | Calls | Results |
+| --- | --- | --- | --- | --- | --- |
+| Claude (both) | the line's `timestamp` (3.1); a line without one adds nothing | a non-blank string `cwd` of the line, taken before the line's own calls; the latest wins | `user` lines classified *prompt*, *command* or *command output*, and queued messages (*Tasks*) | blocks `tool_use` (`id`, `name`, `input`) of an `assistant` line that is not `<synthetic>` (4.1 step 1) and not a duplicate | blocks `tool_result` of a `user` line, by `tool_use_id`; the result is the block |
+| Codex | the envelope's `timestamp`; lines that 3.5 removes add nothing | the first `session_meta`'s `payload.cwd`, then every `turn_context`'s `payload.cwd` (non-blank strings) | `response_item` user messages (*Tasks*) | `response_item` / `function_call` (`call_id`, `name`, `arguments`) and `custom_tool_call` (`call_id`, `name`, `input`); a code-mode script gives its tool calls instead (below) | `response_item` / `function_call_output` and `custom_tool_call_output`, by `call_id`; the result is the payload |
+| omp, Pi, OpenClaw | the entry's `timestamp`; entries that 4.7 ignores (before the header, without a string `id` or a time, copied history) add nothing | the header's `cwd` (a non-blank string) | `message` entries of role `user` (*Tasks*) | blocks `toolCall` (`id`, `name`, `arguments`) of an assistant `message` that passes 4.7 step 1, is not a duplicate and, for OpenClaw, is not a mirror (4.14) | `message` entries of role `toolResult`, by `toolCallId`; the result is the message |
+| Factory Droid | the line's `timestamp`; a line without one (`agent_turn_outcome`) adds nothing | the first `session_start`'s `cwd` (a non-blank string) | user `message` lines (*Tasks*) | blocks `tool_use` (`id`, `name`, `input`) of an assistant `message` line whose `id` is a non-empty string and whose key `droid:<id>` is not a duplicate (4.16 *Calls*) | blocks `tool_result` of a user `message` line, by `tool_use_id`; the result is the block |
+
+*Non-blank* is as in 4.9; the `cwd` is passed to the parsers as stored (TASK-PARSERS normalises it).
+
+**Prompts.** Prompt, command and command-output lines and the assistant lines with their duplicate flag go through the
+withdrawal of *Tasks* in line order: a prompt or command adds its prompt event at once and is removed again when the
+first assistant line after it is a duplicate, or, for a command, when a command output comes first. The assistant lines
+that decide are, for Claude, every `assistant` line with a time except `<synthetic>` ones, for Factory Droid every
+assistant `message` line with a time and a non-empty string `id`, and for omp, Pi and OpenClaw
+every assistant `message` that passes 4.7 step 1 (an OpenClaw mirror decides like any other). Codex has no withdrawal.
+
+**Calls.** A call needs a string id and a string tool name; an id the agent's file already had is a repeat and adds
+nothing (a Claude message's lines can repeat its blocks). The action takes the call line's `t` and `cwd`, and:
+
+- `kind` and `digest` (6.10: an object or array input hashes as the JSON text exactly as the line stores it, a string
+  input as its text, an absent or null input as empty text);
+- `command` when the kind is `command` and the tool has command text (TASK-PARSERS 3.1): `command_info(text, cwd)`'s
+  four fields; its `masked` and `background` stay in memory for the outcome. A shell command that only reads or searches
+  has kind `read` or `search` and no `command`; a shell call without readable text has kind `command` and no `command`;
+- `hunks` when the kind is `edit`.
+
+The call's input is held in memory until its result arrives, then released.
+
+**Codex code mode** (TASK-PARSERS 4.4). Recent Codex versions run most tools from a JavaScript cell: a
+`custom_tool_call` named `exec` whose script calls `tools.exec_command(…)`, `tools.write_stdin(…)`,
+`tools.apply_patch(…)` and so on (on this Mac, 84 760 such calls since 2026-07, against a few thousand direct ones).
+When `code_script(source, tool, input)` gives calls, the script adds no action of its own: each of its calls becomes an
+action in source order, with the script line's `t` and `cwd`, its own tool name and input, and the digest of its source
+text (in place of the 6.10 digest of the whole script). When the script's result arrives, the printing statements of
+a plain script take the items of `code_items(source, result)` in order — each item read as its call's result above —
+provided the counts match; every other call of the script gets no result. The 6.10 work
+signals keep one action per script (they never look inside the input).
+
+**Results.** A result belongs to the call with its id anywhere in the agent's stream (a result read after a new prompt
+still completes the earlier task's action). Only the first result of a call counts; later ones, and results whose id
+names no call, are ignored. The action's `outcome` is `outcome(source, result, t, tool, input, cwd)` with the result
+line's `t` and the call's tool, input and `cwd`. An action with `command` also gets
+`failures(info, result_text(source, result), cwd, outcome.failed)`, except while the result leaves a session running.
+
+**Sessions** (TASK-PARSERS 4.3). Codex's unified exec returns after about 10 seconds while a slow command keeps running,
+and the command's outcome arrives in the results of later `write_stdin` calls; a Claude background `Bash` ends with a
+task notice (`queued_command` in `task-notification` mode) that states its exit code, or is read with `BashOutput` /
+`TaskOutput` in older versions. Without stitching them back, a slow test suite would never count as a run, and Codex
+would score below Claude Code for the same work. The composer keeps, per agent, a map from session key to the action
+whose result left that session running:
+
+1. When a call that is not itself a continuation gets a result with `running_session(source, result) = K`, its action
+   keeps that result's outcome (state running: `exitCode` and `failed` null) and no `failures` yet, and K maps to the
+   action, its command's `masked` flag and its output so far (the result's `result_text`). A later such result for the
+   same K replaces the entry.
+2. A call with `continuation(source, tool, input) = K` is an action of its own (kind `other`, its own outcome). When
+   its result arrives and K is mapped, the result's `result_text` is appended to K's output (Codex parts concatenated
+   as they are, being slices of one stream; Claude parts joined with LF).
+   When that result's own outcome has a non-null `exitCode` and a non-null `failed` (finished with an exit code), the
+   mapped action's outcome becomes `{exitCode, failed, t}` of it — with `failed` null when the mapped command is
+   `masked`, since the exit code is then the pipeline's — its `failures` (when it has `command`) are computed over the
+   whole output, and K leaves the map.
+3. A Claude line for which `notification(source, line)` gives `{session: K, exitCode: N}`, when K is mapped, ends it
+   the same way with the outcome `{exitCode: N, failed: N ≠ 0, t}` (`failed` null when `masked`), `t` being
+   `attachment.timestamp` when it is a timestamp (3.1), else the line's; the notice carries no output, so the failures
+   are computed over the output held so far.
+4. A session that never reports an exit code leaves the action without a result (not a run, *Runs*). Its output is
+   held in memory only, until then.
+
+The stitched outcome keeps the action where the call was: a test started before an edit verifies the code before it,
+whenever it finishes. An evaluation at `nowMs` sees it from the continuation result's `t` on.
+
+**Reading from an offset, copies and sub-agents.**
+
+- Seeded lines are composed like live ones (6.4's `responseCompleted` and `newPeak` are a different thing and never
+  fire while seeding). A file read from an offset (5) composes from that offset, after the header that omp and Pi read
+  first (its `cwd` counts); its events before the first prompt form a task of their own (*Tasks*).
+- Copied history adds nothing: Codex lines that 3.5 removes, and omp, Pi and OpenClaw entries before `headerMs − 2000`.
+  Claude and Factory Droid copies (forks, resumes) are found by deduplication: their assistant lines are duplicates (no
+  actions, and the prompt before them is withdrawn), and their tool results match no call. omp's byte copies of sub-agent transcripts are
+  duplicates the same way.
+- Every agent has its own stream: a Claude `subagents/*.jsonl` file, a Codex sub-agent rollout, an omp or Pi nested
+  file, an OpenClaw spawned window, a Factory Droid Task worker (its own session file, with `callingSessionId`; its
+  `callingToolUseId` names the parent's `Task` call, which is the parent's `delegate` action). The request its parent gave it is its first prompt (a Claude `user` line, a Codex
+  `user_message`, a user message of the Pi family); a request that arrives otherwise (a Codex mailbox message, 4.2)
+  leaves its first events to a task before the first prompt.
+- An OpenClaw delegated window's mirrors add no actions (the runtime that ran the turn records the tools in its own
+  log, scored there when Agent Speed reads it); its prompts still start tasks, so its value is none.
+
+**Model and effort.** After every line with a time that adds or could add something (above), the composer notes
+`(t, model, effort)`: the agent's model (4) and the mode of its current effort attribution (EXECUTION-MODES), null when
+unknown. 6.11 *Task records* takes the last note whose `t` is at most the task's `endMs`, in line order. A note equal
+to the previous kept one, with a `t` not earlier than its, may be dropped: the choice stays the same.
+
+**Privacy.** Held in memory only: a call's input until its result, a running session's output until its exit code, the
+`cwd`. Prompt texts are compared with the continuation list and dropped. The stream keeps what the table of *Event
+stream* lists.
+
+**End to end.** `spec/fixtures/tasks/` holds hand-written sessions of every scored source (`spec/tools/task_e2e_fixtures.py`
+writes them for `generate_fixtures.py`, with expectations written by hand) and `spec/fixtures/task-e2e-expected.json`
+the expected result of reading them in its `order` with one dedupe set (3.4): per agent its event stream, its value
+at `nowMs` (form, score, state, dimensions, facts, predictions with the source's coefficients) and its records (6.11,
+`analysisMs`), then the sets and board groups (*Values*), the calibration and the comparison. `reference.py
+--check-fixtures` checks it and `reference.py --write-task-fixture` regenerates it after checking the hand
+expectations. Ports read the files with their own parsers and composer and must match every value (numbers within
+10⁻⁹, calibration within 10⁻⁶).
+
+**Dumps** (parity on real logs). `reference.py --dump-today` ends with one `task` row per seeded agent of a scored
+source — `agentId`, `source`, `phase` (after staleness), `lastLineMs`, `parentId`, `taskStartMs`, `form`, `score`,
+`shown`, `state`, the dimensions and facts of `task_result`, `predictions` (the prior coefficients: the dump analyses no
+history) and the model flags — and one `taskSets` row (the agents list, the all-sources set, one set per scored source
+with listed agents, the board groups), evaluated at `--now MS` or the capture time (`summary.nowMs`).
+`reference.py --dump-tasks` prints a `record` row per task record of every log read whole (Codex archives included),
+a `calibration` row per source and a `comparison` row (`--first` / `--last`, default every day; `--source`; `--utc`).
+`spec/tools/compare_dumps.py` compares these rows whenever both dumps have them, skipping agents still being written.
+
+#### Runs, checks and edits
+
+**Weights.** `w = 0` for `other` (todo lists, plans, questions to the user: neither evidence nor waste), `w = 2` for a
+command of class `test`, `build` or `check`, `w = 1` for every other action. *Counted* actions have `w > 0`; `n` is
+their number.
+
+**Runs.** A command of class `test`, `build` or `check` is a *run* once its result is known:
+
+- **fail** when `outcome.failed` is true or `failures.failedCount > 0` (an exit code 0 with reported failures, such as
+  `cargo test | tail`, still fails);
+- **pass** otherwise, when `outcome.failed` is false, or when `failedCount == 0` and `passedCount` is not 0 (a
+  summary that reports no failure: tests that passed, or a checker or build, which counts no passes — unless it says
+  that nothing ran);
+- otherwise (no outcome yet, or `failed` null — backgrounded, interrupted or still running, or masked by a pipe or a
+  list without a status the output states, TASK-PARSERS 3.10 — without counts) it is not a run, only a counted
+  action. A masked command whose output prints its own exit code (`; echo $?` after a command that owns its status,
+  `${PIPESTATUS[0]}`, `&& echo ok || echo fail`, `|| echo "failed $?"`) gets that status, and a build or check piped
+  into a grep for error lines that printed nothing passes (user's decision, 2026-10-28).
+
+The error count of a run is `F = 0` for a pass and `max(1, |fingerprints|, failedCount)` for a fail (a null count is 0).
+
+**Checks.** A run belongs to the check `suite:<suite>` when it is not targeted and its `suite` is known, else to
+`key:<key>`. So full runs of one runner share a check whatever their flags, and every targeted command is a check of its
+own: a narrowed run never makes the full suite look converged. The *sequence* of a check is its runs in order; a targeted
+check whose suite is known also gets every **passing** non-targeted run of that suite after its own first run (a full
+pass proves the targeted part too; a failing full run says nothing about it).
+
+**Episodes.** Per check, over its sequence: a fail whose predecessor is a pass, or that has none, opens an episode; the
+fails after it join; the next pass closes it (*recovered*). Its *attempts* are its number of fails.
+
+**Effective edits.** An `edit` action is *effective* when its outcome is not `failed: true` (an unread outcome counts as
+not failed) and it changes something. The task keeps, per file digest, the contents of its whole-file writes, the file's
+latest known content, and two sets of hunk texts, *current* and *superseded*. The hunks are applied in order:
+
+- whole-file (`old` null): no change when `new` equals the latest known content. Otherwise it changes the file; it
+  *oscillates* when `new` is one of the file's earlier written contents; then `new` is added to the written contents,
+  becomes the latest known content, and both hunk sets are cleared (a rewrite replaces every region);
+- a hunk: no change when `old == new`. Otherwise it changes the file; it *oscillates* when `old` is a current text and
+  `new` a superseded one (an exact revert, or `A → B → C → A`); then `old` moves to the superseded texts, `new` becomes
+  current, and the latest known content becomes unknown.
+
+An edit is effective when one of its hunks changed something, and *oscillating* when it is effective and one of its
+hunks oscillated. An edit without hunks (an input the parser could not split) is effective and does not oscillate.
+Edits made by shell commands other than `apply_patch` (`sed -i`, formatters, `git checkout`) are not edits: a known
+approximation.
+
+**Blocks.** Effective edits split a task's runs into blocks: block `m` holds the runs after the `m`-th effective edit and
+before the next one (block 0 the runs before the first). The **current block** is the runs after the last effective
+edit (every run when there is none). A block *fails* when some check with a run in the block has a fail as the last of
+its sequence's elements that lie in the block.
+
+#### States
+
+| State | When |
+| --- | --- |
+| `none` | no effective edit and no run |
+| `unverified` | effective edits, no run |
+| `passing` | the current block is not empty and does not fail |
+| `failing` | the current block fails; or it is empty and the latest non-empty block fails (failed, then edited: the fix is not proven yet) |
+| `pending` | the current block is empty and the latest non-empty block does not fail (passed, then edited: the credit waits for a re-run) |
+
+The plan names the first, second and last states only by example; *failed, then edited* stays `failing` because there
+is no earlier pass whose credit could be pending.
+
+#### Dimensions
+
+| Dimension | Max | Value |
+| --- | ---: | --- |
+| V 驗證成功 verification success | 40 | `passing` with a passing test run in the current block: 40; `passing` with build and check runs only: 20; any other state: 0 |
+| C 錯誤收斂 error convergence | 25 | below |
+| R 錯誤恢復 error recovery | 15 | below |
+| E 行為效率 behaviour efficiency | 10 | below |
+| K 驗證完整性 verification completeness | 10 | below |
+
+**C.** No run: 0. Otherwise, for every check `j` whose peak `F_peak = max F` over its sequence is above 0:
+
+`c_j = max(0, 1 − (F_last + N_new) / F_peak)`
+
+where `F_last` is the `F` of the sequence's last element and `N_new` (0 when that element passes) is the number of its
+fingerprints found in no element of the sequence up to and including the first one with `F = F_peak`.
+`C = 25 × Σ F_peak·c_j / Σ F_peak`; `C = 25` when runs exist and no check ever failed. Checks weigh by their peak, so a
+check that went from 40 failures to 2 counts more than a one-off flaky failure. `N_new` is the regression penalty of the
+plan: a fingerprint that appears after the peak (fix three, break one new) counts twice, once in `F_last` and once as
+new.
+
+**R.** With episodes: `R = 15 × mean q` over every episode of every check, with `q = 2 / (attempts + 1)` for a recovered
+episode (1, 2/3, 1/2, 2/5, … for 1, 2, 3, 4 attempts) and `q = 0` for an open one. Without episodes: 15 when some run
+passed, else 0.
+
+**E.** From four parts over the task's counted actions:
+
+- *New evidence* `ΔI` of each counted action, in order:
+  - an edit: 1 when effective and not oscillating, else 0;
+  - a run: 1 when no earlier run of the task has its `key`, or an effective edit came after the latest earlier run with
+    that key, or its *signature* (result, sorted fingerprints, `failedCount`) differs from that run's; else 0 (the same
+    check again on unchanged code);
+  - any other counted action, a test, build or check command without a result included: 1 when no earlier such action
+    has its `(tool, digest)`, or an effective edit came after the latest one; else 0 (re-reading after an edit is new).
+- *Information gain* `IG = Σ w·ΔI / Σ w` (0 when `n = 0`).
+- *Loop share* `L` = marked actions ÷ `n`: wherever a block of 1, 2 or 3 consecutive `(tool, digest)` pairs repeats at
+  least 3 times back to back (6.10's *Looping* and *Repeating*, at every position, with or without a failure), the
+  repeats after the block's first occurrence are marked.
+- *Oscillation share* `O` = oscillating effective edits ÷ effective edits (0 without any).
+
+`E = 10 × min(1, n / 8) × IG × (1 − L) × (1 − O)`: it ramps in over the first 8 counted actions, so it climbs from 0.
+The plan divides by the number of tool calls; dividing by `Σ w` instead keeps `other` tools out of both sides, so a todo
+list neither adds evidence nor dilutes it, and runs weigh double because they are the strongest evidence and the
+costliest repeats. Loops are found among counted actions only, so a todo update between identical runs does not hide the
+loop.
+
+**K.** Over the current block: +4 when it has a build or check run, or a passing test run; +4 when it has a test run;
++2 when it has a passing non-targeted test run with no failing test run after it. Two deviations from the plan, argued:
+a passing test run also earns the build credit, because runners such as `cargo test`, `swift test`, `go test` and
+`dotnet test` build first and an interpreted suite has no build step; and the +2 goes to "the full suite passed last"
+rather than only "after a targeted fix", so a task that ran the full suite from the start is not capped at 98.
+
+Cases: `tasks` (one per dimension and edge case: none, unverified, ideal, convergence and recovery, pending, regression
+and its penalty, loops, oscillation, whole-file writes, failed edits, build-only, pending after a build-only pass, a
+failure without counts, verification without edits, targeted then full, continuation, a check beside a failing test,
+failed then edited, unknown outcomes, piped failures, stall, `other` tools).
+
+#### Score
+
+`score = V + C + R + E + K`, from 0 to 100; **none** when the state is `none`. It is shown rounded half away from
+zero, an integer of at most three digits; fixtures compare unrounded values within 10⁻⁹.
+
+It changes only when an event is read, never with time alone. It rises with progress and drops only when:
+
+1. a run fails: a check that passed fails again, a check fails on its first run, or a failing check's errors grow
+   (V, C and R fall, and K loses what the failing run no longer earns) — the work turned out not to be verified;
+2. an effective edit follows a run: V and K start over until a check runs again (`pending`, or `failing` after a failed
+   run);
+3. behaviour gets worse: the share of actions that repeat without new evidence, loop or undo earlier edits grows (E, at
+   most 10 points). The plan's "drops only when" lists the first two; the third follows from its own definition of E
+   ("loops, repeats and edit oscillation lower it") and is bounded by E's 10 points.
+
+A task that never runs a check scores at most 10 (E alone), within the plan's "roughly ≤ 25". A new prompt starts a new
+task, so the agent's value starts over; the finished task keeps its final score (6.11 records it).
+
+#### Task facts
+
+Besides its state, score and dimensions, a task gives the score card (DESIGN 12) these facts, from the same evaluation:
+
+| Fact | Value |
+| --- | --- |
+| `vHeld` | `pending` only: the V of the latest non-empty block (40 when it has a passing test run, else 20) — the credit a passing re-run restores; null in every other state |
+| `openFailure` | `failing` only: the *open failure*, the newest failing run that is still the last element of its check's sequence (in state `failing` there always is one): its `suite` (null when unknown), `class` and `key`; `errors`, its `F`; `peak`, its check's `F_peak`; `counted`, true when `F` comes from fingerprints or a `failedCount` above 0 rather than the minimum of 1; `edited`, true when an effective edit followed it. Null in every other state |
+| `lastPass` | `passing` and `pending` only: the last run of the current block (`passing`) or of the latest non-empty block (`pending`) — it passes, since that block does not fail: its `suite`, `class` and `key`; `buildOnly`, true when that block has no passing test run (V, or `vHeld`, is 20). Null in every other state |
+| `oscillations` | the task's oscillating effective edits (the numerator of `O`; also a record count, 6.11) |
+
+`IG`, `L` and `O` (*Dimensions*) and the counts of 6.11 *Task records* are facts too. A `suite` names a check for
+display; a `key` is a digest and only tells checks apart. Cases: the `tasks` queries carry every fact.
+
+#### Values
+
+**Agent.** Evaluated on every engine tick (500 ms) with the agents list (6.7) and that tick's phases (after the
+staleness rule). Exactly one form:
+
+- **live**: the agent is not `idle` and its current task has a score: that score;
+- **resting**: the agent is `idle` and its current task has a score: that score, the task's final one until a
+  continuation reopens it (shown pale, DESIGN);
+- **none**: no current task, or one without a score (a task that has only read so far shows none until it edits or
+  runs a check).
+
+**Sets and groups: the highest score** (user's decision, 2026-10-28: "every agent session has its own 智力; pick the
+highest one and show it"). For a set of agents — all enabled sources (menu bar or taskbar block), an orb's or a board's
+set `A` (the agents list filtered by 6.8: the orb readout, the board hero), or a board group (a root and its descendants
+in the board's agents list, DESIGN 2c):
+
+- **live** when some agent of the set is live: the highest live score;
+- else **resting** when some agent is resting: the highest resting score (shown pale);
+- else **none**.
+
+Tokens do not weigh: an agent that writes far more but scores lower does not pull the value down. The value names the
+agent that supplied it (for tooltips): among the agents with that exact score in that form, the one with the latest
+`lastLineMs`, then the smallest id (ordinal). A sub row shows its sub-agent's own value. Values never drive heat, tiers,
+titles or peaks; live reporting sends them only through its `taskScore` extension (11.10). Cases: `values`.
+
+#### Privacy
+
+User-approved (2026-10-28). The parsers of TASK-PARSERS read a tool call's input (command text, edit input) and its
+result's output in memory, while the line is parsed; the engine keeps, for each agent's current task only, what the
+event stream lists: classes, flags, suite names (a fixed vocabulary), 16-hex digests, counts, exit codes and times. Prompt texts are compared with the
+continuation list in memory. No text, path, command line, output, fingerprint source text or prompt is ever stored,
+displayed, logged or reported; the history store keeps only the records of 6.11. Live reporting sends numbers only, and
+only through its `taskScore` extension with the `models` section (11.10, user's decision 2026-10-29): the highest
+score and its form, the thinking speed, and per model and source the counts of tasks that completed while reporting was
+on — never a digest, suite name, key, time or record of a task. Every other source keeps its own exclusions (4.9
+WorkBuddy, 4.15 Hermes Agent, …): sources without a score are read exactly as before.
+
+#### Live thinking
+
+The `思考` line next to 智力 (DESIGN 10) is unchanged by the task score: the reasoning tokens generating right now.
+`spec/tools/live_thinking.py` implements it; the `thinking` cases of `spec/fixtures/task-score-cases.json` check it
+(the values of the retired intelligence cases, carried over unchanged).
+
+**Window sums**, with the window, intervals and estimates of 6.3, over the responses and agents of a set (all enabled
+sources, or an orb's `A`, 6.8):
+
+| Contribution | Weight `w` (output tokens) | Reasoning `ρ` |
+| --- | --- | --- |
+| measured response | `output × f`, `f = overlap / (end − start')` as 6.3 | `min(reasoning, output) × f` |
+| unmeasured response (6.3) | `estimatedSpeed × secs` | `w × share_ref` |
+| in-flight agent (6.3) | `estimatedSpeed × secs` | `w × share_ref` |
+
+`share_ref` is Σ `min(reasoning, output)` ÷ Σ `output` over the agent's reference set (the set 6.2 used for
+`estimatedSpeed`, as 9.5 uses it for `costRate`), 0 when that output is 0. A source that does not record reasoning
+apart from output (DeepSeek Harness, 4.3) adds its `w` but nothing to the reasoning share: its weight is left out of
+`w'`.
+
+- `liveThinking = Σ ρ / (W / 1000)` tok/s (formatted as 7).
+- `thinkingShare = Σ ρ / Σ w'`, where `w'` is the weight of sources that record reasoning; 0 when `Σ w' = 0`.
+
+Every sum is additive over sources, so an orb adds the per-source sums of its `A` (6.8). *Agent sums* are the same sums
+restricted to the contributions of agent `a` — its own measured and unmeasured responses (`agentId` = `a`) and its own
+in-flight estimate; `estimatedSpeed` and `share_ref` are exactly those of the all-sources sums (the reference set may
+hold other agents' responses, 6.2). A sub-agent is an agent of its own. The sums of all agents add up to the set's, and
+a board group's sums add its members' (never an average of their values): `liveThinking_a`, `thinkingShare_a`,
+`liveThinking_G` and `thinkingShare_G` follow. The `thinking` cases also give each set's, agent's and group's `Σ w`
+(`weight`), the tokens generating in the window; the score no longer uses it.
+
+*Model sums* (for live reporting, 11.10) are the same sums restricted to one model: a measured or unmeasured response
+counts for its own model, an in-flight estimate for its agent's current model, with `estimatedSpeed` and `share_ref`
+exactly those of the all-sources sums. The sums of all models add up to the set's. Cases: `modelWindows` (keyed by the
+raw model, the empty string when unknown; reporting adds the raw models that resolve to one id, 11.3).
+
+### 6.10 Work signals
+
+Per agent, from the tool calls in its own file: whether it is going in circles, and whether its recent actions keep
+finding something new. Signals appear on the agent's row and tooltip (DESIGN 4); the task score (6.9) builds on the same
+actions and on the same loop detection. `spec/tools/work_signals.py` implements the signals and checks
+`spec/fixtures/work-signal-cases.json`.
+
+**Actions.** A parser turns every tool call into an action `(time, tool, digest)` and every tool result into an
+outcome `(time, failed)`, matched by call id:
+
+| Source | Call | `tool`, `digest` input | Result | `failed` |
+| --- | --- | --- | --- | --- |
+| Claude (both) | assistant `message.content[]` block `tool_use` (each `id` once per file: a message's lines repeat it) | `name`; `input` | user block `tool_result` with that `tool_use_id` | `is_error == true` |
+| Codex | `response_item` `function_call` / `custom_tool_call` | `name`; `arguments` / `input` | `…_output` with that `call_id` | the output's leading JSON object (in the first `input_text` item when `output` is an array) has an integer `exit_code` ≠ 0 |
+| omp, Pi, OpenClaw | assistant `toolCall` block | `name`; `arguments` | `toolResult` with that `toolCallId` | `isError == true` |
+| Factory Droid | assistant `message` line, `message.content[]` block `tool_use` (each `id` once per file) | `name`; `input` | user `message` line, block `tool_result` with that `tool_use_id` | `is_error == true` |
+| others | — (no actions; no signals) | | | |
+
+`digest` = the first 16 lowercase hex digits of SHA-256 over the call's input as the file stores it: the UTF-8 text of
+a string input (Codex `arguments` and `input` are strings), the raw JSON text of an object or array exactly as it
+appears in the line (Claude and Factory Droid `input`, omp and Pi `arguments`; OpenClaw: in the decoded entry). It is computed while the
+line is parsed. An assistant line or entry ignored because its key was first seen in another file (4.1 step 2, 4.7
+step 2) adds no actions, and its results match nothing.
+
+**Task fields.** For the task score, each action also carries what the functions of `spec/TASK-PARSERS.md` derive while
+the call and its result are parsed, with the agent's working directory: `kind` (`action_kind`), for a command `command`
+(`command_info`), with the result `outcome` (`outcome`) and for a command `failures` (`failures`, over the result's
+output text), for an edit `hunks` (`edit_hunks`) — the event stream of 6.9, composed as 6.9 *Composing the stream*
+says (including the late outcomes of commands that outlive their call). They are computed in memory from the call's input and the result's output
+(6.9 *Privacy*); only the fields listed there are kept. The signals below use only `tool`, `digest`, times and
+`failed` from the table above; `outcome.failed` refines the same fact for the score (null for a command that did not
+finish).
+
+**Storage.** For the signals only `tool`, `digest`, times and `failed` are kept, at most the last **64 actions** per
+agent. An outcome never read (no result yet, or a format that does not say) is `unknown`, which is not a failure. Copied
+history (3.5, 4.7) and seeding (6.4) add no actions to this list: it starts with the file's live lines. The task score
+keeps its own state for the agent's current task, seeded lines included (6.9 *Event stream*), and the history analysis
+(6.11) reads whole files.
+
+**Signals** of an agent at `nowMs`, over its actions within the last 10 minutes (`recent`):
+
+- **Looping**: the newest actions repeat the same block of 1, 2 or 3 consecutive `(tool, digest)` pairs at least 3
+  times in a row (the same call 3 times; `A B A B A B`; `A B C A B C A B C`), the newest action is less than 120 s
+  old, and at least one action of the repeated run failed. The count shown is the number of repeats (the largest over
+  the three block sizes). Shown as long as it holds.
+- **Repeating**: the same, with no failure in the repeated run (polling, waiting). Shown only in the tooltip.
+- **Novelty**: `distinct (tool, digest) in recent ÷ |recent|` when `|recent| ≥ 8`, else none. Shown in the tooltip
+  only, as a percentage.
+- **Recovered**: an action that failed was followed, within the next 5 actions and 10 minutes, by an action with the
+  same `tool` that did not fail. The counts of failed and recovered actions in `recent` are shown in the tooltip.
+
+A signal never changes phase, speed, totals or anything reported (11): it describes behaviour, not quality, and
+identical actions can be legitimate (a test re-run after an edit has the same digest when the command is the same). The
+score's behaviour efficiency (6.9 E) applies the same repeat detection to every position of the current task, and its
+new-evidence rule tells a re-run after an edit from a re-run on unchanged code.
+
+### 6.11 Task history, predictions and comparison
+
+Per-task records from the history analysis (8), the predictions shown with a live score, their calibration on those
+records, and the comparison of sources and models in the Usage History window (DESIGN). `spec/tools/task_score.py`
+implements this section with 6.9.
+
+#### Task records
+
+The history analysis (8) runs the rules of 6.9 over every whole file of a scored source (copied lines excluded, as 3.5
+and 4.7; seeding does not apply). Every task with at least one action gets a **record**; tasks without actions (a
+question answered without tools, an empty prompt) have none.
+
+| Field | Value |
+| --- | --- |
+| `ordinal` | the record's index among the agent's records, from 0 |
+| `startMs` | the task's first prompt, or its first event for the task before the first prompt |
+| `endMs` | the latest `t` of the task's events and of their outcomes |
+| `day` | the local date of `endMs`, as 8 |
+| `complete` | another task (with or without a record) follows in the agent, or `analysisMs − lastLineMs ≥ 30 min` (the agent's `lastLineMs`, 4) |
+| `source`, `model`, `effort` | the agent's source, and its model (4) and current effort (EXECUTION-MODES) after the last line whose time is at most `endMs`; null when unknown |
+| `state`, `score`, `V` … `K` | 6.9 over the whole task (`score` null when the state is `none`) |
+| counts | `actions`, `counted`, `edits` (effective), `oscillations`, `loopActions` (marked, 6.9 E), `runs`, `failingRuns`, `episodes`, `recovered`, `recoverAttempts` (Σ attempts of recovered episodes), `fixAttempts` (= failing runs), `fixFailures` |
+| `firstPassMs` | the earliest outcome `t` of a passing run; null when none passed |
+| `success` | the final state is `passing` |
+| `stalled` | the task has a *stall*: a window of 8 consecutive counted actions whose `Σ w·ΔI ≤ 0.25 × Σ w` (6.9 E) |
+| `snapshots` | rows for the success and stall models (below) |
+| `fixRows` | rows for the fix model (below) |
+
+**Labels.** `success` labels every snapshot of the task. The stall label of the snapshot at `n` is 1 when a stall
+window ends at a counted index above `n` (the task stalls after that point). The fix label of a failing run is 1 when
+the next element of its check's sequence fails, or when there is none (the failure was never fixed in the task), and 0
+when it passes; `fixFailures` is the number of 1 labels.
+
+**Snapshots.** For every `n` in 1, 2, 4, 8, …, 512 up to the task's counted actions: 6.9 evaluated over the task's
+events up to and including its `n`-th counted action (all outcomes known); kept when that state is not `none`, as
+`[n, passing, failing, conv, ig, loop, osc, size, yStall]` (*Features*, below). **Fix rows**: for every failing run,
+6.9 evaluated up to and including that run, as `[attempts, errors, trend, osc, ig, yFix]`. Powers of two keep rows from
+every stage of short and long tasks at a bounded cost.
+
+**Store.** The side table `task_records` of the history database (8):
+
+```
+task_records(file_id INTEGER NOT NULL, ordinal INTEGER NOT NULL, source TEXT NOT NULL, model TEXT, effort TEXT,
+             start_ms INTEGER NOT NULL, end_ms INTEGER NOT NULL, day TEXT NOT NULL, complete INTEGER NOT NULL,
+             state TEXT NOT NULL, score REAL, v REAL NOT NULL, c REAL NOT NULL, r REAL NOT NULL, e REAL NOT NULL,
+             k REAL NOT NULL, counts TEXT NOT NULL, first_pass_ms INTEGER, success INTEGER NOT NULL,
+             stalled INTEGER NOT NULL, snapshots TEXT NOT NULL, fix_rows TEXT NOT NULL, version INTEGER NOT NULL,
+             PRIMARY KEY (file_id, ordinal)) WITHOUT ROWID
+```
+
+- `file_id` is the `files` entry that holds the agent's contributions (a log file; an OpenClaw transcript window).
+  `counts` is a JSON object of the counts above; `snapshots` and `fix_rows` are JSON arrays of the rows above (numbers
+  only); `version` is the analysis version that wrote the row (the file's `files.version`).
+- Created if missing every time the database is opened, like `contribution_unpriced` (9.10): `user_version` does not
+  change, and older builds ignore the table.
+- **Writes**: whenever a file's contributions are saved, the same transaction deletes the file's records and inserts
+  its new ones. A file whose records include an incomplete task is analysed again, even unchanged, on the first run
+  (8: launch, every 10 minutes) at least 30 minutes after its modification time, so its last task completes.
+- **Reading**: only rows whose `version` equals the file's `files.version` count (an older build that re-analyses a
+  file leaves stale rows). Records of files whose logs are gone stay, like their contributions. "Clear history" deletes
+  the table with the store.
+- No content: no prompt, text, path, command, output or digest is stored — only the fields above; `model` and
+  `effort` are the ids as logged, like the per-model rows of the history (8).
+
+Adding the records raised the history analysis version to **8** (8), so every log that still exists is analysed again
+and the comparison and calibration have a baseline from the first launch. Cases: `records`. Records are never reported;
+live reporting counts the tasks that complete while it is on with the same fields (11.10).
+
+#### Features
+
+Computed from a 6.9 evaluation (a snapshot, a fix row, or the live current task), with fixed scaling so that no
+statistic of the data enters a feature:
+
+| Feature | Value |
+| --- | --- |
+| `passing`, `failing` | 1 when the state is that, else 0 (`unverified` and `pending` are the base) |
+| `conv` | `C / 25` |
+| `ig`, `loop`, `osc` | `IG`, `L`, `O` (6.9 E) |
+| `size` | `min(1, log2(1 + n) / 9)` (1 from 511 counted actions) |
+| `attempts` | `min(1, (a − 1) / 4)`, `a` = the failing run's position in its episode (1 for the first fail) |
+| `errors` | `min(1, log2(1 + F) / 8)`, `F` of the failing run |
+| `trend` | `F / F_peak`, over the check's sequence up to that run (1 when it is the worst so far) |
+
+#### Predictions
+
+Three logistic models, `P = σ(β₀ + Σ βᵢ·xᵢ)` with `σ(η) = 1 / (1 + e^(−η))` and `η` clamped to [−35, 35]:
+
+| Model | Question | Features `x` (in this order) | Prior `β` (intercept first) |
+| --- | --- | --- | --- |
+| `success` | will the task end `passing`? | `passing`, `failing`, `conv`, `ig`, `loop`, `osc`, `size` | −1.5, 3.0, −0.5, 1.0, 1.0, −2.0, −1.5, −0.5 |
+| `stall` | will it stall from here on? | `ig`, `loop`, `osc`, `failing`, `size` | −1.0, −2.0, 3.0, 2.0, 0.8, 0.5 |
+| `fix` | will the next run of the failing check fail too? | `attempts`, `errors`, `trend`, `osc`, `ig` | −0.5, 1.5, 1.0, 1.0, 1.5, −1.0 |
+
+The priors are documented guesses, not fitted: their signs say what the dimensions mean (a pass, convergence and new
+evidence raise success; loops, oscillation and a failing state raise the stall risk; repeated attempts, many errors, no
+trend and undone edits make a fix more likely to fail), and their sizes give plausible values: an unverified task that
+keeps finding something new reads about 35 % success and 5 % stall; a passing, converged task about 97 % success.
+
+For an agent's current task **with a score** (6.9), on every engine tick: `P(success)` and `P(stall)` from the live
+features; `P(fix fails)` only in state `failing`, from the fix-row features of the open failure (6.9 *Task facts*) as
+they stood right after that run. Shown as percentages
+rounded half away from zero (DESIGN). They use the coefficients of the agent's source (*Calibration*), with the flag
+"prior" or "calibrated on N tasks" per model. Cases: `predictions`.
+
+#### Calibration
+
+Per scored source and per model, from that source's records, on every history analysis run (8; in memory, never
+stored):
+
+1. Take the source's complete records, ordered by `endMs`, then `startMs`, then the agent id (ordinal), then `ordinal`,
+   and keep the latest **2000**.
+2. Rows: for `success` and `stall`, every snapshot (labels `success` and `yStall`); for `fix`, every fix row. Each row
+   weighs `s = 1 / m`, `m` the task's number of rows for that model, so every task counts once. `N` is the number of
+   tasks with at least one row.
+3. The model is **calibrated** when `N ≥ 40` and both the positive and the negative rows weigh at least 5 in total;
+   otherwise it keeps the prior and shows "prior".
+4. Fit: the maximum a-posteriori estimate with a Gaussian prior centred on the prior coefficients, minimising
+   `−Σ s·[y·log p + (1 − y)·log(1 − p)] + (λ/2)·Σₖ (βₖ − β⁰ₖ)²` with `λ = 4` (the prior weighs like a handful of
+   tasks, so 40 tasks already move it and a few hundred dominate it). Newton–Raphson (IRLS) from `β = β⁰`, exactly 25
+   iterations, no early stop:
+   - gradient `g = Σ s·(p − y)·x + λ·(β − β⁰)`, Hessian `H = Σ s·p·(1 − p)·x·xᵀ + λ·I`, rows summed in the order of
+     step 1 and within a task in row order, `x` with a leading 1;
+   - solve `H·δ = g` by Cholesky (`H = L·Lᵀ`, column by column; forward then back substitution) and set `β ← β − δ`.
+     `H` is positive definite because `λ > 0`.
+   Every sum in 6.9 – 6.11 (dimensions, information gain, the fit, the comparison) is plain left-to-right IEEE 754
+   double addition in the stated order, never compensated or pairwise summation. The reference uses
+   `live_thinking.seq_sum` for this, because Python 3.12's `sum` compensates float rounding.
+5. Python, Swift and C# agree within 10⁻⁶ on every coefficient and probability; the fixture checks 10⁻⁹ in the
+   reference and, independently of the fitting path, that the gradient vanishes (below 10⁻⁹) at the stored
+   coefficients.
+
+Cases: `calibration` (a synthetic history: one source calibrated, one below 40 tasks, one with a single outcome).
+
+#### Comparison
+
+The Usage History window's *task performance* (DESIGN 12) compares sources and models over its date range
+[`first`, `last`]: the complete records whose `day` lies in the range (incomplete ones join once complete) — of every
+scored source, or only of the one source chosen in the window's source picker. For each source with records, in the
+source order of section 1 (`bySource`), and for each model id with records across those sources, the empty string for
+an unknown model (`byModel`, ordered by `tasks` descending, then the id's UTF-8 bytes; each row also lists its
+`sources`, the sources with records of that model, in source order):
+
+| Value | Computation (null when its denominator is 0, or when there is no value to take a quantile of) |
+| --- | --- |
+| `tasks` | records |
+| `scoredTasks` | records with a score |
+| `medianScore` | `q(0.5)` of their scores; shown rounded half away from zero |
+| `lowerQuartile`, `upperQuartile` | `q(0.25)` and `q(0.75)` of their scores |
+| `histogram` | ten counts of their scores, bins `[0, 10)`, `[10, 20)`, … `[80, 90)` and `[90, 100]` (all zeros without a scored record) |
+| `successes`, `stalls` | `success` records (among the scored ones), `stalled` records: the numerators of the two rates, for the tooltips of DESIGN 12 (`96 / 128`) |
+| `fixFailures`, `fixAttempts`, `recovered` | Σ `fixFailures`, Σ `fixAttempts`, Σ `recovered` |
+| `successRate` | `successes` ÷ `scoredTasks` |
+| `stallRate` | `stalls` ÷ `tasks` |
+| `fixFailureRate` | `fixFailures` ÷ `fixAttempts` |
+| `recoverAttempts` | Σ `recoverAttempts` ÷ `recovered`: the mean attempts of a recovered episode |
+| `timeToFirstPassMs` | `q(0.5)` of `firstPassMs − startMs` over records with a pass |
+
+- *Scores* are the unrounded `score`s of the records with a score; tasks without one count only in `tasks` and
+  `stallRate`.
+- `q(p)` over values sorted ascending `v[0] … v[n − 1]`: `h = (n − 1)·p`, `i = ⌊h⌋`; `q = v[i]` when `h = i`, else
+  `v[i] + (h − i)·(v[i + 1] − v[i])` (linear interpolation between order statistics). So the median is the middle value,
+  or the two middle ones' midpoint, and one value is every quantile.
+- A score's bin is the number of the edges 10, 20, 30, 40, 50, 60, 70, 80 and 90 that it reaches (`score ≥ edge`),
+  compared exactly, never by dividing: 9.999 is in bin 0, 10 in bin 1, 90 and 100 in bin 9.
+
+Cases: `comparison` (a range, one source, an empty range, quartiles and bins at their edges with a model across two
+sources, a source without scored tasks).
 
 ## 7. Number formatting (both platforms)
 
@@ -1480,12 +2864,13 @@ summaries use the same compact form (`1.2M`, `384k`, `2.49B`).
 ## 8. Daily history
 
 Daily statistics are computed from the complete logs and kept permanently, so they survive tools deleting their own
-logs (Claude Code removes transcripts after 30 days by default). Only aggregates are stored — never requests, keys in
-plain text, prompts or content.
+logs (Claude Code removes transcripts after 30 days by default). Only aggregates and per-task records without content
+(6.11) are stored — never requests, keys in plain text, prompts or content.
 
 Scope: every discovered file of every enabled source with no date filter and no file-count limit (Codex `.jsonl.zst`,
 all Gemini roots with legacy `.json`, every omp root including profiles, every Antigravity conversation database
-of every store and both WorkBuddy roots included), plus Codex `archived_sessions` (the sibling of the sessions root) and the whole OpenCode
+of every store, both WorkBuddy roots, the rotated logs of every Hermes Agent profile and every Factory Droid session
+with its sidecar included), plus Codex `archived_sessions` (the sibling of the sessions root) and the whole OpenCode
 database. Parsing uses exactly the rules of section 4 (same state machines, dedupe, copied-history rules) over whole
 files and complete database reads, in startup order (5; an Antigravity database's time is the newer of its `.db` and
 `-wal`, 5.4).
@@ -1506,15 +2891,32 @@ Incremental cache: for each file keep its identity (path, size, modification tim
 the size and modification time of its `-wal`), the 64-bit FNV-1a hashes of the
 response keys it owns, and its per-day contributions. On launch and periodically (every 10 minutes and at midnight),
 unchanged files reuse their contributions; new or changed files are re-parsed completely, skipping keys owned by any
-other file (ownership follows startup order); files that no longer exist keep their contributions. Daily totals are
-the sums over files. The history store is versioned: a parser change bumps the version and triggers a full
-recomputation that keeps previously stored days for which no logs exist any more. "Clear history" (settings) deletes
-the store and recomputes from the current logs.
+other file (ownership follows startup order); files that no longer exist keep their contributions. Hermes Agent
+logs (4.15) are cached by file identity instead of path: a rotation renames a log without changing it, so it keeps its
+contributions and keys under its new name, and the oldest log, which rotation deletes, keeps its contributions like any
+deleted file. Daily totals are the sums over files. The history store is versioned: a parser change bumps the version
+and triggers a full recomputation that keeps previously stored days for which no logs exist any more (analysis version
+8: the task records of 6.11; 7: the unpriced facts of 9.10; 6: the Codex ordinal rule of 3.5). "Clear history"
+(settings) deletes the store and recomputes from the current logs.
+
+Factory Droid (4.16): a session's identity adds its sidecar's size and modification time and, for a session with a
+`parent`, those of the parent's sidecar, whose counters it subtracts; the history rule of 4.16 makes its contributions a
+function of these files alone; a session whose parent sidecar is unreadable is not stored by that analysis and is
+analysed again by the next one (4.16 *Own counters*). Adding the source needs no new analysis version: no earlier build
+read its files, so the first analysis finds them as new files (this covers the `custom` step of 9.2 too, which in
+practice only Droid's ids reach).
 
 Cost (9.7): every row also has `costMicroUsd` and `unpricedRequests`, every model `costMicroUsd` and
 `unpricedRequests`, and every date a `priceVersion`. The cost feature bumps the store version; days kept from an
 older store whose logs no longer exist have no cost data (`costMicroUsd` null, `unpricedRequests` null): UIs show
 them as unavailable (DESIGN 9), never as 0.
+
+Unpriced facts (9.10) are stored in the side table `contribution_unpriced` of the same database, written with each
+file's contributions; older builds ignore it, and readers check its rows against the file's analysis version.
+
+Task records (6.11) are stored the same way in the side table `task_records`, one row per task of a scored source's
+agent, written with the file's contributions. A file whose last task was still open is analysed again once it has been
+quiet for 30 minutes (6.11 *Store*).
 
 Network traffic (10.9) is stored in its own table of the same database. It is observed, not derived from logs:
 version bumps and recomputations never touch it, and "Clear history" deletes it too.
@@ -1524,7 +2926,8 @@ version bumps and recomputations never touch it, and "Clear history" deletes it 
 Agent Speed estimates what the counted responses would cost at the providers' official API list prices — the
 *API-equivalent* cost (DESIGN 9). Costs are exact integers in US dollars; conversion to the display currency happens
 only when a value is shown (9.8). `spec/tools/prices.py` implements 9.1–9.3 and 9.7; `reference.py` uses it for 9.5–9.7
-and `--dump-history` / `--dump-today` (`--prices PATH` selects another table).
+and `--dump-history` / `--dump-today` (`--prices PATH` selects another table); `spec/tools/unpriced.py` implements 9.10
+(`reference.py --dump-unpriced`).
 
 ### 9.1 Price table
 
@@ -1589,6 +2992,7 @@ everything these rules do not reach needs an explicit alias.
    | Step | Key | Example |
    | --- | --- | --- |
    | exact | remove every `[…]` group, collapse whitespace, trim, lowercase | `claude-opus-5-5[1m]`, `Claude-Opus-5-5` → `claude-opus-5-5` |
+   | custom | a key starting with `custom:` (Factory Droid's ids of the user's own models, `custom:<name>-<n>`, 4.16) loses that prefix, then a trailing `-` followed by one or more digits (droid's index), then spaces and `-` at both ends (left by a removed `[…]` group) | `custom:GPT-5.5-[OpenAI-BYOK]-0` → `gpt-5.5`; `custom:Claude-Opus-5.5-Thinking-0` → `claude-opus-5.5-thinking` (→ `claude-opus-5-5` by the steps below) |
    | route | the part after the last `/` | `anthropic/claude-sonnet-4.5` → `claude-sonnet-4.5`; `models/gemini-2.5-pro` |
    | cloud | `<region>.` (from `bedrockRegions`) is removed when a `<vendor>.` (from `bedrockVendors`) follows; a leading `<vendor>.` is removed and then a trailing `-v<N>` or `-v<N>:<M>`; a trailing `@YYYYMMDD` becomes `-YYYYMMDD`, any other trailing `@…` is removed | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` → `claude-sonnet-4-5-20250929`; `claude-opus-5-5@default` → `claude-opus-5-5` |
    | free | the key ends with an entry of `freeSuffixes` (and is longer) → **free**, no lookup | `deepseek-v4.1-flash-free`, `…:free` |
@@ -1633,18 +3037,20 @@ costMicroUsd = (costPicoUsd + 500 000) div 1 000 000          (half up)
 integers and any grouping (per file, day, source, model) gives the same number. Free → 0. Unknown → no cost (null),
 never 0: it is counted in `unpricedRequests` instead. A response without a date (8) has no cost either. The cost is
 computed when a response is emitted and again when an update replaces it (4.4), with the table of its date (9.7);
-periods and off-peak hours follow its `endMs`. Cases: `spec/fixtures/price-cases.json` `cost`.
+periods and off-peak hours follow its `endMs`. Cases: `spec/fixtures/price-cases.json` `cost` (fixture tables) and
+`bundled.cost` (the real table of 9.1, each at a fixed `at`).
 
 ### 9.4 Subscriptions
 
 Settings can mark sources as used through a subscription (DESIGN 9). Costs of every source are always computed and
 stored; marks apply only when values are shown: with `includeSubscriptions` off (the default) every displayed cost
-(live, today, orb, history totals) sums only the *billable* sources, the ones not marked; with it on, all sources. A
-mark is a current setting, not data: changing it rewrites nothing.
+(live, today, orb, board, history totals) sums only the *billable* sources, the ones not marked; with it on, all
+sources. A mark is a current setting, not data: changing it rewrites nothing.
 
 ### 9.5 Live cost rate
 
-The money unit of the orb, menu bar and dashboard (DESIGN 9). Window, intervals and estimates are those of 6.3.
+The money unit of the orb, menu bar and dashboard (DESIGN 9) and a board's 費用 (DESIGN 2c). Window, intervals and
+estimates are those of 6.3.
 
 - Measured: for every measured response with a known cost, `costMicroUsd * overlap(interval, [start', end]) /
   (end - start')`.
@@ -1656,8 +3062,11 @@ The money unit of the orb, menu bar and dashboard (DESIGN 9). Window, intervals 
 - `liveCost = (measured + estimated) / (W / 1000)` micro-USD per second.
 - `liveCostKnownShare` = the output tokens of 6.3 (measured and estimated) that carry a known cost ÷ all of them (1
   when there are none): a measured response counts when its cost is known, an estimate when `costRate` exists.
-- Per source and per agent: the same formula restricted to them. Both values are additive over sources, so an orb or
-  the billable sum (9.4) adds per-source values: `knownShare = Σ known tokens / Σ tokens`.
+- Per source: the same formula restricted to the source's responses and agents. Both values are additive over
+  sources, so an orb or a board (6.8) and the billable sum (9.4) add per-source values:
+  `knownShare = Σ known tokens / Σ tokens`.
+- No per-agent or per-group form: boards show only the cost of their sources (DESIGN 2c; user's choice, 2026-10-28,
+  the per-row and tooltip costs are retired), and nothing else shows a live cost per agent, so the engine keeps none.
 - The money value never drives heat, tiers, titles, peaks or `newPeak`; those follow the token metric.
 
 Engine cases with `liveCost` in `spec/fixtures/engine-cases.json` give responses their `costMicroUsd` directly.
@@ -1667,7 +3076,9 @@ Engine cases with `liveCost` in `spec/fixtures/engine-cases.json` give responses
 - `today.costMicroUsd`: Σ `costMicroUsd` of today's responses with a known cost, as recorded (unfinalized ones
   included, so it is a lower bound like `output`).
 - `today.unpricedRequests`: today's responses without a known price.
-- Both per source, and per model for breakdowns. The dashboard's today cost equals the history's row for today.
+- Both per source, and per model for breakdowns. The dashboard's today cost equals the history's row for today
+  (Factory Droid: up to the split of a session's tokens between its calls, 4.16).
+- `today.unpricedFacts`: per source, the unpriced facts of today's responses (9.10 *Live*), for Settings → Cost.
 
 ### 9.7 Day binding and history
 
@@ -1686,14 +3097,16 @@ Each day reads like a bill: it keeps the prices that applied to it.
   function of the file's responses, the bindings and the stored tables. When the current table version changes, every
   file whose stored contribution has `unpricedRequests > 0` is re-analysed (as if it had changed), and the engine
   re-prices today's unpriced responses; it keeps the normalized usage of today's unpriced responses (at most 10 000)
-  for that.
+  for that, with their `model`, `provider`, `fast` and `endMs`.
 - **Storage**: the store keeps a copy of every table version that a binding references (deleted when no binding
   references it). A binding whose table is missing or invalid is replaced by the current version (logged). "Clear
   history" deletes bindings and tables with everything else.
 - **Rows** (section 8): per date and source `costMicroUsd` (Σ known costs) and `unpricedRequests`; per model the same
-  two; `priceVersion` = the date's binding (repeated on each row of the date). Subscription marks are not stored.
+  two; `priceVersion` = the date's binding (repeated on each row of the date); the unpriced facts (9.10). Subscription
+  marks are not stored.
 - Fixtures: `spec/fixtures/history-expected.json` `prices` (the fixture tables, the highest version current, and the
-  bindings to load before the analysis) and `spec/fixtures/price-cases.json` `days`.
+  bindings to load before the analysis) and `spec/fixtures/price-cases.json` `days` (among them a model that only a
+  newer table prices: `mimo-v2.6-pro` of a custom provider, issue #20).
 
 ### 9.8 Display currency
 
@@ -1726,6 +3139,158 @@ and no historical rates are needed. The UI states the rate date (DESIGN 9). Roun
 - Models behind a user's own proxy or router are priced by the model name the agent logged; opaque names stay unknown.
 - WorkBuddy bills in credits, which are not used; calls through its routing slots stay unpriced unless the stream names
   the model it chose (4.9).
+- Factory Droid's Factory credits are not used either. Its per-call tokens are allocated from session counters (4.16),
+  so the tier a call is priced in can differ from the provider's bill; the user's own models price only when their
+  name, after the `custom` step of 9.2, is a model id or alias of the table.
+
+### 9.10 Unpriced diagnostics
+
+Why responses have no price, shown on this computer only (DESIGN 9 *Unknown prices*). Nothing of it is reported:
+section 11, `spec/REPORTING*.md` and `spec/report-schema.json` are unchanged, and raw model names leave the app only in
+text the user copies. `spec/tools/unpriced.py` implements this section and checks `spec/fixtures/unpriced-cases.json`
+(written by `spec/tools/unpriced_cases.py`, expectations by hand); both apps run the same cases.
+
+**Facts.** Every response without a known cost (9.3) is an *unpriced fact* `(model, provider, fast)` counting its
+requests (`requestCount` where a source records one, else 1): `model` is the response's model *trimmed* (4.9; missing
+→ the empty string), `provider` its provider (3.2; null when missing or empty), `fast` its fast flag (3.2). Equal facts
+add up. A free response (cost 0) is never a fact, and days kept without cost data (8) have none. Trimming does not
+change the resolution (9.2 trims and collapses whitespace itself), so a fact has the reason of each of its responses.
+
+**Reason.** Computed from `(model, provider, fast)` with the *current* table (9.1) every time it is shown, never stored,
+so a model that a newer table prices leaves the list by itself (late pricing, 9.7). The resolution of 9.2 decides:
+
+| Reason | When | `canonical` |
+| --- | --- | --- |
+| `noModel` | step 2: the model is empty | null |
+| `unpriceable` | a candidate key equals or starts with a value of the table's `unknown[]`; that entry's `reason` is the fact's *rule* | the key that matched |
+| `noFastPrice` | a candidate key hits a priced entry without `fast` prices while fast mode is selected, by the `fast` step or by the fact's `fast` | the key that hit |
+| `notInTable` | no candidate key hits (step 4) | the `exact` step key; null when it is empty (`[proxy]`) |
+| `noDate` | live only: the response's `endMs` has no date (8), whatever its model | null |
+| *priced now* | the current table prices the fact (free included): no reason, it counts in `pricedNow` | — |
+
+`Index.diagnose` in `prices.py`; cases `diagnose` (each also checks that the reason is null exactly when 9.3 prices the
+response). Router and internal labels (`neko-model-*`, `codex-auto-review`, WorkBuddy's routing slots, …) stay
+`unpriceable`: the table never maps them to a similar model's or a source's default price.
+
+**History store.** A side table of the history database (section 8) keeps the facts of every stored contribution:
+
+```
+contribution_unpriced(file_id INTEGER NOT NULL, day TEXT NOT NULL, source TEXT NOT NULL, model TEXT NOT NULL,
+                      provider TEXT NOT NULL, fast INTEGER NOT NULL, requests INTEGER NOT NULL,
+                      version INTEGER NOT NULL, PRIMARY KEY (file_id, day, source, model, provider, fast)) WITHOUT ROWID
+```
+
+- Created if missing every time the database is opened, like `day_traffic` (10.9). The schema version
+  (`user_version`) does not change, so older builds keep opening the store; they ignore the table.
+- A row is one fact of one contribution (an entry of `files` — a log file or a database session such as OpenCode's
+  or ZCode's — day, source): `model` trimmed (empty when none), `provider` the provider or the empty string for null
+  (3.2 never yields an empty provider), `fast` 0 or 1, `requests` ≥ 1, `version` the analysis version that wrote it
+  (the file's `files.version`).
+- **Writes**: whenever a file's contributions are saved, the same transaction deletes the file's side rows and inserts
+  the facts of each of its contributions. A contribution without unpriced responses has no rows. Re-analysis after a
+  table change (9.7) rewrites them with the file.
+- Adding the table raised the analysis version to **7**, so every file whose logs exist is analysed again and fills
+  it. Contributions kept from files whose logs are gone get no rows; *Reading* derives theirs.
+- An older build that re-analyses a file rewrites `contributions`, `contribution_models` and `files.version` (its own,
+  lower version) but leaves the side rows: their `version` no longer matches, so readers ignore them until a build
+  with this table analyses the file again (it does, since the version differs).
+- "Clear history" deletes the table with the store.
+
+**Reading** (cases `read`), for each stored contribution (file, day, source):
+
+1. `unpriced_requests` null (no cost data, 8): no facts; its `requests` count as `noCostData`.
+2. `unpriced_requests` 0: no facts; stray side rows are ignored.
+3. The contribution's side rows are *valid* when there is at least one, every row has `version` = the file's
+   `files.version` and `requests` ≥ 1, and their `requests` add up to `unpriced_requests`. Valid rows are the facts
+   (rows equal after trimming the model add up).
+4. Otherwise the facts are *derived* from `contribution_models`: in the order of the models' UTF-8 bytes, each model's
+   `unpriced_requests`, at most what is still left of the contribution's `unpriced_requests`, becomes the fact
+   `(trimmed model, null, false)`; what is left after the last model becomes `("", null, false)`. The contribution's
+   `unpriced_requests` count as `derived`: provider and fast flag are unknown, so the reason is computed as if there
+   were none (a Fast response can then read as priced now).
+
+Side rows without a contribution row are ignored. A day's facts per source are the sum over its contributions, and
+add up to its stored `unpricedRequests`.
+
+**Live** (cases `live`): the engine's today (6.6, 9.6). The day ledger keeps per source the requests of today's
+responses without a known cost per `(model, provider, fast, noDate)`, added and removed with each response like every
+other today tally, so replacements (4.4) and re-pricing (9.7) move them; it restarts at zero at the day change.
+`noDate` is true for a response whose `endMs` has no date (8; such a response belongs to today when
+`endMs ≥ todayStartMs`), and such a fact is always `noDate`, never the reason of its model. The live view has one
+part per source with today's responses: `requests` = today's requests of the source, its facts, `noCostData` and
+`derived` 0. Settings → Cost shows it (DESIGN 9); the History window never does (its today comes from the store).
+
+**Rows** (cases `reports`). A *view* takes *parts* — per (day, source) the requests, `noCostData`, `derived` and facts —
+whose day lies in [`first`, `last`], for one source or all, without the sources the window excludes as subscriptions
+(9.4, exactly as its costs). The History window's parts are the stored days (today included) after *Reading*; the live
+view's single day is the engine's.
+
+- Per source with at least one part in the view: `requests`, `noCostData`, `derived` (Σ over its parts), `unpriced`
+  (Σ of its facts) and `pricedNow` (Σ of its facts the current table prices).
+- A *row* gathers the facts of one (source, model, provider, fast, noDate) that have a reason: `reason`, `canonical`,
+  `rule` (only for `unpriceable`), `requests` (Σ), `first` and `last` (the earliest and latest day of its facts).
+- Order: sources by `unpriced` descending, then the order of section 1; a source's rows by `requests` descending, then
+  the model's UTF-8 bytes, then provider (null first, then UTF-8 bytes), then `fast` (false first), then `noDate`
+  (false first).
+- Per source, Σ rows' `requests` + `pricedNow` = `unpriced`; over the view Σ `unpriced` equals the History window's
+  `history.unpricedNotice` count (Σ stored `unpricedRequests`) and, live, today's `unpricedRequests` (9.6).
+
+**Text** (`history.unpricedModels.copy`; cases `reports` `expect`, byte-identical on both platforms). UTF-8 without
+a byte order mark; every line ends with LF:
+
+```
+Agent Speed unpriced diagnostics 1
+app version=<app version> platform=<macos | windows> os=<os>
+prices version=<current table version> updated=<its updated date>
+range view=<view> first=<date> last=<date> days=<n> source=<source id | all> excluded=<ids | none>
+source id=<id> requests=<n> unpriced=<n> pricedNow=<n> noCostData=<n> derived=<n> rows=<n>
+row source=<id> reason=<reason> requests=<n> first=<date> last=<date> fast=<bool> model=<text> provider=<text> canonical=<text> rule=<text>
+total requests=<n> unpriced=<n> pricedNow=<n> noCostData=<n> derived=<n> rows=<n>
+```
+
+- `1` is the format version: any change of lines, fields or their order raises it.
+- One `source` line per source of the view in the order of *Rows*, each followed by its `row` lines; `total` sums the
+  source lines (`rows` = the number of rows). A view without parts has only the header lines and `total`.
+- `os`: `macos-<major>` (`macos-26`), `windows-11` (build ≥ 22000) or `windows-10`. The reference prints
+  `platform=reference` with its own OS; the app version is the build's (`VERSION`).
+- `view`: the History window's range — `today`, `yesterday`, `7d`, `30d`, `90d`, `year`, `all`, `custom` — or `live`.
+  `first` and `last`: the resolved range (live: today); `days` = `last − first + 1`. `excluded`: the excluded sources
+  in the order of section 1 joined by `,`, else `none`. Source ids are those of section 1.
+- Numbers: decimal integers without separators. `<bool>`: `true` or `false`. Dates: `YYYY-MM-DD`.
+- A `<text>` is `null` or a double-quoted string (cases `quote`): a lone surrogate becomes U+FFFD; a *path-like*
+  value (except `rule`, which comes from the table) becomes `<path>`; more than 120 Unicode scalars keep the first 120
+  followed by `…` (U+2026); then `"` and `\` are written `\"` and `\\`, U+0008, U+0009, U+000A, U+000C and U+000D
+  `\b`, `\t`, `\n`, `\f` and `\r`, every other character of U+0000–U+001F, U+007F–U+009F, U+2028 and U+2029 `\u`
+  with four lower-case hex digits, and everything else as is. *Path-like* (ASCII letters compared in lower case):
+  starts with `/`, `\`, `~` or `file:`, or with a letter, `:` and `/` or `\`, or contains `/users/`, `\users\` or
+  `/home/`.
+- The text names no path, project, agent, session or file and holds no prompt or content: model ids as logged
+  (path-like ones redacted; an empty model is `""`, *no model metadata*), providers, the table's rule texts, dates
+  and counts.
+
+**Command line.** `reference.py --dump-unpriced [--days N | --first YYYY-MM-DD --last YYYY-MM-DD | --live]
+[--source ID] [--prices PATH]` prints the text over every log on this computer: the daily history (8; the reference
+keeps no store, so every day is priced with the given table), or with `--live` today's engine responses (the rows of
+`--dump-today`). `--days N` (default 30) is the last N local days with today; N = 1, 7, 30 and 90 print the views
+`today`, `7d`, `30d` and `90d`, other values `custom`; `--first`/`--last` print `custom`. Both probes take the same
+options and print the same text from their own history analysis — written to a store (in memory, or
+`--history-store PATH`) and read back through *Reading* — and their own engine; only the `app` line differs.
+`--dump-history` rows carry the day's facts as `unpriced` (`[{model, provider, fast, requests}]`, in the fact order
+of *Rows*; `[]` when none); `spec/fixtures/history-expected.json` checks them.
+
+**Recovery** (what changes once a missing price or alias is published; issue #20):
+
+- *New requests* are priced with the current table, which the app has as soon as a build bundles it or the daily sync
+  fetches it (NETWORK 3). A day's binding (9.7) keeps the prices it was first priced with; a request its bound table
+  cannot price takes the current table.
+- *Stored history*: when the current table version changes, every file whose stored contribution has unpriced
+  requests is analysed again and the newly known prices fill in its days; a price that was known never changes. Days
+  whose logs are gone cannot be re-priced: their facts show as `pricedNow`, not as rows. Nothing is estimated: a
+  request is priced only through an exact table entry or alias (9.2).
+- *Reporting*: reports carry increments only and history is never sent (11). A live response priced later adds its
+  cost once to a later report (11.4, while its key is counted); the `unpricedRequests` increment it already added
+  stays, as `unpricedRequests` never decreases; a built report is never resent. The receiver's past numbers
+  therefore never change, and no request or cost is counted twice.
 
 ## 10. Network traffic
 
@@ -1742,7 +3307,7 @@ cases through their own sampler-independent core.
 | --- | --- |
 | `rx` / `tx` | Bytes received (download, ↓) / sent (upload, ↑). Unsigned 64-bit counters, deltas and totals in bytes. |
 | Machine traffic | Bytes on the computer's physical network interfaces (10.2), all programs together. Includes protocol headers and VPN encryption overhead. |
-| Process traffic | Bytes of one process's TCP and UDP sockets on non-loopback interfaces (10.3): transport payload, including TLS and QUIC framing, excluding IP/TCP headers. |
+| Process traffic | Bytes of one process's TCP and UDP sockets that do not go over loopback (10.3), tunnel interfaces included: transport payload, including TLS and QUIC framing, excluding IP/TCP headers. |
 | Agent process | A process that runs a source (10.5). Its *tool processes* are all its descendants that are not agent processes themselves. |
 | Self / tools | A source's traffic is split into `self` (its agent processes) and `tools` (their tool processes). |
 | Agent traffic | Traffic attributed to one agent tree (6.7) by 10.6; best effort. |
@@ -1776,7 +3341,7 @@ Machine counters need no permission and work whether or not process traffic is a
 ### 10.3 Process counters
 
 - **macOS**: one long-running child process
-  `/usr/bin/nettop -P -L 0 -s <interval> -x -n -t external -J bytes_in,bytes_out` (interval 10.10). `nettop` ships
+  `/usr/bin/nettop -P -L 0 -s <interval> -x -n -t external -t undefined -J bytes_in,bytes_out` (interval 10.10). `nettop` ships
   with every macOS since 10.7 and carries Apple's private `com.apple.private.network.statistics` entitlement, which a
   third-party app cannot obtain; it is the only supported way for an unprivileged app to read every process's
   counters. Requirements, all verified on macOS 27.0.1 (M5 Pro):
@@ -1792,9 +3357,35 @@ Machine counters need no permission and work whether or not process traffic is a
     first field (names are the 15-character kernel name and may contain `.` and spaces; they are never used). Columns
     are located by header name; a line that does not parse is skipped. Values are plain integers (`-x`).
   - Semantics: per-process totals since the process started, including connections that already closed (a process
-    that opened three connections one after another showed one growing total), TCP and UDP; `-t external` excludes
-    loopback (a 20 MB transfer over `127.0.0.1` appeared only without it). An exited process stays in the output for
-    2–3 samples with its final totals, so its last bytes are not lost at 1 Hz.
+    that opened three connections one after another showed one growing total), TCP and UDP. An exited process stays
+    in the output for 2–3 samples with its final totals, so its last bytes are not lost at 1 Hz.
+  - **Interface types** (`-t`): nettop gives every socket the type of the interface it last sent through (the
+    kernel's `inp_last_outifp`), not of an interface it is bound to as its help text says: `wifi`, `wired`,
+    `loopback`, `awdl`, `expensive`, `undefined` (no outgoing interface yet, or one of no defined type), and
+    `external` (every defined type except loopback). Tunnel interfaces (`utun*`, `ipsec*`) have no defined type, so
+    the traffic of a program behind a TUN-mode proxy or a VPN is `undefined`, a sibling of `external`, not part of
+    it. Several `-t` add up, and nettop lists each socket once even when it matches more than one: a process with
+    sockets in both views showed the same total under `-t external -t undefined` as with no `-t`, not the sum of
+    the two views. The pair therefore selects every socket except loopback ones. Measured on macOS 27.0.1
+    (2026-10-28, issue #35), per-process totals (received + sent) in each view:
+
+    | Transfer | no `-t` | `external` | `undefined` | `loopback` | `external` + `undefined` |
+    | --- | --- | --- | --- | --- | --- |
+    | `curl` download over Ethernet, 9.0 MB | 9.0 MB | 9.0 MB | 0 | – | 9.0 MB |
+    | UDP sent through a tunnel interface (`utun4`), 283 KB | 283 KB | – | 283 KB | – | 283 KB |
+    | `curl` through a local HTTP proxy on `127.0.0.1`, 7.0 MB: `curl` | 7.0 MB | – | 0 | 7.0 MB | 0 |
+    | the same, the proxy process | 14.0 MB | 7.0 MB | 0 | 7.0 MB | 7.0 MB |
+
+    With `-t external` alone (until 1.4.1) a program behind a TUN-mode proxy or a VPN had no traffic at all. Loopback
+    stays excluded (local model servers, MCP servers, an app's own client and server): 40 MB a test process moved
+    over `127.0.0.1` were listed neither by `-t external` nor by the pair.
+  - **Counted once**: a byte counts for the process whose socket carried it. Behind a TUN or VPN, the agent's own
+    socket counts (`undefined`); the tunnel's encrypted packets count for the tunnel's process (a proxy core such as
+    mihomo, a VPN app's network extension) or for no process (the kernel's IPsec), which is not an agent process
+    and so belongs to no source (10.5), and the machine counters (10.2) count only the physical interface. Through a
+    local HTTP or SOCKS proxy, the agent's socket goes only over loopback and is not counted; the proxy's outgoing
+    socket counts for the proxy process, which belongs to no source either (10.12). Windows counts the same set: its
+    helper drops loopback addresses only, whatever the interface (WINDOWS-SERVICE 3, step 5).
   - `-d` (delta mode) is not used: its first sample is neither a delta nor a total, and deltas are computed by the app
     anyway (10.4). One-shot runs (`-L 1` every second, as some monitors do) cost ≈ 50 ms of CPU each (5 % of a core at
     1 Hz) versus ≈ 16 ms per sample when streaming.
@@ -1843,8 +3434,10 @@ date is needed.
 
 The app keeps a **process table** of the current user's processes (on Windows: of the app's session), refreshed on the
 ticks 10.10 gives: pid, parent pid, start time,
-executable path and, only for script hosts (`node`, `bun`, `deno`, with or without `.exe`) and WorkBuddy's
-executables (below), the argument list; on macOS, for WorkBuddy, also the bundle id of the app whose `Contents/MacOS`
+executable path and, only for script hosts (`node`, `bun`, `deno`, with or without `.exe`), Python hosts (`python`,
+`pythonw`, or `python` followed by digits and dots such as `python3` and `python3.14`, compared case-insensitively on
+both platforms because macOS framework builds run `Python`; with or without `.exe`) and WorkBuddy's executables
+(below), the argument list; on macOS, for WorkBuddy, also the bundle id of the app whose `Contents/MacOS`
 holds the executable (`CFBundleIdentifier` of its `Contents/Info.plist`, read once per app path).
 macOS: `proc_listallpids`, `proc_pidinfo(PROC_PIDTBSDINFO)`, `proc_pidpath`, `sysctl(KERN_PROCARGS2)`. Windows: one
 `NtQuerySystemInformation(SystemSessionProcessInformation)` listing of the session (pid, parent pid, create time; no
@@ -1854,29 +3447,36 @@ the listing), `QueryFullProcessImageNameW` and `NtQueryInformationProcess(Proces
 8.1+). Path
 and arguments are read once per process identity; an exited process stays in the table for 10 s, so the counter rows
 that still list it (10.3) can be matched. Paths compare with `/` and `\` equivalent, case-insensitively on Windows;
-`~` is the home folder. File **names** compare case-sensitively on both platforms, without the `.exe` extension: the
-command-line tools are lower-case (`claude`, `codex`, `opencode`), while the desktop apps' own executables are
-capitalized (`Claude.exe`, `Codex.exe`, `OpenCode.exe`) and are never agent processes (below). WorkBuddy is the one
+`~` is the home folder. File **names** compare without the `.exe` extension: case-sensitively on macOS, where the
+command-line tools are lower-case (`claude`, `codex`, `opencode`) and the desktop apps' own executables capitalized
+(`Claude`, `Codex`, `OpenCode`); case-insensitively on Windows, where an image path has the case the process was
+launched with (observed 2026-10-25: Claude Desktop 3.6556 runs `app\claude.exe`, DeepSeek Harness
+`DeepSeek Harness.exe`), so Windows tells the desktop apps by location (below), never by case. WorkBuddy is the one
 desktop app that runs its agent on its own executable, so its row needs the argument list.
 
 **Agent processes** (first matching row; `name` = executable file name without `.exe`):
 
 | Source | Agent process |
 | --- | --- |
-| `claudeDesktop` | `name == claude` and the executable lies under Claude Desktop's bundled Claude Code folder (macOS `~/Library/Application Support/Claude/claude-code/`; Windows `%LOCALAPPDATA%\Claude\claude-code\`, `%LOCALAPPDATA%\Claude-3p\claude-code\`, `%APPDATA%\Claude\claude-code\`), or `name == claude` with an ancestor that is the Claude Desktop app (`/Applications/Claude.app/Contents/MacOS/Claude`, bundle id `com.anthropic.claudefordesktop`; Windows `Claude.exe` of the `Claude_*` package or `%LOCALAPPDATA%\AnthropicClaude`). Observed: macOS `Claude → disclaimer → …/claude-code/2.1.308/<hash>/claude.app/Contents/MacOS/claude`, one per Code session; Windows `Claude.exe → %LOCALAPPDATA%\Claude-3p\claude-code\2.1.299\<hash>\claude.exe`. |
+| `claudeDesktop` | `name == claude` and the executable lies under Claude Desktop's bundled Claude Code folder (macOS `~/Library/Application Support/Claude/claude-code/`; Windows `%LOCALAPPDATA%\Claude\claude-code\`, `%LOCALAPPDATA%\Claude-3p\claude-code\`, `%APPDATA%\Claude\claude-code\`), or `name == claude` with an ancestor that is the Claude Desktop app (`/Applications/Claude.app/Contents/MacOS/Claude`, bundle id `com.anthropic.claudefordesktop`; Windows `claude.exe` directly in the `app` folder of the `Claude_*` package, or under `%LOCALAPPDATA%\AnthropicClaude`). Observed: macOS `Claude → disclaimer → …/claude-code/2.1.308/<hash>/claude.app/Contents/MacOS/claude`, one per Code session; Windows `Claude.exe → %LOCALAPPDATA%\Claude-3p\claude-code\2.1.299\<hash>\claude.exe`. |
 | `claudeCode` | `name == claude` (native installer `~/.local/bin/claude` → `~/.local/share/claude/versions/<version>` — matched by that folder, since the file name is the version —, Homebrew, IDE extensions' `native-binary/claude`), or a script host whose first script argument contains `@anthropic-ai/claude-code/`. Not a process whose arguments contain `--chrome-native-host` (the Claude in Chrome bridge, a child of the browser). |
 | `codex` | `name == codex` or `name` starts with `codex-` followed by a target triple or `x86_64`/`aarch64` (npm-vendored binaries), or a script host running `@openai/codex/bin/codex.js`. Covers the CLI, `codex app-server` started by the Codex app (macOS `…/codex-cli/CodexCLI.app/Contents/MacOS/codex`, Windows `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`) and IDE extensions, and the app-server daemon (`~/.codex/packages/app-server-daemon/…/codex`). |
-| `deepseek` | `name == dsh`; the DeepSeek Harness desktop app's main process (macOS bundle id `com.deepseek.dsh`, `DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness`; Windows `DeepSeek Harness.exe`). Not verified with a running session: which process makes the model calls is unknown, so the whole app tree counts. |
+| `deepseek` | `name == dsh`; the DeepSeek Harness desktop app's main process (macOS bundle id `com.deepseek.dsh`, `DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness`; Windows `DeepSeek Harness.exe`). The whole app tree counts. Observed on Windows (2026-10-25): the app runs its host (`…/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/…`) and one runner per tool call (`…/dsh-subprocess-local/lib/runner.js`) on `DeepSeek Harness.exe` itself; the host holds the model connections, the runners start the tools (`powershell.exe`). |
 | `opencode` | `name` in `opencode`, `opencode-cli` (desktop sidecar `opencode-cli serve`), or starting with `opencode-` followed by an OS and architecture (npm-vendored); or a script host running `opencode-ai/bin/opencode`. |
 | `gemini` | A script host whose arguments contain `/@google/gemini-cli/` (npm, Homebrew `…/libexec/lib/node_modules/@google/gemini-cli/…`), or `name == gemini` for a native build. Gemini CLI relaunches itself as a child; the child is a descendant either way. |
 | `omp` | `name == omp`, or a script host whose arguments contain `/@oh-my-pi/` or `/oh-my-pi/`. |
 | `antigravity` | `name == agy`, or `name` starts with `language_server_` (the Antigravity language server, started by the CLI, the desktop app and the IDE with `--app_data_dir`). |
 | `workbuddy`, `workbuddyAi` | The embedded CodeBuddy Code CLI, which makes the model calls itself: an executable of the edition — macOS: in the app with bundle id `com.tencent.workbuddy.mac` (WorkBuddy) or `com.workbuddy.workbuddy-ai` (WorkBuddy AI), whose main executable is named `Electron`; Windows: `name` `WorkBuddy` or `WorkBuddyAI` — whose arguments after the first contain a path with `/app.asar.unpacked/cli/` (the CLI entry `…/app.asar.unpacked/cli/bin/codebuddy`, run with `ELECTRON_RUN_AS_NODE`). Observed in the 5.8 code: pooled `--prewarm` processes that later serve one conversation each (`--serve --session-id <id>`; the command line does not change when one is taken from the pool), cold `--serve` starts, and the fallback `--acp` with first argument `wb-acp:<id>`. Not verified with a running app; the Windows install folder is unknown, so only the name is used. |
+| `pi` | `name == pi` (release binaries), or a script host whose arguments contain `/@earendil-works/pi-coding-agent/` or `/@mariozechner/pi-coding-agent/` (npm, and the installers' `<agent dir>/install/releases/<version>/node_modules/…`, started by the `<agent dir>/bin/pi` launcher). |
+| `openclaw` | `name == openclaw` (standalone builds), or a script host whose arguments after the first contain `/openclaw.mjs` (the npm package's `bin`, which may respawn itself with the same script; git checkouts) or `/openclaw/dist/` (services started on `dist/entry.js` or `dist/entry.mjs` of the npm or pnpm package). The Gateway process sends OpenClaw's own model requests. The agents it starts for delegated turns match their own rows and count for their sources: Claude Code and Codex app servers, like their turns (4.14); Gemini CLI too, although its turns count under `openclaw`. The Windows Hub's Gateway runs inside WSL, outside the process table. Not verified with a running OpenClaw; the macOS app's bundled runtime is assumed to run the same `openclaw.mjs`. |
+| `hermes` | A Python host whose arguments after the first contain `hermes_bootstrap`, `hermes_cli` or `acp_adapter` (Hermes's launchers run `python -I -c "…import hermes_bootstrap…"`; the desktop app, the TUI's local gateway and the gateway services run `-m hermes_cli.main` or the same bootstrap; source checkouts `hermes_cli/main.py`), or one with an argument whose file name without `.exe` is `hermes`, `hermes-agent` or `hermes-acp` (pip and uv console scripts `bin/hermes`, `Scripts\hermes.exe`, and Hermes's Windows launcher `.hermes\bin\hermes.exe`, which runs Python on its own path). The Python process sends Hermes's model requests; a launcher process sends nothing and is not a row, since `hermes` is also the name of the Hermes JavaScript engine's command-line tool. Not verified with a running Hermes. |
+| `droid` | `name == droid`: droid is one native executable (built with Bun), installed as `~/.local/bin/droid` (the install script), `%USERPROFILE%\bin\droid.exe` (the PowerShell installer), by the Homebrew cask `droid`, or as the npm package `droid`'s platform binary (`@factory/cli-<os>-<arch>[-baseline]/bin/droid`; on Windows a Node shim, which is not a row and sends nothing, starts `droid.exe`). The interactive CLI starts a second `droid` (`droid exec --input-format stream-jsonrpc …`), which counts as part of it; Factory Desktop runs `droid daemon` and `droid exec` children from its bundle (Windows `…\resources\bin\droid.exe`), and the app's own processes are app processes like the other desktop apps'. From the installers, the Homebrew cask, the npm package and Factory's issue reports; not verified with a running droid. |
 
 The desktop apps' own processes are **not** agent processes, nor are their Electron or Tauri helpers: macOS
-`/Applications/{Claude,ChatGPT,Codex,OpenCode,Antigravity}.app/Contents/MacOS/<name>`; Windows executables in the
-`WindowsApps\Claude_*`, `WindowsApps\OpenAI.Codex_*` and `WindowsApps\OpenAI.ChatGPT*` package folders and in
-`%LOCALAPPDATA%\AnthropicClaude\`. Their own traffic (chat UI, updates, telemetry) is outside the sources' scope, like
+`/Applications/{Claude,ChatGPT,Codex,OpenCode,Antigravity}.app/Contents/MacOS/<name>`; Windows executables directly in
+the `app` folder of the `WindowsApps\Claude_*`, `WindowsApps\OpenAI.Codex_*` and `WindowsApps\OpenAI.ChatGPT*`
+packages (`app\claude.exe`, `app\Codex.exe`; the tools a package bundles deeper follow the rows, so
+`app\resources\codex.exe` is a Codex agent) and everything under `%LOCALAPPDATA%\AnthropicClaude\`. Their own traffic (chat UI, updates, telemetry) is outside the sources' scope, like
 Claude Desktop chats are in section 2; only the agent processes they start count. DeepSeek Harness is the exception
 above. WorkBuddy's main process, its helpers, renderers and its daemon (the same executable running
 `app.asar/main/daemon-app-server-entry.js`, which starts the CLI processes) are app processes like these, so the
@@ -1931,7 +3531,7 @@ parent's process). Each tick, for every root agent process `P` of source `s` wit
 `cwdPath` is new parser metadata (section 4): the full working directory the transcript names — Claude: the latest
 `cwd`; Codex: `session_meta`/`turn_context` `cwd`; dsh: header `cwd`; OpenCode: `session_v2.directory`; Gemini CLI: the
 `.project_root` content; omp: header `cwd`; Antigravity: the decoded path of the first workspace URI; WorkBuddy: the
-latest `cwd`. Null when absent.
+latest `cwd`; Pi and OpenClaw: header `cwd`; Factory Droid: `session_start.cwd`. Null when absent.
 It is metadata only (no effect on tokens or history).
 
 Typical outcomes: one Claude Code session per terminal → exact; several Claude Desktop Code sessions (one CLI process
@@ -1995,9 +3595,14 @@ Traffic is observed, not read from logs: there is no history before sampling sta
   wall per call (measured on the test machine, 47 rows), so reading it every second alone would cost 0.08 % of one
   core, four times the budget; every 10 s it costs 0.008 %. A new interface (Wi-Fi joined, tethering) is counted within
   10 s.
-- Process counters (macOS nettop child), measured on the M5 Pro with ≈ 760 open sockets: ≈ 1.6 % of one core at
-  `-s 1` (≈ 15 ms per sample plus ≈ 0.25 % fixed), ≈ 0.5 % at `-s 5`, 1.0 % at `-s 2`; memory 5 MB. To stay near the
-  app's budget the interval adapts:
+- Process counters (macOS nettop child), measured on the M5 Pro with ≈ 760 open sockets and `-t external` alone:
+  ≈ 1.6 % of one core at `-s 1` (≈ 15 ms per sample plus ≈ 0.25 % fixed), ≈ 0.5 % at `-s 5`, 1.0 % at `-s 2`;
+  memory 5 MB. Adding `-t undefined` (10.3) makes nettop follow ≈ 40 % more sockets (≈ 310 instead of ≈ 215 of
+  ≈ 335 open; the added ones are mostly idle UDP sockets and listeners) and costs ≈ 40 % more. Measured 2026-10-28,
+  both invocations side by side through a pseudo-terminal: 0.88 % → 1.22 % of one core at `-s 1` (180 s; four
+  earlier runs: +0.37 to +0.52 points), 0.38 % → 0.59 % at `-s 5` (120 s). `-c` saves nothing measurable; `-m tcp`
+  would cost less than `-t external` alone but would drop QUIC and other UDP traffic, so it is not used. To stay
+  near the app's budget the interval adapts:
   - no agent process in the process table → nettop is not running (0 %);
   - agent processes exist, but no agent is active (10.6) for 60 s and no visible surface shows per-source or per-agent
     traffic → `-s 5`;
@@ -2057,7 +3662,12 @@ translated. Cases: `spec/fixtures/traffic-cases.json` `format`.
   not counted (it is a baseline, 10.4.3).
 - macOS unprivileged interface counters move in 1 KiB steps.
 - Loopback traffic (local model servers such as Ollama or LM Studio, MCP servers on localhost, OpenCode's own client and
-  server) is excluded everywhere.
+  server) is excluded everywhere. So is an agent's traffic through a **local HTTP or SOCKS proxy** (`HTTPS_PROXY` or
+  a system proxy on `127.0.0.1`): the agent's socket only reaches the proxy over loopback, and the proxy's own process
+  is not an agent's. Behind a TUN-mode proxy or a VPN the agent's traffic counts (10.3).
+- An agent that starts a TUN-mode tunnel as its own tool (a user-space VPN client) and sends through it counts the
+  same bytes twice: once on its own tunnel socket (`self`) and once, encrypted, on the tool's socket (`tools`). A
+  proxy started as a tool counts once (as `tools`): the agent reaches it over loopback.
 - WorkBuddy's app processes (chat UI, cloud conversations, sync) are not counted; its CLI processes are recognized by
   rules derived from the 5.8 code, not yet from a running app.
 
@@ -2072,7 +3682,9 @@ with the protocol of `spec/REPORTING.md`. This section defines how every reporte
 *report ledger* that makes deltas exact, and the report scheduler. `spec/tools/report_reference.py` implements 11.5 as
 a simulator and checks `spec/fixtures/report-vectors.json` → `scheduler`; both apps run the same cases through their
 own scheduler core with a fake clock and instant sends. Only realtime values are reported: nothing of sections 6.6
-(today), 8 (daily history), 9.6–9.7 or 10.8–10.9 is ever sent.
+(today), 6.10 (signals), 6.11 (task records, predictions, calibration, comparison), 8 (daily history), 9.6–9.7 or
+10.8–10.9 is ever sent. The task score of 6.9 is sent, as live values and as counts of tasks completed while reporting
+is on, only by the `taskScore` extension with the `models` section (11.10).
 
 ### 11.1 Scope and clock
 
@@ -2081,6 +3693,8 @@ own scheduler core with a fake clock and instant sends. Only realtime values are
 - **Sections**: an optional section is built only when the service lists it and the user's switch is on (REPORTING
   6.1). Default switches (DESIGN 11): `sources`, `models`, `cost`, `traffic`, all on. A section that
   is off is left out of the report.
+- **Extensions** of REPORTING-EXTENSIONS add fields when the confirmed document advertises them; the per-model ones
+  (Harness counts, execution modes, the task score of 11.10) ride with the `models` section and its switch.
 - **Build time** `t` is an engine tick (6: every 500 ms) with `nowMs = t`. Durations (`windowMs`, holds, retries) use
   the monotonic clock. `sentAt` is the wall clock at `t` plus the session's clock correction (11.6), formatted
   `YYYY-MM-DDTHH:MM:SS.sssZ` in UTC.
@@ -2119,7 +3733,8 @@ resolved id (11.3) of the agent's current model (the model the agents list shows
 `unknown`, a free suffix without an entry) → `unknown`. The raw model string never leaves the app. Entries are grouped
 by id and sorted by `output` descending, then `id`. With more than `maxModels` (discovery, ≤ 16) entries the first
 `maxModels − 1` are kept and the rest are merged into `other` (fields summed, `sources` united, placed last).
-`maxModels = 0` means the section is not sent.
+`maxModels = 0` means the section is not sent. With the `taskScore` extension, more ids get entries and the merged
+`other` entry also merges the task fields (11.10).
 
 ### 11.4 Report ledger
 
@@ -2197,7 +3812,8 @@ not start a new run.
    `activity` = the mode.
 8. **Deliver** (below).
 
-**Build**: `seq + 1`; the report takes the ledger and the instantaneous values at `t`; `windowMs = t − windowStart`;
+**Build**: `seq + 1`; the report takes the ledger and the instantaneous values at `t` (with the `taskScore`
+extension also the task ledger, 11.10, which discards leave alone); `windowMs = t − windowStart`;
 then the ledger is empty and `windowStart = t`. A built report goes to the one-slot outbox; a report already waiting
 there is lost (the newer one replaces it), and an in-flight report that is waiting for its retry is lost too (newest
 wins).
@@ -2249,9 +3865,10 @@ end of a backoff — waits at least `I` after the previous report.)
   its entry as sent — rounded, `null` as 0 — other than `agents.active`, `live.estimatedShare` and `cost.knownShare`
   is above 0. A source whose only increment in the window is cost (a counted response priced only now, 11.4) is
   listed, so the per-source cost sums add up. `models[]` lists every resolved id (11.3) that received a ledger
-  increment in the window, a cost increment included, or that an agent is generating with at `t`.
+  increment in the window, a cost increment included, or that an agent is generating with at `t`; with the
+  `taskScore` extension also the ids of 11.10 *Membership*.
 - The body stays within `min(16384, maxBodyBytes)` bytes: when it would not, drop `models`, then `sources`, for that
-  report only.
+  report only (11.10 *Size* for the `taskScore` fields).
 
 ### 11.8 Fixtures
 
@@ -2260,4 +3877,327 @@ ranges is a sleep), activity ranges, output increments (`from`, `to`, `step`, `o
 (`pause`, `resume`, `networkOff`, `networkOn`) and per-`seq` attempt outcomes (`ok`, `fail`, `rateLimited:<s>`;
 default `ok`). `expect.delivered` lists `[seq, endMs, windowMs, activity, output]` of every delivered report and
 `expect.lost` the lost `seq`s. The expected values were written by hand from 11.5 and the simulator must reproduce
-them.
+them. The `taskScore` extension has its own vectors (11.10 *Fixtures*).
+
+### 11.9 WebSocket transport
+
+The user picks the transport of a service (DESIGN 11): **WebSocket** (default) or **HTTP** (11.5). The **effective**
+transport is WebSocket when it is chosen and available (below), otherwise HTTP. With WebSocket the client follows the WebSocket extension of the protocol (`spec/REPORTING-WEBSOCKET.md`, kept with the partner
+documents): reports are built when data changes, sent over one long-lived connection and acknowledged one by one. The
+report body is the v1 body of 11.2–11.7 with one added object, `realtime` (below). Nothing of 11.5 (interval, retry,
+outbox, backoff) applies to this transport; this section replaces it. `spec/tools/report_websocket.py` implements
+this section as a second simulator; `spec/tools/report_reference.py` writes and checks
+`spec/fixtures/report-vectors.json` → `websocket` with it; both apps run the same cases through their own stream
+scheduler.
+
+**Availability.** The transport is available when the confirmed document has `extensions.reportWebSocket` equal to
+the JSON integer `1` and a valid `websocket` object: `path` exactly `/v1/reports/ws`, `subprotocol` exactly
+`agent-speed-report.v1`, and the optional integers `minIntervalMs` 10–1000 (default 50), `maxInFlight` 1–64 (8),
+`ackTimeoutMs` 500–10 000 (2000), `maxMessageBytes` 32 768–65 536 (65 536), `pingIntervalSeconds` 10–60 (20),
+`pongTimeoutSeconds` 5–30 (10) and below `pingIntervalSeconds`. A field that is present with another type or out of
+its range makes the whole object invalid (never clamped, unlike `limits`); unknown fields are ignored; an invalid
+object or another extension value leaves the HTTP document valid. Unavailable while WebSocket is chosen: reports go
+over HTTP (11.5) until a confirmed document offers the transport again; the choice is kept. A change of the effective
+transport — the user's choice, or a stored or refreshed document that adds or drops the capability — is a change of
+transport: the old run stops and a new one starts on the new transport (below). A `stop` of this transport never
+falls back to HTTP; it waits for the user. The connection URL is `api` with `https` → `wss` (`http`
+→ `ws` only for the loopback test service of REPORTING 2.2), authority and base path kept, plus `path`. A change of
+these settings in a refreshed document applies at the next connection.
+
+**Connection.** One connection at a time, opened with the v1 signature headers over `GET`, the URL path and an empty
+body (11.6 clock correction applies), the API key when set, `Sec-WebSocket-Protocol: agent-speed-report.v1`, no
+compression extension, no cookies, no authentication challenge answered, no redirect followed. The `101` response
+must select that subprotocol, else the connection is closed and counts as `close 1002`. At most 10 s from `connect`
+to `101` and 10 s from `101` to a valid `ready`; then `abort` and a failure. While open the client sends a Ping every
+`pingIntervalSeconds` and aborts with a failure when no Pong arrives within `pongTimeoutSeconds` (the libraries answer
+the service's Pings themselves; this bounds the "two Ping intervals without a frame" rule). `abort` drops the socket
+without a close handshake; `close 1000` sends a close frame.
+
+**Messages.** Each report is one text message `{"type":"report","headers":{…},"body":"…"}`: the four
+`X-AgentSpeed-*` headers of a v1 signature over `POST`, the `api` base path + `/v1/reports` and the body bytes (a
+fresh nonce per report), and `body` the compact body as a JSON string; the whole message stays within
+`maxMessageBytes` and the body within 11.7 (drop `models`, then `sources`; a message still too large is dropped and
+counted as `stale`). The body string is written with `"` and `\` escaped, control characters as `\b \f \n \r \t`
+or `\u00xx`, and everything else as is (`/` and non-ASCII included). Received messages are parsed strictly (UTF-8
+text, one JSON object, no duplicate member names, no lone surrogates, no NaN, depth ≤ 32, at most `maxMessageBytes`):
+`ready` with `protocol`, `version` 1, `transportVersion` 1, `serverTime` and the six limits as integers; `ack` with
+`run.id`, `run.seq` (≥ 1), `status` `accepted` or `duplicate`, `bodySha256` (64 lower-case hex digits), `receivedAt`,
+`acceptedAt`, `processingMs` and an optional `rank` ≥ 1; `error` with `run` (object or `null`), `httpStatus`
+400–599, `error.code`, optional `error.retryAfterSeconds` and `error.serverTime`, and `fatal`. A message of another
+`type` is ignored; an invalid message from the service, or a binary one, counts as `close 1002`.
+
+**`realtime`** (only in WebSocket bodies, last member of the body, after the `taskScore` object of 11.10):
+
+| Field | Value |
+| --- | --- |
+| `sourceMode` | `log` (transcripts and databases read on change notifications, section 5); `mixed` when the report carries the `traffic` section with status `ok` (traffic is sampled, 10.10) |
+| `observedAt` | `sentAt − observationAgeMs` on the same corrected clock, or `null` when the window had no new data |
+| `observationAgeMs` | `builtAt − observed` (monotonic ms) of the window's earliest observation (below), or `null` |
+| `sourceResolutionMs` | `1000` for `log` (the 1 s fallback stat of section 5 bounds a missed notification); `null` for `mixed` (the traffic interval adapts, 10.10) |
+
+*Observations.* The monitor records, for every read that changed the engine (a file or database read on a change
+notification, the 1 s fallback, a completed whole-file read), the monotonic time the read began; the snapshot
+published after it carries the earliest such time since the previous snapshot. A tick passes it to the scheduler
+when the tick is *changed* (below); the window keeps the earliest one since it started.
+
+**Scheduler state** (per run, monotonic ms): `seq`, `windowStart`, the window's `observed`, `dirty`, `lastBuildAt`,
+`lastActivity` (the `activity` of the last built report), `lastActive` and the mode of 11.5, the connection
+(`closed`, `connecting`, `opening`, `open`, `closing`) with its deadline, `readyAt`, `awaiting` (reports written and
+not yet answered, with their write time and observation), `failures`, `reconnectAt`, `rateLimitedUntil`, `stop` (a
+reason, or none), the strike counts `rejectStrikes`, `nonceStrikes`, `signatureStrikes`, `runConflicts`, `oversize`,
+and the `ready` mismatch flags. A run starts as in 11.5 and also when the user changes the transport, after
+`seq_conflict` and on every launch; a new run closes the connection of the old one (no `leaving`) and drops its
+awaiting reports as `unknown`. The counters `built`, `accepted`, `duplicate`, `rejected`, `stale`, `saturated`,
+`unknown`, `unmatched` and the latency samples belong to the transport session (from turning reporting on, a launch,
+or a change of service or transport), not to a run, so `seq_conflict` keeps them.
+
+**Ready** is the readiness of 11.5 (reporting on, confirmed, registered, network on, not paused, no error that needs
+the user) and the transport available and no `stop`. A tick is **changed** when the ledger received an increment at
+it, or when one of the values a report would carry at it, rounded as sent (11.7) — `live.outputTokS`,
+`live.totalTokS`, `live.estimatedShare`, `live.agents.generating`, `.tools`, `.active` — differs from the last built
+report's; with the `taskScore` extension also as 11.10 *WebSocket* says.
+
+**Each tick `t`** (an engine tick, a snapshot after a read, or a wake-up the scheduler asked for), in this order.
+*Discard* empties the ledger, sets `windowStart = t` and clears the window's observation; *leave* builds `leaving`
+when fewer than `maxInFlight` reports are awaited (no minimum interval), writes it, and makes the connection
+`closing` with the deadline `t + 1000` — closed with `close 1000` at once when nothing is awaited.
+
+1. User events as 11.5 step 1. `networkOff`: `abort` (every awaiting report `dropped unknown`, connection `closed`).
+2. Gap (11.5 step 2): discard; a connection that is not `closed` is aborted (after a sleep the socket is stale).
+3. Mode and `lastActive` as 11.5; `dirty` becomes true when the tick is changed or the mode differs from
+   `lastActivity`; a changed tick's observation joins the window (the earliest stays). A `closing` connection at or
+   past its deadline is aborted.
+4. **Leaving on a user action** (pause, turning reporting off, quit): when the connection is `open`, the previous
+   mode was not `quiet` and `t ≥ rateLimitedUntil`: leave.
+5. **Not ready** (paused, off, network off, `stop`, transport unavailable): an `open` connection is closed with
+   `close 1000` when nothing is awaited, else becomes `closing` with the deadline `t + 1000`; a `connecting` or
+   `opening` one is aborted; discard; stop here.
+6. **Quiet**: on the tick the mode becomes `quiet` with the connection `open`: leave. On any quiet tick a
+   `connecting` or `opening` attempt is aborted; discard; stop here (nothing connects until activity returns).
+7. **Connect**: when the connection is `closed`, `t ≥ reconnectAt`, `t ≥ rateLimitedUntil` and no refreshed settings
+   are awaited (*`ready`* below): `connect` (connection `connecting`, deadline `t + 10 000`); discard; stop here.
+   `connecting` / `opening` at or past their deadline: `abort`, failure (below); discard; stop here. `closing`:
+   discard; stop here.
+8. **Answers overdue**: when `t > writeTime + ackTimeoutMs` for an awaiting report: `abort`, failure; discard; stop
+   here.
+9. **Due**: `dirty` and `t − lastBuildAt ≥ minIntervalMs` (`lastBuildAt` is none after `ready`, which also sets
+   `dirty`), or `t − (lastBuildAt, else readyAt) ≥ H` (`heartbeatSeconds`, 11.5) in either mode — the service keeps a
+   device online by its reports, so a long tool run with nothing changing still sends one. When due and fewer than
+   `maxInFlight` reports are awaited: **build** — `seq + 1`, the ledger and the instantaneous values at `t`,
+   `activity` = the mode, `windowMs = t − windowStart`, then `windowStart = t`, the observation cleared,
+   `dirty = false`, `lastBuildAt = t`, `lastActivity` = the mode; when its observation age is above 1000 ms it is
+   `dropped stale`, otherwise written at once (`write`, awaited from `t`). When due and `maxInFlight` reports are
+   awaited: discard (the window is lost, `saturated`), `dirty = false`. When `dirty` and not due: `wake` at
+   `lastBuildAt + minIntervalMs` (once per distinct time).
+
+**Answers** (only from the current connection; events of an ended one are ignored). An `ack` matches an awaiting
+report by `run.id`, `seq` and `bodySha256`; a matched one is `delivered` (`accepted` or `duplicate`; the last
+delivery time, the latency sample below and `rank` are taken from it, and the five strike counts return to 0); when
+the connection has been `open` for at least 60 s, `failures = 0`. Anything else is `unmatched`. An `error` whose
+`run` matches an awaiting report drops it as `rejected`; its code then gives the reaction below, also for `run: null`.
+When a `fatal` error's reaction leaves the connection up, the client aborts it and counts a failure, so the close that
+the service sends after it is never acted on. A `closing` connection is closed with `close 1000` once nothing is
+awaited.
+
+Whenever a connection ends — `abort`, `close`, a close by the service, a failed handshake — the reports it still
+awaits are `dropped unknown` (their outcome is not known; they are never resent) and the connection is `closed`.
+
+**Failures** (a refused handshake whose reaction does not stop, wait or start over, a deadline, an unexpected close
+or abort, a fatal error): the connection ends, `failures + 1`, `reconnectAt = t + d × jitter` with `d` = 500, 1000,
+2000, 4000, 8000, 16 000, then 30 000 ms for the 1st, 2nd … failure (jitter in [0.8, 1.2]; the fixtures use 1).
+`Retry-After` always wins: `rateLimitedUntil = max(current, t + s)` with `s` clamped to 5 s – 1 h (60 s when a `429`
+or a `4429`/`4503` close gives none); a wait is not a failure. A `stop` aborts a connection that is still up.
+
+**Reactions** to an `error` code, a handshake rejection (its HTTP status and v1 error body) or a close code; an
+explicit `error` received on a connection takes precedence over the close code that follows it:
+
+| Code or close | Reaction |
+| --- | --- |
+| `timestamp_out_of_window` | correct the clock (11.6, `serverTime`); a handshake rejection is a failure |
+| `nonce_replayed` | `nonceStrikes + 1`; at 3 `stop nonce`; a handshake rejection is a failure |
+| `signature_invalid` | `react recheckRegistration` (REPORTING 8.3: pending key, then `POST /v1/devices`); `signatureStrikes + 1`, at 3 `stop keyMismatch`, else `close 1000` and a failure |
+| `api_key_required`, `api_key_invalid`, close `4001` | `stop apiKey` |
+| `forbidden`, close `4003` | `stop forbidden` |
+| `unknown_device`, close `4004` | `react reRegister` (at most once per hour, REPORTING 8.3), failure |
+| `username_mismatch` | `react rename` |
+| `seq_conflict` | `abort`, `react newRun`: a new `run.id` with `seq` from 1 and a new window (the mode, `failures` and waits stay); it connects at the next tick |
+| `run_conflict` | `close 1000` (every awaiting report `dropped unknown`), `runConflicts + 1`; at 2 `stop clientState`, else reconnect at the next tick |
+| `version_unsupported` | `react refreshDiscovery`, `stop upgrade` |
+| `payload_too_large`, close `1009` | `react refreshDiscovery`; a close is a failure; `oversize + 1`, at 3 `stop incompatible` |
+| `report_stale` | nothing more |
+| `rate_limited`, a `503` with `retryAfterSeconds`, close `4429` / `4503` | `abort`, `wait` (`Retry-After` as above) |
+| `gone`, close `4410` | `stop gone` (reporting turns off, REPORTING 8.3) |
+| close `4009` | `stop replaced` (another connection of this device took over) |
+| close `4000` | failure (reconnect with the current key) |
+| close `1002`, `1003`, `1007` | `stop incompatible` |
+| `bad_request`, `payload_invalid`, `device_mismatch`, `not_found`, `method_not_allowed`, other 4xx | `rejectStrikes + 1`, at 3 `stop rejected`; a handshake rejection is also a failure |
+| a `5xx` code, close `1000` not asked for, `1001`, `1011`, `1006` and every other close | failure |
+
+A refused handshake takes the code of its v1 error body (`retryAfterSeconds` from the body, else the `Retry-After`
+header, delay seconds only); a body that cannot be read is classified by its status: `401` as `signature_invalid`,
+`403` as `forbidden`, `404` as `unknown_device`, `410` as `gone`, `413` as `payload_too_large`, `429` as
+`rate_limited`, `503` with a `Retry-After` header as `rate_limited`, any other 4xx as `bad_request`, 5xx and others
+as a failure. Every refused handshake whose reaction does not stop, wait or start over is also a failure. `stop`
+ends automatic attempts until the user acts (`stop mismatch` and `stop replaced` offer *Try Again*, which clears the
+stop and reconnects) or the settings change; `stop gone` turns reporting off.
+
+**`ready`.** A valid `ready` (on an `opening` connection) whose six limits equal the document's opens the
+connection: `readyAt = t`, discard, `dirty = true`, `lastBuildAt` none; its limits govern the connection. A `ready`
+that differs: `close 1000`, `react refreshDiscovery` (forced, once), and the next connection waits for the refreshed
+settings (`settings`) and uses them; a second differing `ready` before a matching one, a failed refresh or a document
+without the capability (`settings` with none while waiting) gives `stop mismatch`. A refreshed document without the
+capability at any other time makes the transport unavailable. Nothing is written before a valid `ready`. *Try Again*
+(`retry`) clears a `stop`, the strike counts, the mismatch flags and `failures`, and connects at the next tick.
+
+**Latency.** For each delivered report with an observation the client keeps `answer time − observed` (monotonic,
+the conservative upper bound of REPORTING-WEBSOCKET 12) in a ring of the last 512 samples; settings show its p50 and
+p95 next to the counters (DESIGN 11).
+
+**Fixtures** (`report-vectors.json` → `websocket`): `discovery` (document → stream settings or `null`), `url`, the
+signed `handshake` and `report` of REPORTING-WEBSOCKET 14, `encoding` (body → message text with given headers),
+`realtime`, `messages` (service message text → parsed fields, `{"type":"other"}` or `"invalid"`), `rejections`
+(status, body, `Retry-After` → code and wait), `backoff`, `latency` (samples → p50 and p95, nearest rank) and
+`scheduler`. A scheduler case gives `config` (stream settings, `heartbeatSeconds`, `available`) and events at
+monotonic ms: `tick` (`active`, `changed`, `observedAgo` — the observation is `t − observedAgo` —, `events`; `until`
+and `step` repeat it), `open` (101 with the subprotocol), `ready` (`limits` that differ from the configured ones),
+`ack` (`seq`, `status`, `sha` `"match"` or `"other"`), `error` (`seq` or none, `code`, `httpStatus`, `retryAfter`,
+`fatal`), `close` (`code`, sent by the service or the network), `reject` (a refused handshake: `status`, `code`,
+`retryAfter`), `settings` (refreshed stream settings, `null` for none) and `retry` (*Try Again*). Events at the same
+time run in the listed order; a requested wake-up becomes a tick without new data (the `active` of the latest tick)
+unless a listed tick has the same time. Writes are instant. `expect.log` lists every action as text — `<t> connect`,
+`abort`, `close 1000`, `build <seq> <activity> <windowMs> <observationAgeMs or ->`, `write <seq>`,
+`delivered <seq> <status>`, `dropped <seq> <stale|rejected|unknown>`, `saturated`, `react <name>`, `stop <reason>`,
+`backoff <reconnectAt>`, `wait <rateLimitedUntil>`, `wake <at>` —, `expect.counters` the counters other than 0,
+`expect.latency` the samples, `expect.state` the connection, `seq`, `failures`, `stop` and the last delivery time.
+The expected values were written by hand from this section; the simulator and both apps must reproduce them.
+
+### 11.10 Task score (extension `taskScore`)
+
+User's decision (2026-10-29): live reporting carries the task score (6.9) — the highest 智力 with its form, and the
+thinking speed — overall and per model, plus per-model statistics of the tasks that complete while reporting is on, so
+that a service can rank models by score and success rate. It rides with the `models` section: no switch, section or
+consent of its own; DESIGN 11 says it under the `models` switch, and the README privacy sections name it. The protocol
+is `spec/REPORTING-EXTENSIONS.md` section 9 (kept with the partner documents). `spec/tools/report_task_score.py`
+implements this section and checks `spec/fixtures/report-vectors.json` → `taskScore`.
+
+**Active.** The extension is *active* for a report when the confirmed document has `extensions.taskScore` equal to the
+JSON integer `1` (a missing value, `null`, `true`, `"1"` or another number is not) and the report carries `models` by
+consent: the document lists `models`, `maxModels` ≥ 1 and the user's `models` switch is on (11.1). A report while it is
+inactive carries nothing of this section, and its models list is exactly that of 11.3 and 11.7. A refreshed document
+that adds or drops the capability takes effect at once and asks for no new consent (REPORTING 3.3 lists the changes
+that do; the user's decision is that existing users are not asked again).
+
+**Body.** With the extension active the body adds:
+
+- a top-level object `taskScore`, after `models` and before `realtime` (11.9); it stays when the size rule drops
+  `models`;
+- on every `models[]` entry, after its other fields: `taskScore` (the same shape) and `taskStats` (an array, empty when
+  no counted task of that model is in the report).
+
+`taskScore` is `{score, form, thinkingTokS}`:
+
+| Field | Value |
+| --- | --- |
+| `score` | the set's value (6.9 *Values*) rounded half away from zero, an integer 0–100; `null` exactly when `form` is `none` |
+| `form` | `live`, `resting` or `none` (6.9 *Values*) |
+| `thinkingTokS` | the set's `liveThinking` (6.9 *Live thinking*), rounded to 0.1 |
+
+At the top level the set is all enabled sources — the value the menu bar or taskbar block shows — with the all-sources
+sums. Per model it is the agents of that set whose current model (the model the agents list shows for it, as for
+`models[].generating`, 11.2) resolves to the entry's id (11.3), with the *model sums* of 6.9 *Live thinking* added over
+the raw models that resolve to that id. The top-level value is the highest of every agent, not of the listed entries:
+a model with nothing else to report has no entry.
+
+**Membership.** With the extension active, `models[]` also lists every id that an agent of the set is *live* with (not
+idle, with a score: an agent running a test is in phase `tools` and has no increment) and every id with a row in the
+task ledger (below); `sources` adds the sources of those agents and rows. A model that is only resting gets no entry.
+Order, `maxModels` and `other` stay as 11.3 says. The merged `other` entry's `taskScore` is the set rule over the
+merged ids' agents (the highest live score, else the highest resting, else none), its `thinkingTokS` the sum of their
+unrounded model sums, rounded once, and its `taskStats` their rows added up per source.
+
+**Task statistics.** `taskStats` has one row per source, in the source order of section 1, for the tasks counted
+(below) since the previous build:
+
+| Field | Value |
+| --- | --- |
+| `source` | the agent's source; it is one of the entry's `sources` |
+| `completed` | counted tasks, 1–1000 |
+| `scored` | those with a score (6.9) |
+| `scoreSum` | the sum of their scores rounded half away from zero, as shown: means merge exactly |
+| `scoreBins` | ten counts of those rounded scores, bins `[0, 10)`, `[10, 20)`, … `[80, 90)` and `[90, 100]`; they add up to `scored` |
+| `successes`, `stalls` | tasks whose 6.11 `success` / `stalled` is true |
+| `fixAttempts`, `fixFailures`, `recovered`, `recoverAttempts` | sums of the 6.11 counts |
+
+The bins take the rounded score so that they agree with `scoreSum`; the comparison of 6.11 bins unrounded scores, which
+differs only for a score within half a point below an edge.
+
+**Watch.** The *watch* is on at a tick when reporting is on for a confirmed and registered service, the network switch
+is on, reporting is not paused, no error or `stop` needs the user (REPORTING 8.3, 11.9), the extension is active and
+seeding has finished (6.4). Transient waits leave it on: a backoff, a `Retry-After`, quiet, a sleep gap, a new run
+(`seq_conflict`, a change of transport, `run_conflict`). A task is *watched* when its first event (its prompt, or the
+first event of a task before the first prompt, 6.9 *Tasks*) is read at a tick when the watch is on and that event's `t`
+is at most 2 minutes before `nowMs` (the 120 000 ms of 11.4). Every other task is history and is never counted: one read
+while seeding, one that started before the watch was on (reporting turned on mid-task included), one whose first event
+is older when it is read (a session found late, section 5).
+
+- A withdrawn prompt (6.9 *Withdrawal*) never started a task; the previous task keeps its own watch.
+- **Break**: at the tick the watch turns off — reporting turned off, paused or switched to another service, the network
+  switch off, the `models` switch off, a refreshed document without `models` or the capability, an error or `stop` that
+  needs the user, quitting — every task is unwatched and the task ledger is emptied, after a `leaving` report of that
+  tick (11.5 step 4, 11.9 step 4) has taken it. A task whose agent's file goes away or whose source is disabled is
+  unwatched.
+
+**Counting.** A watched task is counted once, at the first tick at which it completes:
+
+1. a later task of the same agent is *settled*, its prompt no longer withdrawable: for Claude, omp, Pi, OpenClaw and
+   Factory Droid when the first deciding assistant line after it (6.9 *Composing the stream*) has been read and is not a
+   duplicate (for a command, with no command output before it); for Codex at once;
+2. `nowMs − lastLineMs ≥ 30 min` for its agent (6.11 `complete`), whether or not the agent is still in the agents list.
+
+Counting a task with at least one action (one that has a 6.11 record) adds one row to the task ledger, under the
+resolved id (11.3) of its model — the last composer note whose `t` is at most the task's `endMs` (6.9 *Model and
+effort*, 6.11) — and its agent's source: `completed` 1, and the 6.11 fields evaluated over the task's events read so
+far — its score rounded (`scored` 1, its bin) or none, `success`, `stalled`, `fixAttempts`, `fixFailures`, `recovered`,
+`recoverAttempts`. A task without actions adds nothing. Either way the task is no longer watched, so it is never counted
+again: a continuation that reopens it later (6.9 *Values*) and outcomes that arrive after it completed (a result read
+after the next prompt, a background command's exit code) stay out of the report, though its history record (6.11) has
+them. When the task ledger already holds 1000 completed tasks, a further completion is dropped, not deferred.
+
+**Task ledger.** The rows counted since the previous build, per resolved id and source. A *build* (11.5, 11.9) with the
+extension active takes the whole task ledger into `models[].taskStats` and empties it; a build whose `models` the size
+rule dropped empties it too, and those completions are lost. Discards (11.5 steps 2, 5 and 6; 11.9 *discard* and
+`saturated`) leave it alone: completions are outcomes, not usage of a window, so a task that completes during a quiet
+period, a sleep or a backoff goes out with the next built report. Dropping it instead would lose the last task before
+every break and bias the success rates. Otherwise only a break empties the task ledger. A built report that is lost
+loses its completions, which are never resent (REPORTING 6.2): across retries, duplicates, `seq_conflict`, new runs and
+reconnections every completed task is in at most one built report. The task ledger is never persisted: a relaunch
+starts empty, and the tasks rebuilt from their files after it (6.9 *Event stream*) are history.
+
+Completions are not activity (11.5 *Activity*): a task that completes by the 30-minute rule does not wake the
+scheduler, keep a device online or start a report.
+
+**WebSocket.** A tick is also *changed* (11.9) when the task ledger received a completion at it, or when a `taskScore`
+the report would carry — the top-level one or an entry's, rounded as sent — differs from the last built report's: a
+test result changes the score while every token value stands still.
+
+**Size.** The top-level `taskScore` always stays. The per-model fields go with `models` when 11.7 drops it; a step that
+first drops the per-model Harness and mode breakdowns (REPORTING-EXTENSIONS 2, 3) keeps them.
+
+**Other extensions.** An entry that exists only for this extension has zero usage: its `harnessRequests` is empty or
+absent and its `modeUsage` absent, so their sums stay exact. Task rows are not split by Harness beyond `source`, nor by
+execution mode; the 6.11 `effort` is not sent.
+
+**Never sent**, also with the extension: prompts, commands, outputs, paths, digests, fingerprints, suite names or keys;
+any time of a task (start, end, first pass); a row per task (only sums per model and source within one report);
+predictions, calibration, comparisons and the history records of 6.11; the work signals of 6.10.
+
+**Fixtures** (`report-vectors.json` → `taskScore`): `capability` (a discovery document and the models switch → active),
+`records` (a completed task → its row), `assembly` (agents' values, model sums, the models of 11.3 and the task ledger
+→ the top-level `taskScore` and the final `models[]`), `ledger` (events in order — `watch`, `start` with the first
+event's `t` or `seeding`, `withdraw`, `drop`, `complete` with the task's record, `build` with `models: false` for a size
+drop, `discard`, `newRun`, `relaunch` — → what each build carries, `null` when `models` was dropped), `validation` (a
+body → the pointers a service that advertises the extension rejects) and `receiver` (accepted reports → the merged
+leaderboard of REPORTING-EXTENSIONS 9). The expected values were written by hand; both apps run `capability`,
+`records`, `assembly` and `ledger` through their own code. The example bodies are `report-examples/report-taskscore.json`
+(HTTP) and `report-taskscore-websocket.json`; the model sums are checked by the `modelWindows` cases of
+`task-score-cases.json`.

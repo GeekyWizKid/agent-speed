@@ -17,6 +17,10 @@ struct EngineAgent: Equatable, Sendable {
     var referenceResponses: [ResponseRecord] = []
     /// Resolved parent agent (METRICS 6.7), which may be outside the list.
     var parentId: String?
+    /// Its recent tool calls (METRICS 6.10), oldest first.
+    var actions: [ToolAction] = []
+    /// Its current task (METRICS 6.9), for an agent of a scored source.
+    var task: AgentTaskStatus?
 
     init(
         id: String,
@@ -61,12 +65,20 @@ struct EngineAgent: Equatable, Sendable {
             modes: state.modes,
             referenceResponses: state.referenceResponses
         )
+        actions = state.actions.actions
     }
 
     /// Project name from the transcript location when the transcript never named a working directory. Gemini CLI
     /// sessions (`<project>/chats/[<dir>/]<file>`) use the project folder, Antigravity conversations without a
-    /// workspace (`<store>/conversations/<id>.db`) their store.
+    /// workspace (`<store>/conversations/<id>.db`) their store, OpenClaw windows (`<…>/<agentId>/agent/
+    /// openclaw-agent.sqlite#<session>`) their OpenClaw agent.
     static func fallbackProject(for path: String) -> String {
+        if let database = OpenClawSource.databasePath(ofAgent: path) {
+            let folder = (database as NSString).deletingLastPathComponent
+            let name = (folder as NSString).lastPathComponent
+            let agent = name == "agent" ? ((folder as NSString).deletingLastPathComponent as NSString).lastPathComponent : name
+            if !agent.isEmpty { return agent }
+        }
         if let project = GeminiProjects.projectDirectory(ofSessionAt: path) {
             let name = (project as NSString).lastPathComponent
             if !name.isEmpty { return name }
@@ -91,8 +103,9 @@ struct EngineAgentStatus: Equatable, Sendable {
     var recentSpeed: Double?
     /// The parent's id when the parent is listed too; nil for a root.
     var parentId: String?
-    /// The agent's live cost rate (METRICS 9.5).
-    var liveCost: LiveCost = .zero
+    /// Its own thinking sums and task score value (METRICS 6.9 *Values*, *Live thinking*).
+    var intelligence: IntelligenceSums = .zero
+    var signals: WorkSignals = .none
 }
 
 /// Everything the engine computes for one instant.
@@ -106,6 +119,9 @@ struct EngineOutput: Sendable {
     /// The live cost rate (METRICS 9.5), in total and per source.
     var liveCost: LiveCost = .zero
     var sourceLiveCost: [SourceKind: LiveCost] = [:]
+    /// The thinking sums and the highest task score of the listed agents (METRICS 6.9), in total and per source.
+    var intelligence: IntelligenceSums = .zero
+    var sourceIntelligence: [SourceKind: IntelligenceSums] = [:]
     var agents: [EngineAgentStatus]
     var history: [HistoryPoint]
     var today: TokenTotals
@@ -117,6 +133,8 @@ struct EngineOutput: Sendable {
     var todayCost: CostTally = .zero
     var todayCostBySource: [SourceKind: CostTally] = [:]
     var todayCostByModel: [SourceKind: [String: CostTally]] = [:]
+    /// Today's unpriced facts per source (METRICS 9.6, 9.10 *Live*), in the fact order.
+    var todayUnpricedFacts: [SourceKind: [UnpricedFact]] = [:]
     var peakToday: Rate
     var peakTodayAtMs: Int64?
     /// Today's measured output peak of every requested source set (METRICS 6.8).

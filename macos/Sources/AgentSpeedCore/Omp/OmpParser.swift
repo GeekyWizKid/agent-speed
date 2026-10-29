@@ -29,18 +29,23 @@ struct OmpParser: Sendable {
         state.malformedLines += 1
     }
 
-    mutating func consume(_ extraction: LineExtraction<OmpLine>, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
+    mutating func consume(
+        _ extraction: LineExtraction<OmpLine>,
+        tools: [ToolEvent] = [],
+        deduper: inout Deduper,
+        emit: (ResponseUpsert) -> Void
+    ) {
         switch extraction {
         case .blank:
             return
         case .malformed:
             state.malformedLines += 1
         case .line(let line):
-            consume(line, deduper: &deduper, emit: emit)
+            consume(line, tools: tools, deduper: &deduper, emit: emit)
         }
     }
 
-    private mutating func consume(_ line: OmpLine, deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
+    private mutating func consume(_ line: OmpLine, tools: [ToolEvent], deduper: inout Deduper, emit: (ResponseUpsert) -> Void) {
         switch line {
         case .ignored:
             return
@@ -57,6 +62,7 @@ struct OmpParser: Sendable {
             guard headerSeen else { return }
             if let headerMs, timestamp < headerMs - Self.copiedHistoryMs { return }
             state.noteLine(at: timestamp)
+            state.actions.record(tools, at: timestamp)
             state.modes = parentId.flatMap { branchModes[$0] } ?? .empty
             if case .modeChange(let tiers) = record {
                 state.modes = ExecutionModes(tiers.flatMap { provider, tier in

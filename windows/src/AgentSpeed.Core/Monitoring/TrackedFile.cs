@@ -29,6 +29,18 @@ internal enum RootFamily
     ZCode,
     Kimi,
     GrokBuild,
+
+    /// <summary>Pi's sessions folder and the custom session folder of its settings (METRICS 4.13).</summary>
+    Pi,
+
+    /// <summary>Agent databases read by <see cref="OpenClaw.OpenClawSource"/>; its roots are watched only (METRICS 4.14).</summary>
+    OpenClaw,
+
+    /// <summary>Log folders read by <see cref="Hermes.HermesSource"/>; watched only, never enumerated as transcripts (METRICS 4.15).</summary>
+    Hermes,
+
+    /// <summary>Factory Droid's sessions folder: transcripts read with their settings files (METRICS 4.16).</summary>
+    Droid,
     Trae,
 }
 
@@ -39,7 +51,7 @@ internal static class Families
     public static readonly RootFamily[] FileFamilies =
         [
             RootFamily.Codex, RootFamily.Claude, RootFamily.DeepSeek, RootFamily.Gemini, RootFamily.Omp, RootFamily.Antigravity,
-            RootFamily.WorkBuddy, RootFamily.WorkBuddyAi, RootFamily.Kimi, RootFamily.GrokBuild,
+            RootFamily.WorkBuddy, RootFamily.WorkBuddyAi, RootFamily.Kimi, RootFamily.GrokBuild, RootFamily.Pi, RootFamily.Droid,
         ];
 
     public static TranscriptNaming Naming(RootFamily family) => family switch
@@ -54,6 +66,10 @@ internal static class Families
         RootFamily.ZCode => TranscriptNaming.ZCodeDatabase,
         RootFamily.Kimi => TranscriptNaming.KimiSession,
         RootFamily.GrokBuild => TranscriptNaming.GrokBuildSession,
+        RootFamily.Pi => TranscriptNaming.PiSession,
+        RootFamily.OpenClaw => TranscriptNaming.OpenClawDatabase,
+        RootFamily.Hermes => TranscriptNaming.HermesLog,
+        RootFamily.Droid => TranscriptNaming.DroidSession,
         RootFamily.Trae => TranscriptNaming.TraeDatabase,
         _ => TranscriptNaming.Jsonl,
     };
@@ -71,13 +87,16 @@ internal static class Families
         RootFamily.WorkBuddyAi => new WorkBuddyParser(path, deduper, SourceKind.WorkBuddyAi, root),
         RootFamily.Kimi => new Kimi.KimiParser(path, deduper),
         RootFamily.GrokBuild => new GrokBuild.GrokParser(path, deduper),
+        RootFamily.Pi => Pi.PiParser.ForPath(path, deduper),
+        RootFamily.Droid => new Droid.DroidParser(path, deduper),
         _ => throw new ArgumentOutOfRangeException(nameof(family)),
     };
 
     /// <summary>Antigravity databases are queried; every other family is a file read by its extension.</summary>
     public static TranscriptTailer CreateTailer(RootFamily family, string path) =>
         family == RootFamily.Antigravity ? new AntigravityTailer(path)
-        : family == RootFamily.GrokBuild ? new GrokBuild.GrokTailer(path) : TranscriptTailer.For(path);
+        : family == RootFamily.GrokBuild ? new GrokBuild.GrokTailer(path)
+        : family == RootFamily.Droid ? new Droid.DroidTailer(path) : TranscriptTailer.For(path);
 
     /// <summary>True when any source of the family is enabled.</summary>
     public static bool IsEnabled(RootFamily family, IReadOnlySet<SourceKind> enabled) => family switch
@@ -94,6 +113,10 @@ internal static class Families
         RootFamily.ZCode => enabled.Contains(SourceKind.ZCode),
         RootFamily.Kimi => enabled.Contains(SourceKind.Kimi),
         RootFamily.GrokBuild => enabled.Contains(SourceKind.GrokBuild),
+        RootFamily.Pi => enabled.Contains(SourceKind.Pi),
+        RootFamily.OpenClaw => enabled.Contains(SourceKind.OpenClaw),
+        RootFamily.Hermes => enabled.Contains(SourceKind.Hermes),
+        RootFamily.Droid => enabled.Contains(SourceKind.Droid),
         RootFamily.Trae => enabled.Contains(SourceKind.Trae),
         _ => false,
     };
@@ -111,6 +134,10 @@ internal static class Families
         SourceKind.ZCode => RootFamily.ZCode,
         SourceKind.Kimi => RootFamily.Kimi,
         SourceKind.GrokBuild => RootFamily.GrokBuild,
+        SourceKind.Pi => RootFamily.Pi,
+        SourceKind.OpenClaw => RootFamily.OpenClaw,
+        SourceKind.Hermes => RootFamily.Hermes,
+        SourceKind.Droid => RootFamily.Droid,
         SourceKind.Trae => RootFamily.Trae,
         _ => RootFamily.Claude,
     };
@@ -167,4 +194,7 @@ internal sealed class TrackedFile
 
     /// <summary>Changed while a recent read was still within its rate limit (Antigravity, METRICS 5.4); read on the next poll.</summary>
     public bool Dirty { get; set; }
+
+    /// <summary>Its position among the files seeding read (startup order); null when seeding did not read it.</summary>
+    public long? SeedOrder { get; set; }
 }

@@ -337,7 +337,7 @@ enum OmpLineExtractor {
     }
 
     /// Blocks of type `toolCall` with a string `id`; any other `content` value has none.
-    private static func scanToolCallIds(_ scanner: inout JSONScanner) throws(JSONScanError) -> Set<String> {
+    static func scanToolCallIds(_ scanner: inout JSONScanner) throws(JSONScanError) -> Set<String> {
         guard try scanner.beginArrayIfPresent() else {
             try scanner.skipValue()
             return []

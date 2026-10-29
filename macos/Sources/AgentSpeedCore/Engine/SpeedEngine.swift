@@ -36,6 +36,8 @@ struct SpeedEngine: Sendable {
     private var reportLedger = ReportLedger()
     /// The provider of each agent's latest response, for the model id of a generating agent (METRICS 11.2).
     private var agentProviders: [String: String] = [:]
+    /// Completed watched tasks for live reporting (METRICS 11.10), fed whatever reporting does.
+    private var taskCompletions = ReportTaskCompletionLog()
 
     init(pricing: PriceBook? = nil) {
         self.pricing = pricing
@@ -111,7 +113,7 @@ struct SpeedEngine: Sendable {
         let references = SpeedReferences(timed: referenceResponses(measured: measured, nowMs: nowMs), nowMs: nowMs)
         let window = LiveWindow(
             nowMs: nowMs, measured: measured, unmeasured: unmeasured, agents: agents,
-            latestEnds: latestEndsByAgent(), references: references
+            latestEnds: latestEndsByAgent(), references: references, providers: agentProviders
         )
         let history = Self.history(nowMs: nowMs, measured: measured, estimates: window.estimates)
 
@@ -139,6 +141,10 @@ struct SpeedEngine: Sendable {
         }
         previousPeakOutput = peak.output
 
+        let listing = agentList(nowMs: nowMs, window: window, references: references)
+        var report = reportFacts(nowMs: nowMs)
+        report.task = taskFacts(listing.agents, window: window, all: listing.intelligence)
+
         var subsetPeaks = [SourceSet: Double](minimumCapacity: subsets.count)
         for set in subsets {
             subsetPeaks[set] = ledger?.measuredPeakOutput(for: set) ?? 0
@@ -152,7 +158,9 @@ struct SpeedEngine: Sendable {
             sourceLiveEstimated: window.estimatedBySource,
             liveCost: window.cost,
             sourceLiveCost: window.costBySource,
-            agents: agentList(nowMs: nowMs, window: window, references: references),
+            intelligence: listing.intelligence,
+            sourceIntelligence: listing.sourceIntelligence,
+            agents: listing.agents,
             history: history,
             today: ledger?.totals ?? TokenTotals(),
             todayBySource: ledger?.bySource ?? [:],
@@ -161,29 +169,33 @@ struct SpeedEngine: Sendable {
             todayCost: ledger?.cost ?? .zero,
             todayCostBySource: ledger?.costBySource ?? [:],
             todayCostByModel: ledger?.costByModel ?? [:],
+            todayUnpricedFacts: (ledger?.unpricedFacts ?? [:]).compactMapValues { tally in
+                let facts = UnpricedFact.list(tally)
+                return facts.isEmpty ? nil : facts
+            },
             peakToday: peak,
             peakTodayAtMs: peak.output > 0 ? peakAt : nil,
             subsetPeaks: subsetPeaks,
             todayStartMs: todayStartMs,
             lastResponse: lastResponse,
             events: events,
-            report: reportFacts(nowMs: nowMs)
+            report: report
         )
     }
 
     // MARK: - Live reporting
 
-    /// The table that names models for live reporting: the current one (METRICS 11.3).
-    private var reportTable: PriceTable { pricing?.current ?? PriceBook.bundled }
+    /// The current table: it names models for live reporting (METRICS 11.3) and classes them (6.9).
+    private var currentTable: PriceTable { pricing?.current ?? PriceBook.bundled }
 
     private func reportModelId(of record: ResponseRecord) -> String {
-        reportTable.reportModelId(model: record.model, provider: record.provider)
+        currentTable.reportModelId(model: record.model, provider: record.provider)
     }
 
     /// Agents of the 6.7 base set per source, generating agents per model, and the report ledger (METRICS 11.2).
     private func reportFacts(nowMs: Int64) -> ReportLiveFacts {
         var facts = ReportLiveFacts(counters: reportLedger.counters)
-        let table = reportTable
+        let table = currentTable
         for agent in agents.values {
             let isFresh = agent.lastLineMs.map { nowMs - $0 <= Self.staleMs } ?? false
             let phase = isFresh ? agent.phase : .idle
@@ -202,6 +214,48 @@ struct SpeedEngine: Sendable {
                 break
             }
             facts.agents[agent.source] = counts
+        }
+        return facts
+    }
+
+    /// The model sums of the live window at `nowMs` (METRICS 6.9 *Model sums*), as `advance` computes them.
+    func liveModelSums(nowMs: Int64) -> [LiveModelKey: IntelligenceSums] {
+        let timed = recentTimedResponses(nowMs: nowMs)
+        let measured = timed.filter(\.record.isFinal)
+        return LiveWindow(
+            nowMs: nowMs, measured: measured, unmeasured: timed.filter { !$0.record.isFinal }, agents: agents,
+            latestEnds: latestEndsByAgent(), references: SpeedReferences(timed: measured, nowMs: nowMs),
+            providers: agentProviders
+        ).intelligenceByModel
+    }
+
+    /// Counts a completed watched task (METRICS 11.10 *Counting*) under the resolved id of its model and its agent's
+    /// source; a task without actions adds nothing.
+    mutating func recordTaskCompletion(_ completion: TaskCompletion, agentId: String, source: SourceKind) {
+        guard let row = ReportTaskRow(completion.record) else { return }
+        let id = currentTable.reportModelId(model: completion.model, provider: agentProviders[agentId])
+        taskCompletions.append(epoch: completion.epoch, modelId: id, source: source, row: row)
+    }
+
+    /// The task score of all enabled sources and of each resolved model id: the set value of the listed agents whose
+    /// current model resolves to it, and the model sums of the raw models that do (METRICS 11.10 *Body*).
+    private func taskFacts(_ listed: [EngineAgentStatus], window: LiveWindow, all: IntelligenceSums) -> ReportTaskFacts {
+        var facts = ReportTaskFacts(value: all.score, thinking: all.thinking, completions: taskCompletions)
+        let table = currentTable
+        var resolved: [LiveModelKey: String] = [:]
+        func id(_ key: LiveModelKey) -> String {
+            if let id = resolved[key] { return id }
+            let id = table.reportModelId(model: key.model, provider: key.provider)
+            resolved[key] = id
+            return id
+        }
+        for (key, sums) in window.intelligenceByModel where sums.thinking != 0 {
+            facts.models[id(key), default: ReportTaskModel()].thinking += sums.thinking
+        }
+        for row in listed where row.intelligence.score.form != .none {
+            let modelId = id(LiveModelKey(model: row.agent.model, provider: agentProviders[row.agent.id]))
+            facts.models[modelId, default: ReportTaskModel()].value.merge(row.intelligence.score)
+            if row.intelligence.score.form == .live { facts.models[modelId]?.liveSources.insert(row.agent.source) }
         }
         return facts
     }
@@ -329,15 +383,25 @@ struct SpeedEngine: Sendable {
 
     // MARK: - Agents list
 
-    private func agentList(nowMs: Int64, window: LiveWindow, references: SpeedReferences) -> [EngineAgentStatus] {
+    /// The agents list (METRICS 6.7) with each agent's task score value, and the window's thinking sums with the highest
+    /// value of the listed agents, in total and per source (6.9 *Sets and groups*).
+    private func agentList(nowMs: Int64, window: LiveWindow, references: SpeedReferences)
+        -> (agents: [EngineAgentStatus], intelligence: IntelligenceSums, sourceIntelligence: [SourceKind: IntelligenceSums]) {
         func status(of agent: EngineAgent) -> EngineAgentStatus {
             let isFresh = agent.lastLineMs.map { nowMs - $0 <= Self.staleMs } ?? false
+            let phase = isFresh ? agent.phase : .idle
+            var intelligence = window.intelligenceByAgent[agent.id] ?? .zero
+            if let task = agent.task {
+                intelligence.score = TaskSetValue(id: agent.id, lastLineMs: agent.lastLineMs,
+                                                  value: task.value(idle: phase == .idle))
+            }
             return EngineAgentStatus(
                 agent: agent,
-                phase: isFresh ? agent.phase : .idle,
+                phase: phase,
                 live: window.byAgent[agent.id] ?? .zero,
                 recentSpeed: references.recent(for: agent.id)?.output,
-                liveCost: window.costByAgent[agent.id] ?? .zero
+                intelligence: intelligence,
+                signals: WorkSignals(agent.actions, nowMs: nowMs)
             )
         }
         var listed: [String: EngineAgentStatus] = [:]
@@ -354,7 +418,13 @@ struct SpeedEngine: Sendable {
                 next = parent.parentId
             }
         }
-        return AgentListOrder.arrange(listed)
+        var bySource = window.intelligenceBySource
+        var all = window.intelligence
+        for row in listed.values where row.intelligence.score.form != .none {
+            bySource[row.agent.source, default: .zero].score.merge(row.intelligence.score)
+            all.score.merge(row.intelligence.score)
+        }
+        return (AgentListOrder.arrange(listed), all, bySource)
     }
 
     // MARK: - Summaries

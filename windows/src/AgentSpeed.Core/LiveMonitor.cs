@@ -32,6 +32,8 @@ public sealed class LiveMonitor : IDisposable
     private MonitorConfiguration _configuration;
     private SourceSet[] _subsets = [];
     private int _subsetsChanged;
+    private IReadOnlyDictionary<SourceKind, Tasks.TaskModels>? _taskModels;
+    private int _taskModelsChanged;
     private Thread? _thread;
     private CancellationTokenSource? _stop;
     private CancellationTokenSource? _session;
@@ -123,6 +125,39 @@ public sealed class LiveMonitor : IDisposable
 
     /// <summary>The default omp root followed by one root per named profile.</summary>
     internal static IReadOnlyList<string> DefaultOmpRoots => OmpPaths.AutomaticRoots();
+
+    /// <summary>
+    /// Pi's default sessions folder (<c>%PI_CODING_AGENT_DIR%\sessions</c>, else <c>~/.pi/agent/sessions</c>); unless a
+    /// folder is chosen, the custom session folder of Pi's own settings is read as well (METRICS 2, 4.13).
+    /// </summary>
+    public static string DefaultPiRoot => Pi.PiPaths.DefaultRoot();
+
+    /// <summary>Pi's default root followed by its custom session folders.</summary>
+    internal static IReadOnlyList<string> DefaultPiRoots => Pi.PiPaths.AutomaticRoots();
+
+    /// <summary>
+    /// OpenClaw's default state folder (<c>%OPENCLAW_STATE_DIR%</c>, else <c>~/.openclaw</c> under <c>%OPENCLAW_HOME%</c> or the
+    /// home folder); unless a folder or database is chosen, every named-profile folder is read as well (METRICS 2, 4.14).
+    /// </summary>
+    public static string DefaultOpenClawRoot => OpenClaw.OpenClawPaths.DefaultStateFolder();
+
+    /// <summary>
+    /// Hermes Agent's home (<c>%HERMES_HOME%</c>, resolved to the root of a profile home; else <c>%LOCALAPPDATA%\hermes</c>,
+    /// macOS <c>~/.hermes</c>); its <c>logs</c> folder and every profile's are read (METRICS 2, 4.15).
+    /// </summary>
+    public static string DefaultHermesRoot => Hermes.HermesPaths.AutomaticHome();
+
+    /// <summary>
+    /// Factory Droid's sessions folder, <c>%USERPROFILE%\.factory\sessions</c> (macOS <c>~/.factory/sessions</c>); no environment
+    /// variable moves it (METRICS 2, 4.16).
+    /// </summary>
+    public static string DefaultDroidRoot => Droid.DroidPaths.DefaultRoot(UserHome);
+
+    /// <summary>The Factory Droid sessions folder a setting stands for: its <c>sessions</c> folder or the folder itself; null: the default.</summary>
+    public static string DroidRoot(string? setting) => SourceLocations.DroidRootOf(setting);
+
+    /// <summary>Every automatic OpenClaw state folder: the override alone, else <c>.openclaw</c> and its profiles.</summary>
+    public static IReadOnlyList<string> DefaultOpenClawRoots => OpenClaw.OpenClawPaths.AutomaticStateFolders();
 
     /// <summary>The three Antigravity stores below <c>~/.gemini</c>: CLI, desktop app, IDE (METRICS 2, 4.8).</summary>
     public static IReadOnlyList<string> DefaultAntigravityStores => AntigravityPaths.DefaultStores(Path.Combine(UserHome, ".gemini"));
@@ -255,6 +290,18 @@ public sealed class LiveMonitor : IDisposable
         SignalWake();
     }
 
+    /// <summary>
+    /// The task predictions' coefficients per scored source, calibrated on the history (METRICS 6.11): callable from any
+    /// thread (the history service calls it after each analysis); kept across configuration changes.
+    /// </summary>
+    public void SetTaskCalibration(IReadOnlyDictionary<SourceKind, Tasks.TaskModels> models)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+        Volatile.Write(ref _taskModels, models);
+        Interlocked.Exchange(ref _taskModelsChanged, 1);
+        SignalWake();
+    }
+
     /// <summary>Applies new settings; the monitor re-reads its sources in the background when anything changed.</summary>
     public void Update(MonitorConfiguration configuration)
     {
@@ -339,6 +386,11 @@ public sealed class LiveMonitor : IDisposable
         core.ReadWholeFilesInBackground = true;
         core.BackgroundReadCompleted = SignalWake;
         core.BeforeBackgroundRead = BeforeBackgroundRead;
+        if (Volatile.Read(ref _taskModels) is { } models)
+        {
+            core.SetTaskModels(models);
+        }
+
         var watchers = new Dictionary<SourceRoot, RootWatcher>();
         try
         {
@@ -405,10 +457,12 @@ public sealed class LiveMonitor : IDisposable
 
             elapsed = Stopwatch.GetElapsedTime(start);
             var now = NowMs();
+            core.TaskWatch = _hub.TaskWatch;
             if (elapsed >= nextZoneRefresh)
             {
                 TimeZoneInfo.ClearCachedData();
                 zone = TimeZoneInfo.Local;
+                core.HermesZone = zone;
                 nextZoneRefresh = elapsed + TimeZoneRefreshInterval;
             }
 
@@ -419,6 +473,11 @@ public sealed class LiveMonitor : IDisposable
                 if (TakeRescanRequest() || elapsed >= nextDiscovery)
                 {
                     changed |= core.Rediscover(now, today, token);
+                    if (core.RestartRequested)
+                    {
+                        return;
+                    }
+
                     EnsureWatchers(core, watchers);
                     nextDiscovery = elapsed + DiscoveryInterval;
                 }
@@ -445,7 +504,7 @@ public sealed class LiveMonitor : IDisposable
             }
 
             elapsed = Stopwatch.GetElapsedTime(start);
-            dirty |= changed | (Interlocked.Exchange(ref _subsetsChanged, 0) != 0);
+            dirty |= changed | (Interlocked.Exchange(ref _subsetsChanged, 0) != 0) | ApplyTaskModels(core);
             if (elapsed >= nextPublish || (dirty && elapsed - lastPublish >= ChangePublishMinInterval))
             {
                 Publish(core, StateOf(core), zone, observeLive: true);
@@ -454,6 +513,17 @@ public sealed class LiveMonitor : IDisposable
                 dirty = false;
             }
         }
+    }
+
+    private bool ApplyTaskModels(MonitorCore core)
+    {
+        if (Interlocked.Exchange(ref _taskModelsChanged, 0) == 0 || Volatile.Read(ref _taskModels) is not { } models)
+        {
+            return false;
+        }
+
+        core.SetTaskModels(models);
+        return true;
     }
 
     private void Publish(MonitorCore core, MonitorState state, TimeZoneInfo zone, bool observeLive)

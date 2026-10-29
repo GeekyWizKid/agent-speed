@@ -193,6 +193,8 @@ def check_fixtures(root):
             failures.append("%s: expected %r, got %r" % (case["path"], case["responses"], got))
     from trae_timing_reference import check_fixtures as check_timing
     failures.extend(check_timing(root))
+    from test_trae_integration import check_fixtures as check_integration
+    failures.extend(check_integration(root))
     return failures
 
 

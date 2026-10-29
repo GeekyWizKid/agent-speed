@@ -25,6 +25,18 @@ public enum SourceKind
     ZCode,
     Kimi,
     GrokBuild,
+
+    /// <summary>Pi (Pi Coding Agent), the upstream of omp, METRICS 4.13.</summary>
+    Pi,
+
+    /// <summary>OpenClaw: agent databases of a Gateway on this computer, one agent per transcript window, METRICS 4.14.</summary>
+    OpenClaw,
+
+    /// <summary>Hermes Agent (Nous Research): API-call lines of its <c>logs/agent.log</c>, one agent per session id, METRICS 4.15.</summary>
+    Hermes,
+
+    /// <summary>Factory Droid: session transcripts with their settings files, one agent per transcript, METRICS 4.16.</summary>
+    Droid,
     Trae,
 }
 
@@ -81,8 +93,20 @@ public sealed record AgentStatus(
 {
     public ExecutionModes Modes { get; init; } = ExecutionModes.Empty;
 
-    /// <summary>The agent's live cost rate (METRICS 9.5).</summary>
-    public LiveCost LiveCost { get; init; }
+    /// <summary>
+    /// The agent's 智力 (METRICS 6.9 <i>Values</i>): its current task's score by phase — live, resting (pale) or none —
+    /// with the task's state, and its own live thinking sums.
+    /// </summary>
+    public Intelligence.AgentIntelligence Intelligence { get; init; }
+
+    /// <summary>
+    /// The current task for the score card (METRICS 6.9 <i>Task facts</i>, 6.11 <i>Predictions</i>); null for a source
+    /// without a task score.
+    /// </summary>
+    public Tasks.AgentTaskStatus? Task { get; init; }
+
+    /// <summary>What the agent's recent tool calls say (METRICS 6.10).</summary>
+    public Work.WorkSignals Work { get; init; } = Core.Work.WorkSignals.None;
 }
 
 /// <param name="Available">The root folder exists and is readable.</param>
@@ -106,6 +130,12 @@ public sealed record SourceStatus(
 
     /// <summary>Models of today's responses without a known price, most unpriced requests first.</summary>
     public IReadOnlyList<string> UnpricedModels { get; init; } = [];
+
+    /// <summary>Today's unpriced facts (METRICS 9.6 <c>today.unpricedFacts</c>, 9.10 <i>Live</i>), in the fact order.</summary>
+    public IReadOnlyList<Unpriced.UnpricedCount> UnpricedFacts { get; init; } = [];
+
+    /// <summary>The source's 智力 (METRICS 6.9): its live thinking sums and the highest task score of its listed agents.</summary>
+    public Intelligence.IntelligenceSums Intelligence { get; init; }
 
     public ExecutionModes ConfiguredModes { get; init; } = ExecutionModes.Empty;
     public IReadOnlyList<ExecutionModeUsage> TodayModes { get; init; } = [];
@@ -194,6 +224,12 @@ public sealed record SpeedSnapshot(
     public Reporting.ReportLiveFacts Report { get; init; } = Reporting.ReportLiveFacts.Empty;
     public IReadOnlyList<ExecutionModeUsage> TodayModes { get; init; } = [];
 
+    /// <summary>
+    /// When the earliest read that changed the engine since the previous snapshot began (<see cref="Environment.TickCount64"/>
+    /// milliseconds); null when no read changed anything (METRICS 11.9, Observations).
+    /// </summary>
+    public long? ObservedAtMs { get; init; }
+
     public static SpeedSnapshot Empty { get; } = new(
         DateTimeOffset.MinValue,
         MonitorState.Starting(0),
@@ -228,6 +264,10 @@ public abstract record SpeedEvent
 /// <param name="AntigravityRoot">One Antigravity store folder (or its <c>conversations</c> folder); null reads all three stores.</param>
 /// <param name="WorkBuddyRoot">The WorkBuddy data folder or its <c>projects</c> folder; null uses <c>~/.workbuddy</c>.</param>
 /// <param name="WorkBuddyAiRoot">The WorkBuddy AI data folder or its <c>projects</c> folder; null uses <c>~/.workbuddy-ai</c>.</param>
+/// <param name="PiRoot">One Pi sessions folder; null reads Pi's default root and the custom session folder of its settings.</param>
+/// <param name="OpenClawRoot">An OpenClaw state folder, agent folder or database; null reads every automatic state folder.</param>
+/// <param name="HermesRoot">A Hermes home or one <c>logs</c> folder; null reads the automatic Hermes home and its profiles.</param>
+/// <param name="DroidRoot">The Factory Droid <c>.factory</c> folder or its <c>sessions</c> folder; null uses <c>~/.factory/sessions</c>.</param>
 public sealed record MonitorConfiguration(
     IReadOnlySet<SourceKind> EnabledSources,
     string? CodexRoot = null,
@@ -242,6 +282,10 @@ public sealed record MonitorConfiguration(
     string? ZCodeRoot = null,
     string? KimiRoot = null,
     string? GrokBuildRoot = null,
+    string? PiRoot = null,
+    string? OpenClawRoot = null,
+    string? HermesRoot = null,
+    string? DroidRoot = null,
     string? TraeRoot = null)
 {
     public static MonitorConfiguration Default { get; } =
@@ -262,10 +306,14 @@ public sealed record MonitorConfiguration(
         && ZCodeRoot == other.ZCodeRoot
         && KimiRoot == other.KimiRoot
         && GrokBuildRoot == other.GrokBuildRoot
+        && PiRoot == other.PiRoot
+        && OpenClawRoot == other.OpenClawRoot
+        && HermesRoot == other.HermesRoot
+        && DroidRoot == other.DroidRoot
         && TraeRoot == other.TraeRoot;
 
     public override int GetHashCode() => HashCode.Combine(
         HashCode.Combine(EnabledSources.Count, CodexRoot, ClaudeRoot, DshRoot, OpenCodeRoot, GeminiRoot, OmpRoot, AntigravityRoot),
         WorkBuddyRoot,
-        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, TraeRoot);
+        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, PiRoot, HashCode.Combine(OpenClawRoot, HermesRoot, DroidRoot, TraeRoot));
 }

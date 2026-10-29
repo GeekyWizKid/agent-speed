@@ -26,9 +26,12 @@ struct TraeTests {
     }
 
     @Test func sourceIdentifiersAndLocationsPreserveExistingSettings() {
-        #expect(SourceSet(.trae).rawValue == 1 << 13)
+        #expect(SourceSet(.trae).rawValue == 1 << 17)
+        #expect(SourceSet(.pi).rawValue == 1 << 13)
+        #expect(SourceSet(.droid).rawValue == 1 << 16)
         #expect(SourceSet(.grokBuild).rawValue == 1 << 12)
         #expect(TranscriptFamily(.trae) == nil)
+        #expect(!TaskScoring.scores(.trae), "Trae has no verified task-score input")
         #expect(LiveMonitor.defaultTraeRoots.map(\.lastPathComponent) == ["Trae", "Trae CN", "TRAE SOLO", "TRAE SOLO CN"])
         var moved = MonitorConfiguration(enabledSources: [.trae])
         let old = moved

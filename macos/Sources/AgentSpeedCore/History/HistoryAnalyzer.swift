@@ -1,18 +1,27 @@
 import Foundation
 
 /// Computes the daily history (METRICS 8): every transcript of the enabled sources (plus Codex `archived_sessions`,
-/// every omp root and every Antigravity conversation database) and every OpenCode session, parsed completely with
-/// the live rules, in startup order, incrementally against a `HistoryDatabase`.
+/// every omp and Pi root, every Antigravity conversation database, every Hermes Agent log of every profile and every
+/// Factory Droid session with its sidecar) and every OpenCode session, parsed completely with the live rules, in startup
+/// order, incrementally against a `HistoryDatabase`.
 ///
 /// Not thread-safe: one owner (a serial queue) drives it.
 final class HistoryAnalyzer {
     /// Bumped whenever a parser change alters results; stored files of other versions are analysed again.
-    /// 2: per-model measured output and time (METRICS 8). 3: cost (METRICS 9.7).
-    static let analysisVersion: Int64 = 4
+    /// 2: per-model measured output and time (METRICS 8). 3: cost (METRICS 9.7). 5: reasoning effort and speed.
+    /// 6: the copied prefix of paginated Codex sub-agents (METRICS 3.5). 7: the unpriced facts (METRICS 9.10).
+    /// 8: the task records (METRICS 6.11).
+    static let analysisVersion: Int64 = 8
+    /// A file whose last task was still open is analysed again once it has been quiet this long (METRICS 6.11 *Writes*).
+    static let openTaskQuietMs: Int64 = 30 * 60_000
     /// The current price table version of the last complete run; when it changes, files with unpriced responses are
     /// analysed again (METRICS 9.7).
     static let priceVersionKey = "priceTableVersion"
     static let opencodeFamily = "opencode"
+    static let openclawFamily = "openclaw"
+    /// Meta key prefix of an analysed OpenClaw database's identity.
+    static let openclawMetaPrefix = "openclaw:"
+    static let hermesFamily = "hermes"
     static let maxWorkers = 4
 
     struct Options: Sendable {
@@ -21,6 +30,8 @@ final class HistoryAnalyzer {
         var workers: Int = HistoryAnalyzer.defaultWorkers
         /// Contributions are written in batches at least this often.
         var saveIntervalMs: Int64 = 1500
+        /// The analysis time (`analysisMs` of the task records); nil: the run's start. Tests pin it.
+        var nowMs: Int64?
 
         init(timeZone: TimeZone = .current) {
             self.timeZone = timeZone
@@ -60,6 +71,18 @@ final class HistoryAnalyzer {
     private(set) var entries: [String: HistoryDatabase.Entry]
     private var peaks: [String: Double]
     private var indexes: [String: DirectoryIndex] = [:]
+    /// Factory Droid sessions' parent ids by transcript, read once per transcript identity (`DroidHistoryIdentity`).
+    private var droidParents = DroidHistoryIdentity.ParentCache()
+    /// The parent sidecar each Factory Droid session last found unreadable, carried from one analysis to the next
+    /// (METRICS 4.16 Own counters); a relaunch starts without it.
+    private var droidUnreadableParents: [String: DroidPaths.Signature] = [:]
+    /// Files analysed again for an open task, with the identity they had: each is retried once per change and launch.
+    private var openTaskRetries: [String: Int64] = [:]
+    /// Task records were written since the calibration was last computed.
+    private var tasksChanged = true
+    /// Bumped whenever task records are written.
+    private(set) var taskVersion = 0
+    private var calibration: [SourceKind: TaskModels] = [:]
 
     init(database: HistoryDatabase, pricing: PriceBook = PriceBook()) throws {
         self.database = database
@@ -90,6 +113,8 @@ final class HistoryAnalyzer {
         /// For an Antigravity database, the `.db` with its `-wal` folded in.
         var stat: FileStat
         var previous: HistoryDatabase.Entry?
+        /// A Factory Droid session's stored identity: its transcript with its sidecar and its parent's sidecar.
+        var droidIdentity: DroidHistoryIdentity?
     }
 
     private struct PlannedSession {
@@ -106,6 +131,34 @@ final class HistoryAnalyzer {
         var previous: HistoryDatabase.Entry?
     }
 
+    /// One OpenClaw transcript window to analyse again (METRICS 4.14): its responses were read during planning.
+    private struct PlannedOpenClawWindow {
+        var agentId: String
+        var records: [ResponseRecord]
+        var keys: [String]
+        var identity: (rows: Int64, modified: Int64)
+        var previous: HistoryDatabase.Entry?
+        /// Its task lines with the model and effort after each (METRICS 6.9); composed in `run`, where the dedupe set
+        /// knows the windows read before it.
+        var taskLines: [(line: TaskLine, model: String?, effort: String?)] = []
+        var lastLineMs: Int64?
+    }
+
+    private struct PlannedOpenClawDatabase {
+        var path: String
+        var identity: String
+        var windows: [PlannedOpenClawWindow] = []
+    }
+
+    /// One Hermes Agent log file to analyse again, stored under its identity so a rotation keeps its contributions.
+    private struct PlannedHermesFile {
+        var entryKey: String
+        var path: String
+        var folder: String
+        var stat: FileStat
+        var previous: HistoryDatabase.Entry?
+    }
+
     private struct Plan {
         var files: [PlannedFile] = []
         var discovered = 0
@@ -113,16 +166,21 @@ final class HistoryAnalyzer {
         var opencodeIdentity: String?
         var zcode: [PlannedUsageSession] = []
         var zcodeIdentity: String?
+        var openclaw: [PlannedOpenClawDatabase] = []
+        var hermes: [PlannedHermesFile] = []
         var trae: [PlannedUsageSession] = []
         var traeIdentities: [String: String] = [:]
 
-        var bytes: Int64 { files.reduce(0) { $0 + $1.stat.size } }
+        var openclawWindows: Int { openclaw.reduce(0) { $0 + $1.windows.count } }
+
+        var bytes: Int64 { files.reduce(0) { $0 + $1.stat.size } + hermes.reduce(0) { $0 + $1.stat.size } }
     }
 
     /// The work a run would do: discovered files whose identity or analysis version changed, and changed OpenCode
     /// sessions; after a price table change also those with unpriced responses. Cheap when nothing changed.
     private func plan(configuration: MonitorConfiguration, options: Options, zoneChanged: Bool, repricing: Bool) throws -> Plan {
         var plan = Plan()
+        let nowMs = options.nowMs ?? Clock.milliseconds(Date())
         var seen: Set<String> = []
         for (family, root) in Self.roots(configuration) {
             guard TranscriptDiscovery.isAvailable(root: root) else { continue }
@@ -134,12 +192,17 @@ final class HistoryAnalyzer {
                 guard let stat = family.stat(path) else { continue }
                 plan.discovered += 1
                 let previous = entries[path]
+                let droidIdentity = family == .droid ? DroidHistoryIdentity(path: path, stat: stat, parents: &droidParents) : nil
+                let size = droidIdentity?.size ?? stat.size
+                let modified = droidIdentity?.modified ?? stat.modifiedNs
                 if let previous, !zoneChanged, previous.version == options.analysisVersion,
-                   previous.family == family.rawValue, previous.size == stat.size, previous.modified == stat.modifiedNs,
-                   !(repricing && previous.hasUnpriced) {
+                   previous.family == family.rawValue, previous.size == size, previous.modified == modified,
+                   !(repricing && previous.hasUnpriced),
+                   !reopensTask(path, previous, modifiedMs: stat.modifiedNs / 1_000_000, nowMs: nowMs) {
                     continue
                 }
-                plan.files.append(PlannedFile(path: path, family: family, root: root, stat: stat, previous: previous))
+                plan.files.append(PlannedFile(path: path, family: family, root: root, stat: stat, previous: previous,
+                                              droidIdentity: droidIdentity))
             }
         }
         plan.files.sort { lhs, rhs in
@@ -154,7 +217,124 @@ final class HistoryAnalyzer {
         if configuration.readsTrae {
             try planTrae(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing, into: &plan)
         }
+        if configuration.readsOpenclaw {
+            try planOpenclaw(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing, into: &plan)
+        }
+        if configuration.readsHermes {
+            planHermes(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing, into: &plan)
+        }
         return plan
+    }
+
+    /// A file whose records include an incomplete task, quiet for 30 minutes, is analysed again once (METRICS 6.11).
+    private func reopensTask(_ path: String, _ previous: HistoryDatabase.Entry, modifiedMs: Int64, nowMs: Int64) -> Bool {
+        guard previous.hasOpenTask, nowMs - modifiedMs >= Self.openTaskQuietMs,
+              openTaskRetries[path] != previous.modified else { return false }
+        openTaskRetries[path] = previous.modified
+        return true
+    }
+
+    /// Hermes Agent's log files (METRICS 4.15, 8): per log folder in startup order, each stored under its identity
+    /// (device and inode), so a renamed (rotated) file is unchanged and the deleted oldest keeps its contributions.
+    private func planHermes(configuration: MonitorConfiguration, options: Options, zoneChanged: Bool,
+                            repricing: Bool, into plan: inout Plan) {
+        var seen: Set<String> = []
+        for folder in configuration.resolvedHermesFolders {
+            for file in HermesSource.discover(folder).sorted(by: TranscriptDiscovery.startupOrder) {
+                let key = Self.hermesEntryKey(file.stat.identity)
+                guard seen.insert(key).inserted else { continue }
+                plan.discovered += 1
+                let previous = entries[key]
+                if let previous, !zoneChanged, previous.version == options.analysisVersion, previous.family == Self.hermesFamily,
+                   previous.size == file.stat.size, previous.modified == file.stat.modifiedNs,
+                   !(repricing && previous.hasUnpriced) {
+                    continue
+                }
+                plan.hermes.append(PlannedHermesFile(entryKey: key, path: file.path, folder: folder, stat: file.stat,
+                                                     previous: previous))
+            }
+        }
+    }
+
+    /// The store key of a Hermes Agent log: its identity, not its path.
+    static func hermesEntryKey(_ identity: FileIdentity) -> String {
+        "hermes:\(identity.device):\(identity.inode)"
+    }
+
+    /// OpenClaw's agent databases in startup order (METRICS 4.14, 8). A database whose files did not change is not
+    /// opened; otherwise every window whose highest `seq` or `transcript_updated_at` changed is parsed completely.
+    /// Responses are read here and claimed in `run`, in this order, with the shared dedupe set.
+    private func planOpenclaw(configuration: MonitorConfiguration, options: Options, zoneChanged: Bool,
+                              repricing: Bool, into plan: inout Plan) throws {
+        var seen: Set<String> = []
+        let paths = configuration.resolvedOpenclawRoots.flatMap(OpenClawHome.databases(in:)).filter { seen.insert($0).inserted }
+        let reprices = repricing && entries.values.contains { $0.family == Self.openclawFamily && $0.hasUnpriced }
+        let nowMs = options.nowMs ?? Clock.milliseconds(Date())
+        for path in OpenClawSource.startupOrder(paths) {
+            guard let stat = FileStat.lstat(path), stat.isRegularFile else { continue }
+            plan.discovered += 1
+            let wal = FileStat.lstat(path + "-wal")
+            let identity = [path, "\(stat.identity.device):\(stat.identity.inode)", "\(stat.size):\(stat.modifiedNs)",
+                            wal.map { "\($0.size):\($0.modifiedNs)" } ?? "-", "v\(options.analysisVersion)"].joined(separator: "|")
+            let prefix = path + "#"
+            let openTask = entries.contains { key, entry in
+                key.hasPrefix(prefix) && entry.hasOpenTask && nowMs - entry.modified >= Self.openTaskQuietMs
+                    && openTaskRetries[key] != entry.modified
+            }
+            if !zoneChanged, !reprices, !openTask, try database.meta(Self.openclawMetaPrefix + path) == identity { continue }
+            var planned = PlannedOpenClawDatabase(path: path, identity: identity)
+            let source: OpenClawDatabase
+            do {
+                source = try OpenClawDatabase(path: path)
+            } catch .unsupported {
+                // No session tables (2026.7 and older): opened again only once its files change.
+                plan.openclaw.append(planned)
+                continue
+            } catch {
+                // A busy or unreadable database is tried again on the next run.
+                continue
+            }
+            do {
+                try source.read {
+                    for window in try source.windows() {
+                        let agentId = OpenClawSource.agentId(path, window.sessionId)
+                        let rows = try source.maxSeq(session: window.sessionId) ?? 0
+                        let previous = entries[agentId]
+                        if let previous, !zoneChanged, previous.version == options.analysisVersion, previous.size == rows,
+                           previous.modified == window.activityMs, !(repricing && previous.hasUnpriced),
+                           !reopensTask(agentId, previous, modifiedMs: window.activityMs, nowMs: nowMs) {
+                            continue
+                        }
+                        // The window's own dedupe set orders its keys; ownership across windows is decided in `run`.
+                        var local = Deduper(capacity: .max)
+                        var parser = OpenClawParser(agentId: agentId, fileID: 0, window: window)
+                        var latest: [String: ResponseRecord] = [:]
+                        var order: [String] = []
+                        var tasks = TaskLineReader(source: .openclaw)
+                        tasks?.mirrorWindow = window.mirrorsTurns
+                        var taskLines: [(line: TaskLine, model: String?, effort: String?)] = []
+                        try source.rows(session: window.sessionId, after: .min, maxLineBytes: FileTailer.defaultMaxLineBytes,
+                                        readsTools: false, tasks: &tasks) { row in
+                            guard let entry = row.entry else { return }
+                            parser.consume(entry, deduper: &local) { upsert in
+                                if latest[upsert.record.key] == nil { order.append(upsert.record.key) }
+                                latest[upsert.record.key] = upsert.record
+                            }
+                            guard case .line = row.task else { return }
+                            let effort = parser.state.modes.attribution(for: .effort)
+                            taskLines.append((row.task, parser.state.model, effort.isUnknown ? nil : effort.mode))
+                        }
+                        planned.windows.append(PlannedOpenClawWindow(
+                            agentId: agentId, records: order.compactMap { latest[$0] }, keys: order,
+                            identity: (rows, window.activityMs), previous: previous, taskLines: taskLines,
+                            lastLineMs: parser.state.lastLineMs))
+                    }
+                }
+            } catch {
+                continue
+            }
+            plan.openclaw.append(planned)
+        }
     }
 
     private func planZcode(configuration: MonitorConfiguration, options: Options, zoneChanged: Bool,
@@ -234,15 +414,13 @@ final class HistoryAnalyzer {
         plan.opencode = (opencode, sessions, identity)
     }
 
-    /// Transcript roots of the enabled sources (both Gemini CLI roots, every omp root, every readable Antigravity
-    /// store); Codex also contributes its `archived_sessions` sibling.
+    /// Transcript roots of the enabled sources (both Gemini CLI roots, every omp root that is not Pi's, every readable
+    /// Antigravity store, every Pi root); Codex also contributes its `archived_sessions` sibling.
     static func roots(_ configuration: MonitorConfiguration) -> [(TranscriptFamily, String)] {
         var roots: [(TranscriptFamily, String)] = []
-        for family in TranscriptFamily.allCases where configuration.reads(family) {
-            for root in configuration.resolvedRoots(for: family) where MonitorConfiguration.isReadable(root: root, family: family) {
-                roots.append((family, root))
-            }
-            if family == .codex { roots.append((family, configuration.resolvedCodexArchiveRoot)) }
+        for root in configuration.allRoots() where configuration.reads(root.family) {
+            if root.readable { roots.append((root.family, root.path)) }
+            if root.family == .codex { roots.append((root.family, MonitorConfiguration.codexArchiveRoot(of: root.path))) }
         }
         return roots
     }
@@ -268,31 +446,38 @@ final class HistoryAnalyzer {
         let plan = try plan(configuration: configuration, options: options, zoneChanged: zoneChanged, repricing: repricing)
         report.filesDiscovered = plan.discovered
         let sessions = plan.opencode?.sessions ?? []
-        var state = Progress(filesTotal: plan.files.count + sessions.count + plan.zcode.count + plan.trae.count, bytesTotal: plan.bytes)
+        var state = Progress(filesTotal: plan.files.count + sessions.count + plan.zcode.count + plan.openclawWindows
+                                + plan.hermes.count + plan.trae.count, bytesTotal: plan.bytes)
         progress(state)
         func elapsedMs() -> Double { Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000 }
 
-        if plan.files.isEmpty && sessions.isEmpty && plan.zcode.isEmpty && plan.trae.isEmpty {
+        if plan.files.isEmpty && sessions.isEmpty && plan.zcode.isEmpty && plan.openclaw.isEmpty && plan.hermes.isEmpty && plan.trae.isEmpty {
             try finish(plan: plan, zone: zone, priceVersion: priceVersion)
             report.durationMs = elapsedMs()
             return report
         }
 
         var deduper = Deduper.hashed()
-        let replaced = Set(plan.files.compactMap(\.previous?.id) + sessions.compactMap(\.previous?.id) + plan.zcode.compactMap(\.previous?.id) + plan.trae.compactMap(\.previous?.id))
+        let replaced = Set(plan.files.compactMap(\.previous?.id) + sessions.compactMap(\.previous?.id) + plan.zcode.compactMap(\.previous?.id)
+            + plan.openclaw.flatMap { $0.windows.compactMap(\.previous?.id) } + plan.hermes.compactMap(\.previous?.id) + plan.trae.compactMap(\.previous?.id))
         try database.loadKeys(excluding: replaced, into: &deduper)
         var labeler = DayLabeler(timeZone: options.timeZone)
         var pending: [(path: String, entry: HistoryDatabase.Entry, keys: [UInt64])] = []
+        var pendingTasks: [String: [TaskRecord]] = [:]
         var lastSave = DispatchTime.now().uptimeNanoseconds
+        let analysisMs = options.nowMs ?? Clock.milliseconds(Date())
 
         func flush(force: Bool) throws {
             let now = DispatchTime.now().uptimeNanoseconds
             guard !pending.isEmpty, force || Int64(now - lastSave) / 1_000_000 >= options.saveIntervalMs else { return }
-            let ids = try database.save(pending)
+            let ids = try database.save(pending, taskRecords: pendingTasks)
             for (path, id) in ids { entries[path]?.id = id }
             try saveBindings()
             pending.removeAll(keepingCapacity: true)
+            pendingTasks.removeAll(keepingCapacity: true)
             lastSave = now
+            tasksChanged = true
+            taskVersion += 1
         }
 
         if !plan.files.isEmpty {
@@ -319,27 +504,51 @@ final class HistoryAnalyzer {
                     continue
                 }
                 // Parsers bridge paths through NSString; drain those per file on this long-running thread.
-                let (days, keys) = autoreleasepool { () -> ([UsageKey: DayAggregate], [UInt64]) in
+                let (days, keys, unknown, tasks) = autoreleasepool {
+                    () -> ([UsageKey: DayAggregate], [UInt64], Bool, [TaskRecord]?) in
                     var parser = TranscriptParser(
-                        family: file.family, agentId: file.path, fileID: FileID(truncatingIfNeeded: index), root: file.root)
+                        family: file.family, agentId: file.path, fileID: FileID(truncatingIfNeeded: index), root: file.root,
+                        tasks: .history)
+                    if file.family == .droid { parser.droidUnreadableParent = droidUnreadableParents[file.path] }
                     var latest: [String: ResponseRecord] = [:]
-                    parser.consume(output.lines, deduper: &deduper) { latest[$0.record.key] = $0.record }
+                    parser.consume(output.lines, taskLines: output.tasks, deduper: &deduper) { latest[$0.record.key] = $0.record }
+                    // Factory Droid's history rule: the whole transcript, then one sidecar read (METRICS 4.16).
+                    _ = parser.finishReadCycle { latest[$0.record.key] = $0.record }
+                    if file.family == .droid {
+                        droidUnreadableParents[file.path] = parser.droidUnreadableParent
+                        if parser.droidOwnCountersUnknown { return ([:], deduper.finishFile(), true, nil) }
+                    }
+                    parser.finishHistory { latest[$0.record.key] = $0.record }
                     let days = DayAggregate.contributions(
                         of: latest.values, source: parser.state.source, labeler: &labeler, pricing: pricing)
-                    return (days, deduper.finishFile())
+                    // The task records of the file read whole (METRICS 6.11 *Task records*).
+                    let tasks = parser.tasks.map {
+                        TaskTranscriptReading.records(of: $0, agentId: file.path, source: parser.state.source,
+                                                      lastLineMs: parser.state.lastLineMs, analysisMs: analysisMs,
+                                                      timeZone: options.timeZone)
+                    }
+                    return (days, deduper.finishFile(), false, tasks)
+                }
+                if unknown {
+                    // A Factory Droid session whose parent sidecar could not be read: not stored, so the next analysis
+                    // tries again (METRICS 4.16 Own counters).
+                    progress(state)
+                    continue
                 }
                 let stat = file.family == .grokBuild ? file.family.stat(file.path) ?? output.read.stat ?? file.stat
                     : output.read.stat ?? file.stat
-                let entry = HistoryDatabase.Entry(
+                var entry = HistoryDatabase.Entry(
                     id: file.previous?.id,
                     family: file.family.rawValue,
-                    size: stat.size,
-                    modified: stat.modifiedNs,
+                    size: file.droidIdentity?.size ?? stat.size,
+                    modified: file.droidIdentity?.modified ?? stat.modifiedNs,
                     version: options.analysisVersion,
                     days: days
                 )
+                entry.hasOpenTask = tasks?.contains { !$0.complete } ?? false
                 entries[file.path] = entry
                 pending.append((file.path, entry, keys))
+                if let tasks { pendingTasks[file.path] = tasks }
                 report.filesAnalyzed += 1
                 report.bytesAnalyzed += stat.size
                 try flush(force: false)
@@ -404,6 +613,69 @@ final class HistoryAnalyzer {
             }
         }
 
+        if !report.cancelled {
+            // Each window owns its keys like a file (METRICS 3.4, 8); window ids only need to differ from each other.
+            var windowID = OpenClawSource.firstFileID
+            for database in plan.openclaw {
+                for window in database.windows {
+                    if isCancelled() { report.cancelled = true; break }
+                    let fileID = windowID
+                    windowID &+= 1
+                    // Before the window claims its keys: an assistant entry another window owns is a duplicate (6.9).
+                    var composer = TaskComposer(source: .openclaw, keepsEveryTask: true)
+                    for (line, model, effort) in window.taskLines {
+                        if let t = composer.feed(line, isDuplicate: { deduper.isOwnedByOtherFile($0, for: fileID) }) {
+                            composer.note(t: t, model: model, effort: effort)
+                        }
+                    }
+                    let tasks = TaskTranscriptReading.records(of: composer, agentId: window.agentId, source: .openclaw,
+                                                              lastLineMs: window.lastLineMs, analysisMs: analysisMs,
+                                                              timeZone: options.timeZone)
+                    let records = window.records.filter { deduper.claim($0.key, for: fileID) != .otherFile }
+                    let keys = deduper.finishFile()
+                    var entry = HistoryDatabase.Entry(
+                        id: window.previous?.id, family: Self.openclawFamily, size: window.identity.rows,
+                        modified: window.identity.modified, version: options.analysisVersion,
+                        days: DayAggregate.contributions(of: records, source: .openclaw, labeler: &labeler, pricing: pricing))
+                    entry.hasOpenTask = tasks.contains { !$0.complete }
+                    entries[window.agentId] = entry
+                    pending.append((window.agentId, entry, keys))
+                    pendingTasks[window.agentId] = tasks
+                    report.sessionsAnalyzed += 1
+                    state.filesDone += 1
+                    try flush(force: false)
+                    progress(state)
+                }
+                if report.cancelled { break }
+            }
+        }
+
+        if !report.cancelled {
+            let zone = configuration.resolvedHermesTimeZone
+            for (index, file) in plan.hermes.enumerated() {
+                if isCancelled() { report.cancelled = true; break }
+                state.filesDone += 1
+                state.bytesDone += file.stat.size
+                let fileID = HermesSource.firstFileID &+ FileID(truncatingIfNeeded: index)
+                guard let (days, size, modified) = analyseHermes(file, fileID: fileID, zone: zone, deduper: &deduper,
+                                                                 labeler: &labeler) else {
+                    // Unreadable, vanished or renamed meanwhile: keep what was stored, including its key ownership.
+                    report.filesUnreadable += 1
+                    if let id = file.previous?.id { deduper.insertSettled(try database.keys(ofFile: id)) }
+                    progress(state)
+                    continue
+                }
+                let entry = HistoryDatabase.Entry(id: file.previous?.id, family: Self.hermesFamily, size: size,
+                                                  modified: modified, version: options.analysisVersion, days: days)
+                entries[file.entryKey] = entry
+                pending.append((file.entryKey, entry, deduper.finishFile()))
+                report.filesAnalyzed += 1
+                report.bytesAnalyzed += size
+                try flush(force: false)
+                progress(state)
+            }
+        }
+
         try flush(force: true)
         try saveBindings()
         if !report.cancelled {
@@ -413,22 +685,80 @@ final class HistoryAnalyzer {
         return report
     }
 
+    /// One Hermes Agent log read whole with the live rules. A session's day counts as one agent in the file that first
+    /// claims it, so a session spread over rotated files is one agent of the day (METRICS 8). Nil when the file cannot
+    /// be read or its path names another file now.
+    private func analyseHermes(
+        _ file: PlannedHermesFile,
+        fileID: FileID,
+        zone: TimeZone,
+        deduper: inout Deduper,
+        labeler: inout DayLabeler
+    ) -> (days: [UsageKey: DayAggregate], size: Int64, modified: Int64)? {
+        var parser = HermesLogSet(folder: file.folder, timeZone: zone, fileID: fileID)
+        var tailer = FileTailer(path: file.path, start: .beginning)
+        var records: [ResponseRecord] = []
+        let read = autoreleasepool {
+            tailer.read(expecting: file.stat.identity) { line in
+                parser.consume(line, deduper: &deduper) { records.append($0.record) }
+            }
+        }
+        guard !read.failed, !read.otherFile, let stat = read.stat else {
+            _ = deduper.finishFile()
+            return nil
+        }
+        var days = DayAggregate.contributions(of: records, source: .hermes, labeler: &labeler, pricing: pricing)
+        var agents: [String: Int] = [:]
+        var claimed: Set<String> = []
+        for record in records where DayLabeler.hasDay(record.endMs) {
+            let day = labeler.label(forMs: record.endMs)
+            let marker = "hermes-agent-day:" + day + ":" + record.agentId
+            guard claimed.insert(marker).inserted else { continue }
+            if deduper.claim(marker, for: fileID) == .new { agents[day, default: 0] += 1 }
+        }
+        for key in days.keys { days[key]?.agents = agents[key.day] ?? 0 }
+        return (days, stat.size, stat.modifiedNs)
+    }
+
     private func finish(plan: Plan, zone: String, priceVersion: String, opencodeComplete: Bool = true) throws {
         try database.setMeta("timeZone", zone)
         try database.setMeta(Self.priceVersionKey, priceVersion)
         if opencodeComplete, let identity = plan.opencodeIdentity { try database.setMeta("opencode", identity) }
         if let identity = plan.zcodeIdentity { try database.setMeta("zcode", identity) }
+        for planned in plan.openclaw { try database.setMeta(Self.openclawMetaPrefix + planned.path, planned.identity) }
         for (key, identity) in plan.traeIdentities { try database.setMeta(key, identity) }
     }
 
     // MARK: - Results
 
-    /// Daily totals: sums over files, for the given sources, sorted by day then source.
+    // MARK: - Task records (METRICS 6.11)
+
+    /// Each scored source's prediction coefficients, from the stored records; computed again only after records were
+    /// written (in memory, never stored).
+    func taskCalibration() throws -> [SourceKind: TaskModels] {
+        guard tasksChanged else { return calibration }
+        calibration = try database.taskCalibration()
+        tasksChanged = false
+        return calibration
+    }
+
+    /// The complete records of the enabled sources, without their feature rows: the comparison's input.
+    func comparisonRecords(sources: Set<SourceKind>) throws -> [TaskRecord] {
+        try database.taskRecords(rows: false, completeOnly: true).filter { sources.contains($0.source) }
+    }
+
+    /// Daily totals: sums over files, for the given sources, sorted by day then source. Each contribution's
+    /// unpriced facts are read on their own and then summed (METRICS 9.10 *Reading*).
     func days(sources: Set<SourceKind>) -> [DailyUsage] {
         var totals: [UsageKey: DayAggregate] = [:]
+        var unpriced: [UsageKey: [UnpricedPart]] = [:]
         for entry in entries.values {
             for (key, day) in entry.days where sources.contains(key.source) {
                 totals[key, default: DayAggregate()].merge(day)
+                let reading = day.unpricedReading
+                unpriced[key, default: []].append(UnpricedPart(
+                    day: key.day, source: key.source, requests: reading.requests, noCostData: reading.noCostData,
+                    derived: reading.derived, facts: reading.facts))
             }
         }
         return totals
@@ -436,8 +766,12 @@ final class HistoryAnalyzer {
                 lhs.key.day != rhs.key.day ? lhs.key.day < rhs.key.day : lhs.key.source.rawValue < rhs.key.source.rawValue
             }
             .map {
-                $0.value.usage(day: $0.key.day, source: $0.key.source, peak: peaks[$0.key.day],
-                               priceVersion: pricing.boundVersion(forDay: $0.key.day))
+                let part = UnpricedPart.merged(unpriced[$0.key] ?? []).first
+                return $0.value.usage(
+                    day: $0.key.day, source: $0.key.source, peak: peaks[$0.key.day],
+                    priceVersion: pricing.boundVersion(forDay: $0.key.day),
+                    unpriced: UnpricedReading(requests: part?.requests ?? 0, noCostData: part?.noCostData ?? 0,
+                                              facts: part?.facts ?? [], derived: part?.derived ?? 0))
             }
     }
 

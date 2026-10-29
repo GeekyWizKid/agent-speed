@@ -1,3 +1,6 @@
+using AgentSpeed.Core.Tasks;
+using AgentSpeed.Core.Work;
+
 namespace AgentSpeed.Core.Parsing;
 
 /// <summary>Receives complete lines (without the trailing newline) from a tailer.</summary>
@@ -7,6 +10,15 @@ internal interface ILineSink
 
     /// <summary>Input that never became a line (an undecodable zstd frame); counted as one malformed line.</summary>
     void OnMalformed();
+}
+
+/// <summary>
+/// A sink that also takes each line's byte offset in the file and its length before the newline, a trailing <c>\r</c>
+/// included (Factory Droid weighs calls by bytes, METRICS 4.16).
+/// </summary>
+internal interface IPositionedLineSink : ILineSink
+{
+    void OnLine(ReadOnlySpan<byte> line, long offset, int length);
 }
 
 /// <summary>Lines extracted off-thread, applied later to their parser in file order.</summary>
@@ -23,6 +35,8 @@ internal interface ILineBatch : ILineSink
 internal abstract class TranscriptParser
 {
     private AgentPhase _phase = AgentPhase.Idle;
+    private WorkLog? _work;
+    private TaskComposer? _tasks;
 
     protected TranscriptParser(string agentId, IDeduper deduper, SourceKind initialSource)
     {
@@ -62,6 +76,21 @@ internal abstract class TranscriptParser
 
     public long MalformedLines { get; private set; }
 
+    /// <summary>The file's latest tool calls as actions, oldest first (METRICS 6.10); empty for sources without tool calls.</summary>
+    public IReadOnlyList<WorkAction> WorkActions => _work?.Actions ?? [];
+
+    /// <summary>
+    /// The agent's task stream (METRICS 6.9 <i>Composing the stream</i>) for a source with a task score; null otherwise.
+    /// Seeded lines compose like live ones.
+    /// </summary>
+    public TaskComposer? Tasks => _tasks;
+
+    /// <summary>The file side of the composer, used by <c>Extract</c> on the reading thread.</summary>
+    internal TaskLineReader? TaskReader { get; private set; }
+
+    /// <summary>Live reporting's watch (METRICS 11.10), given by the live monitor; null elsewhere (history, dumps, tests).</summary>
+    internal TaskWatchContext? TaskWatch { get; set; }
+
     /// <summary>Changes whenever agent-visible state changes.</summary>
     public int Version { get; private set; }
 
@@ -92,10 +121,79 @@ internal abstract class TranscriptParser
         PhaseSinceMs = null;
         InFlightStartMs = null;
         LastLineMs = null;
+        _work?.Clear();
+        _tasks?.Reset();
         Version++;
     }
 
+    /// <summary>Keeps every task's events instead of the current task's (history analysis, dumps); call before any line.</summary>
+    public void KeepEveryTask()
+    {
+        if (_tasks is { } tasks)
+        {
+            _tasks = new TaskComposer(tasks.Source, keepAll: true);
+        }
+    }
+
+    /// <summary>Seeding adds no actions (METRICS 6.10): a file's actions start with its live lines.</summary>
+    public void ForgetWork()
+    {
+        if (_work is { Actions.Count: > 0 } work)
+        {
+            work.Clear();
+            Version++;
+        }
+    }
+
     protected void CountMalformed() => MalformedLines++;
+
+    /// <summary>Gives the parser a composer (a source with a task score; call from the constructor).</summary>
+    protected void EnableTasks(TaskLineReader reader, SourceKind source)
+    {
+        TaskReader = reader;
+        _tasks = new TaskComposer(source, keepAll: false);
+    }
+
+    /// <summary>A line the reader starts the file with: the composer's file side starts over.</summary>
+    internal void OnFileStart() => TaskReader?.Reset();
+
+    /// <summary>
+    /// Feeds one counted line to the composer, after the source handler: its assistant entry is a duplicate when the
+    /// handler left its key to another file (4.1 step 2, 4.7 step 2, 4.16).
+    /// </summary>
+    /// <param name="assistant">The line is an assistant line that decides a withdrawal even without facts (Claude).</param>
+    /// <param name="dedupeKey">That line's dedupe key.</param>
+    protected void ComposeTask(TaskLine? line, long t, bool suppressCalls = false, bool assistant = false, string? dedupeKey = null)
+    {
+        if (_tasks is not { } tasks)
+        {
+            return;
+        }
+
+        var key = line?.DedupeKey ?? dedupeKey;
+        var duplicate = key is not null && Deduper.TryGetOwner(key, out var owner)
+            && !string.Equals(owner, AgentId, StringComparison.Ordinal);
+        var before = tasks.Revision;
+        tasks.Feed(line, t, assistant || line?.Assistant == true, duplicate, suppressCalls, Model, EffortAndSpeed.Effort(Modes)?.Mode, TaskWatch);
+        if (tasks.Revision != before)
+        {
+            Version++;
+        }
+
+        if (TaskWatch is { } watch && (tasks.HasWatchedTask || tasks.HasDone))
+        {
+            watch.Collect(this);
+        }
+    }
+
+    /// <summary>Logs a line's tool calls and results; callers skip copied history and lines another file owns.</summary>
+    protected void RecordTools(in LineTools tools, long atMs)
+    {
+        if ((tools.Calls is not null || tools.Outcomes is not null) && (_work ??= new WorkLog()).Apply(tools, atMs))
+        {
+            Version++;
+        }
+    }
 
     protected void MarkChanged() => Version++;
 
@@ -190,7 +288,7 @@ internal abstract class TranscriptParser<TLine> : TranscriptParser
 
     protected abstract TLine Extract(ReadOnlySpan<byte> line);
 
-    private sealed class Batch(TranscriptParser<TLine> owner) : ILineBatch
+    private sealed class Batch(TranscriptParser<TLine> owner) : ILineBatch, IPositionedLineSink
     {
         private readonly List<TLine> _lines = [];
         private int _malformed;
@@ -198,6 +296,16 @@ internal abstract class TranscriptParser<TLine> : TranscriptParser
         public int Count => _lines.Count;
 
         public void OnLine(ReadOnlySpan<byte> line) => _lines.Add(owner.Extract(line));
+
+        public void OnLine(ReadOnlySpan<byte> line, long offset, int length)
+        {
+            if (offset == 0)
+            {
+                owner.OnFileStart();
+            }
+
+            _lines.Add(owner.Extract(line));
+        }
 
         public void OnMalformed() => _malformed++;
 

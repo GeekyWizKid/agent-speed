@@ -1,9 +1,11 @@
 using System.Text.Json;
+using AgentSpeed.Core.Droid;
 using AgentSpeed.Core.Gemini;
 using AgentSpeed.Core.IO;
 using AgentSpeed.Core.Monitoring;
 using AgentSpeed.Core.Omp;
 using AgentSpeed.Core.Parsing;
+using AgentSpeed.Core.Pi;
 using AgentSpeed.Core.WorkBuddy;
 
 namespace AgentSpeed.Core.Tests;
@@ -84,6 +86,8 @@ public sealed class ParserFixtureTests
             Assert.Equal(parser.Source, r.Source);
             Assert.Equal(parser.AgentId, r.AgentId);
         }
+
+        AssertModes(expected, relative, parser.Modes, responses);
     }
 
     [Theory]
@@ -126,6 +130,9 @@ public sealed class ParserFixtureTests
         SourceKind.Antigravity => "antigravity",
         SourceKind.WorkBuddy => "workbuddy",
         SourceKind.WorkBuddyAi => "workbuddyAi",
+        SourceKind.Pi => "pi",
+        SourceKind.OpenClaw => "openclaw",
+        SourceKind.Droid => "droid",
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 
@@ -136,6 +143,36 @@ public sealed class ParserFixtureTests
         AgentPhase.Idle => "idle",
         _ => throw new ArgumentOutOfRangeException(nameof(phase)),
     };
+
+    /// <summary>
+    /// The current <c>effort</c> and <c>speed</c> and each response's <c>responseModes</c> (EXECUTION-MODES, Native rules);
+    /// entries without these keys are not checked.
+    /// </summary>
+    internal static void AssertModes(JsonElement expected, string label, ExecutionModes current, IEnumerable<ParsedResponse> responses)
+    {
+        if (expected.TryGetProperty("effort", out var effort))
+            Assert.True(Attribution(effort) == View(EffortAndSpeed.Effort(current)), $"{label} effort: got {EffortAndSpeed.Effort(current)}");
+        if (expected.TryGetProperty("speed", out var speed))
+            Assert.True(Attribution(speed) == View(EffortAndSpeed.Speed(current)), $"{label} speed: got {EffortAndSpeed.Speed(current)}");
+        if (!expected.TryGetProperty("responseModes", out var byKey)) return;
+        var latest = responses.GroupBy(r => r.Key).ToDictionary(g => g.Key, g => g.Last().Modes, StringComparer.Ordinal);
+        Assert.Equal(byKey.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal), latest.Keys.Order(StringComparer.Ordinal));
+        foreach (var item in byKey.EnumerateObject())
+        {
+            var modes = latest[item.Name];
+            Assert.True(Attribution(item.Value.GetProperty("effort")) == View(EffortAndSpeed.Effort(modes)),
+                $"{label} {item.Name} effort: got {EffortAndSpeed.Effort(modes)}");
+            Assert.True(Attribution(item.Value.GetProperty("speed")) == View(EffortAndSpeed.Speed(modes)),
+                $"{label} {item.Name} speed: got {EffortAndSpeed.Speed(modes)}");
+        }
+    }
+
+    private static (string, string, string?)? Attribution(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null
+        : (value.GetProperty("mode").GetString()!, value.GetProperty("evidence").GetString()!,
+            value.TryGetProperty("provider", out var provider) ? provider.GetString() : null);
+
+    private static (string, string, string?)? View(ExecutionModeAttribution? value) =>
+        value is { } known ? (known.Mode, known.Evidence, known.Provider) : null;
 
     internal static long? NullableLong(JsonElement element) =>
         element.ValueKind == JsonValueKind.Null ? null : element.GetInt64();
@@ -150,7 +187,9 @@ public sealed class ParserFixtureTests
             return FeedLines(new ClaudeParser(path, deduper), content, sink, maxLines);
         }
 
-        if (relative.StartsWith("codex/", StringComparison.Ordinal))
+        // OpenClaw's agent-scoped Codex home is a Codex root (METRICS 2, 4.14).
+        if (relative.StartsWith("codex/", StringComparison.Ordinal)
+            || (relative.StartsWith("openclaw/", StringComparison.Ordinal) && relative.Contains("/codex-home/sessions/", StringComparison.Ordinal)))
         {
             var codex = new CodexParser(path, deduper);
             if (!relative.EndsWith(".jsonl.zst", StringComparison.Ordinal))
@@ -190,6 +229,11 @@ public sealed class ParserFixtureTests
             return FeedLines(new OmpParser(path, deduper, OmpFixture.RootOf(path)), content, sink, maxLines);
         }
 
+        if (relative.StartsWith("pi/", StringComparison.Ordinal))
+        {
+            return FeedLines(PiParser.ForPath(path, deduper), content, sink, maxLines);
+        }
+
         if (relative.StartsWith("workbuddy/", StringComparison.Ordinal))
         {
             var source = WorkBuddyFixture.SourceOf(relative);
@@ -206,7 +250,41 @@ public sealed class ParserFixtureTests
             return workBuddy;
         }
 
+        // A Factory Droid session is read from its start with its sidecar, through the tailer like the app (METRICS 4.16).
+        if (relative.StartsWith("droid/", StringComparison.Ordinal))
+        {
+            var droid = new DroidParser(path, deduper);
+            if (maxLines is { } lines)
+            {
+                foreach (var (offset, raw) in PositionedLines(content).Take(lines))
+                {
+                    var length = raw.Length;
+                    var text = length > 0 && raw[^1] == (byte)'\r' ? raw.AsSpan(0, length - 1) : raw;
+                    droid.Feed(DroidLineReader.Read(text, offset, length));
+                }
+
+                return droid;
+            }
+
+            var batch = droid.NewBatch();
+            new DroidTailer(path).ReadAppended(batch);
+            batch.ApplyTo(sink);
+            return droid;
+        }
+
         throw new InvalidOperationException("Unknown fixture source: " + relative);
+    }
+
+    /// <summary>Newline-terminated lines with their byte offsets, as the reference's <c>droid_lines</c> yields them.</summary>
+    internal static IEnumerable<(long Offset, byte[] Line)> PositionedLines(byte[] content)
+    {
+        var start = 0;
+        int newline;
+        while ((newline = Array.IndexOf(content, (byte)'\n', start)) >= 0)
+        {
+            yield return (start, content.AsSpan(start, newline - start).ToArray());
+            start = newline + 1;
+        }
     }
 
     private static TranscriptParser FeedLines<TLine>(TranscriptParser<TLine> parser, byte[] content, IResponseSink sink, int? maxLines)

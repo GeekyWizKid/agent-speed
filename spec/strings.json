@@ -1470,6 +1470,30 @@
     "en": "Show on taskbar",
     "ja": "タスクバーに表示"
   },
+  "settings.taskbar.position": {
+    "zh-Hant": "顯示位置",
+    "zh-Hans": "显示位置",
+    "en": "Position",
+    "ja": "表示位置"
+  },
+  "settings.taskbar.position.hint": {
+    "zh-Hant": "按住工作列上的速度顯示並沿工作列拖曳即可移動，避開其他工作列程式（例如工作列歌詞）。",
+    "zh-Hans": "按住任务栏上的速度显示并沿任务栏拖动即可移动，避开其他任务栏程序（例如任务栏歌词）。",
+    "en": "Press and drag the speed readout along the taskbar to move it clear of other taskbar programs, such as taskbar lyrics.",
+    "ja": "タスクバー上の速度表示を押したままタスクバーに沿ってドラッグすると移動でき、タスクバー歌詞など他のアプリの表示を避けられます。"
+  },
+  "settings.taskbar.position.reset": {
+    "zh-Hant": "重設位置",
+    "zh-Hans": "重置位置",
+    "en": "Reset position",
+    "ja": "位置をリセット"
+  },
+  "taskbar.dragHint": {
+    "zh-Hant": "拖曳即可沿工作列移動",
+    "zh-Hans": "拖动即可沿任务栏移动",
+    "en": "Drag to move it along the taskbar",
+    "ja": "ドラッグでタスクバー上を移動できます"
+  },
   "settings.orb": {
     "zh-Hant": "懸浮窗",
     "zh-Hans": "悬浮窗",
@@ -1619,6 +1643,12 @@
     "zh-Hans": "%d 分钟前",
     "en": "%dm ago",
     "ja": "%d 分前"
+  },
+  "time.seconds": {
+    "zh-Hant": "%d 秒",
+    "zh-Hans": "%d 秒",
+    "en": "%d sec",
+    "ja": "%d 秒"
   },
   "time.minutes": {
     "zh-Hant": "%d 分鐘",
@@ -2233,16 +2263,16 @@
     "ja": "CSV を書き出す…"
   },
   "history.privacy": {
-    "zh-Hant": "只保存每日彙總數字，不含任何請求或對話內容。",
-    "zh-Hans": "只保存每日汇总数字，不含任何请求或对话内容。",
-    "en": "Only daily totals are kept — never requests or conversation content.",
-    "ja": "保存するのは日別の集計だけで、リクエストや会話の内容は含みません。"
+    "zh-Hant": "只保存每日彙總和每個任務的分數，不含任何請求或對話內容。",
+    "zh-Hans": "只保存每日汇总和每个任务的分数，不含任何请求或对话内容。",
+    "en": "Only daily totals and per-task scores are kept — never requests or conversation content.",
+    "ja": "保存するのは日別の集計とタスクごとのスコアだけで、リクエストや会話の内容は含みません。"
   },
   "history.privacy.short": {
-    "zh-Hant": "只保存每日彙總",
-    "zh-Hans": "只保存每日汇总",
-    "en": "Daily totals only",
-    "ja": "日別の集計のみ保存"
+    "zh-Hant": "只保存彙總與分數",
+    "zh-Hans": "只保存汇总与分数",
+    "en": "Totals and scores only",
+    "ja": "集計とスコアのみ保存"
   },
   "history.clear": {
     "zh-Hant": "清除歷史統計…",
@@ -2652,6 +2682,12 @@
     "en": "%@/s",
     "ja": "%@/s"
   },
+  "cost.glyph": {
+    "zh-Hant": "費用",
+    "zh-Hans": "费用",
+    "en": "Cost",
+    "ja": "費用"
+  },
   "cost.apiEquivalent": {
     "zh-Hant": "API 等值",
     "zh-Hans": "API 等值",
@@ -2711,6 +2747,72 @@
     "zh-Hans": "%d 条请求的模型价格未知，未计入",
     "en": "%d requests with unknown model prices are not included",
     "ja": "モデル価格が不明なリクエスト %d 件は含まれていません"
+  },
+  "cost.noModelName": {
+    "zh-Hant": "無模型中繼資料",
+    "zh-Hans": "无模型元数据",
+    "en": "No model metadata",
+    "ja": "モデルのメタデータなし"
+  },
+  "cost.reason.noModel": {
+    "zh-Hant": "缺少模型",
+    "zh-Hans": "缺少模型",
+    "en": "Missing model",
+    "ja": "モデル欠落"
+  },
+  "cost.reason.noModel.hint": {
+    "zh-Hant": "紀錄裡沒有模型名稱，無法查價。通常是工具沒有記下模型，或模型資訊比用量晚寫入。",
+    "zh-Hans": "记录里没有模型名称，无法查价。通常是工具没有记下模型，或模型信息比用量晚写入。",
+    "en": "The log names no model, so there is nothing to look up. Usually the tool didn't record it, or recorded it after the usage.",
+    "ja": "記録にモデル名がないため、価格を調べられません。ツールがモデルを記録していないか、使用量より後に記録した場合に起こります。"
+  },
+  "cost.reason.notInTable": {
+    "zh-Hant": "價格表沒有此模型",
+    "zh-Hans": "价格表中没有此模型",
+    "en": "Not in price table",
+    "ja": "価格表にない"
+  },
+  "cost.reason.notInTable.hint": {
+    "zh-Hant": "價格表找不到這個名稱或別名。價格表加入後，這些請求會自動補上費用。",
+    "zh-Hans": "价格表找不到这个名称或别名。价格表加入后，这些请求会自动补上费用。",
+    "en": "The price table has no model or alias by this name. Once it's added, these requests are priced automatically.",
+    "ja": "価格表にこの名前またはエイリアスのモデルがありません。追加されると、これらのリクエストに自動で費用が反映されます。"
+  },
+  "cost.reason.noFastPrice": {
+    "zh-Hant": "沒有 Fast 價格",
+    "zh-Hans": "没有 Fast 价格",
+    "en": "No Fast price",
+    "ja": "Fast の価格なし"
+  },
+  "cost.reason.noFastPrice.hint": {
+    "zh-Hant": "已認出模型，但請求以 Fast 模式執行，而價格表沒有它的 Fast 價格。不會改用較便宜的標準價格。",
+    "zh-Hans": "已识别出模型，但请求以 Fast 模式运行，而价格表没有它的 Fast 价格。不会改用较便宜的标准价格。",
+    "en": "The model is known, but the requests ran in Fast mode and the price table has no Fast price for it. The cheaper standard price is never used instead.",
+    "ja": "モデルは識別できましたが、リクエストは Fast モードで実行され、価格表にその Fast 価格がありません。安い標準価格で代用することはありません。"
+  },
+  "cost.reason.unpriceable": {
+    "zh-Hant": "無公開價格",
+    "zh-Hans": "无公开价格",
+    "en": "No public price",
+    "ja": "公開価格なし"
+  },
+  "cost.reason.unpriceable.hint": {
+    "zh-Hant": "這是內部模型或路由標籤，看不出實際用了哪個模型，所以刻意不定價，也不會套用相似模型的價格。",
+    "zh-Hans": "这是内部模型或路由标签，看不出实际用了哪个模型，所以有意不定价，也不会套用相似模型的价格。",
+    "en": "An internal model or a router label that doesn't say which model ran, so it's deliberately left unpriced rather than given a similar model's price.",
+    "ja": "内部モデルまたはルーターのラベルで、実際に使われたモデルが分からないため、あえて価格を付けていません。似たモデルの価格も使いません。"
+  },
+  "cost.reason.noDate": {
+    "zh-Hant": "時間無效",
+    "zh-Hans": "时间无效",
+    "en": "Invalid time",
+    "ja": "時刻が無効"
+  },
+  "cost.reason.noDate.hint": {
+    "zh-Hant": "這筆回應的時間戳記超出範圍，無法對應到日期，也就沒有當天的價格。",
+    "zh-Hans": "这条响应的时间戳超出范围，无法对应到日期，也就没有当天的价格。",
+    "en": "The response's timestamp is out of range, so it has no date and no day's prices.",
+    "ja": "レスポンスのタイムスタンプが範囲外のため日付がなく、その日の価格も決められません。"
   },
   "cost.subscriptionExcluded": {
     "zh-Hant": "未計入訂閱來源：%@",
@@ -2982,6 +3084,12 @@
     "en": "Models without a price today: %@",
     "ja": "今日価格不明のモデル：%@"
   },
+  "prices.unknownToday.item": {
+    "zh-Hant": "%@（%@）",
+    "zh-Hans": "%@（%@）",
+    "en": "%@ (%@)",
+    "ja": "%@（%@）"
+  },
   "settings.network": {
     "zh-Hant": "網路連線",
     "zh-Hans": "网络连接",
@@ -3101,6 +3209,60 @@
     "zh-Hans": "新模型通常会在几天内加入价格表，届时这些请求会自动补上费用。",
     "en": "New models usually join the price table within a few days; these requests are then priced automatically.",
     "ja": "新しいモデルは通常数日で価格表に追加され、その時点でこれらのリクエストにも費用が反映されます。"
+  },
+  "history.unpricedModels.via": {
+    "zh-Hant": "經由 %@",
+    "zh-Hans": "经由 %@",
+    "en": "via %@",
+    "ja": "%@ 経由"
+  },
+  "history.unpricedModels.lookup": {
+    "zh-Hant": "查詢名稱 %@",
+    "zh-Hans": "查询名称 %@",
+    "en": "looked up as %@",
+    "ja": "照合名 %@"
+  },
+  "history.unpricedModels.seen": {
+    "zh-Hant": "出現日期：%@",
+    "zh-Hans": "出现日期：%@",
+    "en": "Seen: %@",
+    "ja": "発生日：%@"
+  },
+  "history.unpricedModels.more": {
+    "zh-Hant": "另有 %d 項 · %d 筆請求",
+    "zh-Hans": "另有 %d 项 · %d 条请求",
+    "en": "%d more · %d requests",
+    "ja": "ほか %d 件 · %d リクエスト"
+  },
+  "history.unpricedModels.pricedNow": {
+    "zh-Hant": "%d 筆請求在目前的價格表已有價格；紀錄還在的，會在下次分析時補上費用。",
+    "zh-Hans": "%d 条请求在当前价格表中已有价格；记录还在的，会在下次分析时补上费用。",
+    "en": "%d requests have a price in the current table; those whose logs still exist are priced at the next analysis.",
+    "ja": "%d 件のリクエストは現在の価格表で価格が付きます。記録が残っているものは、次回の分析で費用が反映されます。"
+  },
+  "history.unpricedModels.copy": {
+    "zh-Hant": "複製診斷資訊",
+    "zh-Hans": "复制诊断信息",
+    "en": "Copy Diagnostics",
+    "ja": "診断情報をコピー"
+  },
+  "history.unpricedModels.copied": {
+    "zh-Hant": "已複製",
+    "zh-Hans": "已复制",
+    "en": "Copied",
+    "ja": "コピーしました"
+  },
+  "history.unpricedModels.copyFailed": {
+    "zh-Hant": "無法複製，請再試一次",
+    "zh-Hans": "无法复制，请重试",
+    "en": "Couldn't copy. Try again.",
+    "ja": "コピーできませんでした。もう一度お試しください"
+  },
+  "history.unpricedModels.copyHint": {
+    "zh-Hant": "只含模型名稱、provider、原因與次數，不含路徑、專案名稱或對話內容。",
+    "zh-Hans": "仅含模型名称、provider、原因与次数，不含路径、项目名称或对话内容。",
+    "en": "Only model names, providers, reasons and counts. No paths, project names or conversation content.",
+    "ja": "モデル名、provider、理由、件数のみ。パス、プロジェクト名、会話の内容は含みません。"
   },
   "a11y.orb.cost": {
     "zh-Hant": "每秒 %@ %@（API 等值），%@",
@@ -3642,6 +3804,414 @@
     "en": "Shows download and upload speed on the orb while there is traffic.",
     "ja": "通信があるときだけ、オーブにダウンロードとアップロードの速度を表示します。"
   },
+  "orbs.traffic.intelligence": {
+    "zh-Hant": "即時智力",
+    "zh-Hans": "实时智力",
+    "en": "Live Intelligence",
+    "ja": "リアルタイム知能"
+  },
+  "orbs.traffic.hint.intel": {
+    "zh-Hant": "顯示這個懸浮窗的 agent 中最高的任務評分（智力，0–100）與每秒思考 token 數。",
+    "zh-Hans": "显示这个悬浮窗的 agent 中最高的任务评分（智力，0–100）与每秒思考 token 数。",
+    "en": "Shows the highest task score (intelligence, 0–100) among this orb's agents and their thinking tokens per second.",
+    "ja": "このフローティングウィンドウの agent のうち最も高いタスクのスコア（知能、0〜100）と、毎秒の思考トークン数を表示します。"
+  },
+  "intel.glyph": {
+    "zh-Hant": "智力",
+    "zh-Hans": "智力",
+    "en": "IQ",
+    "ja": "知"
+  },
+  "intel.thinking.glyph": {
+    "zh-Hant": "思考",
+    "zh-Hans": "思考",
+    "en": "TH",
+    "ja": "思考"
+  },
+  "a11y.orb.intel.only": {
+    "zh-Hant": "智力 %@",
+    "zh-Hans": "智力 %@",
+    "en": "intelligence %@",
+    "ja": "知能 %@"
+  },
+  "intel.disclaimer": {
+    "zh-Hant": "任務進展的估算，不是模型能力測驗",
+    "zh-Hans": "任务进展的估算，不是模型能力测试",
+    "en": "An estimate of task progress, not a model benchmark",
+    "ja": "タスクの進み具合の推定で、モデルのベンチマークではありません"
+  },
+  "a11y.orb.intel": {
+    "zh-Hant": "智力 %@，思考每秒 %@ 個 token",
+    "zh-Hans": "智力 %@，思考每秒 %@ 个 token",
+    "en": "intelligence %@, thinking %@ tokens per second",
+    "ja": "知能 %@、思考 毎秒 %@ トークン"
+  },
+  "intel.none": {
+    "zh-Hant": "智力：尚無評分",
+    "zh-Hans": "智力：暂无评分",
+    "en": "intelligence: no score yet",
+    "ja": "知能：スコアなし"
+  },
+  "agents.intel.hint": {
+    "zh-Hant": "智力是目前任務的評分（0–100）：每個新要求從 0 開始，修改通過測試、錯誤減少才會上升；檢查失敗、通過後又修改，或開始打轉時會下降。虛線底表示還沒有驗證；淡色是閒置 agent 的分數。",
+    "zh-Hans": "智力是当前任务的评分（0–100）：每个新请求从 0 开始，修改通过测试、错误减少才会上升；检查失败、通过后又修改，或开始打转时会下降。虚线底表示还没有验证；淡色是空闲 agent 的分数。",
+    "en": "Intelligence scores the current task from 0 to 100: each new request starts at 0 and climbs as changes pass tests and errors shrink; it drops when a check fails, when code changes after a pass, or when the agent starts going in circles. A dotted underline means not verified yet; dimmed is an idle agent's score.",
+    "ja": "知能は現在のタスクのスコア（0〜100）です。新しい依頼ごとに 0 から始まり、変更がテストを通りエラーが減ると上がり、チェックの失敗、通過後の編集、堂々巡りで下がります。点線の下線はまだ検証されていないこと、淡色は待機中の agent のスコアを表します。"
+  },
+  "a11y.agent.intel": {
+    "zh-Hant": "智力 %@",
+    "zh-Hans": "智力 %@",
+    "en": "intelligence %@",
+    "ja": "知能 %@"
+  },
+  "work.looping": {
+    "zh-Hant": "原地打轉：同一組動作已重複 %d 次，且有失敗",
+    "zh-Hans": "原地打转：同一组动作已重复 %d 次，且有失败",
+    "en": "Going in circles: the same actions repeated %d times, some failing",
+    "ja": "堂々巡り：同じ操作が %d 回繰り返され、失敗を含みます"
+  },
+  "work.repeating": {
+    "zh-Hant": "重複同一組動作 %d 次（沒有失敗，可能在等待）",
+    "zh-Hans": "重复同一组动作 %d 次（没有失败，可能在等待）",
+    "en": "Repeating the same actions %d times (no failures, possibly waiting)",
+    "ja": "同じ操作を %d 回繰り返しています（失敗なし、待機中の可能性）"
+  },
+  "work.summary": {
+    "zh-Hant": "新動作 %@ · 失敗 %d · 已修正 %d",
+    "zh-Hans": "新动作 %@ · 失败 %d · 已修正 %d",
+    "en": "New actions %@ · failed %d · recovered %d",
+    "ja": "新しい操作 %@・失敗 %d・修正済み %d"
+  },
+  "task.state.none": {
+    "zh-Hant": "尚無評分",
+    "zh-Hans": "暂无评分",
+    "en": "No score yet",
+    "ja": "スコアなし"
+  },
+  "task.state.unverified": {
+    "zh-Hant": "尚未驗證",
+    "zh-Hans": "尚未验证",
+    "en": "Not verified",
+    "ja": "未検証"
+  },
+  "task.state.failing": {
+    "zh-Hant": "未通過",
+    "zh-Hans": "未通过",
+    "en": "Failing",
+    "ja": "失敗中"
+  },
+  "task.state.passing": {
+    "zh-Hant": "已通過",
+    "zh-Hans": "已通过",
+    "en": "Passing",
+    "ja": "通過"
+  },
+  "task.state.pending": {
+    "zh-Hant": "待重新驗證",
+    "zh-Hans": "待重新验证",
+    "en": "Re-check pending",
+    "ja": "再検証待ち"
+  },
+  "task.unsupported": {
+    "zh-Hant": "這個來源不會記錄工具呼叫，所以無法為任務評分。",
+    "zh-Hans": "这个来源不会记录工具调用，所以无法为任务评分。",
+    "en": "This source doesn't record tool calls, so its tasks can't be scored.",
+    "ja": "このソースはツール呼び出しを記録しないため、タスクを採点できません。"
+  },
+  "task.check.test": {
+    "zh-Hant": "測試",
+    "zh-Hans": "测试",
+    "en": "Tests",
+    "ja": "テスト"
+  },
+  "task.check.build": {
+    "zh-Hant": "建置",
+    "zh-Hans": "构建",
+    "en": "Build",
+    "ja": "ビルド"
+  },
+  "task.check.check": {
+    "zh-Hant": "檢查",
+    "zh-Hans": "检查",
+    "en": "Check",
+    "ja": "チェック"
+  },
+  "task.status.none": {
+    "zh-Hant": "還沒有修改，也還沒有執行測試或建置",
+    "zh-Hans": "还没有修改，也还没有运行测试或构建",
+    "en": "No edits yet, and no tests or builds",
+    "ja": "まだ編集もテストもビルドもしていません"
+  },
+  "task.status.unverified": {
+    "zh-Hant": "已修改，但還沒有執行測試、建置或檢查",
+    "zh-Hans": "已修改，但还没有运行测试、构建或检查",
+    "en": "Edited, but nothing has been tested, built or checked yet",
+    "ja": "編集済みですが、テスト・ビルド・チェックはまだです"
+  },
+  "task.status.failing": {
+    "zh-Hant": "%@：還有 %d 個錯誤（最多時 %d 個）",
+    "zh-Hans": "%@：还有 %d 个错误（最多时 %d 个）",
+    "en": "%@: %d errors left (peak %d)",
+    "ja": "%@：エラーが残り %d 件（最大 %d 件）"
+  },
+  "task.status.failing.noCount": {
+    "zh-Hant": "%@：沒有通過",
+    "zh-Hans": "%@：没有通过",
+    "en": "%@: failing",
+    "ja": "%@：失敗"
+  },
+  "task.status.failing.edited": {
+    "zh-Hant": "%@：失敗後已修改，等待重新執行",
+    "zh-Hans": "%@：失败后已修改，等待重新运行",
+    "en": "%@: edited after failing; waiting to run again",
+    "ja": "%@：失敗後に編集あり。再実行を待っています"
+  },
+  "task.status.passing": {
+    "zh-Hant": "%@：通過，修改已驗證",
+    "zh-Hans": "%@：通过，修改已验证",
+    "en": "%@: passed — the changes are verified",
+    "ja": "%@：通過。変更は検証済みです"
+  },
+  "task.status.passing.buildOnly": {
+    "zh-Hant": "%@：通過，但還沒有執行測試",
+    "zh-Hans": "%@：通过，但还没有运行测试",
+    "en": "%@: passed, but no tests have run",
+    "ja": "%@：通過。ただしテストは未実行です"
+  },
+  "task.status.pending": {
+    "zh-Hant": "%@：通過後又修改，等待重新執行",
+    "zh-Hans": "%@：通过后又修改，等待重新运行",
+    "en": "%@: edited since it passed; waiting to run again",
+    "ja": "%@：通過後に編集あり。再実行を待っています"
+  },
+  "task.card.top": {
+    "zh-Hant": "%d 個 agent 中最高",
+    "zh-Hans": "%d 个 agent 中最高",
+    "en": "Highest of %d agents",
+    "ja": "%d 個の agent で最高"
+  },
+  "task.card.footnote": {
+    "zh-Hant": "權重是尚未校準的初始值；沒有可靠的測試結果，分數不會變高。分數只在這台電腦上計算，不會上報。",
+    "zh-Hans": "权重是尚未校准的初始值；没有可靠的测试结果，分数不会变高。分数只在这台电脑上计算，不会上报。",
+    "en": "Weights are uncalibrated starting values; without reliable test results the score stays low. Scores are computed on this computer and never reported.",
+    "ja": "重みは未較正の初期値です。信頼できるテスト結果がなければスコアは上がりません。スコアはこのコンピューター上で計算され、送信されることはありません。"
+  },
+  "task.dims.title": {
+    "zh-Hant": "評分構成",
+    "zh-Hans": "评分构成",
+    "en": "Score breakdown",
+    "ja": "スコアの内訳"
+  },
+  "task.dim.verify": {
+    "zh-Hant": "驗證成功",
+    "zh-Hans": "验证成功",
+    "en": "Verification success",
+    "ja": "検証の成功"
+  },
+  "task.dim.verify.desc": {
+    "zh-Hant": "修改通過可靠的檢查：測試、建置或檢查零失敗",
+    "zh-Hans": "修改通过可靠的检查：测试、构建或检查零失败",
+    "en": "The changes pass reliable checks with no failures",
+    "ja": "変更が信頼できるチェックを失敗なしで通過"
+  },
+  "task.dim.converge": {
+    "zh-Hant": "錯誤收斂",
+    "zh-Hans": "错误收敛",
+    "en": "Error convergence",
+    "ja": "エラーの収束"
+  },
+  "task.dim.converge.desc": {
+    "zh-Hant": "同一個檢查重跑時，不同的錯誤越來越少",
+    "zh-Hans": "同一个检查重跑时，不同的错误越来越少",
+    "en": "Each re-run of a check shows fewer distinct errors",
+    "ja": "同じチェックを再実行するたびに異なるエラーが減る"
+  },
+  "task.dim.recover": {
+    "zh-Hant": "錯誤恢復",
+    "zh-Hans": "错误恢复",
+    "en": "Error recovery",
+    "ja": "エラーからの回復"
+  },
+  "task.dim.recover.desc": {
+    "zh-Hant": "出錯 → 修正 → 通過，嘗試次數越少越高",
+    "zh-Hans": "出错 → 修正 → 通过，尝试次数越少越高",
+    "en": "Error → fix → pass; fewer attempts score higher",
+    "ja": "エラー → 修正 → 通過。試行が少ないほど高い"
+  },
+  "task.dim.efficiency": {
+    "zh-Hant": "行為效率",
+    "zh-Hans": "行为效率",
+    "en": "Behavior efficiency",
+    "ja": "行動の効率"
+  },
+  "task.dim.efficiency.desc": {
+    "zh-Hant": "每次工具呼叫都有新收穫；打轉、重複、來回修改會扣分",
+    "zh-Hans": "每次工具调用都有新收获；打转、重复、来回修改会扣分",
+    "en": "Each tool call learns something new; loops, repeats and undone edits lower it",
+    "ja": "ツール呼び出しごとに新しい発見。堂々巡り・重複・編集の行き来で下がる"
+  },
+  "task.dim.complete": {
+    "zh-Hant": "驗證完整性",
+    "zh-Hans": "验证完整性",
+    "en": "Verification completeness",
+    "ja": "検証の網羅性"
+  },
+  "task.dim.complete.desc": {
+    "zh-Hant": "最後一次修改後有建置、有測試，針對性修正後重跑全套",
+    "zh-Hans": "最后一次修改后有构建、有测试，针对性修正后重跑全套",
+    "en": "After the last edit: built, tested, and the full suite re-run after a targeted fix",
+    "ja": "最後の編集の後にビルドとテスト、絞った修正の後は全体を再実行"
+  },
+  "task.predict.title": {
+    "zh-Hant": "預測",
+    "zh-Hans": "预测",
+    "en": "Predictions",
+    "ja": "予測"
+  },
+  "task.predict.success": {
+    "zh-Hant": "成功",
+    "zh-Hans": "成功",
+    "en": "Success",
+    "ja": "成功"
+  },
+  "task.predict.stall": {
+    "zh-Hant": "卡住",
+    "zh-Hans": "卡住",
+    "en": "Stall",
+    "ja": "停滞"
+  },
+  "task.predict.fixFails": {
+    "zh-Hant": "修復失敗",
+    "zh-Hans": "修复失败",
+    "en": "Fix fails",
+    "ja": "修正失敗"
+  },
+  "task.predict.cell.calibrated": {
+    "zh-Hant": "依 %d 個任務",
+    "zh-Hans": "依 %d 个任务",
+    "en": "%d tasks",
+    "ja": "%d タスク"
+  },
+  "task.predict.cell.prior": {
+    "zh-Hant": "預設值 · %d/%d",
+    "zh-Hans": "默认值 · %d/%d",
+    "en": "Prior · %d/%d",
+    "ja": "初期値・%d/%d"
+  },
+  "task.predict.cell.priorOnly": {
+    "zh-Hant": "預設值",
+    "zh-Hans": "默认值",
+    "en": "Prior",
+    "ja": "初期値"
+  },
+  "task.predict.note": {
+    "zh-Hant": "依你在 %@ 的任務紀錄校準；完成的任務不到 %d 個，或幾乎都是同一種結果時，使用預設值。",
+    "zh-Hans": "按你在 %@ 的任务记录校准；完成的任务不到 %d 个，或几乎都是同一种结果时，使用默认值。",
+    "en": "Calibrated on your own %@ tasks; prior values are used until %d tasks have finished with mixed outcomes.",
+    "ja": "%@ でのあなたのタスク履歴で較正します。完了したタスクが %d 件に満たないか、結果がほぼ同じときは初期値です。"
+  },
+  "task.signals.title": {
+    "zh-Hant": "行為",
+    "zh-Hans": "行为",
+    "en": "Behavior",
+    "ja": "行動"
+  },
+  "task.signal.oscillation": {
+    "zh-Hant": "來回修改 %d 次",
+    "zh-Hans": "来回修改 %d 次",
+    "en": "Edits undone %d times",
+    "ja": "編集の行き来 %d 回"
+  },
+  "task.tooltip.top": {
+    "zh-Hant": "智力 %@ · 最高：%@",
+    "zh-Hans": "智力 %@ · 最高：%@",
+    "en": "Intelligence %@ · top: %@",
+    "ja": "知能 %@・最高：%@"
+  },
+  "a11y.task.unverified": {
+    "zh-Hant": "%@，尚未驗證",
+    "zh-Hans": "%@，尚未验证",
+    "en": "%@, not verified",
+    "ja": "%@、未検証"
+  },
+  "a11y.task.pending": {
+    "zh-Hant": "%@，待重新驗證",
+    "zh-Hans": "%@，待重新验证",
+    "en": "%@, re-check pending",
+    "ja": "%@、再検証待ち"
+  },
+  "a11y.task.idle": {
+    "zh-Hant": "%@，閒置中",
+    "zh-Hans": "%@，空闲中",
+    "en": "%@, idle",
+    "ja": "%@、待機中"
+  },
+  "a11y.task.top": {
+    "zh-Hant": "%@，%d 個 agent 中最高",
+    "zh-Hans": "%@，%d 个 agent 中最高",
+    "en": "%@, the highest of %d agents",
+    "ja": "%@、%d 個の agent の中で最高"
+  },
+  "a11y.task.card": {
+    "zh-Hant": "任務評分詳情",
+    "zh-Hans": "任务评分详情",
+    "en": "Task score details",
+    "ja": "タスクのスコアの詳細"
+  },
+  "a11y.task.score": {
+    "zh-Hant": "智力 %@，%@",
+    "zh-Hans": "智力 %@，%@",
+    "en": "intelligence %@, %@",
+    "ja": "知能 %@、%@"
+  },
+  "a11y.task.dim": {
+    "zh-Hant": "%@ %d 分，滿分 %d",
+    "zh-Hans": "%@ %d 分，满分 %d",
+    "en": "%@: %d of %d",
+    "ja": "%@ %d 点（満点 %d）"
+  },
+  "a11y.task.predict.success": {
+    "zh-Hant": "成功的機率 %@",
+    "zh-Hans": "成功的概率 %@",
+    "en": "chance of success %@",
+    "ja": "成功の確率 %@"
+  },
+  "a11y.task.predict.stall": {
+    "zh-Hant": "卡住的機率 %@",
+    "zh-Hans": "卡住的概率 %@",
+    "en": "chance of stalling %@",
+    "ja": "停滞する確率 %@"
+  },
+  "a11y.task.predict.fixFails": {
+    "zh-Hant": "修復失敗的機率 %@",
+    "zh-Hans": "修复失败的概率 %@",
+    "en": "chance a fix fails %@",
+    "ja": "修正が失敗する確率 %@"
+  },
+  "a11y.task.predict.calibrated": {
+    "zh-Hant": "%@，依 %d 個任務校準",
+    "zh-Hans": "%@，按 %d 个任务校准",
+    "en": "%@, calibrated on %d tasks",
+    "ja": "%@、%d タスクで較正"
+  },
+  "a11y.task.predict.prior": {
+    "zh-Hant": "%@，預設值",
+    "zh-Hans": "%@，默认值",
+    "en": "%@, prior value",
+    "ja": "%@、初期値"
+  },
+  "a11y.task.below": {
+    "zh-Hant": "不到 %d%%",
+    "zh-Hans": "不到 %d%%",
+    "en": "under %d%%",
+    "ja": "%d%% 未満"
+  },
+  "a11y.task.above": {
+    "zh-Hant": "超過 %d%%",
+    "zh-Hans": "超过 %d%%",
+    "en": "over %d%%",
+    "ja": "%d%% 超"
+  },
   "orbs.names": {
     "zh-Hant": "名稱標籤",
     "zh-Hans": "名称标签",
@@ -3745,10 +4315,10 @@
     "ja": "ビット（Mb/s）"
   },
   "settings.bar.traffic": {
-    "zh-Hant": "顯示網路速度",
-    "zh-Hans": "显示网络速度",
-    "en": "Show network speed",
-    "ja": "ネットワーク速度を表示"
+    "zh-Hant": "數值旁顯示",
+    "zh-Hans": "数值旁显示",
+    "en": "Next to the value",
+    "ja": "数値の横に表示"
   },
   "settings.bar.traffic.off": {
     "zh-Hant": "不顯示",
@@ -3757,16 +4327,28 @@
     "ja": "表示しない"
   },
   "settings.bar.traffic.machine": {
-    "zh-Hant": "整台電腦",
-    "zh-Hans": "整台电脑",
-    "en": "Whole computer",
-    "ja": "コンピューター全体"
+    "zh-Hant": "網路速度：整台電腦",
+    "zh-Hans": "网络速度：整台电脑",
+    "en": "Network speed: whole computer",
+    "ja": "ネットワーク速度：コンピューター全体"
   },
   "settings.bar.traffic.agents": {
-    "zh-Hant": "只看 agent",
-    "zh-Hans": "只看 agent",
-    "en": "Agents only",
-    "ja": "agent のみ"
+    "zh-Hant": "網路速度：只看 agent",
+    "zh-Hans": "网络速度：只看 agent",
+    "en": "Network speed: agents only",
+    "ja": "ネットワーク速度：agent のみ"
+  },
+  "settings.bar.intelligence": {
+    "zh-Hant": "顯示智力",
+    "zh-Hans": "显示智力",
+    "en": "Show IQ",
+    "ja": "知能を表示"
+  },
+  "settings.bar.intelligence.hint": {
+    "zh-Hant": "在數值旁顯示所有 agent 中最高的任務評分（智力，0–100）與每秒思考 token 數；沒有分數時顯示「–」。分數依工具紀錄估算，不是模型能力測驗。",
+    "zh-Hans": "在数值旁显示所有 agent 中最高的任务评分（智力，0–100）与每秒思考 token 数；没有分数时显示“–”。分数依工具记录估算，不是模型能力测试。",
+    "en": "Shows the highest task score (intelligence, 0–100) among all agents and their thinking tokens per second next to the value, and – when no task has a score. Estimated from tool records, not a model benchmark.",
+    "ja": "数値の横に、すべての agent のうち最も高いタスクのスコア（知能、0〜100）と毎秒の思考トークン数を表示します。スコアがないときは「–」です。ツールの記録から推定した値で、モデルのベンチマークではありません。"
   },
   "history.chart.traffic": {
     "zh-Hant": "網路流量",
@@ -3821,6 +4403,12 @@
     "zh-Hans": "网络流量：Agent Speed 只在本机计算各程序收发的字节数，从不读取内容、网址或连接对象，也不会发送到任何地方。",
     "en": "Network traffic: Agent Speed counts how many bytes programs send and receive, on this computer only. It never reads content, addresses or destinations, and sends nothing anywhere.",
     "ja": "通信量：Agent Speed はこのコンピューター上で、プログラムが送受信したバイト数だけを数えます。内容・アドレス・接続先は一切読まず、どこにも送信しません。"
+  },
+  "privacy.taskScore": {
+    "zh-Hant": "任務評分：為了判斷 agent 是在解決問題還是原地打轉，Agent Speed 會在記憶體中分析 agent 執行的指令、指令的輸出和所做的修改，只保留步驟的類型（例如一次 cargo test）、無法還原的短雜湊值、次數、結束代碼和時間，以及每個任務的分數紀錄。這些文字從不儲存、顯示或傳送；只有在你開啟即時上報並分享模型時，才會把分數和完成任務的次數以數字傳送給你選的服務。",
+    "zh-Hans": "任务评分：为了判断 agent 是在解决问题还是原地打转，Agent Speed 会在内存中分析 agent 运行的命令、命令的输出和所做的修改，只保留步骤的类型（例如一次 cargo test）、无法还原的短哈希值、次数、退出码和时间，以及每个任务的分数记录。这些文字从不保存、显示或发送；只有在你开启实时上报并分享模型时，才会把分数和完成任务的次数以数字发送给你选择的服务。",
+    "en": "Task score: to tell whether an agent is solving a problem or going in circles, Agent Speed analyzes the commands agents run, what those commands print and the edits they make, in memory only. It keeps just the kind of each step (such as a cargo test run), short one-way digests, counts, exit codes and times, plus a score record per task. That text is never stored, shown or sent; only live reporting, when you turn it on and share models, sends the scores and counts of completed tasks — as numbers — to the service you chose.",
+    "ja": "タスクのスコア：agent が問題を解決しているのか堂々巡りしているのかを判断するため、Agent Speed は agent が実行したコマンド、その出力、加えた編集をメモリ上でのみ分析します。残すのは手順の種類（cargo test の実行など）、元に戻せない短いダイジェスト、回数、終了コード、時刻と、タスクごとのスコアの記録だけです。これらのテキストを保存・表示・送信することはありません。スコアと完了したタスクの回数を数値として送るのは、ライブ送信をオンにしてモデルを共有しているときに、選んだサービスへ送る場合だけです。"
   },
   "settings.report": {
     "zh-Hant": "API",
@@ -4098,6 +4686,12 @@
     "en": "Models in use",
     "ja": "使用中のモデル"
   },
+  "report.section.models.taskScore": {
+    "zh-Hant": "也會傳送智力（任務分數）、思考速度，以及開啟上報後各模型完成的任務統計（成功、卡住、修正次數）。只有數字，不含指令、輸出或檔案名稱。",
+    "zh-Hans": "也会发送智力（任务分数）、思考速度，以及开启上报后各模型完成的任务统计（成功、卡住、修正次数）。只有数字，不含命令、输出或文件名称。",
+    "en": "Also sends intelligence (the task score), thinking speed and, per model, counts of the tasks completed while reporting is on (successes, stalls, fix attempts). Numbers only — never commands, output or file names.",
+    "ja": "知能（タスクのスコア）、思考の速度、送信をオンにしてから完了したタスクのモデルごとの集計（成功・停滞・修正の回数）も送信します。数値だけで、コマンド、出力、ファイル名は含みません。"
+  },
   "report.section.cost": {
     "zh-Hant": "費用（API 等值，以美元計）",
     "zh-Hans": "费用（API 等值，以美元计）",
@@ -4356,6 +4950,120 @@
     "en": "Currently #%d",
     "ja": "現在 %d 位"
   },
+  "report.transport": {
+    "zh-Hant": "上報方式",
+    "zh-Hans": "上报方式",
+    "en": "Transport",
+    "ja": "送信方式"
+  },
+  "report.transport.http": {
+    "zh-Hant": "HTTP",
+    "zh-Hans": "HTTP",
+    "en": "HTTP",
+    "ja": "HTTP"
+  },
+  "report.transport.websocket": {
+    "zh-Hant": "WebSocket 即時",
+    "zh-Hans": "WebSocket 实时",
+    "en": "WebSocket Live",
+    "ja": "WebSocket ライブ"
+  },
+  "report.transport.hint": {
+    "zh-Hant": "WebSocket 即時在資料一有變化就送出；服務不支援時自動改用 HTTP，每幾秒送一次。",
+    "zh-Hans": "WebSocket 实时在数据一有变化就发送；服务不支持时自动改用 HTTP，每几秒发送一次。",
+    "en": "WebSocket Live sends as soon as the data changes; when the service doesn't support it, HTTP sends every few seconds instead.",
+    "ja": "WebSocket ライブはデータが変わるとすぐに送信します。サービスが対応していない場合は、代わりに HTTP で数秒ごとに送信します。"
+  },
+  "report.transport.source": {
+    "zh-Hant": "資料來自監看本機紀錄檔，從寫入到讀取最慢約 1 秒，並非逐 token 的即時量測。",
+    "zh-Hans": "数据来自监看本机记录文件，从写入到读取最慢约 1 秒，并非逐 token 的实时测量。",
+    "en": "The data comes from watching local logs, read at most about 1 s after they are written — not a per-token measurement.",
+    "ja": "データはローカルのログの監視から得ており、書き込みから読み取りまで最大約 1 秒かかります。トークン単位の計測ではありません。"
+  },
+  "report.transport.throttled": {
+    "zh-Hant": "這個服務限制每 %d 毫秒最多一份報文，達不到即時等級",
+    "zh-Hans": "该服务限制每 %d 毫秒最多一份报文，达不到实时等级",
+    "en": "This service accepts at most one report every %d ms — slower than live",
+    "ja": "このサービスは %d ミリ秒ごとに 1 件までしか受け付けないため、ライブの水準に届きません"
+  },
+  "report.status.streaming": {
+    "zh-Hant": "WebSocket 即時上報中 · 上次 %@",
+    "zh-Hans": "WebSocket 实时上报中 · 上次 %@",
+    "en": "Reporting live over WebSocket · last %@",
+    "ja": "WebSocket でライブ送信中・前回 %@"
+  },
+  "report.status.wsReconnecting": {
+    "zh-Hant": "WebSocket 重新連線中 · 上次成功 %@",
+    "zh-Hans": "WebSocket 重新连接中 · 上次成功 %@",
+    "en": "Reconnecting the WebSocket · last success %@",
+    "ja": "WebSocket に再接続しています・前回の成功 %@"
+  },
+  "report.status.wsReconnectingNever": {
+    "zh-Hant": "WebSocket 重新連線中",
+    "zh-Hans": "WebSocket 重新连接中",
+    "en": "Reconnecting the WebSocket",
+    "ja": "WebSocket に再接続しています"
+  },
+  "report.status.wsUnsupported": {
+    "zh-Hant": "此服務尚未支援 WebSocket，目前改用 HTTP 上報",
+    "zh-Hans": "此服务尚未支持 WebSocket，目前改用 HTTP 上报",
+    "en": "This service doesn't support WebSocket yet, so reports go over HTTP for now",
+    "ja": "このサービスはまだ WebSocket に対応していないため、いまは HTTP で送信しています"
+  },
+  "report.status.wsMismatch": {
+    "zh-Hant": "服務連線設定不一致",
+    "zh-Hans": "服务连接设置不一致",
+    "en": "The service's connection settings don't match",
+    "ja": "サービスの接続設定が一致しません"
+  },
+  "report.status.wsReplaced": {
+    "zh-Hant": "這部裝置已在另一處連線，這裡已停止上報",
+    "zh-Hans": "这台设备已在另一处连接，这里已停止上报",
+    "en": "This device connected from somewhere else — reporting stopped here",
+    "ja": "このデバイスは別の場所で接続されたため、ここでの送信を停止しました"
+  },
+  "report.status.wsIncompatible": {
+    "zh-Hant": "服務的 WebSocket 與這個版本不相容，已停止上報",
+    "zh-Hans": "服务的 WebSocket 与这个版本不兼容，已停止上报",
+    "en": "The service's WebSocket isn't compatible with this version — reporting stopped",
+    "ja": "サービスの WebSocket がこのバージョンと互換性がないため、送信を停止しました"
+  },
+  "report.status.wsNonce": {
+    "zh-Hant": "服務一再拒收重複的請求編號，已停止上報",
+    "zh-Hans": "服务一再拒收重复的请求编号，已停止上报",
+    "en": "The service keeps reporting repeated request numbers — reporting stopped",
+    "ja": "サービスが重複したリクエスト番号を繰り返し拒否したため、送信を停止しました"
+  },
+  "report.status.wsClientState": {
+    "zh-Hant": "上報狀態異常，已停止；重新開啟上報即可恢復",
+    "zh-Hans": "上报状态异常，已停止；重新开启上报即可恢复",
+    "en": "Reporting got into an unexpected state and stopped — turn it off and on to resume",
+    "ja": "送信が想定外の状態になり停止しました。オフにしてからオンにすると再開します"
+  },
+  "report.ws.stats": {
+    "zh-Hant": "延遲 p50 %@ · p95 %@ · 送達 %@ · 未送達 %@",
+    "zh-Hans": "延迟 p50 %@ · p95 %@ · 送达 %@ · 未送达 %@",
+    "en": "Latency p50 %@ · p95 %@ · delivered %@ · not delivered %@",
+    "ja": "遅延 p50 %@・p95 %@・到達 %@・未達 %@"
+  },
+  "report.ws.noLatency": {
+    "zh-Hant": "–",
+    "zh-Hans": "–",
+    "en": "–",
+    "ja": "–"
+  },
+  "report.ws.counters": {
+    "zh-Hant": "已建構 %@ · 已接受 %@ · 重複 %@ · 被拒 %@ · 過時丟棄 %@ · 滿載丟棄 %@ · 結果未知 %@",
+    "zh-Hans": "已构建 %@ · 已接受 %@ · 重复 %@ · 被拒 %@ · 过时丢弃 %@ · 满载丢弃 %@ · 结果未知 %@",
+    "en": "Built %@ · accepted %@ · duplicate %@ · rejected %@ · dropped as stale %@ · dropped while full %@ · outcome unknown %@",
+    "ja": "作成 %@・受理 %@・重複 %@・拒否 %@・古いため破棄 %@・満杯で破棄 %@・結果不明 %@"
+  },
+  "report.preview.onChange": {
+    "zh-Hant": "資料有變化時立即送出",
+    "zh-Hans": "数据有变化时立即发送",
+    "en": "Sent as soon as the data changes",
+    "ja": "データが変わるとすぐに送信します"
+  },
   "report.pause": {
     "zh-Hant": "暫停上報",
     "zh-Hans": "暂停上报",
@@ -4507,10 +5215,10 @@
     "ja": "ライブ送信がこの通信量の数値を %@ に送信します。"
   },
   "privacy.report": {
-    "zh-Hant": "即時上報（選用，預設關閉）：開啟後，Agent Speed 會在 agent 工作時每隔幾秒，把即時速度、token 用量，以及你保留的費用、網路流量和模型等數字，連同你選擇的使用者名稱傳送到你指定的服務。不會傳送對話內容、檔案或專案名稱，也不會傳送歷史紀錄；每筆上報都以只存在這台電腦上的金鑰簽章。",
-    "zh-Hans": "实时上报（可选，默认关闭）：开启后，Agent Speed 会在 agent 工作时每隔几秒，把实时速度、token 用量，以及你保留的费用、网络流量和模型等数字，连同你选择的用户名发送到你指定的服务。不会发送对话内容、文件或项目名称，也不会发送历史记录；每条上报都用只保存在这台电脑上的密钥签名。",
-    "en": "Live reporting (optional, off by default): when you turn it on, Agent Speed sends live speed, token usage and — if you keep them — cost, network traffic and model numbers, with the username you choose, to the service you pick, every few seconds while your agents work. It never sends conversation content, file or project names, or history, and signs every report with a key that stays on this computer.",
-    "ja": "ライブ送信（任意・初期設定はオフ）：オンにすると、Agent Speed は agent の作業中に数秒ごと、現在の速度と token 使用量、そしてオンのままにした費用・通信量・モデルなどの数値を、選んだユーザー名と一緒に指定したサービスへ送信します。会話の内容、ファイル名やプロジェクト名、履歴は送信せず、各送信はこのコンピューターから出ない鍵で署名されます。"
+    "zh-Hant": "即時上報（選用，預設關閉）：開啟後，Agent Speed 會在 agent 工作時每隔幾秒，把即時速度、token 用量，以及你保留的費用、網路流量和模型（含智力、思考速度和完成任務的統計）等數字，連同你選擇的使用者名稱傳送到你指定的服務。不會傳送對話內容、指令、檔案或專案名稱，也不會傳送歷史紀錄；每筆上報都以只存在這台電腦上的金鑰簽章。",
+    "zh-Hans": "实时上报（可选，默认关闭）：开启后，Agent Speed 会在 agent 工作时每隔几秒，把实时速度、token 用量，以及你保留的费用、网络流量和模型（含智力、思考速度和完成任务的统计）等数字，连同你选择的用户名发送到你指定的服务。不会发送对话内容、命令、文件或项目名称，也不会发送历史记录；每条上报都用只保存在这台电脑上的密钥签名。",
+    "en": "Live reporting (optional, off by default): when you turn it on, Agent Speed sends live speed, token usage and — if you keep them — cost, network traffic and model numbers (including intelligence, thinking speed and counts of completed tasks), with the username you choose, to the service you pick, every few seconds while your agents work. It never sends conversation content, commands, file or project names, or history, and signs every report with a key that stays on this computer.",
+    "ja": "ライブ送信（任意・初期設定はオフ）：オンにすると、Agent Speed は agent の作業中に数秒ごと、現在の速度と token 使用量、そしてオンのままにした費用・通信量・モデル（知能、思考の速度、完了したタスクの集計を含む）などの数値を、選んだユーザー名と一緒に指定したサービスへ送信します。会話の内容、コマンド、ファイル名やプロジェクト名、履歴は送信せず、各送信はこのコンピューターから出ない鍵で署名されます。"
   },
   "privacy.statement.report": {
     "zh-Hant": "Agent Speed 只讀取本機紀錄，不會儲存或顯示對話內容。它只在檢查更新、每天更新公開的模型價格表、使用美元以外的貨幣時更新匯率，以及依你的設定把即時數字上報到 %@ 時連網；除了即時上報的內容，不傳送任何個人資料。可在下方一次關閉所有網路連線。",
@@ -4602,17 +5310,29 @@
     "en": "Grok Build",
     "ja": "Grok Build"
   },
-  "source.trae": {
-    "zh-Hant": "Trae",
-    "zh-Hans": "Trae",
-    "en": "Trae",
-    "ja": "Trae"
+  "source.pi": {
+    "zh-Hant": "Pi",
+    "zh-Hans": "Pi",
+    "en": "Pi",
+    "ja": "Pi"
   },
-  "settings.sources.traeHint": {
-    "zh-Hant": "讀取 Trae、中國版與 SOLO 的本機資料。統計已完成回合，並以核實的逐請求用量補充；歷史仍可能不完整。請求日誌對應後顯示實測速度，生成中依近期實測估算。可選擇應用程式資料資料夾。",
-    "zh-Hans": "读取 Trae、中国版与 SOLO 的本地数据。统计已完成回合，并以核实的逐请求用量补充；历史仍可能不完整。请求日志对应后显示实测速度，生成中按近期实测估算。可选择应用数据文件夹。",
-    "en": "Reads local Trae, China and SOLO data. Counts completed turns and adds verified per-request usage; history may be incomplete. Matched request logs provide measured speed; in-flight speed uses recent measurements. Choose the application data folder.",
-    "ja": "中国版と SOLO を含む Trae のローカルデータを読み取ります。完了ターンに検証済みの各リクエスト使用量を補い、履歴は不完全な場合があります。ログが一致した応答は実測し、生成中は最近の実測値から推定します。"
+  "source.openclaw": {
+    "zh-Hant": "OpenClaw",
+    "zh-Hans": "OpenClaw",
+    "en": "OpenClaw",
+    "ja": "OpenClaw"
+  },
+  "source.hermes": {
+    "zh-Hant": "Hermes Agent",
+    "zh-Hans": "Hermes Agent",
+    "en": "Hermes Agent",
+    "ja": "Hermes Agent"
+  },
+  "source.droid": {
+    "zh-Hant": "Factory Droid",
+    "zh-Hans": "Factory Droid",
+    "en": "Factory Droid",
+    "ja": "Factory Droid"
   },
   "settings.sources.zcodeHint": {
     "zh-Hant": "讀取 ZCode 的本機工作階段資料庫；可選擇資料目錄或包含 db.sqlite 的資料夾。",
@@ -4632,6 +5352,30 @@
     "en": "Reads Grok Build’s sessions folder and its session update records.",
     "ja": "Grok Build の sessions フォルダと各セッションの更新記録を読み取ります。"
   },
+  "settings.sources.piHint": {
+    "zh-Hant": "Pi（Pi Coding Agent）的 sessions 資料夾，通常是 ~/.pi/agent/sessions。未選擇資料夾時，Pi 設定裡的自訂工作階段資料夾也會一起讀取。",
+    "zh-Hans": "Pi（Pi Coding Agent）的 sessions 文件夹，通常是 ~/.pi/agent/sessions。未选择文件夹时，也会读取 Pi 设置里的自定义会话文件夹。",
+    "en": "The sessions folder of Pi (Pi Coding Agent), usually ~/.pi/agent/sessions. Unless you choose a folder, the custom session folder in Pi's settings is included too.",
+    "ja": "Pi（Pi Coding Agent）の sessions フォルダです。通常は ~/.pi/agent/sessions です。フォルダを選ばない場合は、Pi の設定にあるカスタムのセッションフォルダも読み込みます。"
+  },
+  "settings.sources.openclawHint": {
+    "zh-Hant": "OpenClaw 的狀態資料夾，通常是 ~/.openclaw；也可以選擇某個 agent 資料夾或 openclaw-agent.sqlite。交給 Claude Code、Codex 或 ACP agent 執行的對話，會算在那些工具底下。",
+    "zh-Hans": "OpenClaw 的状态文件夹，通常是 ~/.openclaw；也可以选择某个 agent 文件夹或 openclaw-agent.sqlite。交给 Claude Code、Codex 或 ACP agent 执行的对话，会计入这些工具。",
+    "en": "OpenClaw's state folder, usually ~/.openclaw. You can also choose one agent folder or openclaw-agent.sqlite. Turns OpenClaw hands to Claude Code, Codex or ACP agents count under those agents.",
+    "ja": "OpenClaw の状態フォルダです。通常は ~/.openclaw です。エージェントのフォルダや openclaw-agent.sqlite も選べます。OpenClaw が Claude Code、Codex、ACP エージェントに任せた会話は、それぞれのツールで集計されます。"
+  },
+  "settings.sources.hermesHint": {
+    "zh-Hant": "讀取 Hermes Agent 的 logs/agent.log 裡每次模型呼叫的紀錄，包含輪替後的舊檔與每個設定檔（profile），通常位於 ~/.hermes（Windows 為 %LOCALAPPDATA%\\hermes）。交給 Codex 執行環境的對話回合計入 Codex。",
+    "zh-Hans": "读取 Hermes Agent 的 logs/agent.log 中每次模型调用的记录，包括轮转后的旧文件和每个配置文件（profile），通常位于 ~/.hermes（Windows 为 %LOCALAPPDATA%\\hermes）。交给 Codex 运行时的对话轮次计入 Codex。",
+    "en": "Reads the model-call records in Hermes Agent's logs/agent.log, including rotated files and every profile, usually under ~/.hermes (Windows: %LOCALAPPDATA%\\hermes). Turns Hermes hands to its Codex runtime count under Codex.",
+    "ja": "Hermes Agent の logs/agent.log にあるモデル呼び出しの記録を読み取ります。ローテーション済みのファイルとすべてのプロファイルを含み、通常は ~/.hermes（Windows では %LOCALAPPDATA%\\hermes）にあります。Codex ランタイムに渡したターンは Codex に計上されます。"
+  },
+  "settings.sources.droidHint": {
+    "zh-Hant": "Factory Droid 的工作階段資料夾，通常是 ~/.factory/sessions（Windows 為 %USERPROFILE%\\.factory\\sessions），也可以選擇 .factory 資料夾。Token 用量取自每個工作階段旁的 .settings.json，Droid 寫入後才會出現；子 agent 各自計算。",
+    "zh-Hans": "Factory Droid 的会话文件夹，通常是 ~/.factory/sessions（Windows 为 %USERPROFILE%\\.factory\\sessions），也可以选择 .factory 文件夹。Token 用量取自每个会话旁的 .settings.json，Droid 写入后才会出现；子 agent 分别计算。",
+    "en": "Factory Droid's sessions folder, usually ~/.factory/sessions (Windows: %USERPROFILE%\\.factory\\sessions). You can also choose the .factory folder. Token usage comes from the .settings.json next to each session and appears once Droid saves it; sub-agents count on their own.",
+    "ja": "Factory Droid のセッションフォルダです。通常は ~/.factory/sessions（Windows では %USERPROFILE%\\.factory\\sessions）です。.factory フォルダも選べます。トークン使用量は各セッションの隣にある .settings.json から取得し、Droid が保存した時点で反映されます。サブ agent はそれぞれ個別に集計されます。"
+  },
   "mode.label": {
     "zh-Hant": "執行模式",
     "zh-Hans": "执行模式",
@@ -4643,12 +5387,6 @@
     "zh-Hans": "未提供",
     "en": "Not provided",
     "ja": "未提供"
-  },
-  "mode.mixed": {
-    "zh-Hant": "多種模式",
-    "zh-Hans": "多种模式",
-    "en": "Mixed modes",
-    "ja": "複数のモード"
   },
   "mode.evidence.configured": {
     "zh-Hant": "設定預設",
@@ -4787,6 +5525,594 @@
     "zh-Hans": "导出模式 CSV",
     "en": "Export modes CSV",
     "ja": "モード CSV を書き出す"
+  },
+  "effort.label": {
+    "zh-Hant": "推理強度",
+    "zh-Hans": "推理强度",
+    "en": "Reasoning effort",
+    "ja": "推論の強さ"
+  },
+  "effort.tooltip": {
+    "zh-Hant": "推理強度：%@",
+    "zh-Hans": "推理强度：%@",
+    "en": "Reasoning effort: %@",
+    "ja": "推論の強さ：%@"
+  },
+  "effort.ultra.detail": {
+    "zh-Hant": "ultra：最大推理，並自動分派子任務",
+    "zh-Hans": "ultra：最大推理，并自动分派子任务",
+    "en": "ultra: maximum reasoning with automatic task delegation",
+    "ja": "ultra：最大の推論と自動的なタスク委任"
+  },
+  "effort.ultracode.detail": {
+    "zh-Hant": "ultracode：最大推理，並由多個 agent 協作",
+    "zh-Hans": "ultracode：最大推理，并由多个 agent 协作",
+    "en": "ultracode: maximum effort with multi-agent workflows",
+    "ja": "ultracode：最大の推論と複数 agent のワークフロー"
+  },
+  "speed.label": {
+    "zh-Hant": "加速",
+    "zh-Hans": "加速",
+    "en": "Speed",
+    "ja": "高速化"
+  },
+  "speed.tooltip": {
+    "zh-Hant": "加速：%@",
+    "zh-Hans": "加速：%@",
+    "en": "Speed: %@",
+    "ja": "高速化：%@"
+  },
+  "speed.value.standard": {
+    "zh-Hant": "標準",
+    "zh-Hans": "标准",
+    "en": "Standard",
+    "ja": "標準"
+  },
+  "speed.value.fast": {
+    "zh-Hant": "Fast",
+    "zh-Hans": "Fast",
+    "en": "Fast",
+    "ja": "Fast"
+  },
+  "speed.value.ultrafast": {
+    "zh-Hant": "Ultrafast",
+    "zh-Hans": "Ultrafast",
+    "en": "Ultrafast",
+    "ja": "Ultrafast"
+  },
+  "speed.value.highspeed": {
+    "zh-Hant": "Highspeed",
+    "zh-Hans": "Highspeed",
+    "en": "Highspeed",
+    "ja": "Highspeed"
+  },
+  "modes.unrecorded": {
+    "zh-Hant": "未記錄",
+    "zh-Hans": "未记录",
+    "en": "Not recorded",
+    "ja": "記録なし"
+  },
+  "modes.history.title": {
+    "zh-Hant": "推理強度與加速",
+    "zh-Hans": "推理强度与加速",
+    "en": "Effort and speed",
+    "ja": "推論の強さと高速化"
+  },
+  "modes.history.empty": {
+    "zh-Hant": "這段期間沒有記錄到這項資訊",
+    "zh-Hans": "这段期间没有记录到这项信息",
+    "en": "Nothing recorded for this range",
+    "ja": "この期間の記録はありません"
+  },
+  "history.tasks.title": {
+    "zh-Hant": "任務表現",
+    "zh-Hans": "任务表现",
+    "en": "Task performance",
+    "ja": "タスクの成績"
+  },
+  "history.tasks.info": {
+    "zh-Hant": "智力是 Agent Speed 依工具紀錄估算的任務評分（0–100）：每個新要求從 0 開始，修改通過測試、錯誤減少才會上升，沒有可靠驗證的任務分數偏低。這裡比較所選期間結束的任務；專案和任務難度相近時，比較才有意義。",
+    "zh-Hans": "智力是 Agent Speed 依工具记录估算的任务评分（0–100）：每个新请求从 0 开始，修改通过测试、错误减少才会上升，没有可靠验证的任务分数偏低。这里比较所选期间结束的任务；项目和任务难度相近时，比较才有意义。",
+    "en": "Intelligence is a task score (0–100) that Agent Speed estimates from tool records: each new request starts at 0 and climbs as changes pass tests and errors shrink, and tasks without reliable checks stay low. This compares the tasks that ended in the selected period; comparisons mean most for similar projects and tasks.",
+    "ja": "知能は Agent Speed がツールの記録から推定するタスクのスコア（0〜100）です。新しい依頼ごとに 0 から始まり、変更がテストを通りエラーが減るにつれて上がります。信頼できる検証のないタスクは低いままです。ここでは選択した期間に終わったタスクを比べます。プロジェクトや難しさが近いほど、比較の意味があります。"
+  },
+  "history.tasks.info.a11y": {
+    "zh-Hant": "這些數字怎麼算",
+    "zh-Hans": "这些数字怎么算",
+    "en": "How these numbers are computed",
+    "ja": "これらの数値の算出方法"
+  },
+  "history.tasks.vs": {
+    "zh-Hant": "vs",
+    "zh-Hans": "vs",
+    "en": "vs",
+    "ja": "vs"
+  },
+  "history.tasks.pickA.a11y": {
+    "zh-Hant": "比較的第一個來源",
+    "zh-Hans": "比较的第一个来源",
+    "en": "First source to compare",
+    "ja": "比較する 1 つ目のソース"
+  },
+  "history.tasks.pickB.a11y": {
+    "zh-Hant": "比較的第二個來源",
+    "zh-Hans": "比较的第二个来源",
+    "en": "Second source to compare",
+    "ja": "比較する 2 つ目のソース"
+  },
+  "history.tasks.counts": {
+    "zh-Hant": "%d 個已評分 · 共 %d 個任務",
+    "zh-Hans": "%d 个已评分 · 共 %d 个任务",
+    "en": "%d scored · %d tasks",
+    "ja": "採点済み %d・全 %d タスク"
+  },
+  "history.tasks.metric.tasks": {
+    "zh-Hant": "任務",
+    "zh-Hans": "任务",
+    "en": "Tasks",
+    "ja": "タスク"
+  },
+  "history.tasks.metric.scored": {
+    "zh-Hant": "已評分任務",
+    "zh-Hans": "已评分任务",
+    "en": "Scored tasks",
+    "ja": "採点済みタスク"
+  },
+  "history.tasks.metric.scored.hint": {
+    "zh-Hant": "有修改或有驗證、因此有分數的任務。只讀程式碼或聊天的任務沒有分數。",
+    "zh-Hans": "有修改或有验证、因此有分数的任务。只读代码或聊天的任务没有分数。",
+    "en": "Tasks with an edit or a check, and so a score. Tasks that only read code or chat have none.",
+    "ja": "編集かチェックがあり、スコアのついたタスク。コードを読むだけ・会話だけのタスクにはスコアがありません。"
+  },
+  "history.tasks.metric.scored.short": {
+    "zh-Hant": "已評分",
+    "zh-Hans": "已评分",
+    "en": "Scored",
+    "ja": "採点済み"
+  },
+  "history.tasks.metric.median": {
+    "zh-Hant": "中位數分數",
+    "zh-Hans": "中位数分数",
+    "en": "Median score",
+    "ja": "スコアの中央値"
+  },
+  "history.tasks.metric.median.hint": {
+    "zh-Hant": "已評分任務的最終分數排在正中間的值：一半的任務比它高。",
+    "zh-Hans": "已评分任务的最终分数排在正中间的值：一半的任务比它高。",
+    "en": "The middle final score of the scored tasks: half of them scored higher.",
+    "ja": "採点済みタスクの最終スコアの真ん中の値。半分のタスクはこれより高い。"
+  },
+  "history.tasks.metric.median.short": {
+    "zh-Hant": "中位數",
+    "zh-Hans": "中位数",
+    "en": "Median",
+    "ja": "中央値"
+  },
+  "history.tasks.metric.success": {
+    "zh-Hant": "成功率",
+    "zh-Hans": "成功率",
+    "en": "Success rate",
+    "ja": "成功率"
+  },
+  "history.tasks.metric.success.hint": {
+    "zh-Hant": "已評分的任務中，結束時為「已通過」的比例。",
+    "zh-Hans": "已评分的任务中，结束时为“已通过”的比例。",
+    "en": "Share of scored tasks that ended passing.",
+    "ja": "採点済みタスクのうち、「通過」で終わった割合。"
+  },
+  "history.tasks.metric.stall": {
+    "zh-Hant": "卡住率",
+    "zh-Hans": "卡住率",
+    "en": "Stall rate",
+    "ja": "停滞率"
+  },
+  "history.tasks.metric.stall.hint": {
+    "zh-Hant": "所有任務中卡住過的比例：連續 8 個動作幾乎沒有新發現。",
+    "zh-Hans": "所有任务中卡住过的比例：连续 8 个动作几乎没有新发现。",
+    "en": "Share of all tasks that stalled: 8 actions in a row with almost nothing new.",
+    "ja": "すべてのタスクのうち停滞した割合：新しい発見がほとんどない操作が 8 回続いた。"
+  },
+  "history.tasks.metric.fixFail": {
+    "zh-Hant": "修復失敗率",
+    "zh-Hans": "修复失败率",
+    "en": "Fix-failure rate",
+    "ja": "修正失敗率"
+  },
+  "history.tasks.metric.fixFail.hint": {
+    "zh-Hant": "每次檢查失敗後，下一次執行同一個檢查仍然失敗（或一直沒有修好）的比例。",
+    "zh-Hans": "每次检查失败后，下一次运行同一个检查仍然失败（或一直没有修好）的比例。",
+    "en": "Share of failing runs whose next run of the same check failed too, or that were never fixed.",
+    "ja": "失敗した実行のうち、同じチェックの次の実行も失敗した（または最後まで直らなかった）割合。"
+  },
+  "history.tasks.metric.attempts": {
+    "zh-Hant": "平均恢復嘗試",
+    "zh-Hans": "平均恢复尝试",
+    "en": "Mean attempts to recover",
+    "ja": "回復までの平均試行"
+  },
+  "history.tasks.metric.attempts.hint": {
+    "zh-Hant": "有修好的錯誤，平均失敗幾次才通過。",
+    "zh-Hans": "修好的错误，平均失败几次才通过。",
+    "en": "For errors that got fixed, the average number of failing runs before the pass.",
+    "ja": "直ったエラーについて、通過までに失敗した実行の平均回数。"
+  },
+  "history.tasks.metric.attempts.short": {
+    "zh-Hant": "恢復嘗試",
+    "zh-Hans": "恢复尝试",
+    "en": "Attempts",
+    "ja": "回復試行"
+  },
+  "history.tasks.metric.firstPass": {
+    "zh-Hant": "首次通過時間（中位數）",
+    "zh-Hans": "首次通过时间（中位数）",
+    "en": "Median time to first pass",
+    "ja": "初回通過までの時間（中央値）"
+  },
+  "history.tasks.metric.firstPass.hint": {
+    "zh-Hant": "從任務開始到第一次通過檢查的時間，取中位數。",
+    "zh-Hans": "从任务开始到第一次通过检查的时间，取中位数。",
+    "en": "Time from the start of a task to its first passing check, the median over tasks that passed.",
+    "ja": "タスクの開始から最初にチェックを通過するまでの時間（通過したタスクの中央値）。"
+  },
+  "history.tasks.metric.firstPass.short": {
+    "zh-Hant": "首次通過",
+    "zh-Hans": "首次通过",
+    "en": "First pass",
+    "ja": "初回通過"
+  },
+  "history.tasks.lowerBetter": {
+    "zh-Hant": "越低越好",
+    "zh-Hans": "越低越好",
+    "en": "Lower is better",
+    "ja": "低いほど良い"
+  },
+  "history.tasks.byModel": {
+    "zh-Hant": "依模型",
+    "zh-Hans": "按模型",
+    "en": "By model",
+    "ja": "モデル別"
+  },
+  "history.tasks.column.model": {
+    "zh-Hant": "模型",
+    "zh-Hans": "模型",
+    "en": "Model",
+    "ja": "モデル"
+  },
+  "history.tasks.column.scoredOfTasks": {
+    "zh-Hant": "已評分 / 任務",
+    "zh-Hans": "已评分 / 任务",
+    "en": "Scored / tasks",
+    "ja": "採点済み / タスク"
+  },
+  "history.tasks.sample.low": {
+    "zh-Hant": "樣本少",
+    "zh-Hans": "样本少",
+    "en": "Few tasks",
+    "ja": "件数少"
+  },
+  "history.tasks.sample.hint": {
+    "zh-Hant": "只有 %d 個已評分的任務，數字容易波動；雙方都有 %d 個以上才會標出較好的一方。",
+    "zh-Hans": "只有 %d 个已评分的任务，数字容易波动；双方都有 %d 个以上才会标出较好的一方。",
+    "en": "Only %d scored tasks, so the numbers can swing. A side is marked better only when both have at least %d.",
+    "ja": "採点済みのタスクは %d 件だけなので、数値は揺れやすいです。良いほうを示すのは、両方が %d 件以上のときだけです。"
+  },
+  "history.tasks.empty": {
+    "zh-Hant": "這段期間沒有評分的任務",
+    "zh-Hans": "这段期间没有评分的任务",
+    "en": "No scored tasks in this period",
+    "ja": "この期間に採点されたタスクはありません"
+  },
+  "history.tasks.empty.hint": {
+    "zh-Hant": "任務評分需要會記錄工具呼叫的來源：Claude Code、Claude Desktop、Codex、omp、Pi、OpenClaw 或 Factory Droid。",
+    "zh-Hans": "任务评分需要会记录工具调用的来源：Claude Code、Claude Desktop、Codex、omp、Pi、OpenClaw 或 Factory Droid。",
+    "en": "Task scores need a source that records tool calls: Claude Code, Claude Desktop, Codex, omp, Pi, OpenClaw or Factory Droid.",
+    "ja": "タスクの採点には、ツール呼び出しを記録するソースが必要です：Claude Code、Claude Desktop、Codex、omp、Pi、OpenClaw、Factory Droid。"
+  },
+  "history.tasks.side.empty": {
+    "zh-Hant": "這段期間沒有任務",
+    "zh-Hans": "这段期间没有任务",
+    "en": "No tasks in this period",
+    "ja": "この期間のタスクはありません"
+  },
+  "history.tasks.onlyOne": {
+    "zh-Hant": "這段期間只有 %@ 有任務",
+    "zh-Hans": "这段期间只有 %@ 有任务",
+    "en": "Only %@ has tasks in this period",
+    "ja": "この期間にタスクがあるのは %@ だけです"
+  },
+  "history.tasks.analyzing": {
+    "zh-Hant": "正在重新分析過去的任務…",
+    "zh-Hans": "正在重新分析过去的任务…",
+    "en": "Re-analyzing past tasks…",
+    "ja": "過去のタスクを再分析中…"
+  },
+  "history.tasks.distribution": {
+    "zh-Hant": "分數分布",
+    "zh-Hans": "分数分布",
+    "en": "Score distribution",
+    "ja": "スコアの分布"
+  },
+  "history.tasks.footnote": {
+    "zh-Hant": "依工具紀錄估算，不是模型能力測驗；權重尚未校準。",
+    "zh-Hans": "依工具记录估算，不是模型能力测试；权重尚未校准。",
+    "en": "Estimated from tool records, not a model benchmark. Weights are not calibrated yet.",
+    "ja": "ツールの記録からの推定で、モデルのベンチマークではありません。重みはまだ較正されていません。"
+  },
+  "history.tasks.attempts": {
+    "zh-Hant": "%@ 次",
+    "zh-Hans": "%@ 次",
+    "en": "%@",
+    "ja": "%@ 回"
+  },
+  "history.tasks.rate.scored": {
+    "zh-Hant": "%d / %d 個已評分的任務",
+    "zh-Hans": "%d / %d 个已评分的任务",
+    "en": "%d of %d scored tasks",
+    "ja": "%d 件（採点済み %d 件中）"
+  },
+  "history.tasks.rate.tasks": {
+    "zh-Hant": "%d / %d 個任務",
+    "zh-Hans": "%d / %d 个任务",
+    "en": "%d of %d tasks",
+    "ja": "%d 件（全 %d タスク中）"
+  },
+  "history.tasks.rate.fixes": {
+    "zh-Hant": "%d / %d 次失敗後的下一次執行",
+    "zh-Hans": "%d / %d 次失败后的下一次运行",
+    "en": "%d of %d runs after a failure",
+    "ja": "%d 件（失敗後の実行 %d 件中）"
+  },
+  "history.tasks.model.sources": {
+    "zh-Hant": "來源：%@",
+    "zh-Hans": "来源：%@",
+    "en": "Sources: %@",
+    "ja": "ソース：%@"
+  },
+  "history.tasks.noValue.attempts": {
+    "zh-Hant": "這段期間沒有出錯後恢復的任務",
+    "zh-Hans": "这段期间没有出错后恢复的任务",
+    "en": "No task recovered from an error in this period",
+    "ja": "この期間にエラーから回復したタスクはありません"
+  },
+  "history.tasks.noValue.firstPass": {
+    "zh-Hant": "這段期間沒有通過檢查的任務",
+    "zh-Hans": "这段期间没有通过检查的任务",
+    "en": "No task passed a check in this period",
+    "ja": "この期間にチェックを通過したタスクはありません"
+  },
+  "a11y.history.tasks.side": {
+    "zh-Hant": "%@：%d 個任務，%d 個已評分，中位數 %@",
+    "zh-Hans": "%@：%d 个任务，%d 个已评分，中位数 %@",
+    "en": "%@: %d tasks, %d scored, median %@",
+    "ja": "%@：%d タスク、採点済み %d、中央値 %@"
+  },
+  "a11y.history.tasks.distribution": {
+    "zh-Hant": "分數分布：四分之一的任務低於 %@，一半低於 %@，四分之三低於 %@",
+    "zh-Hans": "分数分布：四分之一的任务低于 %@，一半低于 %@，四分之三低于 %@",
+    "en": "Score distribution: a quarter of tasks below %@, half below %@, three quarters below %@",
+    "ja": "スコアの分布：4 分の 1 のタスクが %@ 未満、半分が %@ 未満、4 分の 3 が %@ 未満"
+  },
+  "a11y.history.tasks.compare": {
+    "zh-Hant": "%@：%@ %@，%@ %@",
+    "zh-Hans": "%@：%@ %@，%@ %@",
+    "en": "%@: %@ %@, %@ %@",
+    "ja": "%@：%@ %@、%@ %@"
+  },
+  "a11y.history.tasks.better": {
+    "zh-Hant": "%@，%@ 較好",
+    "zh-Hans": "%@，%@ 较好",
+    "en": "%@, %@ is better",
+    "ja": "%@、%@ のほうが良い"
+  },
+  "a11y.history.tasks.lowerBetter": {
+    "zh-Hant": "%@，越低越好",
+    "zh-Hans": "%@，越低越好",
+    "en": "%@, lower is better",
+    "ja": "%@、低いほど良い"
+  },
+  "a11y.history.tasks.iqr": {
+    "zh-Hant": "中間一半的任務在 %@ 到 %@ 分之間",
+    "zh-Hans": "中间一半的任务在 %@ 到 %@ 分之间",
+    "en": "the middle half of tasks scored %@ to %@",
+    "ja": "中間の半分のタスクは %@〜%@ 点"
+  },
+  "boards.title": {
+    "zh-Hant": "排行看板",
+    "zh-Hans": "排行看板",
+    "en": "Leaderboard",
+    "ja": "ランキングボード"
+  },
+  "boards.style": {
+    "zh-Hant": "看板風格",
+    "zh-Hans": "看板风格",
+    "en": "Board Style",
+    "ja": "ボードのスタイル"
+  },
+  "boards.style.glass": {
+    "zh-Hant": "流光玻璃",
+    "zh-Hans": "流光玻璃",
+    "en": "Glass",
+    "ja": "グラス"
+  },
+  "boards.style.timing": {
+    "zh-Hant": "計時塔",
+    "zh-Hans": "计时塔",
+    "en": "Timing Tower",
+    "ja": "タイミングタワー"
+  },
+  "boards.style.neon": {
+    "zh-Hant": "霓虹座艙",
+    "zh-Hans": "霓虹座舱",
+    "en": "Neon Cockpit",
+    "ja": "ネオンコックピット"
+  },
+  "boards.add": {
+    "zh-Hant": "新增排行看板",
+    "zh-Hans": "新增排行看板",
+    "en": "Add Leaderboard",
+    "ja": "ランキングボードを追加"
+  },
+  "boards.remove": {
+    "zh-Hant": "移除這個看板",
+    "zh-Hans": "移除这个看板",
+    "en": "Remove This Board",
+    "ja": "このボードを削除"
+  },
+  "boards.remove.confirm": {
+    "zh-Hant": "要移除這個排行看板嗎？",
+    "zh-Hans": "要移除这个排行看板吗？",
+    "en": "Remove this leaderboard?",
+    "ja": "このランキングボードを削除しますか？"
+  },
+  "boards.limit": {
+    "zh-Hant": "最多可以有 %d 個排行看板",
+    "zh-Hans": "最多可以有 %d 个排行看板",
+    "en": "You can have up to %d leaderboards",
+    "ja": "ランキングボードは最大 %d 個までです"
+  },
+  "boards.show": {
+    "zh-Hant": "顯示排行看板",
+    "zh-Hans": "显示排行看板",
+    "en": "Show Leaderboards",
+    "ja": "ランキングボードを表示"
+  },
+  "boards.hide": {
+    "zh-Hant": "隱藏排行看板",
+    "zh-Hans": "隐藏排行看板",
+    "en": "Hide Leaderboards",
+    "ja": "ランキングボードを隠す"
+  },
+  "boards.settings": {
+    "zh-Hant": "看板設定…",
+    "zh-Hans": "看板设置…",
+    "en": "Board Settings…",
+    "ja": "ボードの設定…"
+  },
+  "boards.subCount": {
+    "zh-Hant": "%d 個子 agent",
+    "zh-Hans": "%d 个子 agent",
+    "en": "%d sub-agents",
+    "ja": "サブ agent %d 個"
+  },
+  "boards.moreSubs": {
+    "zh-Hant": "+%d 個子 agent · %@",
+    "zh-Hans": "+%d 个子 agent · %@",
+    "en": "+%d sub-agents · %@",
+    "ja": "ほかのサブ agent %d 個 · %@"
+  },
+  "boards.moreGroups": {
+    "zh-Hant": "還有 %d 個 agent · %@",
+    "zh-Hans": "还有 %d 个 agent · %@",
+    "en": "%d more agents · %@",
+    "ja": "ほか %d 個の agent · %@"
+  },
+  "boards.leader": {
+    "zh-Hant": "領先",
+    "zh-Hans": "领先",
+    "en": "LEADER",
+    "ja": "首位"
+  },
+  "boards.live": {
+    "zh-Hant": "即時",
+    "zh-Hans": "实时",
+    "en": "LIVE",
+    "ja": "ライブ"
+  },
+  "boards.newLeader": {
+    "zh-Hant": "新領先 %@",
+    "zh-Hans": "新领先 %@",
+    "en": "NEW LEADER %@",
+    "ja": "新しい首位 %@"
+  },
+  "boards.newPeak": {
+    "zh-Hant": "新峰值",
+    "zh-Hans": "新峰值",
+    "en": "NEW PEAK",
+    "ja": "新記録"
+  },
+  "boards.today": {
+    "zh-Hant": "今日 %@",
+    "zh-Hans": "今日 %@",
+    "en": "Today %@",
+    "ja": "今日 %@"
+  },
+  "boards.peak": {
+    "zh-Hant": "峰值 %@",
+    "zh-Hans": "峰值 %@",
+    "en": "Peak %@",
+    "ja": "ピーク %@"
+  },
+  "a11y.board": {
+    "zh-Hant": "排行看板，%@：每秒 %@ 個 token，%@",
+    "zh-Hans": "排行看板，%@：每秒 %@ 个 token，%@",
+    "en": "Leaderboard, %@: %@ tokens per second, %@",
+    "ja": "ランキングボード、%@：毎秒 %@ トークン、%@"
+  },
+  "a11y.board.row": {
+    "zh-Hant": "第 %d 名，%@，每秒 %@ 個 token",
+    "zh-Hans": "第 %d 名，%@，每秒 %@ 个 token",
+    "en": "Rank %d, %@, %@ tokens per second",
+    "ja": "%d 位、%@、毎秒 %@ トークン"
+  },
+  "a11y.board.newLeader": {
+    "zh-Hant": "%@ 升上第一名",
+    "zh-Hans": "%@ 升到第一名",
+    "en": "%@ takes first place",
+    "ja": "%@ が首位になりました"
+  },
+  "boards.readouts": {
+    "zh-Hant": "看板顯示",
+    "zh-Hans": "看板显示",
+    "en": "Show on Board",
+    "ja": "ボードに表示"
+  },
+  "boards.readouts.intel": {
+    "zh-Hant": "智力",
+    "zh-Hans": "智力",
+    "en": "Intelligence",
+    "ja": "知能"
+  },
+  "boards.readouts.thinking": {
+    "zh-Hant": "思考",
+    "zh-Hans": "思考",
+    "en": "Thinking",
+    "ja": "思考"
+  },
+  "boards.readouts.cost": {
+    "zh-Hant": "費用",
+    "zh-Hans": "费用",
+    "en": "Cost",
+    "ja": "費用"
+  },
+  "boards.readouts.hint": {
+    "zh-Hant": "智力是任務評分（0–100），依工具紀錄估算，不是模型能力測驗；費用按 API 公開價格估算（API 等值）。",
+    "zh-Hans": "智力是任务评分（0–100），依工具记录估算，不是模型能力测试；费用按 API 公开价格估算（API 等值）。",
+    "en": "Intelligence is a task score (0–100) estimated from tool records, not a model benchmark. Costs are estimated at API list prices (API-equivalent).",
+    "ja": "知能はツールの記録から推定したタスクのスコア（0〜100）で、モデルのベンチマークではありません。費用は API の公開価格で推定しています（API 換算）。"
+  },
+  "boards.gap": {
+    "zh-Hant": "間隔",
+    "zh-Hans": "间隔",
+    "en": "GAP",
+    "ja": "差"
+  },
+  "a11y.board.thinking": {
+    "zh-Hant": "思考每秒 %@ 個 token",
+    "zh-Hans": "思考每秒 %@ 个 token",
+    "en": "thinking %@ tokens per second",
+    "ja": "思考 毎秒 %@ トークン"
+  },
+  "a11y.board.cost": {
+    "zh-Hant": "費用每秒 %@ %@（API 等值）",
+    "zh-Hans": "费用每秒 %@ %@（API 等值）",
+    "en": "cost %@ %@ per second (API-equivalent)",
+    "ja": "費用 毎秒 %@ %@（API 換算）"
+  },
+  "a11y.board.costUnknown": {
+    "zh-Hant": "費用：價格未知",
+    "zh-Hans": "费用：价格未知",
+    "en": "cost: price unknown",
+    "ja": "費用：価格不明"
   },
   "profile.title": {
     "zh-Hant": "個人資料",
@@ -4979,5 +6305,17 @@
     "zh-Hant": "裝置管理",
     "zh-Hans": "设备管理",
     "ja": "デバイス管理"
+  },
+  "source.trae": {
+    "zh-Hant": "Trae",
+    "zh-Hans": "Trae",
+    "en": "Trae",
+    "ja": "Trae"
+  },
+  "settings.sources.traeHint": {
+    "zh-Hant": "讀取 Trae、中國版與 SOLO 的本機資料。統計已完成回合，並以核實的逐請求用量補充；歷史仍可能不完整。請求日誌對應後顯示實測速度，生成中依近期實測估算。可選擇應用程式資料資料夾。",
+    "zh-Hans": "读取 Trae、中国版与 SOLO 的本地数据。统计已完成回合，并以核实的逐请求用量补充；历史仍可能不完整。请求日志对应后显示实测速度，生成中按近期实测估算。可选择应用数据文件夹。",
+    "en": "Reads local Trae, China and SOLO data. Counts completed turns and adds verified per-request usage; history may be incomplete. Matched request logs provide measured speed; in-flight speed uses recent measurements. Choose the application data folder.",
+    "ja": "中国版と SOLO を含む Trae のローカルデータを読み取ります。完了ターンに検証済みの各リクエスト使用量を補い、履歴は不完全な場合があります。ログが一致した応答は実測し、生成中は最近の実測値から推定します。"
   }
 }

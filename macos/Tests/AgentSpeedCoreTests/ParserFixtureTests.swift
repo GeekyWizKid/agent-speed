@@ -11,16 +11,25 @@ struct ParserFixtureTests {
 
     static func family(of relative: String) -> TranscriptFamily {
         if relative.hasPrefix("codex/") { return .codex }
+        // A Codex rollout in an OpenClaw agent's Codex home (METRICS 2).
+        if relative.hasPrefix("openclaw/"), relative.contains("/codex-home/sessions/") { return .codex }
         if relative.hasPrefix("gemini/") { return .gemini }
         if relative.hasPrefix("omp/") { return .omp }
+        if relative.hasPrefix("pi/") { return .pi }
         if relative.hasPrefix("workbuddy/.workbuddy-ai/") { return .workbuddyAi }
         if relative.hasPrefix("workbuddy/.workbuddy/") { return .workbuddy }
+        if relative.hasPrefix("droid/") { return .droid }
         return relative.hasPrefix("dsh/") ? .dsh : .claude
     }
 
     /// The fixture folder `omp` plays `~/.omp`: its automatic roots are the default root and every profile.
     static var ompRoots: [String] {
         TranscriptLocations.ompRoots(environment: ["PI_CONFIG_DIR": "omp"], home: Fixtures.root).map(\.path)
+    }
+
+    /// The fixture folder `pi` plays `~/.pi` with the fixtures folder as home; its settings name `~/pi/custom-sessions`.
+    static func piHome(fixtures root: URL = Fixtures.root) -> PiHome {
+        PiHome(environment: ["PI_CODING_AGENT_DIR": root.appendingPathComponent("pi/agent").path], home: root)
     }
 
     /// The root an omp or WorkBuddy fixture was found under; nil for other families.
@@ -59,7 +68,19 @@ struct ParserFixtureTests {
                     latest[upsert.record.key] = upsert.record
                 }
             }
-            if TranscriptReader.isFrameStream(url.path) || TranscriptReader.isCompressedStream(url.path)
+            if Self.family(of: relative) == .droid {
+                // The history rule: the whole transcript, then one sidecar read (METRICS 4.16).
+                var reader = TranscriptReader(path: url.path)
+                let read = reader.read(onLineAt: { line, offset in
+                    parser.consume(rawLine: line, offset: offset, deduper: &deduper) { _ in }
+                })
+                #expect(!read.failed, "\(relative) readable")
+                parser.noteReadStart(read.startOffset)
+                _ = parser.finishReadCycle { upsert in
+                    if latest[upsert.record.key] == nil { keys.append(upsert.record.key) }
+                    latest[upsert.record.key] = upsert.record
+                }
+            } else if TranscriptReader.isFrameStream(url.path) || TranscriptReader.isCompressedStream(url.path)
                 || TranscriptReader.isDocument(url.path) {
                 var reader = TranscriptReader(path: url.path)
                 let read = reader.read(onMalformed: { parser.noteMalformedLine() }, onLine: consume)
@@ -105,6 +126,7 @@ struct ParserFixtureTests {
                 #expect(actual.isFinal == (wanted["final"] as? Bool), "\(relative) \(actual.key) final")
                 expectPricingFields(actual, wanted, "\(relative) \(actual.key)")
             }
+            expectModeFields(state.modes, result.responses, spec, relative)
         }
     }
 

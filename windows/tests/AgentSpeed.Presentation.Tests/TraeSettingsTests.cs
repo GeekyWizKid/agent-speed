@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AgentSpeed.Core;
 using AgentSpeed.Core.Reporting;
 using AgentSpeed.Presentation.Formatting;
@@ -20,6 +21,22 @@ public sealed class TraeSettingsTests
         Assert.DoesNotContain(SourceKind.Trae, back.ToMonitorConfiguration().EnabledSources);
         Assert.Contains(SourceKind.Codex, back.ToMonitorConfiguration().EnabledSources);
         Assert.NotEqual(AppSettings.Default.ToMonitorConfiguration(), back.ToMonitorConfiguration());
+    }
+
+    [Fact]
+    public void TraeAppendsToTheUpstreamSourcesWithoutReassigningTheirIds()
+    {
+        Assert.Equal(13, (int)SourceKind.Pi);
+        Assert.Equal(14, (int)SourceKind.OpenClaw);
+        Assert.Equal(15, (int)SourceKind.Hermes);
+        Assert.Equal(16, (int)SourceKind.Droid);
+        Assert.Equal(17, (int)SourceKind.Trae);
+        Assert.Equal(18, SourceSet.Everything.Count);
+        var path = Path.Combine(Path.GetTempPath(), "trae");
+        var upgraded = SettingsSerializer.Deserialize(JsonSerializer.Serialize(new { sources = new { trae = false, traeRoot = path } }));
+        Assert.False(upgraded.TraeEnabled);
+        Assert.Equal(path, upgraded.TraeRoot);
+        Assert.True(upgraded.PiEnabled && upgraded.OpenClawEnabled && upgraded.HermesEnabled && upgraded.DroidEnabled);
     }
 
     [Fact]

@@ -21,6 +21,8 @@ final class HistoryDatabase {
         var modified: Int64
         var version: Int64
         var days: [UsageKey: DayAggregate]
+        /// Its valid task records include an incomplete task (METRICS 6.11 *Writes*).
+        var hasOpenTask = false
 
         /// Some response has no known price (METRICS 9.7 re-analysis).
         var hasUnpriced: Bool {
@@ -36,8 +38,8 @@ final class HistoryDatabase {
         try self.init(path: path, migrating: true)
     }
 
-    /// Without `migrating`, a store of an older schema keeps its version and only gets `meta` and `day_traffic`;
-    /// a new store always gets the full schema. A newer store throws before anything is changed.
+    /// Without `migrating`, a store of an older schema keeps its version and only gets `meta`, `day_traffic` and
+    /// `contribution_unpriced`; a new store always gets the full schema. A newer store throws before anything is changed.
     private init(path: String, migrating: Bool) throws {
         self.path = path
         if path != ":memory:" {
@@ -55,6 +57,8 @@ final class HistoryDatabase {
             try connection.execute(Self.metaTableSQL)
         }
         try connection.execute(Self.trafficTableSQL)
+        try connection.execute(Self.unpricedTableSQL)
+        try connection.execute(Self.taskRecordsTableSQL)
         if migrating || version == 0 { try connection.execute(Self.modeTableSQL) }
     }
 
@@ -240,6 +244,10 @@ final class HistoryDatabase {
                 cost: Self.cost(row, 8))
         }
         try loadModes(into: &entries, paths: paths)
+        try loadUnpriced(into: &entries, paths: paths)
+        for id in try filesWithOpenTasks() {
+            if let path = paths[id] { entries[path]?.hasOpenTask = true }
+        }
         return entries
     }
 
@@ -274,9 +282,11 @@ final class HistoryDatabase {
         try scalar("SELECT coalesce(sum(length(keys)), 0) / 8 FROM files") ?? 0
     }
 
-    /// Saves files with their owned keys and contributions in one transaction; returns their row ids by path.
+    /// Saves files with their owned keys, contributions and task records (by path) in one transaction; returns their row
+    /// ids by path. Every saved file's earlier task records are replaced.
     @discardableResult
-    func save(_ files: [(path: String, entry: Entry, keys: [UInt64])]) throws -> [String: Int64] {
+    func save(_ files: [(path: String, entry: Entry, keys: [UInt64])],
+              taskRecords: [String: [TaskRecord]] = [:]) throws -> [String: Int64] {
         guard !files.isEmpty else { return [:] }
         return try connection.transaction {
             let upsert = try connection.prepare("""
@@ -314,8 +324,12 @@ final class HistoryDatabase {
                 clearModels.bind(1, id)
                 try clearModels.run()
                 try deleteModes(fileId: id)
+                try deleteUnpriced(fileId: id)
+                try deleteTaskRecords(fileId: id)
+                if let records = taskRecords[path] { try saveTaskRecords(records, fileId: id, version: entry.version) }
                 for (key, day) in entry.days {
                     try saveModes(day.modes.values.sorted { $0.id < $1.id }, fileId: id, day: key.day, source: key.source)
+                    try saveUnpriced(day.unpricedFacts, fileId: id, day: key.day, source: key.source, version: entry.version)
                     insertDay.bind(1, id)
                     insertDay.bind(2, key.day)
                     insertDay.bind(3, key.source.rawValue)

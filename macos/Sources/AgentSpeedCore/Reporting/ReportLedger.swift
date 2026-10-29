@@ -103,7 +103,7 @@ struct ReportLedger: Sendable {
             cacheWriteInput: Int64(usage.cacheWriteInput), reasoning: Int64(usage.reasoning),
             measuredOutput: measured == nil ? 0 : Int64(usage.output), measuredMs: measured?.durationMs ?? 0,
             costMicroUsd: record.costMicroUsd ?? 0, endMs: record.endMs,
-            modes: record.modes.attributed
+            modes: record.modes.reportedAttributions
         )
     }
 }

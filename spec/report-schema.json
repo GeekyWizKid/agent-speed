@@ -59,7 +59,7 @@
       "maximum": 1000000000000
     },
     "source": {
-      "description": "An Agent Speed source id. Known ids: codex, claudeCode, claudeDesktop, deepseek, opencode, gemini, omp, antigravity, workbuddy, workbuddyAi, zcode, kimi, grokBuild, trae. New ids are added over time; receivers accept ids they do not know.",
+      "description": "An Agent Speed source id. Known ids: codex, claudeCode, claudeDesktop, deepseek, opencode, gemini, omp, antigravity, workbuddy, workbuddyAi, zcode, kimi, grokBuild, pi, openclaw, hermes, droid, trae. New ids are added over time; receivers accept ids they do not know.",
       "type": "string",
       "pattern": "^[a-z][A-Za-z0-9]{0,31}$"
     },
@@ -401,6 +401,16 @@
           "items": {
             "$ref": "#/$defs/modeUsage"
           }
+        },
+        "taskScore": {
+          "$ref": "#/$defs/taskScoreLive"
+        },
+        "taskStats": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/taskStat"
+          }
         }
       }
     },
@@ -556,6 +566,12 @@
           "items": {
             "$ref": "#/$defs/modelEntry"
           }
+        },
+        "taskScore": {
+          "$ref": "#/$defs/taskScoreLive"
+        },
+        "realtime": {
+          "$ref": "#/$defs/realtime"
         }
       }
     },
@@ -705,6 +721,9 @@
         },
         "extensions": {
           "$ref": "#/$defs/reportExtensions"
+        },
+        "websocket": {
+          "$ref": "#/$defs/websocketSettings"
         }
       }
     },
@@ -878,6 +897,14 @@
         "sharedIdentity": {
           "type": "integer",
           "minimum": 1
+        },
+        "reportWebSocket": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "taskScore": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
@@ -950,6 +977,112 @@
         },
         "measuredMs": {
           "$ref": "#/$defs/integer"
+        }
+      }
+    },
+    "taskScoreLive": {
+      "description": "METRICS 11.10, REPORTING-EXTENSIONS 9 (extension taskScore): the highest task score (智力) of a set of agents, live before resting, rounded half away from zero, with its form, and the live thinking speed. score is null exactly when form is none. Present at the top level and on every models[] entry exactly when the extension is active for the report.",
+      "type": "object",
+      "required": [
+        "score",
+        "form",
+        "thinkingTokS"
+      ],
+      "properties": {
+        "score": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "form": {
+          "enum": [
+            "live",
+            "resting",
+            "none"
+          ]
+        },
+        "thinkingTokS": {
+          "$ref": "#/$defs/tokS"
+        }
+      }
+    },
+    "taskStat": {
+      "description": "METRICS 11.10, REPORTING-EXTENSIONS 9: the tasks of one source with this model that completed since the previous report and were watched from their start (increments, sent once). Invariants checked by services that advertise taskScore: scored <= completed; the sum of scoreBins equals scored; scoreSum lies within the bins' bounds; successes <= scored; stalls <= completed; fixFailures <= fixAttempts; recovered <= recoverAttempts <= fixAttempts; at most 1000 completed tasks per report.",
+      "type": "object",
+      "required": [
+        "source",
+        "completed",
+        "scored",
+        "scoreSum",
+        "scoreBins",
+        "successes",
+        "stalls",
+        "fixAttempts",
+        "fixFailures",
+        "recovered",
+        "recoverAttempts"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "completed": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "scored": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "scoreSum": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "scoreBins": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "successes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "stalls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "fixAttempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "fixFailures": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "recovered": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "recoverAttempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
         }
       }
     },
@@ -1106,6 +1239,345 @@
         },
         "claimant": {
           "$ref": "#/$defs/pairingClaimant"
+        }
+      }
+    },
+    "realtime": {
+      "description": "METRICS 11.9, REPORTING-WEBSOCKET 5.3: only in bodies carried by the WebSocket transport. observedAt and observationAgeMs are both null or both set.",
+      "type": "object",
+      "required": [
+        "sourceMode",
+        "observedAt",
+        "observationAgeMs",
+        "sourceResolutionMs"
+      ],
+      "properties": {
+        "sourceMode": {
+          "enum": [
+            "event",
+            "log",
+            "poll",
+            "mixed",
+            "unknown"
+          ]
+        },
+        "observedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+        },
+        "observationAgeMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 900000
+        },
+        "sourceResolutionMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 900000
+        }
+      }
+    },
+    "websocketSettings": {
+      "description": "REPORTING-WEBSOCKET 3: valid only together with extensions.reportWebSocket == 1. A field outside its range makes the whole object invalid (never clamped); pongTimeoutSeconds must be below pingIntervalSeconds.",
+      "type": "object",
+      "required": [
+        "path",
+        "subprotocol"
+      ],
+      "properties": {
+        "path": {
+          "const": "/v1/reports/ws"
+        },
+        "subprotocol": {
+          "const": "agent-speed-report.v1"
+        },
+        "minIntervalMs": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1000
+        },
+        "maxInFlight": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "ackTimeoutMs": {
+          "type": "integer",
+          "minimum": 500,
+          "maximum": 10000
+        },
+        "maxMessageBytes": {
+          "type": "integer",
+          "minimum": 32768,
+          "maximum": 65536
+        },
+        "pingIntervalSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 60
+        },
+        "pongTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 30
+        }
+      }
+    },
+    "wsReady": {
+      "description": "REPORTING-WEBSOCKET 5.1: the service accepts reports on this connection. The six limits must equal the discovery document's.",
+      "type": "object",
+      "required": [
+        "type",
+        "protocol",
+        "version",
+        "transportVersion",
+        "serverTime",
+        "minIntervalMs",
+        "maxInFlight",
+        "ackTimeoutMs",
+        "maxMessageBytes",
+        "pingIntervalSeconds",
+        "pongTimeoutSeconds"
+      ],
+      "properties": {
+        "type": {
+          "const": "ready"
+        },
+        "protocol": {
+          "const": "agent-speed-report"
+        },
+        "version": {
+          "const": 1
+        },
+        "transportVersion": {
+          "const": 1
+        },
+        "serverTime": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "minIntervalMs": {
+          "type": "integer"
+        },
+        "maxInFlight": {
+          "type": "integer"
+        },
+        "ackTimeoutMs": {
+          "type": "integer"
+        },
+        "maxMessageBytes": {
+          "type": "integer"
+        },
+        "pingIntervalSeconds": {
+          "type": "integer"
+        },
+        "pongTimeoutSeconds": {
+          "type": "integer"
+        }
+      }
+    },
+    "wsReport": {
+      "description": "REPORTING-WEBSOCKET 5.2: one signed v1 report; body is the exact compact JSON text, signed over POST {api}/v1/reports.",
+      "type": "object",
+      "required": [
+        "type",
+        "headers",
+        "body"
+      ],
+      "properties": {
+        "type": {
+          "const": "report"
+        },
+        "headers": {
+          "type": "object",
+          "required": [
+            "X-AgentSpeed-Device",
+            "X-AgentSpeed-Timestamp",
+            "X-AgentSpeed-Nonce",
+            "X-AgentSpeed-Signature"
+          ],
+          "properties": {
+            "X-AgentSpeed-Device": {
+              "$ref": "#/$defs/uuid"
+            },
+            "X-AgentSpeed-Timestamp": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{9}$"
+            },
+            "X-AgentSpeed-Nonce": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{22}$"
+            },
+            "X-AgentSpeed-Signature": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{86}$"
+            }
+          }
+        },
+        "body": {
+          "type": "string",
+          "minLength": 2
+        }
+      }
+    },
+    "wsAck": {
+      "description": "REPORTING-WEBSOCKET 5.4: matched by run.id, run.seq and bodySha256.",
+      "type": "object",
+      "required": [
+        "type",
+        "run",
+        "status",
+        "bodySha256",
+        "receivedAt",
+        "acceptedAt",
+        "processingMs"
+      ],
+      "properties": {
+        "type": {
+          "const": "ack"
+        },
+        "run": {
+          "type": "object",
+          "required": [
+            "id",
+            "seq"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "status": {
+          "enum": [
+            "accepted",
+            "duplicate"
+          ]
+        },
+        "bodySha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "receivedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "acceptedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "processingMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 900000
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000000
+        }
+      }
+    },
+    "wsError": {
+      "description": "REPORTING-WEBSOCKET 5.5: httpStatus is the v1 equivalent; run is null when no report can be named.",
+      "type": "object",
+      "required": [
+        "type",
+        "run",
+        "httpStatus",
+        "error",
+        "fatal"
+      ],
+      "properties": {
+        "type": {
+          "const": "error"
+        },
+        "run": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "id",
+            "seq"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "httpStatus": {
+          "type": "integer",
+          "minimum": 400,
+          "maximum": 599
+        },
+        "error": {
+          "type": "object",
+          "required": [
+            "code"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,47}$"
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "retryAfterSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "serverTime": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "username": {
+              "$ref": "#/$defs/username"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "supported": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "field": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        },
+        "fatal": {
+          "type": "boolean"
         }
       }
     }

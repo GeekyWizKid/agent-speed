@@ -4,13 +4,15 @@ using AgentSpeed.Core.History;
 using AgentSpeed.Core.IO.Sqlite;
 using AgentSpeed.Core.Monitoring;
 using AgentSpeed.Core.Pricing;
+using AgentSpeed.Core.Tasks;
 
 namespace AgentSpeed.Core;
 
 /// <summary>
-/// Keeps the daily usage history (METRICS 8) on a below-normal-priority background thread and publishes it to a
-/// <see cref="HistoryHub"/>. Runs at start, every 10 minutes, after local midnight and on <see cref="HistoryHub.Refresh"/>;
-/// <see cref="HistoryHub.Clear"/> deletes the store and recomputes. Never touches the live monitor.
+/// Keeps the daily usage history (METRICS 8) and the task records (6.11) on a below-normal-priority background thread and
+/// publishes them to a <see cref="HistoryHub"/>. Runs at start, every 10 minutes, after local midnight and on
+/// <see cref="HistoryHub.Refresh"/>; <see cref="HistoryHub.Clear"/> deletes the store and recomputes. Never touches the
+/// live monitor; <see cref="CalibrationUpdated"/> hands it the calibrated task models.
 /// </summary>
 public sealed class HistoryService : IDisposable
 {
@@ -67,6 +69,12 @@ public sealed class HistoryService : IDisposable
 
     /// <summary>Shared with the live engine (METRICS 9.7).</summary>
     public PriceBook Pricing { get; }
+
+    /// <summary>
+    /// Called on the history thread with every scored source's calibrated task models (METRICS 6.11 <i>Calibration</i>):
+    /// once the stored records are loaded and after every completed run. A source without an entry uses the prior.
+    /// </summary>
+    public Action<IReadOnlyDictionary<SourceKind, TaskModels>>? CalibrationUpdated { get; set; }
 
     /// <summary>
     /// Loads the day bindings and table copies of the store into <paramref name="book"/> (a quick read that never changes
@@ -385,7 +393,7 @@ public sealed class HistoryService : IDisposable
             var zone = _zone ?? TimeZoneInfo.Local;
             if (first)
             {
-                _hub.Publish(HistoryState.Analyzing(0, 0, 0), Days(analyzer, enabled));
+                PublishAll(HistoryState.Analyzing(0, 0, 0), analyzer, enabled);
             }
 
             var started = Stopwatch.GetTimestamp();
@@ -420,7 +428,7 @@ public sealed class HistoryService : IDisposable
                 return false;
             }
 
-            _hub.Publish(HistoryState.Ready(DateTimeOffset.Now), Days(analyzer, enabled));
+            PublishAll(HistoryState.Ready(DateTimeOffset.Now), analyzer, enabled);
             if (report.BytesAnalyzed >= BigRunBytes)
             {
                 // A large analysis decoded gigabytes; return the freed memory instead of keeping it committed.
@@ -436,6 +444,15 @@ public sealed class HistoryService : IDisposable
                 _run = null;
             }
         }
+    }
+
+    /// <summary>The days with the task records of the enabled sources and the calibration, which also goes to the live monitor.</summary>
+    private void PublishAll(HistoryState state, HistoryAnalyzer analyzer, IReadOnlySet<SourceKind> enabled)
+    {
+        var calibration = analyzer.Calibration;
+        IReadOnlyList<TaskRecord> records = [.. analyzer.TaskRecords().Where(r => enabled.Contains(r.Source))];
+        _hub.Publish(state, Days(analyzer, enabled), records, calibration);
+        CalibrationUpdated?.Invoke(calibration);
     }
 
     private List<DailyUsage> Days(HistoryAnalyzer analyzer, IReadOnlySet<SourceKind> enabled)

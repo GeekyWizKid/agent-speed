@@ -10,6 +10,8 @@ import SwiftUI
 final class HistoryViewModel {
     /// The window's own `history.includeSubscriptions` choice (DESIGN 9); absent until the user changes it.
     static let includeSubscriptionsKey = "historyIncludeSubscriptions"
+    /// The pair 任務表現 compares side by side (DESIGN 12), as `first,second` source ids.
+    static let taskPairKey = "historyTaskPair"
 
     let store: HistoryStore
     let l10n: Localizer
@@ -28,8 +30,16 @@ final class HistoryViewModel {
     private(set) var chartMetric: HistoryChartMetric = .output
     /// Whether subscription sources count at their API-equivalent cost in this window.
     private(set) var includeSubscriptions: Bool
+    /// The remembered pair of 任務表現; nil until the user picks one.
+    private(set) var taskPair: TaskPerformancePair?
     private(set) var content: HistoryContent
+    /// Whether the window is open. A closed window keeps its filter but neither rebuilds its content nor shows its
+    /// views: the data it follows changes every few seconds, and none of it is laid out until the window opens again.
+    var isOpen = true {
+        didSet { if isOpen, needsRebuild { rebuild() } }
+    }
 
+    @ObservationIgnored private var needsRebuild = false
     @ObservationIgnored private var dataLoop: ObservationLoop?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
@@ -42,16 +52,18 @@ final class HistoryViewModel {
         let stored = cost.settings.storage.object(forKey: Self.includeSubscriptionsKey) as? Bool
         let include = stored ?? cost.settings.includeSubscriptions
         includeSubscriptions = include
+        taskPair = Self.storedPair(cost.settings.storage.string(forKey: Self.taskPairKey))
         let today = DayKey(Date(), calendar: HistoryDates.calendar)
         content = HistoryContent.build(
             usage: store.days, source: nil, rangeKind: .days30, customRange: nil, sort: HistorySort(), today: today, l10n: l10n,
             money: HistoryMoney(cost), costOptions: HistoryCostOptions(marked: cost.settings.subscriptionSources,
                                                                         includeSubscriptions: include),
-            traffic: Self.historyTraffic(traffic, settings: cost.settings)
+            traffic: Self.historyTraffic(traffic, settings: cost.settings), prices: cost.prices.book.current
         )
         dataLoop = ObservationLoop { [weak self] in
             guard let self else { return }
             _ = self.store.days
+            _ = self.cost.prices.table
             _ = self.l10n.language
             _ = HistoryMoney(self.cost)
             _ = self.cost.settings.subscriptionSources
@@ -112,6 +124,20 @@ final class HistoryViewModel {
         rebuild()
     }
 
+    /// The 任務表現 pickers; the window remembers the pair.
+    func setTaskPair(_ pair: TaskPerformancePair?) {
+        guard pair != taskPair else { return }
+        taskPair = pair
+        let value = pair.map { "\($0.first.rawValue),\($0.second.rawValue)" }
+        cost.settings.storage.set(value, forKey: Self.taskPairKey)
+    }
+
+    private static func storedPair(_ value: String?) -> TaskPerformancePair? {
+        let parts = (value ?? "").split(separator: ",").compactMap { SourceKind(rawValue: String($0)) }
+        guard parts.count == 2, parts[0] != parts[1] else { return nil }
+        return TaskPerformancePair(first: parts[0], second: parts[1])
+    }
+
     /// The toolbar checkbox; the window remembers its own choice.
     func setIncludeSubscriptions(_ include: Bool) {
         guard include != includeSubscriptions else { return }
@@ -143,6 +169,11 @@ final class HistoryViewModel {
     }
 
     private func rebuild() {
+        guard isOpen else {
+            needsRebuild = true
+            return
+        }
+        needsRebuild = false
         let today = DayKey(Date(), calendar: HistoryDates.calendar)
         let options = HistoryCostOptions(
             marked: cost.settings.subscriptionSources, includeSubscriptions: includeSubscriptions, metric: chartMetric
@@ -150,7 +181,7 @@ final class HistoryViewModel {
         let next = HistoryContent.build(
             usage: store.days, source: source, rangeKind: rangeKind, customRange: customRange, sort: sort,
             today: today, l10n: l10n, money: HistoryMoney(cost), costOptions: options,
-            traffic: Self.historyTraffic(traffic, settings: cost.settings)
+            traffic: Self.historyTraffic(traffic, settings: cost.settings), prices: cost.prices.book.current
         )
         if next != content { content = next }
     }
@@ -171,8 +202,12 @@ final class HistoryViewModel {
 final class HistoryInteraction {
     enum Origin: Equatable { case chart, table }
 
+    private enum TableHoverTarget { case day(DayKey), outside }
+
     /// The day under the pointer, and where the pointer is.
-    private(set) var hovered: (day: DayKey, origin: Origin)?
+    private(set) var hovered: (day: DayKey, origin: Origin)? {
+        didSet { markHovered(hovered?.day) }
+    }
     /// The day the chart's keyboard cursor sits on while the chart has focus.
     var keyboardDay: DayKey?
     var selection: Set<DayKey> = []
@@ -182,10 +217,18 @@ final class HistoryInteraction {
     private(set) var reveal: (day: DayKey, id: Int)?
     private(set) var flash: (day: DayKey, id: Int)?
     @ObservationIgnored private var revealCount = 0
+    @ObservationIgnored private var pendingTableHover: TableHoverTarget?
+    @ObservationIgnored private var tableHoverScheduled = false
+    /// Per-row hover flags: rows read their own, so a hover change redraws two row backgrounds, never every row.
+    @ObservationIgnored private var rowMarks: [DayKey: HistoryRowMark] = [:]
+    @ObservationIgnored private var markedDay: DayKey?
 
     var hoveredDay: DayKey? { hovered?.day }
 
     func hover(_ day: DayKey?, from origin: Origin) {
+        // An actual chart entry takes precedence over a queued table notification. A chart exit may arrive after
+        // the pointer has entered a table row, so it must leave that queued entry intact.
+        if day != nil { pendingTableHover = nil }
         if let day {
             if hovered?.day != day || hovered?.origin != origin { hovered = (day, origin) }
         } else if hovered?.origin == origin {
@@ -193,9 +236,51 @@ final class HistoryInteraction {
         }
     }
 
-    /// The pointer left `day`'s row; a row entered in the meantime keeps its hover.
-    func unhover(_ day: DayKey, from origin: Origin) {
-        if hovered?.day == day, hovered?.origin == origin { hovered = nil }
+    /// SwiftUI may send a row's exit and re-entry while updating its help/hover responders. Publishing each edge
+    /// synchronously invalidates the same lazy rows during that update and can keep the main thread relaying out.
+    /// Apply only the final pointer target after the current update, preserving a newly entered row on a late exit.
+    func trackTableHover(_ day: DayKey, inside: Bool) {
+        if inside {
+            pendingTableHover = .day(day)
+        } else {
+            let current: DayKey?
+            switch pendingTableHover {
+            case .day(let pending): current = pending
+            case .outside: current = nil
+            case nil: current = hovered?.origin == .table ? hovered?.day : nil
+            }
+            guard current == day else { return }
+            pendingTableHover = .outside
+        }
+        guard !tableHoverScheduled else { return }
+        tableHoverScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.tableHoverScheduled = false
+            let target = self.pendingTableHover
+            self.pendingTableHover = nil
+            switch target {
+            case .day(let day): self.hover(day, from: .table)
+            case .outside:
+                if self.hovered?.origin == .table { self.hovered = nil }
+            case nil: break
+            }
+        }
+    }
+
+    /// The hover flag of `day`'s row; reading it never subscribes a row to the shared hover state.
+    func mark(for day: DayKey) -> HistoryRowMark {
+        if let mark = rowMarks[day] { return mark }
+        let mark = HistoryRowMark(hovered: markedDay == day)
+        rowMarks[day] = mark
+        return mark
+    }
+
+    private func markHovered(_ day: DayKey?) {
+        guard day != markedDay else { return }
+        if let previous = markedDay { rowMarks[previous]?.hovered = false }
+        if let day { rowMarks[day]?.hovered = true }
+        markedDay = day
     }
 
     func revealInTable(_ day: DayKey) {
@@ -210,10 +295,22 @@ final class HistoryInteraction {
     }
 
     func reset() {
+        pendingTableHover = nil
         hovered = nil
         keyboardDay = nil
         selection = []
         anchor = nil
+    }
+}
+
+/// Whether one table row is hovered, from the table or from the chart.
+@MainActor
+@Observable
+final class HistoryRowMark {
+    fileprivate(set) var hovered: Bool
+
+    init(hovered: Bool) {
+        self.hovered = hovered
     }
 }
 

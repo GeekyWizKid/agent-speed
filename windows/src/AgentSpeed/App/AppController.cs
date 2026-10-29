@@ -9,6 +9,7 @@ using AgentSpeed.History;
 using AgentSpeed.Interop;
 using AgentSpeed.Localization;
 using AgentSpeed.Menus;
+using AgentSpeed.Modes;
 using AgentSpeed.Orb;
 using AgentSpeed.Orb.Hero;
 using AgentSpeed.Orb.Render;
@@ -50,6 +51,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     private CostService _cost = null!;
     private Traffic.TrafficService _traffic = null!;
     private TaskbarState? _lastTaskbarState;
+    private readonly ThinkingZeroHold _barThinking = new();
     private SpeedHub _hub = null!;
     private HistoryHub _historyHub = null!;
     private HistoryController? _history;
@@ -133,7 +135,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
         _hub = new SpeedHub(new DispatcherSynchronizationContext(_ui));
         _historyHub = new HistoryHub(new DispatcherSynchronizationContext(_ui));
-        _history = new HistoryController(_historyHub, _settings, _theme, _loc, _cost.Display) { Traffic = _traffic.Hub };
+        _history = new HistoryController(_historyHub, _settings, _theme, _loc, _cost.Display) { Traffic = _traffic.Hub, Prices = _cost.Book };
         _hub.SnapshotChanged += (_, snapshot) =>
         {
             if (!_hub.IsPreviewing)
@@ -173,6 +175,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _taskbar.MenuRequested += (_, _) => ShowMenu();
         _taskbar.HoverChanged += (_, hover) => OnTaskbarHover(hover.IsOver, hover.Bounds);
         _taskbar.PresenceChanged += (_, _) => _settingsModel?.UpdateLive(_speed.Snapshot, _taskbar.Presence);
+        _taskbar.Moved += (_, offset) => OnTaskbarMoved(offset);
         _taskbar.Start();
         phases.Mark("taskbar");
 
@@ -198,6 +201,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         }
         _orbs = new OrbManager(_ui, _orbClock, _settings, _theme, _speed, _loc, this) { Titles = _titles, Cost = _cost.Display };
         _orbs.Apply();
+        StartBoards();
         _titles.Changed += (_, _) => OnTitlesChanged();
         phases.Mark("orb");
         UpdateTaskbar();
@@ -297,7 +301,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
                     return _settingsWindow?.FindName(char.ToUpperInvariant(_capturePage[0]) + _capturePage[1..] + "Page") as FrameworkElement;
                 })
                 {
-                    Taskbar = () => _lastTaskbarState is { } state ? TaskbarCapture.Render(state, _speed.Value, _speed.Tier, _speed.Redline) : null,
+                    Taskbar = (dark, scale) => _lastTaskbarState is { } state
+                        ? TaskbarCapture.Render(dark is { } d ? state with { TaskbarDark = d } : state, _speed.Value, _speed.Tier, _speed.Redline, scale)
+                        : null,
                     Badges = () => AgentSpeed.Orb.Hero.Badge.BadgeCapture.Presets(_loc),
                     Operation = op =>
                     {
@@ -390,6 +396,8 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
                 _settingsModel.Orbs = new Settings.OrbsPane.OrbsPaneViewModel(_settings, _orbs, _speed, _loc) { TitleService = _titles };
             }
 
+            _settingsModel.Boards ??= new Settings.BoardsPane.BoardsPaneViewModel(_settings, _speed, _loc, AddBoard, RemoveBoard) { DarkTheme = _theme.IsDark };
+
             _settingsModel.ReduceMotion = _theme.ReduceMotion;
             _settingsModel.DarkTheme = _theme.IsDark;
             _settingsModel.UpdateLive(_speed.Snapshot, _taskbar?.Presence ?? TaskbarPresence.Hidden);
@@ -481,6 +489,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         Try(() => _dashboardTimer?.Stop());
         Try(() => _menu?.Close());
         Try(() => _tooltip?.Close());
+        Try(() => _boards?.Dispose());
         Try(() => _orbs?.Dispose());
         Try(() => _dashboard?.CloseForShutdown());
         Try(() => _settingsWindow?.Close());
@@ -537,6 +546,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         var accessible = DisplayText.Accessibility(value, _titles.Text(title, _titles.General), _loc);
 
         _orbs?.Update(snapshot);
+        _boards?.Update(snapshot);
         if (!_speed.IsPreviewing)
         {
             _traffic.UpdateAgents(snapshot.Agents);
@@ -566,7 +576,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
         if (_tooltipShown)
         {
-            _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(snapshot, _loc));
+            _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(snapshot, _loc), TooltipTop());
         }
 
         if (!_historyStarted && snapshot.State.Kind != MonitorStateKind.Starting && _historyStartFallback is not null)
@@ -584,6 +594,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     private void OnSpeedEvent(SpeedEvent speedEvent)
     {
         _orbs?.OnEvent(speedEvent);
+        _boards?.OnEvent(speedEvent);
         switch (speedEvent)
         {
             case SpeedEvent.ResponseCompleted completed:
@@ -633,6 +644,8 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _dashboardModel.AgentsExpanded = Settings.AgentsExpanded;
         _dashboardModel.TitleTheme = _titles.General;
         _dashboardModel.TitleSlides = !_theme.ReduceMotion && Settings.Effects != EffectsIntensity.Off;
+        _dashboardModel.CapsuleAppearance = CapsuleAppearance;
+        _dashboardModel.TransparencyEnabled = _theme.TransparencyEnabled;
         _dashboardModel.LiveUnit = Settings.Cost.LiveUnit;
         _dashboardModel.Update(snapshot, _speed.Value, _speed.Title, _speed.Redline, _speed.Metric, _loc, _theme.IsDark);
         var peak = snapshot.PeakToday.ValueFor(_speed.Metric);
@@ -647,6 +660,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     {
         var s = Settings;
         _orbs?.Apply();
+        _boards?.Apply();
         // The hero's ring stays at Soft (DESIGN 4.1); its vehicle layer follows the Effects setting (DESIGN 4c).
         var general = _titles.General;
         var hero = new HeroConfig(new HeroOptions(s.Effects, _theme.ReduceMotion, _theme.HighContrast, _theme.IsDark), s.HeroLastTitle,
@@ -677,6 +691,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _heroTour.Start();
         ShowDashboard(CursorAnchor());
     }
+
+    /// <summary>How effort capsules draw: the theme, high contrast, Reduce Motion and the Effects setting (DESIGN 4, Agents).</summary>
+    private CapsuleAppearance CapsuleAppearance =>
+        new(_theme.IsDark, _theme.HighContrast, _theme.ReduceMotion, Settings.Effects != EffectsIntensity.Off);
 
     private OrbConfig BuildOrbConfig(double diameter, EffectsIntensity? cap)
     {
@@ -711,11 +729,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             accessible = $"{accessible}{SpokenSeparator}{secondary.Spoken}";
         }
 
+        // DESIGN 10: the network block's words first, then the intelligence block's.
         var traffic = BarTrafficBlock.From(s, _traffic.Snapshot, _loc);
-        if (traffic?.Spoken is { } spokenTraffic)
-        {
-            accessible = $"{accessible}{SpokenSeparator}{spokenTraffic}";
-        }
+        var intelligence = BarIntelligence();
+        accessible = BarReadouts.Append(accessible, SpokenSeparator, traffic, intelligence);
 
         _lastTaskbarState = new TaskbarState(
             s.ShowOnTaskbar,
@@ -733,9 +750,17 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             bar.Item1,
             money?.Unknown ?? false,
             secondary,
-            traffic);
+            traffic,
+            intelligence,
+            s.TaskbarOffset);
         _taskbar.Update(_lastTaskbarState);
     }
+
+    /// <summary>The taskbar intelligence block, its thinking line hidden after 3 s at 0 (DESIGN 10).</summary>
+    private BarIntelligenceBlock? BarIntelligence() => BarIntelligenceBlock.From(Settings, _speed.Snapshot, _loc, _barThinking, _speed.Now);
+
+    /// <summary>The tooltip's second line while the intelligence block shows a score: <c>task.tooltip.top</c> (DESIGN 10).</summary>
+    private string? TooltipTop() => BarIntelligence()?.Top;
 
     /// <summary>The taskbar money block (DESIGN 3): the live rate and today's total after tok/s with the live value "tok/s + cost".</summary>
     private BarSecondary? BarSecondaryValue()
@@ -756,7 +781,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     private LiveMoney? LiveMoney() =>
         Settings.Cost.LiveUnit == LiveUnit.Cost ? _cost.Display.Live(_speed.Snapshot) : null;
 
-    /// <summary>The taskbar and tray tooltip line: tok/s or money, the second value when shown (DESIGN 3), then the title.</summary>
+    /// <summary>
+    /// The taskbar and tray tooltip line: tok/s or money, the second value when shown (DESIGN 3), the title, then the
+    /// readout blocks' words (DESIGN 10): network speed, then 智力.
+    /// </summary>
     private string LiveLine()
     {
         var title = _titles.Text(_speed.Title, _titles.General);
@@ -764,7 +792,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             ? $"{money.NumberText} {money.Unit}"
             : $"{SpeedFormat.Speed(_speed.Value)} {_loc["unit.tokS"]}";
         var line = BarSecondaryValue() is { } secondary ? $"{main} · {secondary.Spoken} · {title}" : $"{main} · {title}";
-        return BarTrafficBlock.From(Settings, _traffic.Snapshot, _loc)?.Spoken is { } traffic ? $"{line} · {traffic}" : line;
+        return BarReadouts.Append(line, " · ", BarTrafficBlock.From(Settings, _traffic.Snapshot, _loc), BarIntelligence());
     }
 
     // ---- Traffic ----
@@ -778,12 +806,13 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         var snapshot = _traffic.Snapshot;
         _orbs?.UpdateTraffic(snapshot);
         RefreshDashboardTraffic();
-        if (Settings.Traffic.Bar != BarTraffic.Off)
+        if (TrafficSettings.IsNetwork(Settings.Traffic.Bar))
         {
             UpdateTaskbar();
             if (_tooltipShown)
             {
-                _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(_speed.Snapshot, _loc));
+                _tooltip?.SetText(LiveLine(), LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(_speed.Snapshot, _loc),
+                    TooltipTop());
             }
         }
 
@@ -889,6 +918,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             _dashboard.UnitToggleRequested += (_, _) => ToggleLiveUnit();
             _dashboard.TrafficHistoryRequested += (_, source) => ShowHistory(source, traffic: true);
             _dashboard.TrafficSettingsRequested += (_, _) => OpenSettings("traffic");
+            _dashboard.BoardsMenuRequested += (_, _) => ShowDashboardBoardsMenu();
             AttachReporting(_dashboard);
             _dashboard.IsVisibleChanged += (_, _) =>
             {
@@ -937,7 +967,15 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _tooltipShown = true;
         _tooltip.Language = AppFonts.XmlLanguageFor(_loc.LanguageCode);
         var summary = LiveMoney() is { } money ? money.HoverLine : DisplayText.TodaySummary(_speed.Snapshot, _loc);
-        _tooltip.ShowFor(bounds, LiveLine(), summary, _theme.ReduceMotion);
+        _tooltip.ShowFor(bounds, LiveLine(), summary, _theme.ReduceMotion, _loc["taskbar.dragHint"], TooltipTop());
+    }
+
+    /// <summary>The user dragged the taskbar widget along the taskbar (DESIGN 3, Position on the taskbar).</summary>
+    private void OnTaskbarMoved(double offset)
+    {
+        AppLog.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"Taskbar widget moved to {offset:0.##} DIPs from the notification area."));
+        _settings.Update(s => s with { TaskbarOffset = offset });
     }
 
     private void HideTooltip()
@@ -986,7 +1024,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _historyStarted = true;
         try
         {
-            _historyService = new HistoryService(_historyHub, Settings.ToMonitorConfiguration(), pricing: _cost.Book);
+            _historyService = new HistoryService(_historyHub, Settings.ToMonitorConfiguration(), pricing: _cost.Book)
+            {
+                CalibrationUpdated = models => _monitor?.SetTaskCalibration(models),
+            };
             _historyService.Start();
         }
         catch (Exception ex)
@@ -1009,9 +1050,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
     private void OnSettingsChanged(AppSettings previous, AppSettings current)
     {
-        if (previous with { HeroLastTitle = current.HeroLastTitle } == current)
+        if (previous with { HeroLastTitle = current.HeroLastTitle, HistoryModeKind = current.HistoryModeKind } == current)
         {
-            // Only the parked hero vehicle was remembered; nothing on screen depends on it.
+            // Only the parked hero vehicle or the history's effort / speed choice was remembered; the history shows it already.
             return;
         }
 
@@ -1032,6 +1073,12 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         if (previous.Traffic.IncludeTools != current.Traffic.IncludeTools || previous.EnabledSourceSet() != current.EnabledSourceSet())
         {
             _history?.OnTrafficSettingsChanged();
+        }
+
+        if (previous.Effects != current.Effects)
+        {
+            // The history's top-rung meters shimmer only with effects on.
+            _history?.OnThemeChanged();
         }
 
         if (previous.Language != current.Language)
@@ -1086,8 +1133,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     /// <summary>
     /// Developer capture operations for the title themes (only with <c>--capture-dir</c>): <c>page-&lt;key&gt;</c>,
     /// <c>theme-&lt;preset id in lowercase&gt;</c>, <c>theme-custom</c> (a sample custom set), <c>lang-&lt;code&gt;</c>,
-    /// <c>appearance-&lt;auto|light|dark&gt;</c>, <c>dashboard</c>, and live reporting's <c>report-enable</c>, <c>report-start</c>,
-    /// <c>report-preview</c>, <c>report-cancel</c>.
+    /// <c>appearance-&lt;auto|light|dark&gt;</c>, <c>dashboard</c>, live reporting's <c>report-enable</c>, <c>report-start</c>,
+    /// <c>report-preview</c>, <c>report-cancel</c>, and <c>demo-reasoning-off</c> / <c>demo-reasoning-on</c> (with
+    /// <c>--demo-speed</c>: the pinned agents stop or resume reporting reasoning, so the thinking rate reads 0).
     /// </summary>
     private void RunTitleCaptureOperation(string op)
     {
@@ -1133,6 +1181,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         else if (op == "dashboard")
         {
             ShowDashboard(CursorAnchor());
+        }
+        else if (op is "demo-reasoning-off" or "demo-reasoning-on" && _pinnedSpeeds is { } pinned)
+        {
+            pinned.Reasoning = op == "demo-reasoning-on";
         }
         else if (op == "report-enable")
         {
@@ -1184,6 +1236,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
         _orbs?.Apply();
         _orbs?.Update(_speed.Snapshot);
+        _boards?.Apply();
         UpdateTaskbar();
         _tray?.Update(TrayState());
         _dashboardDirty = true;
@@ -1237,6 +1290,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _settingsModel?.Report?.SetLocalizer(_loc);
         RefreshReportSurfaces();
         _orbs?.Relocalize(_loc);
+        _boards?.Relocalize(_loc);
         _updateWindowModel?.Relocalize(_loc);
         _history?.OnLanguageChanged();
         _dashboard?.SetUpdate(UpdatePillText());
@@ -1251,6 +1305,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     private void OnDisplayChanged()
     {
         _orbs?.OnDisplayChanged();
+        _boards?.OnDisplayChanged();
         _taskbar?.Reposition();
         _tray?.Refresh();
         _dashboard?.Dismiss();
@@ -1377,7 +1432,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         }
 
         var menu = kind == "menu-orb" && Settings.Orbs.Orbs.FirstOrDefault() is { } orb
-            ? OrbMenu.Build(this, orb.Id, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable, _speed.Snapshot.Agents)
+            ? OrbMenu.Build(this, orb.Id, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable)
             : AppMenu.Build(this, Settings, _loc, _updates.Available, SourceAvailability.From(_speed.Snapshot.Sources), SourceTrafficAvailable,
                 ReportMenuState());
         if (menu is null)
@@ -1398,7 +1453,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         }
 
         HideTooltip();
-        if (OrbMenu.Build(this, orbId, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable, _speed.Snapshot.Agents) is { } menu)
+        if (OrbMenu.Build(this, orbId, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable) is { } menu)
         {
             _menu.Show(menu);
         }

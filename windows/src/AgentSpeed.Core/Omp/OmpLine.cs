@@ -101,9 +101,19 @@ internal struct OmpLine
     /// <summary>Distinct string ids of the <c>toolCall</c> content blocks.</summary>
     public string[]? ToolCallIds;
 
+    /// <summary>The <c>toolCall</c> blocks and the tool result as actions (METRICS 6.10).</summary>
+    public Work.LineTools Tools;
+
     /// <summary>Tool result <c>toolCallId</c> when it is a string.</summary>
     public string? ToolCallId;
 
     /// <summary>Tool result of <c>yield</c> whose <c>isError</c> is not <c>true</c>: a sub-agent's final yield.</summary>
     public bool IsFinalYield;
+
+    /// <summary>The composer counts this line (METRICS 6.9 <i>Composing the stream</i>).</summary>
+    public bool TaskTracked;
+
+    /// <summary>What the line gives the task composer; null when nothing.</summary>
+    public Tasks.TaskLine? Task;
+
 }

@@ -8,14 +8,24 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
     private readonly bool _pathIsSubagent;
     private readonly Dictionary<string, ParsedResponse> _recent = new(StringComparer.Ordinal);
     private readonly Queue<string> _recentOrder = new();
+    private static readonly ExecutionModeFact Ultracode =
+        ExecutionModeNative.Effort("ultracode", ExecutionModeEvidence.Recorded, ExecutionModeScope.Request)!;
+
     private long? _pendingStartMs;
     private bool _preciseStart;
+
+    // Reasoning effort (EXECUTION-MODES, Claude Code): ultracode switches, the latest response's facts and line effort.
+    private bool _ultraSession;
+    private bool _ultraTurn;
+    private ExecutionModes _latestModes = ExecutionModes.Empty;
+    private ExecutionModeFact? _lineEffort;
 
     public ClaudeParser(string agentId, IDeduper deduper)
         : base(agentId, deduper, SourceKind.ClaudeCode)
     {
         _pathIsSubagent = PathText.HasDirectoryComponent(agentId, "subagents");
         SetSubagent(_pathIsSubagent);
+        EnableTasks(new global::AgentSpeed.Core.Tasks.ClaudeTaskReader(), SourceKind.ClaudeCode);
     }
 
     public override void Reset()
@@ -25,10 +35,25 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
         _recentOrder.Clear();
         _pendingStartMs = null;
         _preciseStart = false;
+        _ultraSession = false;
+        _ultraTurn = false;
+        _latestModes = ExecutionModes.Empty;
+        _lineEffort = null;
         SetSubagent(_pathIsSubagent);
     }
 
     public override void Apply(in ClaudeLine line, IResponseSink sink)
+    {
+        ApplyLine(in line, sink);
+        if (line.TaskTracked)
+        {
+            var assistant = global::AgentSpeed.Core.Tasks.ClaudeTaskReader.IsDecidingAssistant(in line);
+            ComposeTask(line.Task, line.TimestampMs, assistant: assistant,
+                dedupeKey: assistant ? global::AgentSpeed.Core.Tasks.ClaudeTaskReader.DedupeKey(in line) : null);
+        }
+    }
+
+    private void ApplyLine(in ClaudeLine line, IResponseSink sink)
     {
         if (line.Status == LineStatus.Malformed)
         {
@@ -54,21 +79,25 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
             SetSubagent(true);
         }
 
+        ApplyUltracode(in line);
+        if (line.Kind == ClaudeLineKind.User)
+        {
+            RecordTools(in line.Tools, ts);
+        }
+
         switch (line.Kind)
         {
             case ClaudeLineKind.ApiRequest:
-                Modes = ExecutionModes.Empty;
                 _pendingStartMs = ts;
                 _preciseStart = true;
                 SetPhase(AgentPhase.Generating, ts, ts);
                 break;
-            case ClaudeLineKind.User when line.IsInterrupt:
+            case ClaudeLineKind.User when line.IsInterrupt || line.ToolEndsTurn:
                 _pendingStartMs = null;
                 _preciseStart = false;
                 SetPhase(AgentPhase.Idle, ts, null);
                 break;
             case ClaudeLineKind.User:
-                Modes = ExecutionModes.Empty;
                 if (!_preciseStart)
                 {
                     _pendingStartMs = ts;
@@ -82,7 +111,12 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
         }
     }
 
-    protected override ClaudeLine Extract(ReadOnlySpan<byte> line) => ClaudeLineReader.Read(line);
+    protected override ClaudeLine Extract(ReadOnlySpan<byte> line)
+    {
+        var parsed = ClaudeLineReader.Read(line);
+        (TaskReader as global::AgentSpeed.Core.Tasks.ClaudeTaskReader)?.Read(line, ref parsed);
+        return parsed;
+    }
 
     private void ApplyAssistant(in ClaudeLine line, long ts, IResponseSink sink)
     {
@@ -93,9 +127,11 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
 
         ParsedResponse response;
         bool isCompletion;
+        var recorded = ExecutionModeNative.Effort(line.RecordedEffort, ExecutionModeEvidence.Recorded, ExecutionModeScope.Request);
+        var lineModes = ExecutionModes.Of(IsUltracode ? Ultracode : recorded).Merge(ExecutionModeNative.ClaudeSpeed(line.Speed));
         if (Deduper.TryClaim(key, AgentId, out var owner))
         {
-            response = Create(key, in line, ts);
+            response = Create(key, in line, ts, lineModes);
             isCompletion = true;
         }
         else if (!string.Equals(owner, AgentId, StringComparison.Ordinal))
@@ -111,20 +147,23 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
                 Model = line.Model ?? previous.Model,
                 Final = previous.Final || line.StopReason != StopReasonKind.Missing,
                 Fast = previous.Fast || line.Fast,
-                Modes = previous.Modes.Merge(ExecutionModeNative.ClaudeSpeed(line.Speed)),
+                Modes = previous.Modes.Merge(lineModes),
             };
             isCompletion = false;
         }
         else
         {
             // Seen by this file before a reset or beyond the merge cache: replay it as an update.
-            response = Create(key, in line, ts);
+            response = Create(key, in line, ts, lineModes);
             isCompletion = false;
         }
 
         Remember(response);
+        RecordTools(in line.Tools, ts);
         SetModel(response.Model);
-        Modes = response.Modes;
+        _latestModes = response.Modes;
+        _lineEffort = recorded ?? _lineEffort;
+        RefreshModes();
         sink.OnResponse(response, isCompletion);
 
         switch (line.StopReason)
@@ -142,15 +181,47 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
         }
     }
 
-    private ParsedResponse Create(string key, in ClaudeLine line, long ts)
+    private ParsedResponse Create(string key, in ClaudeLine line, long ts, ExecutionModes modes)
     {
         var response = new ParsedResponse(
             key, Source, AgentId, line.Model, _pendingStartMs, ts, line.Usage, line.StopReason != StopReasonKind.Missing,
-            Fast: line.Fast) { Modes = ExecutionModeNative.ClaudeSpeed(line.Speed) };
+            Fast: line.Fast) { Modes = modes };
         _pendingStartMs = null;
         _preciseStart = false;
         return response;
     }
+
+    private bool IsUltracode => _ultraSession || _ultraTurn;
+
+    /// <summary>
+    /// <c>ultra_effort_enter</c> / <c>_exit</c> switch the session's ultracode; <c>workflow_keyword_request</c> turns it on
+    /// for the turn, which the next prompt line ends.
+    /// </summary>
+    private void ApplyUltracode(in ClaudeLine line)
+    {
+        var before = IsUltracode;
+        switch (line.Kind)
+        {
+            case ClaudeLineKind.Attachment when line.Marker is UltraMarker.SessionEnter or UltraMarker.SessionExit:
+                _ultraSession = line.Marker == UltraMarker.SessionEnter;
+                break;
+            case ClaudeLineKind.Attachment when line.Marker == UltraMarker.WorkflowKeyword:
+                _ultraTurn = true;
+                break;
+            case ClaudeLineKind.User when line.IsPrompt:
+                _ultraTurn = false;
+                break;
+        }
+
+        if (IsUltracode != before)
+        {
+            RefreshModes();
+        }
+    }
+
+    /// <summary>The latest response's facts, its effort replaced by ultracode or the latest line's recorded effort.</summary>
+    private void RefreshModes() =>
+        Modes = _latestModes.Without(f => f.Kind == ExecutionModeKind.Effort).With(IsUltracode ? Ultracode : _lineEffort);
 
     private void Remember(ParsedResponse response)
     {
