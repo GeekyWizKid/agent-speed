@@ -105,7 +105,7 @@ internal sealed partial class ReportController
             options = options with { Stream = new ReportStreamBody(age, limits.MaxMessageBytes) };
         }
 
-        var (body, data) = ReportBody.Fitted(envelope, window.Content(sample), sample, options);
+        var (body, data) = ReportBody.Fitted(envelope, window.Content(sample) with { Tasks = _tasks.Content(sample) }, sample, options);
         var timestamp = UnixMs / 1000 + _clockCorrection;
         var hasApiKey = draft is not null ? draft.ApiKey.Length > 0 : _apiKey is not null;
         var request = webSocket
