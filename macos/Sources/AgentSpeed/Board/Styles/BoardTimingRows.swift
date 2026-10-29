@@ -5,8 +5,9 @@ import AppKit
 /// Timing tower rows (`board-timing.html` `.row` grid: 24 pt position block, 3 pt team stripe in the source color,
 /// name, capsule column, 38 pt interval, 46 pt value, 7 pt gaps, 4 pt padding; S drops the interval). With the live
 /// metrics (DESIGN 2c *Ranking rows*): a 34 pt interval and the 智力 cell before a 42 pt value (S 40), the captions
-/// line and the capsule's word dropped below L. At M and L each group row has a second line (the detail, running to the
-/// value's edge), the position block and stripe spanning both.
+/// line and the capsule's word dropped below L. At M and L each group row has a second line (the detail), the position
+/// block and stripe spanning both, and its figures (智力 and the value) 2 pt larger, centred on the row; their columns
+/// widen to fit them.
 @MainActor
 struct BoardTimingRows {
     let size: BoardSize
@@ -14,6 +15,8 @@ struct BoardTimingRows {
     let capsules: BoardCapsuleDrawing
     let geometry: BoardGeometry
     let intelCell: CGFloat
+    /// The value column: at least as wide as the widest value in a two-line group row's font.
+    private let valueColumn: CGFloat
 
     init(size: BoardSize, palette: BoardPalette, capsules: BoardCapsuleDrawing, geometry: BoardGeometry? = nil, caption: String = "") {
         self.size = size
@@ -21,13 +24,17 @@ struct BoardTimingRows {
         self.capsules = capsules
         let geometry = geometry ?? BoardGeometry(.timing, size)
         self.geometry = geometry
+        let large = geometry.twoLine
         if geometry.hasIntelligence {
-            let digits = BoardLabel("888", Self.intelFont(sub: false, live: true), color: palette.ink).width
+            let digits = BoardLabel("888", Self.intelFont(sub: false, live: true, large: large), color: palette.ink).width
             let label = BoardLabel(caption, Self.captionFont, color: palette.ink3).width
             intelCell = max(CGFloat(geometry.intelligenceColumn), digits.rounded(.up), label.rounded(.up))
         } else {
             intelCell = 0
         }
+        let base = geometry.hasIntelligence ? CGFloat(geometry.valueColumn) : (size == .small ? 44 : 46)
+        valueColumn = large ? max(base, BoardFigures.widest(Self.valueFont(sub: false, idle: false, large: true), color: palette.ink))
+            : base
     }
 
     /// The capsule drops its word at S, and below L while the 智力 column shows (meter and bolts stay).
@@ -41,9 +48,8 @@ struct BoardTimingRows {
 
     // MARK: Columns
 
-    private var legacyValue: CGFloat { size == .small ? 44 : 46 }
     private var legacyInterval: CGFloat { size == .small ? 0 : 38 }
-    private var valueWidth: CGFloat { intelCell > 0 ? CGFloat(geometry.valueColumn) : legacyValue }
+    private var valueWidth: CGFloat { valueColumn }
     private var intervalWidth: CGFloat { intelCell > 0 ? CGFloat(geometry.intervalColumn) : legacyInterval }
 
     private func valueX(_ width: CGFloat) -> CGFloat { width - 4 - valueWidth }
@@ -61,6 +67,19 @@ struct BoardTimingRows {
 
     private func firstBaseline(_ model: BoardRowModel) -> CGFloat? {
         model.twoLine && model.rank != nil ? CGFloat(BoardGeometry.firstLineBaseline) : nil
+    }
+
+    /// A two-line group row's figures: larger, on one baseline centred on the row (nil: a one-line row's own).
+    private func figures(_ model: BoardRowModel) -> BoardFigures? {
+        guard model.twoLine, model.rank != nil else { return nil }
+        let intel = model.intel.map { Self.intelFont(sub: false, live: $0.live, large: true) }
+        return BoardFigures(centre: CGFloat(geometry.figureCentre),
+                            fonts: [Self.valueFont(sub: false, idle: model.idle, large: true)] + (intel.map { [$0] } ?? []))
+    }
+
+    /// Where line 2 ends: before the 智力 cell (else the value), which holds a centred figure.
+    private func figuresLeft(_ width: CGFloat) -> CGFloat {
+        (intelCell > 0 ? intelRight(width) - intelCell : valueX(width)) - 7
     }
 
     // MARK: Items
@@ -103,12 +122,17 @@ struct BoardTimingRows {
             items.append(item)
         }
 
+        let figures = self.figures(model)
+        let figureLine = figures?.baseline
         let valueFrame = CGRect(x: frame.maxX - 70, y: frame.minY, width: 70, height: frame.height)
         var value = BoardContentItem(key: key + "#value", frame: valueFrame,
-                                     revision: AnyHashable([AnyHashable(model.value), AnyHashable(model.idle), AnyHashable(line1), look])) { context, box in
-            rows.drawValue(model, sub: sub, baseline: line1, hot: false, in: context, size: box)
+                                     revision: AnyHashable([AnyHashable(model.value), AnyHashable(model.idle), AnyHashable(figureLine),
+                                                            look])) { context, box in
+            rows.drawValue(model, sub: sub, baseline: figureLine, hot: false, in: context, size: box)
         }
-        value.hot = BoardContentDrawing { context, box in rows.drawValue(model, sub: sub, baseline: line1, hot: true, in: context, size: box) }
+        value.hot = BoardContentDrawing { context, box in
+            rows.drawValue(model, sub: sub, baseline: figureLine, hot: true, in: context, size: box)
+        }
         switch accents.change {
         case .rise: value.accents.append(.warm)
         case .fall: value.accents.append(.dim)
@@ -116,17 +140,20 @@ struct BoardTimingRows {
         }
         if let event = accents.event, event.from > event.to {
             value.accents.append(.decal(BoardRowDecals.chip(style: .timing, climbed: event.from - event.to, rowRight: 70,
-                                                            midY: line1.map { $0 - 4.5 } ?? frame.height / 2, palette: palette)))
+                                                            midY: figures.map { $0.centre } ?? frame.height / 2, palette: palette)))
         }
         items.append(value)
         if let intel = model.intel {
-            items.append(intelItem(intel, model: model, sub: sub, key: key, frame: frame, baseline: line1, accents: accents, look: look))
+            items.append(intelItem(intel, model: model, sub: sub, key: key, frame: frame, baseline: figureLine, accents: accents,
+                                   look: look))
         }
         return items
     }
 
-    static func intelFont(sub: Bool, live: Bool) -> BoardFont {
-        BoardFont(family: .mono, size: sub ? 10 : 11, weight: live ? .bold : .semibold, tracking: -0.02)
+    /// `large`: a two-line group row's, 2 pt larger.
+    static func intelFont(sub: Bool, live: Bool, large: Bool = false) -> BoardFont {
+        BoardFont(family: .mono, size: (sub ? 10 : 11) + (large ? CGFloat(BoardGeometry.figureGrowth) : 0),
+                  weight: live ? .bold : .semibold, tracking: -0.02)
     }
 
     static let captionFont = BoardFont(family: .mono, size: 8.5, weight: .bold, tracking: 0.1)
@@ -136,8 +163,9 @@ struct BoardTimingRows {
         let palette = self.palette
         let right = intelRight(frame.width)
         let live = score.live
-        let font = Self.intelFont(sub: sub, live: live)
-        let valueFont = valueFont(sub: sub, idle: false)
+        let large = baseline != nil
+        let font = Self.intelFont(sub: sub, live: live, large: large)
+        let valueFont = Self.valueFont(sub: sub, idle: false, large: large)
         let text = score.text
         let cell = CGRect(x: right - intelCell - 4, y: 0, width: intelCell + 8, height: frame.height)
         var item = BoardContentItem.part(key + "#iq", of: frame, rect: cell, motion: .row,
@@ -207,10 +235,11 @@ struct BoardTimingRows {
                               color: sub ? palette.ink2 : palette.ink)
         let detail = BoardLabel(model.detail, BoardFont(family: mono, size: 10, weight: .semibold, tracking: 0.02), color: palette.ink3)
         if let line1 {
-            // Line 2 is the detail's alone, up to the value's edge.
+            // Line 2 is the detail's alone, up to the centred figures.
             name.truncated(to: nameWidth).draw(in: context, x: start, baseline: line1)
             if !detail.isEmpty {
-                detail.truncated(to: max(0, box.width - 4 - start)).draw(in: context, x: start, baseline: CGFloat(geometry.secondLineBaseline))
+                detail.truncated(to: max(0, figuresLeft(box.width) - start))
+                    .draw(in: context, x: start, baseline: CGFloat(geometry.secondLineBaseline))
             }
         } else {
             let split = BoardContentRules.nameSplit(available: Double(nameWidth), name: Double(name.width))
@@ -244,13 +273,15 @@ struct BoardTimingRows {
         }
     }
 
-    private func valueFont(sub: Bool, idle: Bool) -> BoardFont {
-        BoardFont(family: .mono, size: sub ? 11 : 13, weight: idle ? .semibold : sub ? .bold : .heavy, tracking: -0.02)
+    /// `large`: a two-line group row's, 2 pt larger.
+    static func valueFont(sub: Bool, idle: Bool, large: Bool = false) -> BoardFont {
+        BoardFont(family: .mono, size: (sub ? 11 : 13) + (large ? CGFloat(BoardGeometry.figureGrowth) : 0),
+                  weight: idle ? .semibold : sub ? .bold : .heavy, tracking: -0.02)
     }
 
     /// The value; rising, it flashes green (`tvu`) with a glow.
     private func drawValue(_ model: BoardRowModel, sub: Bool, baseline line: CGFloat? = nil, hot: Bool, in context: CGContext, size box: CGSize) {
-        let font = valueFont(sub: sub, idle: model.idle)
+        let font = Self.valueFont(sub: sub, idle: model.idle, large: line != nil)
         let color = hot ? BoardPalette.green : model.idle ? palette.ink3 : sub ? palette.ink2 : palette.ink
         let value = BoardLabel(model.value, font, color: color)
         let baseline = (line ?? value.baseline(centeredOn: box.height / 2)) - (hot ? 2 : 0)

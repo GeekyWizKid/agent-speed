@@ -132,6 +132,25 @@ enum BoardScorePreviews {
         }
     }
 
+    /// `--board-frames DIR` with `AGENT_SPEED_BOARD_CENTRE=1`: two-line group rows with their figures centred and
+    /// 2 pt larger (DESIGN 2c *The second line*), M and L, dark and light, every style: `centre-<style>-<size>-<theme>.png`
+    /// (the board at 3×, a red hairline on each group row's centre line) and `centre-detail-<style>-<size>-<theme>.png`
+    /// (the sub-gauge and the figures' columns of every scenario at 4×).
+    static func runCentre(into directory: URL) {
+        let l10n = Localizer(preference: .zhHant)
+        for style in BoardStyle.allCases {
+            for size in [BoardSize.medium, .large] {
+                for dark in [true, false] {
+                    let theme = dark ? "dark" : "light"
+                    let board = Board(style: style, size: size, scenario: .live, dark: dark, contrast: false, l10n: l10n)
+                    write(board.image(scale: 3, centreLines: true), to: directory, "centre-\(style.rawValue)-\(size.rawValue)-\(theme)")
+                    write(details(style: style, size: size, dark: dark, contrast: false, l10n: l10n), to: directory,
+                          "centre-detail-\(style.rawValue)-\(size.rawValue)-\(theme)")
+                }
+            }
+        }
+    }
+
     enum Target: String {
         case hero, group, sub
     }
@@ -178,10 +197,19 @@ enum BoardScorePreviews {
         var side: CGFloat { CGFloat(size.side) }
 
         /// The board alone on the desk.
-        func image(scale: CGFloat = 2, lifted: String? = nil, focused: String? = nil) -> CGImage? {
+        func image(scale: CGFloat = 2, lifted: String? = nil, focused: String? = nil, centreLines: Bool = false) -> CGImage? {
             guard let canvas = PreviewCanvas(size: CGSize(width: side, height: side), scale: scale,
                                              background: Self.desk(dark: dark)) else { return nil }
             draw(in: canvas.context, at: .zero, lifted: lifted, focused: focused)
+            if centreLines {
+                // A hairline on each two-line group row's centre line, over the figures' columns only.
+                let geometry = BoardGeometry(style, size, readouts: tick.metrics.readouts)
+                canvas.context.setFillColor(CGColor(srgbRed: 1, green: 0.2, blue: 0.2, alpha: 0.85))
+                for (_, anchor) in layout.groupRows where geometry.twoLine {
+                    let y = anchor.row.minY + CGFloat(geometry.figureCentre)
+                    canvas.context.fill(CGRect(x: anchor.row.maxX - 92, y: y - 0.125, width: 92, height: 0.25))
+                }
+            }
             return canvas.image
         }
 

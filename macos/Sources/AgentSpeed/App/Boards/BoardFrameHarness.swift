@@ -17,8 +17,8 @@ import AppKit
 /// the theme's), `AGENT_SPEED_BOARD_LANG`, `AGENT_SPEED_BOARD_SCENARIO` (team by default), the live metrics'
 /// `AGENT_SPEED_BOARD_READOUTS`, `AGENT_SPEED_BOARD_CURRENCY`, `AGENT_SPEED_BOARD_SUBS=1` and
 /// `AGENT_SPEED_BOARD_NOREASONING=1` (see `BoardSimFeed.Metrics`), `AGENT_SPEED_BOARD_CHECKS=1` (the content stack's
-/// checks instead, see `BoardStackChecks`), `AGENT_SPEED_BOARD_SCORES=1` or `AGENT_SPEED_BOARD_FOCUS=1` (the 智力 and
-/// keyboard focus previews instead, see `BoardScorePreviews`).
+/// checks instead, see `BoardStackChecks`), `AGENT_SPEED_BOARD_SCORES=1`, `AGENT_SPEED_BOARD_FOCUS=1` or
+/// `AGENT_SPEED_BOARD_CENTRE=1` (the 智力, keyboard focus and centred-figure previews instead, see `BoardScorePreviews`).
 @MainActor
 enum BoardFrameHarness {
     struct State {
@@ -57,6 +57,7 @@ enum BoardFrameHarness {
         if environment["AGENT_SPEED_BOARD_CHECKS"] == "1" { return BoardStackChecks.run(into: directory) }
         if environment["AGENT_SPEED_BOARD_SCORES"] == "1" { return BoardScorePreviews.run(into: directory) }
         if environment["AGENT_SPEED_BOARD_FOCUS"] == "1" { return BoardScorePreviews.runFocus(into: directory) }
+        if environment["AGENT_SPEED_BOARD_CENTRE"] == "1" { return BoardScorePreviews.runCentre(into: directory) }
         func list<T>(_ key: String, _ make: (String) -> T?) -> [T]? {
             environment[key].map { $0.split(separator: ",").compactMap { make(String($0)) } }
         }
