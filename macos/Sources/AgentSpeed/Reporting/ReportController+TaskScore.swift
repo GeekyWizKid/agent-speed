@@ -41,7 +41,8 @@ extension ReportController {
     /// The `taskScore` objects the next report of the stream would carry, for the changed rule; nil while inactive.
     func streamTaskScoreValues(_ window: ReportWindow, _ sample: ReportSample) -> ReportTaskScoreValues? {
         guard let document = identity?.discovery else { return nil }
-        let options = options(for: document)
+        let options = ReportOptions(sections: preferences.sections.intersection(document.sections),
+                                    maxModels: document.limits.maxModels, extensions: document.extensions ?? .none)
         guard options.taskScoreActive else { return nil }
         var content = window.content(sample)
         content.taskStats = taskTracker.pending

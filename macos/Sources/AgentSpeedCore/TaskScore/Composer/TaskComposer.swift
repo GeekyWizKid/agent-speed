@@ -152,7 +152,7 @@ struct TaskComposer: Sendable {
         guard local >= 0, local < events.count else { return }
         events.remove(at: local)
         version &+= 1
-        if startCandidate == nil, !keepsEveryTask { settleEarlierPrompt() }
+        defer { if startCandidate == nil, !keepsEveryTask { settleEarlierPrompt() } }
         guard local < events.count else { return }
         marks.rekey { $0 > pending.index ? $0 - 1 : $0 }
         // Not the last event (never expected): later stream indices move down by one.

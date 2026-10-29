@@ -114,4 +114,27 @@ struct ReportTaskWatchSessionTests {
         try fixture.append(Self.task(fixture.now - 10_000, "b"))
         #expect(fixture.completions().isEmpty)
     }
+    @Test func anOpenClawWindowCountsItsWatchedTask() throws {
+        typealias Claw = OpenClawSessionTests
+        let base = Claw.base
+        let gateway = Claw.Gateway()
+        try gateway.addWindow("w1", at: base)
+        let wal = gateway.canonical(gateway.database("main")) + "-wal"
+        let session = TranscriptSession(configuration: gateway.configuration(), clock: { base + 30_000 })
+        _ = session.seed(todayStartMs: base)
+        session.setReportWatch(5)
+        try gateway.append("w1", [Claw.user("u1", base + 20_000),
+                                  Claw.assistant("a1", start: base + 20_005, end: base + 21_000, stop: "toolUse",
+                                                 calls: ["c1"]),
+                                  Claw.toolResult("r1", call: "c1", base + 21_500)], at: base + 21_500)
+        #expect(session.handleChanges(atCanonicalPaths: [wal]))
+        try gateway.append("w1", [Claw.user("u2", base + 25_000),
+                                  Claw.assistant("a2", start: base + 25_005, end: base + 26_000)], at: base + 26_000)
+        #expect(session.handleChanges(atCanonicalPaths: [wal]))
+        let entries = session.advance(nowMs: base + 30_000, todayStartMs: base, emitsEvents: false)
+            .output.report.task.completions.entries
+        #expect(entries.count == 1)
+        #expect(entries.first?.source == .openclaw && entries.first?.epoch == 5 && entries.first?.row.completed == 1)
+        #expect(entries.first?.modelId == PriceBook.bundled.reportModelId(model: "claude-opus-5-5", provider: "anthropic"))
+    }
 }
