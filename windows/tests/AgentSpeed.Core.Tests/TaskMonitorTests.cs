@@ -177,9 +177,9 @@ public sealed class TaskMonitorTests : IDisposable
 
     private MonitorCore NewCore() => new(MonitorConfiguration.Default, CodexRoot, ClaudeRoot, _temp.Combine("dsh"), _todayStart);
 
-    private string WriteClaude(string relative, params string[] lines) => Write(Path.Combine(ClaudeRoot, relative), lines);
+    private string WriteClaude(string relative, params string[] lines) => Write(Path.Combine([ClaudeRoot, .. relative.Split('/')]), lines);
 
-    private string WriteCodex(string relative, params string[] lines) => Write(Path.Combine(CodexRoot, relative), lines);
+    private string WriteCodex(string relative, params string[] lines) => Write(Path.Combine([CodexRoot, .. relative.Split('/')]), lines);
 
     private static string Write(string path, string[] lines)
     {
